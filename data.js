@@ -886,41 +886,185 @@ function piIsDone(inquiry) {
 // ═══════════════════════════════════════
 const trackStock = [
   // ── Cut-to-length (raw material, tracked in metres) ──
-  { itemCode:"IT002395", label:"Cord Rail — Heavy Duty White (COR001)",              mode:"cut", metresInStock:1922.7, reorderAt:200, lastUpdated:"2026-07-03" },
-  { itemCode:"IT001886", label:"Aluminium U-Shape Head Rail — Ningbo CH016",          mode:"cut", metresInStock:5811.7, reorderAt:300, lastUpdated:"2026-07-03" },
-  { itemCode:"IT330",    label:"Unisoiel Cord Track — DC01 Heavy",                    mode:"cut", metresInStock:239.4,  reorderAt:50,  lastUpdated:"2026-07-03" },
-  { itemCode:"IT378",    label:"Unisoiel Baton Track — M581",                         mode:"cut", metresInStock:0, rawStock:-352.4, reorderAt:50, lastUpdated:"2026-07-03", dataIssue:true },
-  { itemCode:"IT450",    label:"Somfy Glydea Track — raw rail",                       mode:"cut", metresInStock:2204.4, reorderAt:100, lastUpdated:"2026-07-03" },
-  { itemCode:"IT461",    label:"Somfy Movelite Track — raw rail",                     mode:"cut", metresInStock:5.62,   reorderAt:30,  lastUpdated:"2026-07-03" },
-  { itemCode:"IT358",    label:"Unisoiel Curved/Flexible Track — IBM01",              mode:"cut", metresInStock:440.2,  reorderAt:50,  lastUpdated:"2026-07-03" },
-  { itemCode:"IT362",    label:"Roman Blind Headrail — Unisoiel RAE01",               mode:"cut", metresInStock:3311.6, reorderAt:100, lastUpdated:"2026-07-03" },
-  { itemCode:"IT001918", label:"134 Heavy Duty China Rail",                           mode:"cut", metresInStock:70,     reorderAt:30,  lastUpdated:"2026-07-03" },
-  { itemCode:"IT344",    label:"Foshan Heavy Duty Aluminium Curtain Track",           mode:"cut", metresInStock:71,     reorderAt:30,  lastUpdated:"2026-07-03" },
-  { itemCode:"IT381",    label:"Unisoiel Japanese Track Head Rail — PT19-3E (3-way)", mode:"cut", metresInStock:1190,  reorderAt:100, lastUpdated:"2026-07-03" },
-  { itemCode:"IT382",    label:"Unisoiel Japanese Track Head Rail — PT19-5E (5-way)", mode:"cut", metresInStock:696,   reorderAt:100, lastUpdated:"2026-07-03" },
-  { itemCode:"IT351",    label:"Salsabeel China Rail",                                mode:"cut", metresInStock:0,     reorderAt:30,  lastUpdated:"2026-07-03" },
+  { itemCode:"IT002395", label:"Cord Rail — Heavy Duty White (COR001)",              mode:"cut", metresInStock:1922.7, reorderAt:200, lastUpdated:"2026-07-03", railCategory:"curtain_track_manual" },
+  { itemCode:"IT001886", label:"Aluminium U-Shape Head Rail — Ningbo CH016",          mode:"cut", metresInStock:5811.7, reorderAt:300, lastUpdated:"2026-07-03", railCategory:"curtain_track_manual" },
+  { itemCode:"IT330",    label:"Unisoiel Cord Track — DC01 Heavy",                    mode:"cut", metresInStock:239.4,  reorderAt:50,  lastUpdated:"2026-07-03", railCategory:"curtain_track_manual" },
+  { itemCode:"IT378",    label:"Unisoiel Baton Track — M581",                         mode:"cut", metresInStock:0, rawStock:-352.4, reorderAt:50, lastUpdated:"2026-07-03", dataIssue:true, railCategory:"curtain_track_manual" },
+  { itemCode:"IT450",    label:"Somfy Glydea Track — raw rail",                       mode:"cut", metresInStock:2204.4, reorderAt:100, lastUpdated:"2026-07-03", railCategory:"curtain_track_motorized" },
+  { itemCode:"IT461",    label:"Somfy Movelite Track — raw rail",                     mode:"cut", metresInStock:5.62,   reorderAt:30,  lastUpdated:"2026-07-03", railCategory:"curtain_track_motorized" },
+  { itemCode:"IT358",    label:"Unisoiel Curved/Flexible Track — IBM01",              mode:"cut", metresInStock:440.2,  reorderAt:50,  lastUpdated:"2026-07-03", railCategory:"curtain_track_manual" },
+  { itemCode:"IT362",    label:"Roman Blind Headrail — Unisoiel RAE01",               mode:"cut", metresInStock:3311.6, reorderAt:100, lastUpdated:"2026-07-03", railCategory:"roman_headrail" },
+  { itemCode:"IT001918", label:"134 Heavy Duty China Rail",                           mode:"cut", metresInStock:70,     reorderAt:30,  lastUpdated:"2026-07-03", railCategory:"curtain_track_manual" },
+  { itemCode:"IT344",    label:"Foshan Heavy Duty Aluminium Curtain Track",           mode:"cut", metresInStock:71,     reorderAt:30,  lastUpdated:"2026-07-03", railCategory:"curtain_track_manual" },
+  { itemCode:"IT381",    label:"Unisoiel Japanese Track Head Rail — PT19-3E (3-way)", mode:"cut", metresInStock:1190,  reorderAt:100, lastUpdated:"2026-07-03", railCategory:"japanese_track" },
+  { itemCode:"IT382",    label:"Unisoiel Japanese Track Head Rail — PT19-5E (5-way)", mode:"cut", metresInStock:696,   reorderAt:100, lastUpdated:"2026-07-03", railCategory:"japanese_track" },
+  { itemCode:"IT351",    label:"Salsabeel China Rail",                                mode:"cut", metresInStock:0,     reorderAt:30,  lastUpdated:"2026-07-03", railCategory:"curtain_track_manual" },
 
   // ── Fixed-piece (used whole, not cut — Grabber Rail style) ──
-  { itemCode:"IT339",    label:"DEERA Grabber Rail — American 1m",                    mode:"piece", pieceLengthM:1, piecesInStock:14, reorderAt:5,  lastUpdated:"2026-07-03" },
-  { itemCode:"IT340",    label:"DEERA Grabber Rail — American 2m",                    mode:"piece", pieceLengthM:2, piecesInStock:8,  reorderAt:5,  lastUpdated:"2026-07-03" },
-  { itemCode:"IT001537", label:"DEERA Grabber Rail — American 2m (Double bracket)",   mode:"piece", pieceLengthM:2, piecesInStock:54, reorderAt:10, lastUpdated:"2026-07-03" },
-  { itemCode:"IT341",    label:"DEERA Grabber Rail — American 3m",                    mode:"piece", pieceLengthM:3, piecesInStock:0, rawStock:-36, reorderAt:10, lastUpdated:"2026-07-03", dataIssue:true },
-  { itemCode:"IT001523", label:"DEERA Grabber Rail — American 3m (Double)",           mode:"piece", pieceLengthM:3, piecesInStock:26, reorderAt:10, lastUpdated:"2026-07-03" },
-  { itemCode:"IT342",    label:"DEERA Grabber Rail — American 4m",                    mode:"piece", pieceLengthM:4, piecesInStock:0, rawStock:-69, reorderAt:10, lastUpdated:"2026-07-03", dataIssue:true },
-  { itemCode:"IT002222", label:"DEERA Grabber Rail — American 4m (Double bracket)",   mode:"piece", pieceLengthM:4, piecesInStock:48, reorderAt:10, lastUpdated:"2026-07-03" },
-  { itemCode:"IT343",    label:"DEERA Grabber Rail — American 5m",                    mode:"piece", pieceLengthM:5, piecesInStock:0, rawStock:-3.5, reorderAt:5, lastUpdated:"2026-07-03", dataIssue:true },
-  { itemCode:"IT003167", label:"CURACC006 American Grabber Rail — 3m",                mode:"piece", pieceLengthM:3, piecesInStock:62, reorderAt:10, lastUpdated:"2026-07-03" },
-  { itemCode:"IT003168", label:"Taqani Curtain Rail — 3m Double R3",                  mode:"piece", pieceLengthM:3, piecesInStock:48, reorderAt:10, lastUpdated:"2026-07-03" },
+  { itemCode:"IT339",    label:"DEERA Grabber Rail — American 1m",                    mode:"piece", pieceLengthM:1, piecesInStock:14, reorderAt:5,  lastUpdated:"2026-07-03", railCategory:"grabber_piece" },
+  { itemCode:"IT340",    label:"DEERA Grabber Rail — American 2m",                    mode:"piece", pieceLengthM:2, piecesInStock:8,  reorderAt:5,  lastUpdated:"2026-07-03", railCategory:"grabber_piece" },
+  { itemCode:"IT001537", label:"DEERA Grabber Rail — American 2m (Double bracket)",   mode:"piece", pieceLengthM:2, piecesInStock:54, reorderAt:10, lastUpdated:"2026-07-03", railCategory:"grabber_piece" },
+  { itemCode:"IT341",    label:"DEERA Grabber Rail — American 3m",                    mode:"piece", pieceLengthM:3, piecesInStock:0, rawStock:-36, reorderAt:10, lastUpdated:"2026-07-03", dataIssue:true, railCategory:"grabber_piece" },
+  { itemCode:"IT001523", label:"DEERA Grabber Rail — American 3m (Double)",           mode:"piece", pieceLengthM:3, piecesInStock:26, reorderAt:10, lastUpdated:"2026-07-03", railCategory:"grabber_piece" },
+  { itemCode:"IT342",    label:"DEERA Grabber Rail — American 4m",                    mode:"piece", pieceLengthM:4, piecesInStock:0, rawStock:-69, reorderAt:10, lastUpdated:"2026-07-03", dataIssue:true, railCategory:"grabber_piece" },
+  { itemCode:"IT002222", label:"DEERA Grabber Rail — American 4m (Double bracket)",   mode:"piece", pieceLengthM:4, piecesInStock:48, reorderAt:10, lastUpdated:"2026-07-03", railCategory:"grabber_piece" },
+  { itemCode:"IT343",    label:"DEERA Grabber Rail — American 5m",                    mode:"piece", pieceLengthM:5, piecesInStock:0, rawStock:-3.5, reorderAt:5, lastUpdated:"2026-07-03", dataIssue:true, railCategory:"grabber_piece" },
+  { itemCode:"IT003167", label:"CURACC006 American Grabber Rail — 3m",                mode:"piece", pieceLengthM:3, piecesInStock:62, reorderAt:10, lastUpdated:"2026-07-03", railCategory:"grabber_piece" },
+  { itemCode:"IT003168", label:"Taqani Curtain Rail — 3m Double R3",                  mode:"piece", pieceLengthM:3, piecesInStock:48, reorderAt:10, lastUpdated:"2026-07-03", railCategory:"grabber_piece" },
 
   // ── No metre/piece stock tracking (hardware-based or not yet in this sheet) ──
-  { itemCode:null, label:"Wooden Pole",           mode:null, note:"No matching item in current stock export — wooden blinds tracked separately." },
-  { itemCode:null, label:"Roller Blind Bracket",  mode:null, note:"Hardware-based (bracket + end cap components) — see Hardware Pick List instead." },
+  { itemCode:null, label:"Wooden Pole",           mode:null, note:"No matching item in current stock export — wooden blinds tracked separately.", railCategory:"wooden_pole" },
+  { itemCode:null, label:"Roller Blind Bracket",  mode:null, note:"Hardware-based (bracket + end cap components) — see Hardware Pick List instead.", railCategory:"roller_bracket" },
 ];
 function getTrackStock(itemCode) {
   return trackStock.find(t => t.itemCode === itemCode) || null;
 }
 function getTrackStockByLabel(label) {
   return trackStock.find(t => t.label === label) || null;
+}
+
+// ═══════════════════════════════════════
+// HARDWARE RECIPES — small assembly components per rail type
+// (runners, end caps, master carrier, belt, driver pulley, brackets, etc.)
+//
+// PROBLEM THIS SOLVES: Silva was going to have to manually count and enter
+// every small component per window (runners, end caps, brackets...) at BOM
+// stage — tedious and error-prone across 50+ windows. Instead, each rail's
+// hardware is DERIVED from track length + motorized flag via a formula, so
+// Silva's inputs stay exactly what they already are (track length via
+// window width/overhang, rail type, motorized on/off). Nothing new for her
+// to fill in.
+//
+// FORMULA TYPES (component.formula):
+//   'fixed'             — flat qty per track, regardless of length (e.g. 2 end caps)
+//   'perLength_count'   — density-based: qty = ceil(trackLengthM * perMetre)
+//   'perLength_spacing' — spacing-based: qty = ceil(trackLengthCm / spacingCm) [+1 if plusOne]
+//   'lengthMatch'       — qty in metres = track length (e.g. drive belt)
+//   'unknown'           — not yet quantified; shows as "TBD" in the UI rather
+//                          than guessing a number that would silently corrupt
+//                          real inventory/BOM figures
+//
+// CONFIRMED vs UNCONFIRMED: `confirmed:true` components use real figures
+// Salman gave directly (runner density, bracket spacing — both confirmed
+// 3 Jul 2026 as general shop practice, not Somfy-specific). Everything else
+// is a reasonable placeholder flagged `confirmed:false` — the UI must show
+// these visibly as needing Silva's sign-off before anyone treats them as
+// real purchasing/inventory numbers.
+//
+// CATEGORY DEFAULTS apply by trackStock.railCategory. TRACK_HARDWARE_RECIPES
+// below can override per exact itemCode once Silva confirms a specific rail
+// differs from its category's default (e.g. if Movelite ever needs a
+// different belt spec than Glydea).
+// ═══════════════════════════════════════
+const HARDWARE_RECIPE_DEFAULTS = {
+  curtain_track_manual: {
+    label: "Manual curtain/rail track",
+    components: [
+      { key:"runner",  label:"Runner / Glider", unit:"pcs", formula:"perLength_count", perMetre:12, confirmed:true,
+        note:"Shop average — 12 runners per metre, confirmed by Salman 3 Jul 2026" },
+      { key:"bracket", label:"Ceiling Bracket", unit:"pcs", formula:"perLength_spacing", spacingCm:100, plusOne:true, confirmed:true,
+        note:"Shop practice — one bracket per metre, confirmed by Salman 3 Jul 2026" },
+      { key:"endCap",  label:"End Cap", unit:"pcs", formula:"fixed", qty:2, confirmed:false,
+        note:"Placeholder (2 per track, one each end) — confirm with Silva" },
+    ]
+  },
+  curtain_track_motorized: {
+    label: "Motorized track (wave/glide, e.g. Somfy Glydea/Movelite)",
+    components: [
+      { key:"runner",       label:"Wave Glider / Runner", unit:"pcs", formula:"perLength_count", perMetre:12, confirmed:true,
+        note:"Shop average — 12 runners per metre, confirmed by Salman 3 Jul 2026" },
+      { key:"bracket",      label:"Motorised Ceiling Bracket", unit:"pcs", formula:"perLength_spacing", spacingCm:100, plusOne:true, confirmed:true,
+        note:"Shop practice — one bracket per metre, confirmed by Salman 3 Jul 2026" },
+      { key:"endCap",       label:"End Cap", unit:"pcs", formula:"fixed", qty:2, confirmed:false,
+        note:"Placeholder (2 per track, one each end) — confirm with Silva" },
+      { key:"masterCarrier",label:"Master Carrier", unit:"pcs", formula:"fixed", qty:1, confirmed:false,
+        note:"Placeholder (1 per track) — confirm with Silva" },
+      { key:"belt",         label:"Drive Belt", unit:"m", formula:"lengthMatch", onlyIf:"motorized", confirmed:false,
+        note:"Assumed 1 belt run = track length — confirm with Silva" },
+      { key:"driverPulley", label:"Driver Pulley", unit:"pcs", formula:"fixed", qty:1, onlyIf:"motorized", confirmed:false,
+        note:"Placeholder (1 per motorized track) — confirm with Silva" },
+    ]
+  },
+  roman_headrail: {
+    label: "Roman blind headrail",
+    components: [
+      { key:"ring",    label:"Ring", unit:"pcs", formula:"unknown", confirmed:false,
+        note:"Rings needed per width not yet quantified — flag for Silva" },
+      { key:"bracket", label:"Recess Bracket", unit:"pcs", formula:"fixed", qty:2, confirmed:false,
+        note:"Placeholder (2 per blind) — confirm with Silva" },
+    ]
+  },
+  japanese_track: {
+    label: "Japanese panel track",
+    components: [
+      { key:"panelCarrier", label:"Panel Carrier", unit:"pcs", formula:"unknown", confirmed:false,
+        note:"Depends on number of panels ordered — not modeled yet, flag for Silva" },
+      { key:"bracket",      label:"Ceiling Bracket", unit:"pcs", formula:"perLength_spacing", spacingCm:100, plusOne:true, confirmed:false,
+        note:"Assumed same 1m spacing as curtain track — confirm with Silva" },
+    ]
+  },
+  grabber_piece: {
+    label: "Grabber Rail (finished piece)",
+    components: [
+      { key:"endBracket", label:"End Bracket", unit:"pcs", formula:"fixed", qty:2, confirmed:false,
+        note:"Grabber rail may ship with brackets included — confirm whether these need separate stock" },
+    ]
+  },
+  wooden_pole: {
+    label: "Wooden pole",
+    components: [
+      { key:"ring",    label:"Wooden Ring", unit:"pcs", formula:"unknown", confirmed:false,
+        note:"Rings needed per width not yet quantified — flag for Silva" },
+      { key:"bracket", label:"Pole Bracket", unit:"pcs", formula:"fixed", qty:2, confirmed:false,
+        note:"Placeholder (2 per pole) — confirm with Silva" },
+      { key:"finial",  label:"Finial (pair)", unit:"pcs", formula:"fixed", qty:2, confirmed:false,
+        note:"Placeholder (1 pair per pole) — confirm with Silva" },
+    ]
+  },
+  roller_bracket: {
+    label: "Roller/blind bracket (no rail)",
+    components: [
+      { key:"bracket", label:"Roller Bracket", unit:"pcs", formula:"fixed", qty:2, confirmed:true,
+        note:"Standard pair per blind" },
+    ]
+  },
+};
+
+// Per-exact-itemCode overrides — empty for now. Add entries here once Silva
+// confirms a specific rail's hardware differs from its category default,
+// e.g. TRACK_HARDWARE_RECIPES["IT461"] = { components:[...] } if Movelite
+// ever turns out to need a different belt/runner spec than Glydea.
+const TRACK_HARDWARE_RECIPES = {};
+
+// Returns the recipe (component list) that applies to a given flat window/layer.
+function getHardwareRecipeForWindow(w) {
+  if (!w || !w.railType) return null;
+  const stock = w.railItemCode ? getTrackStock(w.railItemCode) : getTrackStockByLabel(w.railType);
+  if (!stock || !stock.railCategory) return null;
+  if (w.railItemCode && TRACK_HARDWARE_RECIPES[w.railItemCode]) return TRACK_HARDWARE_RECIPES[w.railItemCode];
+  return HARDWARE_RECIPE_DEFAULTS[stock.railCategory] || null;
+}
+
+// Explodes one window/layer into its hardware component list.
+// Returns [] if the rail has no recipe (e.g. no railType set yet).
+// Each result: { key, label, unit, qty (number or null if 'unknown'), confirmed, note }
+function explodeWindowHardware(w) {
+  const recipe = getHardwareRecipeForWindow(w);
+  if (!recipe) return [];
+  const trackLengthCm = (w.calc && w.calc.trackLength) ? w.calc.trackLength : (w.width + ((w.overhang || 0) * 2));
+  const trackLengthM  = trackLengthCm / 100;
+  const results = [];
+  recipe.components.forEach(c => {
+    if (c.onlyIf === 'motorized' && !w.motorized) return;
+    let qty = null;
+    if (c.formula === 'fixed')                  qty = c.qty;
+    else if (c.formula === 'perLength_count')   qty = Math.ceil(trackLengthM * c.perMetre);
+    else if (c.formula === 'perLength_spacing') qty = Math.ceil(trackLengthCm / c.spacingCm) + (c.plusOne ? 1 : 0);
+    else if (c.formula === 'lengthMatch')       qty = parseFloat(trackLengthM.toFixed(2));
+    else if (c.formula === 'unknown')           qty = null;
+    results.push({ key:c.key, label:c.label, unit:c.unit, qty, confirmed:!!c.confirmed, note:c.note || null });
+  });
+  return results;
 }
 
 // ═══════════════════════════════════════

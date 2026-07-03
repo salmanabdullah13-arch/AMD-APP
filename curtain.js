@@ -1160,7 +1160,7 @@ function openCurtBomDetail(jobId) {
 // actual). Motors are counted from motorized windows. Accessories stay a
 // manual list on job.bom.accessories (estimator-defined, not calc-derived).
 function computeBOMQuantities(job) {
-  const fabric = {}, tracks = {}, motors = {};
+  const fabric = {}, tracks = {}, motors = {}, hardware = {};
 
   job.windows.forEach(w => {
     if (!w.calcDone || !w.calc) return;
@@ -1190,6 +1190,20 @@ function computeBOMQuantities(job) {
       motors[key] = motors[key] || { brand: w.motorBrand || 'somfy', model: w.motorModel, qty: 0 };
       motors[key].qty += qty;
     }
+
+    // Hardware — derived from the rail's recipe, not typed in by Silva.
+    // qty:null ('unknown' formula) components are aggregated separately so
+    // the BOM can flag them instead of silently showing 0.
+    explodeWindowHardware(w).forEach(part => {
+      hardware[part.key] = hardware[part.key] || { key: part.key, label: part.label, unit: part.unit, qty: 0, confirmed: part.confirmed, hasUnknown: false };
+      if (part.qty == null) {
+        hardware[part.key].hasUnknown = true;
+      } else {
+        hardware[part.key].qty += part.qty * qty;
+      }
+      // If any window contributing to this part is unconfirmed, the compiled total is unconfirmed
+      hardware[part.key].confirmed = hardware[part.key].confirmed && part.confirmed;
+    });
   });
 
   return {
@@ -1203,7 +1217,11 @@ function computeBOMQuantities(job) {
       estMetres: parseFloat(t.estMetres.toFixed(2)),
       actualMetres: parseFloat(t.actualMetres.toFixed(2))
     })),
-    motors: Object.values(motors)
+    motors: Object.values(motors),
+    hardware: Object.values(hardware).map(h => ({
+      ...h,
+      qty: h.unit === 'm' ? parseFloat(h.qty.toFixed(2)) : Math.round(h.qty)
+    }))
   };
 }
 
@@ -1267,6 +1285,25 @@ function renderBOMSections() {
       <thead><tr><th>Item</th><th class="r">Qty</th></tr></thead>
       <tbody>${bom.accessories.map(a => `<tr><td><b>${a.item}</b></td><td class="r">${a.qty}</td></tr>`).join('')}</tbody>
     </table>` : '<p style="font-size:13px;color:var(--ink2);">No accessories listed.</p>';
+
+  // Hardware — derived automatically from rail recipes (runners, end caps,
+  // master carrier, belt, driver pulley, brackets...). Silva never types
+  // these in; unconfirmed figures are flagged so nobody purchases against
+  // a guessed number without Ops/Silva sign-off.
+  const cbHardwareEl = document.getElementById('cb-hardware');
+  if (cbHardwareEl) {
+    cbHardwareEl.innerHTML = qtyBom.hardware.length ? `
+      <table>
+        <thead><tr><th>Component</th><th class="r">Qty</th><th class="r">Status</th></tr></thead>
+        <tbody>${qtyBom.hardware.map(h => `<tr>
+            <td><b>${h.label}</b></td>
+            <td class="r" style="font-weight:600;">${h.hasUnknown ? '?' : (h.qty + (h.unit === 'm' ? ' m' : ''))}</td>
+            <td class="r">${h.hasUnknown ? '<span class="pill warn">Needs spec</span>' : (h.confirmed ? '<span class="pill ok">Confirmed</span>' : '<span class="pill warn">Unconfirmed</span>')}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+      <p style="font-size:11px;color:var(--ink2);margin-top:8px;">Auto-calculated from rail type + track length. "Unconfirmed" items use placeholder counts pending Silva's sign-off — don't purchase against these yet.</p>`
+      : '<p style="font-size:13px;color:var(--ink2);">No hardware to list yet — complete calc sheets in the window schedule first.</p>';
+  }
 
   // Per-window breakdown
   document.getElementById('cb-breakdown').innerHTML = job.windows.filter(w => w.calcDone).length ? `
@@ -2363,12 +2400,17 @@ function renderTracksCutListView(items) {
     railGroups[key].totalPieces += qty;
   });
 
-  // Hardware pick list — brackets, motors, cords across everything in the set
-  const brackets = {}, motors = {}, cords = {};
+  // Hardware pick list — rail hardware (recipe-derived), motors, cords across everything in the set
+  const hardwareParts = {}, motors = {}, cords = {};
   items.forEach(i => {
     const { w } = i;
     const qty = w.qty || 1;
-    if (w.bracketType) brackets[w.bracketType] = (brackets[w.bracketType] || 0) + qty;
+    explodeWindowHardware(w).forEach(part => {
+      hardwareParts[part.key] = hardwareParts[part.key] || { key: part.key, label: part.label, unit: part.unit, qty: 0, confirmed: part.confirmed, hasUnknown: false };
+      if (part.qty == null) hardwareParts[part.key].hasUnknown = true;
+      else hardwareParts[part.key].qty += part.qty * qty;
+      hardwareParts[part.key].confirmed = hardwareParts[part.key].confirmed && part.confirmed;
+    });
     if (w.motorized && w.motorModel) {
       const key = (w.motorBrand || 'somfy') + '|' + w.motorModel;
       motors[key] = motors[key] || { brand: w.motorBrand || 'somfy', model: w.motorModel, qty: 0 };
@@ -2414,10 +2456,15 @@ function renderTracksCutListView(items) {
   const hardwareSection = `
     <div style="margin:0 16px 12px;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:14px;">
       <p style="font-size:11px;font-weight:700;letter-spacing:.6px;color:#6b7280;text-transform:uppercase;margin-bottom:10px;">Hardware pick list</p>
-      ${Object.keys(brackets).length ? Object.entries(brackets).sort((a, b) => b[1] - a[1]).map(([type, qty]) => `
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #111827;">
-          <span style="color:#e2e8f0;">${type}</span><span style="color:#9ca3af;font-weight:600;">× ${qty}</span>
-        </div>`).join('') : `<p style="font-size:12px;color:#4b5563;">No bracket data yet.</p>`}
+      ${Object.values(hardwareParts).length ? Object.values(hardwareParts).sort((a, b) => (b.qty||0) - (a.qty||0)).map(p => `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid #111827;">
+          <span style="color:#e2e8f0;">${p.label}</span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            <span style="color:#9ca3af;font-weight:600;">${p.hasUnknown ? '?' : '× ' + p.qty + (p.unit === 'm' ? 'm' : '')}</span>
+            ${p.hasUnknown ? `<span style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;">NEEDS SPEC</span>`
+              : (!p.confirmed ? `<span style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;">UNCONFIRMED</span>` : '')}
+          </span>
+        </div>`).join('') : `<p style="font-size:12px;color:#4b5563;">No hardware data yet.</p>`}
       ${Object.keys(motors).length ? `
         <p style="font-size:10px;color:#6b7280;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Motors</p>
         ${Object.values(motors).map(m => `
