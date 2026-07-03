@@ -484,6 +484,28 @@ function renderCurtDashboard() {
   document.getElementById('curt-budget-alerts').innerHTML =
     alertsHtml || '<p style="font-size:13px;color:var(--ok);font-weight:500;">✓ All categories within budget</p>';
 
+  // Accounts trigger: jobs where every item has passed QC — balance invoice
+  // can be requested before installation. No BD figures shown here (Curtain
+  // stays cost-free); this just flags the job for Operations/Accounts.
+  // NOTE: this currently only surfaces inside the Curtain module. Wiring it
+  // into the Operations alert feed (operations.js) is a follow-up — that
+  // file wasn't in context this session.
+  const accountsAlertJobs = curtainJobs.filter(j => j.accountsAlert && !j.accountsAlert.seen);
+  const accountsBox = document.getElementById('curt-accounts-alerts');
+  if (accountsBox) {
+    accountsBox.innerHTML = accountsAlertJobs.length === 0 ? '' : accountsAlertJobs.map(j => `
+      <div class="alert-bar" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);">
+        <div>
+          <span style="font-weight:700;">${j.name}</span>
+          <span style="color:var(--ink2);font-size:12px;margin-left:6px;">All items QC passed · ${fmtDate(j.installation.qcCompleteAt)}</span>
+        </div>
+        <div class="av" style="display:flex;gap:8px;align-items:center;">
+          <span style="color:#3b82f6;font-weight:600;">Request balance invoice before install</span>
+          <button class="sm sec" onclick="ackAccountsAlert('${j.id}')">Mark sent</button>
+        </div>
+      </div>`).join('');
+  }
+
   document.getElementById('curt-active-jobs').innerHTML = curtainJobs.map(job => {
     const pending = job.windows.filter(w => !w.calcDone).length;
     return `
@@ -499,6 +521,15 @@ function renderCurtDashboard() {
 
   // Mini Gantt on dashboard
   renderGanttMini('curt-dash-gantt');
+}
+
+function ackAccountsAlert(jobId) {
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job || !job.accountsAlert) return;
+  job.accountsAlert.seen = true;
+  job.accountsAlert.seenAt = new Date().toISOString();
+  curtAlert(`✓ Marked as sent to Accounts — ${job.name}`);
+  renderCurtDashboard();
 }
 
 function curtOpenJobFromDash(jobId) {
@@ -1652,6 +1683,7 @@ function renderCurtInstall() {
       job.installation = { status: 'pending', scheduledDate: '', team: [], siteContact: '', accessoriesReady: false, handoverSigned: false };
     }
     if (!job.installation.team) job.installation.team = [];
+    if (job.installation.partialRelease === undefined) job.installation.partialRelease = false;
   });
 
   const html = curtainJobs.map(job => {
@@ -1698,6 +1730,24 @@ function renderCurtInstall() {
             </label>
           </div>
         </div>
+
+        <!-- QC completion + install release mode -->
+        ${(() => {
+          const qc = getJobQCStatus(job);
+          return `
+          <div style="background:${qc.allPassed?'rgba(16,185,129,.08)':'#f7f9fc'};border:1px solid ${qc.allPassed?'rgba(16,185,129,.25)':'var(--line)'};border-radius:var(--r3);padding:11px 13px;margin-bottom:12px;">
+            <p style="font-size:13px;font-weight:600;color:${qc.allPassed?'var(--ok)':'var(--ink2)'};">
+              ${qc.allPassed ? '✓' : '◐'} QC: ${qc.done} of ${qc.total} items passed
+              ${qc.allPassed ? ' — Install crew notified' : ''}
+            </p>
+            ${!qc.allPassed ? `
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
+              <input type="checkbox" ${inst.partialRelease?'checked':''} style="width:16px;height:16px;"
+                onchange="instSetPartialRelease('${job.id}',this.checked)">
+              <span style="font-size:12px;color:var(--ink2);">Allow partial install release (big projects — send finished items to site before the whole job clears QC)</span>
+            </label>` : ''}
+          </div>`;
+        })()}
 
         <!-- Schedule section — locked until all ready -->
         ${!allReady ? `
@@ -1756,6 +1806,16 @@ function instSetAccessories(jobId, val) {
   const job = curtainJobs.find(j => j.id === jobId);
   if (!job) return;
   job.installation.accessoriesReady = val;
+  renderCurtInstall();
+}
+
+function instSetPartialRelease(jobId, val) {
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job) return;
+  job.installation.partialRelease = val;
+  curtAlert(val
+    ? `Partial install release enabled for ${job.name} — finished items will show as ready even before the whole job clears QC.`
+    : `Partial install release turned off for ${job.name}.`);
   renderCurtInstall();
 }
 
@@ -1851,6 +1911,25 @@ function getItemStages(treatment) {
   return ITEM_STAGES[treatment] || ITEM_STAGES['curtain'];
 }
 
+// ── QC critical-info checklist (treatment-aware) ───────────────
+// Replaces free-text-only QC notes. Each item defaults to checked
+// (assumed OK); unchecking it flags an issue and requires a remark.
+// 'treatments: all' applies to every treatment; otherwise an explicit list.
+const QC_CHECKLIST_ITEMS = [
+  { key: 'fabric_match',  label: 'Fabric match (pattern/colour correct)',
+    treatments: ['curtain','roman','blackout','roller','japanese','zebra'] },
+  { key: 'seam_pleat',    label: 'Seam / pleat check',
+    treatments: ['curtain','roman','blackout'] },
+  { key: 'track_motor',   label: 'Track / motor function',
+    treatments: ['roller','tracks','motorized','wooden','zebra','japanese'] },
+  { key: 'dimensional',   label: 'Dimensional tolerance (size within spec)',
+    treatments: 'all' },
+];
+
+function getQCChecklistForTreatment(treatment) {
+  return QC_CHECKLIST_ITEMS.filter(it => it.treatments === 'all' || it.treatments.includes(treatment));
+}
+
 // Ensure every calc-done window has an item card object
 function ensureItemCards(job) {
   if (!job.itemCards) job.itemCards = {};
@@ -1894,7 +1973,7 @@ function advanceItemStage(jobId, windowId) {
 
   // Cannot advance past QC without a pass result
   const nextStage = stages[idx + 1];
-  if (current === 'QC') {
+  if (current === 'Hoist QC') {
     curtAlert('QC result required before advancing. Use the QC dashboard.');
     return;
   }
@@ -1904,14 +1983,14 @@ function advanceItemStage(jobId, windowId) {
 
   if (card.isRework) {
     card.reworkStage = nextStage;
-    if (nextStage === 'QC') card.isRework = false; // back in QC, rework complete
+    if (nextStage === 'Hoist QC') card.isRework = false; // back in QC, rework complete
   } else {
     card.stage = nextStage;
   }
 }
 
 // Called from QC dashboard: pass or fail
-function recordQCResult(jobId, windowId, result, notes, photo, qcPerson, reworkStage) {
+function recordQCResult(jobId, windowId, result, notes, photo, qcPerson, reworkStage, checklist) {
   const job  = curtainJobs.find(j => j.id === jobId);
   const win  = job && job.windows.find(w => w.id === windowId);
   const card = getItemCard(jobId, windowId);
@@ -1919,18 +1998,20 @@ function recordQCResult(jobId, windowId, result, notes, photo, qcPerson, reworkS
 
   const timestamp = new Date().toISOString();
   const stages    = getItemStages(win.treatment);
-  const qcIdx     = stages.indexOf('QC');
+  const qcIdx     = stages.indexOf('Hoist QC');
 
   const qcRecord = {
     result,
     notes:    notes || '',
+    checklist: checklist || [],  // [{key,label,ok,remark}] — critical-info checklist for this attempt
     photo:    photo || null,   // base64 for now, Nettworksy migrates to cloud
     person:   qcPerson || 'QC',
     timestamp,
     attempt:  card.qcHistory.length + 1,
   };
   card.qcHistory.push(qcRecord);
-  card.stageDates['QC'] = timestamp;
+  card.stageDates['Hoist QC'] = timestamp;
+  card.qcSeen = true; // opened/actioned — clears the "new" badge either way
 
   if (result === 'pass') {
     card.qcResult  = 'pass';
@@ -1939,6 +2020,7 @@ function recordQCResult(jobId, windowId, result, notes, photo, qcPerson, reworkS
     card.stage     = stages[qcIdx + 1] || 'Ready'; // advance to Ready
     card.stageDates[card.stage] = timestamp;
     curtAlert(`✓ QC passed — ${win.label} is now Ready`);
+    checkJobQCCompletion(job);
   } else {
     // Fail — send to rework
     const returnTo = reworkStage || stages[0]; // QC picks, default to Cutting
@@ -1952,6 +2034,7 @@ function recordQCResult(jobId, windowId, result, notes, photo, qcPerson, reworkS
       reason:    notes || '',
     });
     curtAlert(`⚠ QC failed — ${win.label} sent back to ${returnTo}`);
+    checkJobQCCompletion(job);
   }
   return true;
 }
@@ -1972,8 +2055,40 @@ function itemCardStagePill(card, treatment) {
   }
   if (card.qcResult === 'pass' && card.stage === 'Ready') return `<span class="pill ok">✓ Ready</span>`;
   if (card.stage === 'Installed') return `<span class="pill ok">✓ Installed</span>`;
-  if (stage === 'QC') return `<span class="pill info">QC</span>`;
+  if (stage === 'Hoist QC') return `<span class="pill info">QC</span>`;
   return `<span class="pill warn">${stage}</span>`;
+}
+
+// ── Job-wide QC completion → gates Install release + flags Accounts ──
+// Fires whenever an item passes QC. Only trips once every calc-done item
+// in the job has reached Ready/Installed (i.e. nothing left in production
+// or rework). This is what "whole job QC done" means downstream.
+function getJobQCStatus(job) {
+  ensureItemCards(job);
+  const items = job.windows.filter(w => w.calcDone);
+  const done  = items.filter(w => {
+    const card = job.itemCards[w.id];
+    return card && !card.isRework && (card.stage === 'Ready' || card.stage === 'Installed');
+  });
+  return { total: items.length, done: done.length, allPassed: items.length > 0 && done.length === items.length };
+}
+
+function checkJobQCCompletion(job) {
+  if (!job) return;
+  const status = getJobQCStatus(job);
+  if (!job.installation) job.installation = { status: 'pending', scheduledDate: '', team: [], siteContact: '', accessoriesReady: false, handoverSigned: false };
+
+  if (status.allPassed && !job.installation.qcAllComplete) {
+    job.installation.qcAllComplete = true;
+    job.installation.qcCompleteAt  = new Date().toISOString();
+    if (!job.accountsAlert) {
+      job.accountsAlert = { type: 'balance_invoice_due', raisedAt: new Date().toISOString(), seen: false };
+    }
+    curtAlert(`✓ All items QC passed for ${job.name} — Install team notified, Accounts flagged for balance invoice`);
+  } else if (!status.allPassed && job.installation.qcAllComplete) {
+    // A later rework/fail on this job reopened it after it had been marked complete
+    job.installation.qcAllComplete = false;
+  }
 }
 
 
@@ -2793,6 +2908,13 @@ function tracksMarkStageComplete(jobId, windowId) {
   } else {
     card.stage = nextStage;
   }
+
+  // Tracks handed off to QC — flag as new so it stands out in the QC queue
+  if (nextStage === 'Hoist QC') {
+    card.qcQueuedAt = new Date().toISOString();
+    card.qcSeen = false;
+  }
+
   curtAlert(`✓ ${w.label} → ${nextStage}`);
 }
 
@@ -2814,6 +2936,10 @@ function tracksMarkAllReady(jobId) {
     if (['Hoist QC','Ready','Installed'].includes(current)) return;
     card.stageDates[current] = card.stageDates[current] || new Date().toISOString();
     card.stage = nextStage;
+    if (nextStage === 'Hoist QC') {
+      card.qcQueuedAt = new Date().toISOString();
+      card.qcSeen = false;
+    }
     count++;
   });
   curtAlert(`✓ ${count} item${count!==1?'s':''} advanced`);
@@ -2827,6 +2953,8 @@ function tracksMarkAllReady(jobId) {
 // ══════════════════════════════════════════════════════════════
 
 let qcActiveItem = null; // { jobId, windowId } for open QC panel
+let qcChecklistState = {};      // { key: { ok: boolean, remark: string } } for the open panel
+let qcActiveChecklistItems = []; // checklist item defs (key+label) for the open panel's treatment
 
 function openQCDashboard() {
   const scroll = document.getElementById('scroll');
@@ -2871,20 +2999,23 @@ function renderQCDashboard() {
       if (!card) return;
       const stageInfo = getItemCardStageDisplay(card, w.treatment);
 
-      if (stageInfo.stage === 'QC' && !stageInfo.isRework) {
+      if (stageInfo.stage === 'Hoist QC' && !stageInfo.isRework) {
         qcItems.push({ job, w, card });
       } else if (stageInfo.isRework) {
         reworkItems.push({ job, w, card, stageInfo });
-      } else if (card.qcResult === 'pass' && card.stageDates['QC']) {
-        const d = card.stageDates['QC'].slice(0,10);
+      } else if (card.qcResult === 'pass' && card.stageDates['Hoist QC']) {
+        const d = card.stageDates['Hoist QC'].slice(0,10);
         if (d === today) passedToday.push({ job, w, card });
       }
     });
   });
 
+  const newCount = qcItems.filter(i => i.card.qcQueuedAt && !i.card.qcSeen).length;
+
   const kpiRow = `
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px;background:#fff;border-bottom:1px solid #e8ecf0;">
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;position:relative;">
+        ${newCount > 0 ? `<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;">${newCount} new</span>` : ''}
         <p style="font-size:22px;font-weight:800;color:#3b82f6;">${qcItems.length}</p>
         <p style="font-size:11px;color:#64748b;margin-top:2px;">Awaiting QC</p>
       </div>
@@ -2901,8 +3032,9 @@ function renderQCDashboard() {
   function qcItemCard(i) {
     const attempts = i.card.qcHistory.length;
     const lastFail = i.card.qcHistory.filter(h => h.result === 'fail').pop();
+    const isNew = i.card.qcQueuedAt && !i.card.qcSeen;
     return `
-      <div style="border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;cursor:pointer;"
+      <div style="border:1px solid ${isNew?'#3b82f6':'#e8ecf0'};border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;cursor:pointer;"
         onclick="openQCPanel('${i.job.id}','${i.w.id}')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
@@ -2911,7 +3043,7 @@ function renderQCDashboard() {
             <p style="font-size:12px;color:#475569;margin-top:4px;">${treatmentLabel(i.w.treatment)} · ${i.w.width}×${i.w.height} cm</p>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
-            <span class="pill info">QC</span>
+            ${isNew ? `<span class="pill" style="background:#dbeafe;color:#3b82f6;">● New</span>` : `<span class="pill info">QC</span>`}
             ${attempts > 0 ? `<span class="pill bad" style="font-size:10px;">Attempt ${attempts+1}</span>` : ''}
           </div>
         </div>
@@ -2984,12 +3116,34 @@ function openQCPanel(jobId, windowId) {
   if (!job || !win || !card) return;
 
   qcActiveItem = { jobId, windowId };
+  card.qcSeen = true; // clears the "new" badge once QC opens the item
+
   const stages    = getItemStages(win.treatment);
   const attempts  = card.qcHistory.length;
   const lastFail  = card.qcHistory.filter(h => h.result === 'fail').pop();
 
+  // Reset checklist state fresh for this attempt — all items default OK
+  const checklistItems = getQCChecklistForTreatment(win.treatment);
+  qcActiveChecklistItems = checklistItems;
+  qcChecklistState = {};
+  checklistItems.forEach(it => { qcChecklistState[it.key] = { ok: true, remark: '' }; });
+
+  const checklistHtml = checklistItems.map(it => `
+    <div style="border-bottom:1px solid #f1f5f9;padding:10px 0;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="qc-check-${it.key}" checked
+          onchange="qcChecklistItemToggle('${it.key}', this.checked)"
+          style="width:18px;height:18px;accent-color:#10b981;flex:none;">
+        <span style="font-size:13px;color:#1e2a3b;font-weight:500;">${it.label}</span>
+      </label>
+      <div id="qc-remark-wrap-${it.key}" style="display:none;margin:8px 0 0 28px;">
+        <textarea id="qc-remark-${it.key}" rows="2" placeholder="What's the issue?"
+          style="width:100%;padding:8px 10px;border:1px solid #fecaca;border-radius:8px;font-size:12px;background:#fef2f2;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+    </div>`).join('');
+
   const stageOptions = stages
-    .filter(s => s !== 'QC' && s !== 'Ready' && s !== 'Installed')
+    .filter(s => s !== 'Hoist QC' && s !== 'Ready' && s !== 'Installed')
     .map(s => `<option value="${s}">${s}</option>`)
     .join('');
 
@@ -3000,6 +3154,10 @@ function openQCPanel(jobId, windowId) {
           ${h.result === 'pass' ? '✓ Pass' : '✗ Fail'} — Attempt ${h.attempt}
         </p>
         <p style="font-size:11px;color:#64748b;">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+        ${h.checklist && h.checklist.some(c => !c.ok) ? `
+          <div style="margin-top:4px;">
+            ${h.checklist.filter(c => !c.ok).map(c => `<p style="font-size:11px;color:#ef4444;">✗ ${c.label}${c.remark ? ' — ' + c.remark : ''}</p>`).join('')}
+          </div>` : ''}
         ${h.notes ? `<p style="font-size:12px;color:#475569;margin-top:3px;">${h.notes}</p>` : ''}
         ${h.result==='fail' && card.reworkLog[idx] ? `<p style="font-size:11px;color:#ef4444;margin-top:2px;">Returned to: ${card.reworkLog[idx].returnTo}</p>` : ''}
       </div>
@@ -3058,14 +3216,22 @@ function openQCPanel(jobId, windowId) {
             style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;background:#f8fafc;">
         </div>
 
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:2px;">Inspection checklist</label>
+          <p style="font-size:11px;color:#94a3b8;margin-bottom:6px;">Checked = OK. Uncheck to flag an issue — a remark will be required.</p>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:4px 12px;">
+            ${checklistHtml}
+          </div>
+        </div>
+
         <div style="margin-bottom:12px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Notes / observations</label>
-          <textarea id="qc-notes" rows="3" placeholder="Describe what you checked and any issues..."
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Additional notes (optional)</label>
+          <textarea id="qc-notes" rows="2" placeholder="Anything else worth recording..."
             style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;background:#f8fafc;"></textarea>
         </div>
 
         <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Photo</label>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Photo <span style="color:#ef4444;">*required — pass or fail</span></label>
           <input id="qc-photo-input" type="file" accept="image/*" capture="environment"
             onchange="qcPhotoPreview(this)"
             style="display:none;">
@@ -3146,6 +3312,35 @@ function qcPhotoPreview(input) {
   reader.readAsDataURL(file);
 }
 
+// Checklist item toggled — show/hide its remark box, then re-evaluate
+// whether the overall result should be auto-locked to Fail.
+function qcChecklistItemToggle(key, checked) {
+  if (!qcChecklistState[key]) return;
+  qcChecklistState[key].ok = checked;
+  const remarkWrap = document.getElementById(`qc-remark-wrap-${key}`);
+  if (remarkWrap) remarkWrap.style.display = checked ? 'none' : 'block';
+  qcEvaluateChecklistGate();
+}
+
+function qcChecklistHasFailure() {
+  return Object.values(qcChecklistState).some(v => !v.ok);
+}
+
+// Any unchecked checklist item auto-fails the item and locks out Pass —
+// this is a locked design decision, not a suggestion QC can override.
+function qcEvaluateChecklistGate() {
+  const passBtn = document.getElementById('qc-pass-btn');
+  if (!passBtn) return;
+  if (qcChecklistHasFailure()) {
+    passBtn.style.opacity = '.35';
+    passBtn.style.pointerEvents = 'none';
+    qcSelectResult('fail');
+  } else {
+    passBtn.style.opacity = '1';
+    passBtn.style.pointerEvents = 'auto';
+  }
+}
+
 function qcSelectResult(result) {
   window._qcSelectedResult = result;
   const passBtn = document.getElementById('qc-pass-btn');
@@ -3175,6 +3370,20 @@ function submitQCResult() {
   const result    = window._qcSelectedResult;
   if (!result) { curtAlert('Please select Pass or Fail first.'); return; }
 
+  // Gather checklist results — any unchecked item must have a remark
+  const checklist = [];
+  for (const key in qcChecklistState) {
+    const val = qcChecklistState[key];
+    const itemDef = qcActiveChecklistItems.find(it => it.key === key);
+    const remarkEl = document.getElementById(`qc-remark-${key}`);
+    const remark = remarkEl ? remarkEl.value.trim() : '';
+    if (!val.ok && !remark) {
+      curtAlert(`Please add a remark for "${itemDef ? itemDef.label : key}" — it's flagged as an issue.`);
+      return;
+    }
+    checklist.push({ key, label: itemDef ? itemDef.label : key, ok: val.ok, remark });
+  }
+
   const notes     = (document.getElementById('qc-notes') || {}).value || '';
   const person    = (document.getElementById('qc-person-name') || {}).value || 'QC';
   const photo     = window._qcPhotoData || null;
@@ -3182,6 +3391,7 @@ function submitQCResult() {
   const reworkStage   = (result === 'fail' && reworkStageEl) ? reworkStageEl.value : null;
 
   if (!person.trim()) { curtAlert('Please enter your name.'); return; }
+  if (!photo) { curtAlert('Photo required before submitting — pass or fail.'); return; }
 
   const ok = recordQCResult(
     qcActiveItem.jobId,
@@ -3190,12 +3400,15 @@ function submitQCResult() {
     notes,
     photo,
     person.trim(),
-    reworkStage
+    reworkStage,
+    checklist
   );
 
   if (ok) {
     window._qcPhotoData    = null;
     window._qcSelectedResult = null;
+    qcChecklistState = {};
+    qcActiveChecklistItems = [];
     closeQCPanel();
   }
 }
@@ -3240,7 +3453,7 @@ function renderInstallCrewDashboard() {
     ensureItemCards(job);
     const inst   = job.installation || {};
     const allItems = job.windows.filter(w => w.calcDone);
-    const ready    = allItems.filter(w => {
+    const readyAll = allItems.filter(w => {
       const card = job.itemCards[w.id];
       return card && card.stage === 'Ready' && !card.isRework;
     });
@@ -3249,13 +3462,20 @@ function renderInstallCrewDashboard() {
       return card && card.stage === 'Installed';
     });
     const total = allItems.length;
-    return { job, inst, ready, installed, total };
+    const qc = getJobQCStatus(job);
+    // Whole job must clear QC before items are released to the crew,
+    // unless Ops has explicitly flipped on partial release for this job.
+    const released = qc.allPassed || inst.partialRelease === true;
+    const ready = released ? readyAll : [];
+    const held  = released ? [] : readyAll;
+    return { job, inst, ready, held, installed, total, qc };
   }).filter(j => j.total > 0);
 
   const todayJobs   = jobCards.filter(j => j.inst.scheduledDate === today);
   const upcomingJobs= jobCards.filter(j => j.inst.scheduledDate && j.inst.scheduledDate > today && j.inst.status !== 'complete');
   const readyJobs   = jobCards.filter(j => j.ready.length > 0 && !j.inst.scheduledDate);
   const doneJobs    = jobCards.filter(j => j.inst.status === 'complete');
+  const heldJobs    = jobCards.filter(j => j.held.length > 0 && j.inst.status !== 'complete');
 
   function jobInstallCard(jc) {
     const { job, inst, ready, installed, total } = jc;
@@ -3317,6 +3537,24 @@ function renderInstallCrewDashboard() {
       </div>`;
   }
 
+  function heldJobCard(jc) {
+    const { job, held, qc, total } = jc;
+    return `
+      <div style="border:1px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:10px;background:#fffbeb;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
+          <div>
+            <p style="font-size:14px;font-weight:700;color:#1e2a3b;">${job.name}</p>
+            <p style="font-size:11px;color:#64748b;">${job.id} · ${job.client}</p>
+          </div>
+          <span class="pill warn">Held</span>
+        </div>
+        <p style="font-size:12px;color:#92400e;margin-bottom:6px;">${held.length} of ${total} items finished, but held back — QC: ${qc.done}/${qc.total} passed. Released once the whole job clears QC, or Ops enables partial release for this job in the Install tab.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+          ${held.map(w => `<span style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;font-size:11px;color:#1e2a3b;">${w.label}</span>`).join('')}
+        </div>
+      </div>`;
+  }
+
   function section(title, items, accent) {
     if (items.length === 0) return '';
     return `
@@ -3325,8 +3563,17 @@ function renderInstallCrewDashboard() {
       <div style="height:16px;"></div>`;
   }
 
+  function heldSection(title, items, accent) {
+    if (items.length === 0) return '';
+    return `
+      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${accent||'#94a3b8'};margin:0 0 10px;">${title} (${items.length})</p>
+      ${items.map(i => heldJobCard(i)).join('')}
+      <div style="height:16px;"></div>`;
+  }
+
   const totalReady = jobCards.reduce((s, j) => s + j.ready.length, 0);
   const totalDone  = jobCards.reduce((s, j) => s + j.installed.length, 0);
+  const totalHeld  = jobCards.reduce((s, j) => s + j.held.length, 0);
 
   wrap.innerHTML = `
     <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
@@ -3338,7 +3585,7 @@ function renderInstallCrewDashboard() {
     </div>
 
     <!-- KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
       <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#f59e0b;">${todayJobs.length}</p>
         <p style="font-size:11px;color:#64748b;margin-top:2px;">Today</p>
@@ -3346,6 +3593,10 @@ function renderInstallCrewDashboard() {
       <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#10b981;">${totalReady}</p>
         <p style="font-size:11px;color:#64748b;margin-top:2px;">Items ready</p>
+      </div>
+      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+        <p style="font-size:22px;font-weight:800;color:#f59e0b;">${totalHeld}</p>
+        <p style="font-size:11px;color:#64748b;margin-top:2px;">Held (QC pending)</p>
       </div>
       <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#7c3aed;">${totalDone}</p>
@@ -3357,8 +3608,9 @@ function renderInstallCrewDashboard() {
       ${section("Today's installs", todayJobs, '#f59e0b')}
       ${section('Upcoming', upcomingJobs, '#3b82f6')}
       ${section('Ready — not yet scheduled', readyJobs, '#10b981')}
+      ${heldSection('Held — awaiting full job QC', heldJobs, '#f59e0b')}
       ${section('Completed', doneJobs, '#94a3b8')}
-      ${jobCards.length === 0 ? `
+      ${jobCards.length === 0 && heldJobs.length === 0 ? `
         <div style="text-align:center;padding:48px 20px;">
           <p style="font-size:32px;margin-bottom:8px;">🏠</p>
           <p style="font-size:14px;color:#64748b;">No items ready for installation yet.</p>
