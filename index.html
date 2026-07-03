@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AMD Dev">
+<meta name="theme-color" content="#0a0a0f">
+<title>Al Maraya — Developer</title>
+<link rel="stylesheet" href="styles.css">
+
+<style>/* ── Gantt chart ─────────────────── */
+    .gantt-wrap { width:100%; overflow-x:auto; }
+    .gantt-header { display:flex; margin-bottom:4px; }
+    .gantt-label-col { width:90px; flex:none; font-size:10px; color:var(--ink2); }
+    .gantt-track-col { flex:1; display:flex; position:relative; }
+    .gantt-week-label { flex:1; font-size:10px; color:var(--ink2); text-align:center; font-weight:600; }
+    .gantt-job-block { margin-bottom:8px; }
+    .gantt-job-name { font-size:12px; font-weight:700; color:var(--ink); padding:4px 0 2px; }
+    .gantt-row { display:flex; align-items:center; height:28px; }
+    .gantt-label-col { width:90px; flex:none; }
+    .gantt-stage-label { font-size:10px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; max-width:88px; }
+    .gantt-cell { flex:1; height:100%; border-right:1px solid var(--line); }
+    .gantt-bar {
+      position:absolute; top:6px; height:16px; border-radius:4px;
+      display:flex; align-items:center; overflow:hidden;
+      box-shadow:0 1px 3px rgba(0,0,0,.15);
+      transition:width .3s, left .3s;
+      min-width:6px;
+    }
+    .gantt-bar-label { font-size:9px; color:#fff; font-weight:700; padding:0 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .gantt-today {
+      position:absolute; top:0; bottom:0; width:2px;
+      background:#ef4444; opacity:.7; z-index:2;
+      border-radius:1px;
+    }
+    .gantt-legend { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; font-size:11px; color:var(--ink2); }
+    .gantt-legend span { display:flex; align-items:center; gap:4px; }
+    .gantt-legend i { display:inline-block; width:10px; height:10px; border-radius:3px; }
+    /* Mini Gantt */
+    .gantt-mini-wrap { width:100%; }
+    .gantt-mini-header { display:flex; margin-bottom:4px; }
+    .gantt-mini-row { display:flex; align-items:center; height:24px; margin-bottom:3px; }
+    .gantt-mini-label { width:90px; flex:none; font-size:11px; color:var(--ink); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* Workshop lock */
+    .ws-lock { display:flex; align-items:center; gap:10px; background:rgba(239,68,68,.06); border:1px solid rgba(239,68,68,.15); border-radius:var(--r3); padding:10px 12px; margin-bottom:12px; }
+    .ws-lock span { font-size:18px; }
+    .ws-lock p { font-size:13px; color:var(--bad); font-weight:500; margin:0; }
+
+    /* ── Ecosystem breathing pulse ── */
+    @keyframes eco-breathe {
+      0%,100% { opacity:.85; }
+      50%      { opacity:1;   }
+    }
+    .eco-svg { animation: eco-breathe 4s ease-in-out infinite; }
+
+    /* Node dim-at-rest / glow-on-touch transitions */
+    .eco-node { transition: opacity .25s ease, filter .25s ease; }
+    .eco-node.eco-lit { opacity:1 !important; filter: drop-shadow(0 0 8px rgba(52,211,153,.7)); }
+    .eco-node.eco-soon-lit { opacity:.85 !important; filter: drop-shadow(0 0 6px rgba(251,191,36,.6)); }
+
+    /* Connector line electricity flash */
+    .eco-line { transition: stroke .2s, stroke-opacity .2s, stroke-width .2s; }
+    .eco-line.eco-zap {
+      stroke: rgba(52,211,153,.9) !important;
+      stroke-opacity: 1 !important;
+      stroke-width: 2 !important;
+      filter: drop-shadow(0 0 4px rgba(52,211,153,.8));
+    }
+
+    /* Coming-soon tooltip */
+    #eco-tooltip {
+      position:absolute; pointer-events:none;
+      background:rgba(251,191,36,.15); border:1px solid rgba(251,191,36,.4);
+      color:#fbbf24; font-size:11px; font-weight:700; letter-spacing:.5px;
+      padding:5px 10px; border-radius:20px;
+      opacity:0; transition:opacity .15s;
+      white-space:nowrap; z-index:20;
+      transform:translate(-50%,-130%);
+    }
+    #eco-tooltip.show { opacity:1; }
+
+    /* ── Curtain sub-node touch interactions ── */
+    .curt-subnode { cursor:pointer; opacity:0.38; transition:opacity .18s; }
+    .curt-subnode circle.sub-bg   { transition:r .22s cubic-bezier(.34,1.56,.64,1), fill .18s, stroke .18s; }
+    .curt-subnode circle.sub-glow { transition:r .22s cubic-bezier(.34,1.56,.64,1), opacity .18s; }
+    .curt-subnode text             { transition:font-size .18s, opacity .18s; pointer-events:none; }
+    .curt-subnode.active           { opacity:1; }
+    .curt-subnode.active circle.sub-bg   { fill:url(#OKG); stroke:rgba(52,211,153,.7); }
+    .curt-subnode.active circle.sub-glow { opacity:.35; }
+    /* Branch lines from Curtain node to sub-nodes */
+    .curt-branch { transition:stroke-opacity .18s, stroke-width .18s; }
+    .curt-branch.active { stroke-opacity:.7 !important; stroke-width:1.5 !important; }
+  /* ── Calc sheet form ── */
+  .cs-row   { display:flex; flex-direction:column; gap:4px; }
+  .cs-label { font-size:12px; font-weight:600; color:#64748b; }
+  .cs-input { padding:9px 11px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; color:#1e2a3b; background:#fff; width:100%; box-sizing:border-box; }
+  .cs-input:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,.1); }
+  .calc-result-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .cr-item  { background:#fff; border-radius:8px; padding:10px 12px; border:1px solid #d1fae5; }
+  .cr-item.highlight { background:#dcfce7; border-color:#10b981; }
+  .cr-label { font-size:11px; color:#64748b; margin-bottom:3px; }
+  .cr-value { font-size:16px; font-weight:800; color:#1e2a3b; }
+
+  /* ── Curtain dashboard KPI row groups ── */
+  .kpi-row-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink2, #64748b); margin:9px 0 5px; }
+  .kpi-row-label:first-child { margin-top:0; }
+
+  /* Compact KPI tiles — scoped to the Curtain dashboard only, doesn't affect Operations' .kpis */
+  #curt-kpis .kpis   { display:grid; grid-template-columns:repeat(auto-fit,minmax(84px,1fr)); gap:6px; }
+  #curt-kpis .kpi    { padding:8px 9px; border-radius:9px; }
+  #curt-kpis .kl     { font-size:10px; line-height:1.2; margin-bottom:1px; }
+  #curt-kpis .kv     { font-size:19px; line-height:1.15; margin:1px 0; }
+  #curt-kpis .ks     { font-size:9.5px; line-height:1.2; color:var(--ink2, #64748b); }
+</style>
+</head>
+<body>
+
+<!-- LOCK SCREEN -->
+<div class="lock" id="lock">
+  <div style="width:80px;height:80px;border-radius:20px;border:1.5px solid rgba(255,255,255,.15);background:linear-gradient(135deg,#1a0a14,#0a0a0f);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+    <svg width="58" height="58" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="4" width="92" height="92" rx="18" stroke="white" stroke-width="4.5" fill="none"/>
+      <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="white" stroke-width="5.5" stroke-linejoin="miter" stroke-linecap="square"/>
+      <polygon points="50,64 76,82 76,48" fill="none" stroke="white" stroke-width="4.5" stroke-linejoin="miter"/>
+      <line x1="57" y1="74" x2="76" y2="74" stroke="white" stroke-width="4.5"/>
+    </svg>
+  </div>
+  <h1>Al Maraya Dev</h1>
+  <p>Personal developer dashboard<br>Enter PIN to continue</p>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="numpad">
+    <button class="num-btn" onclick="pt('1')">1</button>
+    <button class="num-btn" onclick="pt('2')">2</button>
+    <button class="num-btn" onclick="pt('3')">3</button>
+    <button class="num-btn" onclick="pt('4')">4</button>
+    <button class="num-btn" onclick="pt('5')">5</button>
+    <button class="num-btn" onclick="pt('6')">6</button>
+    <button class="num-btn" onclick="pt('7')">7</button>
+    <button class="num-btn" onclick="pt('8')">8</button>
+    <button class="num-btn" onclick="pt('9')">9</button>
+    <button class="num-btn empty"></button>
+    <button class="num-btn" onclick="pt('0')">0</button>
+    <button class="num-btn" onclick="pt('DEL')" style="font-size:16px;">⌫</button>
+  </div>
+  <p class="lock-hint">Default PIN: 1994</p>
+</div>
+
+<!-- APP -->
+<div class="app" id="app" style="display:none;">
+  <div class="safe-top"></div>
+  <div class="topbar">
+    <div class="brand">
+      <div style="width:32px;height:32px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;">
+        <svg width="22" height="22" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="92" height="92" rx="18" stroke="#5a1733" stroke-width="5" fill="none"/>
+          <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="#5a1733" stroke-width="6" stroke-linejoin="miter" stroke-linecap="square"/>
+          <polygon points="50,64 76,82 76,48" fill="none" stroke="#5a1733" stroke-width="5" stroke-linejoin="miter"/>
+          <line x1="57" y1="74" x2="76" y2="74" stroke="#5a1733" stroke-width="5"/>
+        </svg>
+      </div>
+      <div><h1 id="tb-title">Ecosystem</h1><p>Al Maraya Dev · Owner</p></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="icon-btn" onclick="goTo('notes')" title="Notes"><span style="font-size:14px;color:rgba(255,255,255,.5);">📝</span></button>
+      <button class="icon-btn" onclick="goTo('checklist')" title="Checklist"><span style="font-size:14px;color:rgba(255,255,255,.5);">✅</span></button>
+    </div>
+  </div>
+
+  <div class="scroll" id="scroll">
+
+    <!-- ECOSYSTEM -->
+    <div class="page active" id="p-eco">
+      <div class="eco-bg">
+        <svg class="eco-svg" viewBox="0 0 380 500" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="BG" cx="50%" cy="42%" r="65%">
+              <stop offset="0%" stop-color="#180810"/>
+              <stop offset="100%" stop-color="#0a0a0f"/>
+            </radialGradient>
+            <radialGradient id="CG" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#9a3560"/>
+              <stop offset="100%" stop-color="#5a1733"/>
+            </radialGradient>
+            <radialGradient id="OKG" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#1a6040"/>
+              <stop offset="100%" stop-color="#0a3820"/>
+            </radialGradient>
+            <radialGradient id="WNG" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#5c3a00"/>
+              <stop offset="100%" stop-color="#3a2400"/>
+            </radialGradient>
+            <filter id="glow-ok" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-wn" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-center" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="6" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-touch" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="6" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <rect width="380" height="500" fill="url(#BG)"/>
+          <!-- rings -->
+          <circle cx="190" cy="225" r="82" fill="none" stroke="rgba(255,255,255,.025)" stroke-width="1"/>
+          <circle cx="190" cy="225" r="145" fill="none" stroke="rgba(255,255,255,.018)" stroke-width="1"/>
+          <circle cx="190" cy="225" r="205" fill="none" stroke="rgba(255,255,255,.012)" stroke-width="1"/>
+
+          <!-- lines to ring1 -->
+          <line id="line-operations" class="eco-line" x1="190" y1="225" x2="190" y2="123" stroke="rgba(15,157,88,.45)" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <!-- lines to ring2 -->
+          <line id="line-curtain"    class="eco-line" x1="190" y1="225" x2="316" y2="168" stroke="rgba(124,58,237,.2)"  stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-upholstery" class="eco-line" x1="190" y1="225" x2="334" y2="268" stroke="rgba(214,51,108,.15)" stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-joinery"    class="eco-line" x1="190" y1="225" x2="258" y2="358" stroke="rgba(15,157,88,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-painting"   class="eco-line" x1="190" y1="225" x2="122" y2="358" stroke="rgba(196,125,0,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-sales"      class="eco-line" x1="190" y1="225" x2="46"  y2="268" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-estimation" class="eco-line" x1="190" y1="225" x2="64"  y2="168" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="3,5"/>
+          <!-- lines to ring3 -->
+          <line id="line-owner"      class="eco-line" x1="190" y1="225" x2="190" y2="32"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-accounts"   class="eco-line" x1="190" y1="225" x2="354" y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-delivery"   class="eco-line" x1="190" y1="225" x2="364" y2="385" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-hr"         class="eco-line" x1="190" y1="225" x2="190" y2="464" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-approvals"  class="eco-line" x1="190" y1="225" x2="16"  y2="385" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-tally"      class="eco-line" x1="190" y1="225" x2="26"  y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+
+          <!-- ══ CENTER — MARAYA LOGO ══ -->
+          <g onclick="showPanel('center')" style="cursor:pointer;">
+            <circle cx="190" cy="225" r="58" fill="url(#CG)" opacity=".1" filter="url(#glow-center)"/>
+            <circle cx="190" cy="225" r="48" fill="url(#CG)"/>
+            <circle cx="190" cy="225" r="48" fill="none" stroke="rgba(154,53,96,.6)" stroke-width="1.5"/>
+            <!-- Maraya MA logo scaled and centered -->
+            <g transform="translate(163,198) scale(0.54)">
+              <rect x="4" y="4" width="92" height="92" rx="18" stroke="rgba(255,255,255,.95)" stroke-width="5" fill="none"/>
+              <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="white" stroke-width="6" stroke-linejoin="miter" stroke-linecap="square"/>
+              <polygon points="50,64 76,82 76,48" fill="none" stroke="white" stroke-width="5" stroke-linejoin="miter"/>
+              <line x1="57" y1="74" x2="76" y2="74" stroke="white" stroke-width="5"/>
+            </g>
+            <text x="190" y="258" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.55)" font-weight="700" letter-spacing="2.5">MARAYA</text>
+          </g>
+
+          <!-- RING 1 — OPERATIONS (built) -->
+          <g id="node-operations" class="eco-node" onclick="showPanel('operations')" style="cursor:pointer;">
+            <circle cx="190" cy="123" r="34" fill="rgba(15,157,88,.07)"/>
+            <circle cx="190" cy="123" r="28" fill="url(#OKG)" filter="url(#glow-ok)"/>
+            <circle cx="190" cy="123" r="28" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
+            <text x="190" y="119" text-anchor="middle" font-size="15">⚙️</text>
+            <text x="190" y="131" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.85)" font-weight="700">OPERATIONS</text>
+            <circle cx="210" cy="103" r="8" fill="#0f9d58"/>
+            <text x="210" y="107" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
+          </g>
+
+          <!-- RING 2 CURTAIN (built) -->
+          <g id="node-curtain" class="eco-node" onclick="showPanel('curtain')" style="cursor:pointer;">
+            <circle cx="316" cy="168" r="28" fill="rgba(15,157,88,.07)"/>
+            <circle cx="316" cy="168" r="23" fill="url(#OKG)" filter="url(#glow-ok)"/>
+            <circle cx="316" cy="168" r="23" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
+            <text x="316" y="164" text-anchor="middle" font-size="13">🪟</text>
+            <text x="316" y="176" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.85)" font-weight="700">CURTAIN</text>
+            <circle cx="330" cy="152" r="7" fill="#0f9d58"/>
+            <text x="330" y="156" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
+          </g>
+
+          <!-- ══ CURTAIN SUB-BRANCHES ══ -->
+          <!-- Branch lines from Curtain (316,168) to sub-nodes -->
+          <line id="branch-tracks"  class="curt-branch" x1="316" y1="168" x2="355" y2="112" stroke="rgba(52,211,153,.28)" stroke-width="1" stroke-dasharray="3,4"/>
+          <line id="branch-qc"      class="curt-branch" x1="316" y1="168" x2="372" y2="168" stroke="rgba(52,211,153,.28)" stroke-width="1" stroke-dasharray="3,4"/>
+          <line id="branch-install" class="curt-branch" x1="316" y1="168" x2="355" y2="224" stroke="rgba(52,211,153,.28)" stroke-width="1" stroke-dasharray="3,4"/>
+
+          <!-- Sub-node: Tracks (355, 112) -->
+          <g id="sub-tracks" class="curt-subnode"
+            ontouchstart="subNodeTouch('tracks',true)"
+            ontouchend="subNodeTouch('tracks',false)"
+            ontouchcancel="subNodeTouch('tracks',false)"
+            onmousedown="subNodeTouch('tracks',true)"
+            onmouseup="subNodeTouch('tracks',false)"
+            onmouseleave="subNodeTouch('tracks',false)"
+            onclick="openTracksDashboard()">
+            <circle class="sub-glow" cx="355" cy="112" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
+            <circle class="sub-bg"   cx="355" cy="112" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
+            <text x="355" y="108" text-anchor="middle" font-size="9">🔩</text>
+            <text x="355" y="120" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">TRACKS</text>
+          </g>
+
+          <!-- Sub-node: QC (372, 168) -->
+          <g id="sub-qc" class="curt-subnode"
+            ontouchstart="subNodeTouch('qc',true)"
+            ontouchend="subNodeTouch('qc',false)"
+            ontouchcancel="subNodeTouch('qc',false)"
+            onmousedown="subNodeTouch('qc',true)"
+            onmouseup="subNodeTouch('qc',false)"
+            onmouseleave="subNodeTouch('qc',false)"
+            onclick="openQCDashboard()">
+            <circle class="sub-glow" cx="372" cy="168" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
+            <circle class="sub-bg"   cx="372" cy="168" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
+            <text x="372" y="164" text-anchor="middle" font-size="9">🔍</text>
+            <text x="372" y="176" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">QC</text>
+          </g>
+
+          <!-- Sub-node: Installation (355, 224) -->
+          <g id="sub-install" class="curt-subnode"
+            ontouchstart="subNodeTouch('install',true)"
+            ontouchend="subNodeTouch('install',false)"
+            ontouchcancel="subNodeTouch('install',false)"
+            onmousedown="subNodeTouch('install',true)"
+            onmouseup="subNodeTouch('install',false)"
+            onmouseleave="subNodeTouch('install',false)"
+            onclick="openInstallCrewDashboard()">
+            <circle class="sub-glow" cx="355" cy="224" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
+            <circle class="sub-bg"   cx="355" cy="224" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
+            <text x="355" y="220" text-anchor="middle" font-size="9">🏠</text>
+            <text x="355" y="232" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">INSTALL</text>
+          </g>
+
+          <!-- RING 2 UPHOLSTERY (soon) -->
+          <g id="node-upholstery" class="eco-node" onclick="showPanel('upholstery')" style="cursor:pointer;opacity:.35;">
+            <circle cx="334" cy="268" r="23" fill="rgba(255,255,255,.03)"/>
+            <circle cx="334" cy="268" r="19" fill="rgba(255,255,255,.04)"/>
+            <circle cx="334" cy="268" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+            <text x="334" y="264" text-anchor="middle" font-size="12">🛋️</text>
+            <text x="334" y="276" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">UPHOLSTERY</text>
+          </g>
+
+          <!-- RING 2 JOINERY (soon) -->
+          <g id="node-joinery" class="eco-node" onclick="showPanel('joinery')" style="cursor:pointer;opacity:.35;">
+            <circle cx="258" cy="358" r="23" fill="rgba(255,255,255,.03)"/>
+            <circle cx="258" cy="358" r="19" fill="rgba(255,255,255,.04)"/>
+            <circle cx="258" cy="358" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+            <text x="258" y="354" text-anchor="middle" font-size="12">🪵</text>
+            <text x="258" y="366" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">JOINERY</text>
+          </g>
+
+          <!-- RING 2 PAINTING (soon) -->
+          <g id="node-painting" class="eco-node" onclick="showPanel('painting')" style="cursor:pointer;opacity:.35;">
+            <circle cx="122" cy="358" r="23" fill="rgba(255,255,255,.03)"/>
+            <circle cx="122" cy="358" r="19" fill="rgba(255,255,255,.04)"/>
+            <circle cx="122" cy="358" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+            <text x="122" y="354" text-anchor="middle" font-size="12">🎨</text>
+            <text x="122" y="366" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">PAINTING</text>
+          </g>
+
+          <!-- RING 2 SALES (soon) -->
+          <g id="node-sales" class="eco-node" onclick="showPanel('sales')" style="cursor:pointer;opacity:.35;">
+            <circle cx="46" cy="268" r="23" fill="rgba(255,255,255,.03)"/>
+            <circle cx="46" cy="268" r="19" fill="rgba(255,255,255,.04)"/>
+            <circle cx="46" cy="268" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+            <text x="46" y="264" text-anchor="middle" font-size="12">💼</text>
+            <text x="46" y="276" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">SALES</text>
+          </g>
+
+          <!-- RING 2 ESTIMATION (soon) -->
+          <g id="node-estimation" class="eco-node" onclick="showPanel('estimation')" style="cursor:pointer;opacity:.35;">
+            <circle cx="64" cy="168" r="23" fill="rgba(255,255,255,.03)"/>
+            <circle cx="64" cy="168" r="19" fill="rgba(255,255,255,.04)"/>
+            <circle cx="64" cy="168" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+            <text x="64" y="164" text-anchor="middle" font-size="12">📋</text>
+            <text x="64" y="176" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">ESTIMATION</text>
+          </g>
+
+          <!-- RING 3 (outer, all soon) -->
+          <g id="node-owner" class="eco-node" onclick="showPanel('owner')" style="cursor:pointer;opacity:.22;">
+            <circle cx="190" cy="32" r="16" fill="rgba(255,255,255,.04)"/>
+            <circle cx="190" cy="32" r="12" fill="rgba(255,255,255,.04)"/>
+            <text x="190" y="28" text-anchor="middle" font-size="9">👑</text>
+            <text x="190" y="38" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">OWNER</text>
+          </g>
+          <g id="node-accounts" class="eco-node" onclick="showPanel('accounts')" style="cursor:pointer;opacity:.22;">
+            <circle cx="354" cy="85" r="16" fill="rgba(255,255,255,.04)"/>
+            <circle cx="354" cy="85" r="12" fill="rgba(255,255,255,.04)"/>
+            <text x="354" y="81" text-anchor="middle" font-size="9">💰</text>
+            <text x="354" y="91" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">ACCOUNTS</text>
+          </g>
+          <g id="node-delivery" class="eco-node" onclick="showPanel('delivery')" style="cursor:pointer;opacity:.22;">
+            <circle cx="364" cy="385" r="16" fill="rgba(255,255,255,.04)"/>
+            <circle cx="364" cy="385" r="12" fill="rgba(255,255,255,.04)"/>
+            <text x="364" y="381" text-anchor="middle" font-size="9">🚚</text>
+            <text x="364" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">DELIVERY</text>
+          </g>
+          <g id="node-hr" class="eco-node" onclick="showPanel('hr')" style="cursor:pointer;opacity:.22;">
+            <circle cx="190" cy="464" r="16" fill="rgba(255,255,255,.04)"/>
+            <circle cx="190" cy="464" r="12" fill="rgba(255,255,255,.04)"/>
+            <text x="190" y="460" text-anchor="middle" font-size="9">👥</text>
+            <text x="190" y="470" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">HR</text>
+          </g>
+          <g id="node-approvals" class="eco-node" onclick="showPanel('approvals')" style="cursor:pointer;opacity:.22;">
+            <circle cx="16" cy="385" r="16" fill="rgba(255,255,255,.04)"/>
+            <circle cx="16" cy="385" r="12" fill="rgba(255,255,255,.04)"/>
+            <text x="16" y="381" text-anchor="middle" font-size="9">✅</text>
+            <text x="16" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">APPROVALS</text>
+          </g>
+          <g id="node-tally" class="eco-node" onclick="showPanel('tally')" style="cursor:pointer;opacity:.22;">
+            <circle cx="26" cy="85" r="16" fill="rgba(255,255,255,.04)"/>
+            <circle cx="26" cy="85" r="12" fill="rgba(255,255,255,.04)"/>
+            <text x="26" y="81" text-anchor="middle" font-size="9">🔗</text>
+            <text x="26" y="91" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">TALLY</text>
+          </g>
+
+          <!-- LEGEND -->
+          <g transform="translate(10,482)">
+            <circle cx="7" cy="6" r="5" fill="#0f9d58"/><text x="16" y="10" font-size="8" fill="rgba(255,255,255,.3)">Built</text>
+            <circle cx="54" cy="6" r="5" fill="#c47d00"/><text x="63" y="10" font-size="8" fill="rgba(255,255,255,.3)">Building</text>
+            <circle cx="110" cy="6" r="5" fill="rgba(255,255,255,.12)"/><text x="119" y="10" font-size="8" fill="rgba(255,255,255,.2)">Planned</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="quick-stats">
+        <div class="qs" style="background:rgba(15,157,88,.08);border:1px solid rgba(15,157,88,.15);">
+          <div class="qs-v" style="color:#34d399;">1</div>
+          <div class="qs-l" style="color:rgba(52,211,153,.6);">Built</div>
+        </div>
+        <div class="qs" style="background:rgba(196,125,0,.08);border:1px solid rgba(196,125,0,.15);">
+          <div class="qs-v" style="color:#fbbf24;">1</div>
+          <div class="qs-l" style="color:rgba(251,191,36,.6);">Building</div>
+        </div>
+        <div class="qs" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);">
+          <div class="qs-v" style="color:rgba(255,255,255,.25);">11</div>
+          <div class="qs-l" style="color:rgba(255,255,255,.2);">Planned</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROADMAP -->
+    <div class="page" id="p-roadmap">
+      <div class="ph"><h2>Roadmap</h2><p>Build sequence — done, next, planned</p></div>
+      <div class="ph-bar"><div class="ph-bar-label" style="color:#34d399;">Phase 1 — Complete</div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#34d399;"></div><div class="rd-bar" style="background:#34d399;"></div></div><div class="rd-body"><div class="rd-title">Q-Pro analysis + spec document</div><div class="rd-sub">Full workflow mapped · loopholes identified · Word doc for Nettworksy</div><span class="rd-tag" style="background:rgba(52,211,153,.1);color:#34d399;">✓ Done</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#34d399;"></div><div class="rd-bar" style="background:#34d399;"></div></div><div class="rd-body"><div class="rd-title">Job card budget + variations model</div><div class="rd-sub">Locked budget · variations same job · combined view</div><span class="rd-tag" style="background:rgba(52,211,153,.1);color:#34d399;">✓ Done</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#34d399;"></div></div><div class="rd-body"><div class="rd-title">Operations module — complete</div><div class="rd-sub">9 screens · BOM delegation · variations tracker · subcons · payments · snags · docs</div><span class="rd-tag" style="background:rgba(52,211,153,.1);color:#34d399;">✓ Done</span></div></div>
+
+      <div class="ph-bar"><div class="ph-bar-label" style="color:#fbbf24;">Phase 2 — In progress</div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#fbbf24;"></div><div class="rd-bar" style="background:#fbbf24;"></div></div><div class="rd-body"><div class="rd-title">Curtain & Blinds production module</div><div class="rd-sub">Workshop stages · fabric/materials · install crew · sign-off</div><span class="rd-tag" style="background:rgba(251,191,36,.1);color:#fbbf24;">In progress</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#fbbf24;"></div></div><div class="rd-body"><div class="rd-title">Developer PWA shell</div><div class="rd-sub">Ecosystem map · personal command centre · installable on phone</div><span class="rd-tag" style="background:rgba(251,191,36,.1);color:#fbbf24;">In progress</span></div></div>
+
+      <div class="ph-bar"><div class="ph-bar-label" style="color:rgba(255,255,255,.2);">Phase 3 — Coming next</div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Upholstery production module</div><div class="rd-sub">Job cards · stages · materials · QC</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Joinery production module</div><div class="rd-sub">Workshop · machines · labour hours · paint + metal</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Owner dashboard</div><div class="rd-sub">Business health · divisions · cash · escalations only</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Sales module</div><div class="rd-sub">Enquiry · quoting · variation raising</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Accounts / Tally bridge</div><div class="rd-sub">Invoice sync · no double entry · P&L</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
+      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Team access + user roles</div><div class="rd-sub">Individual logins per staff role · controlled rollout</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
+    </div>
+
+    <!-- NOTES -->
+    <div class="page" id="p-notes">
+      <div class="ph"><h2>Design Notes</h2><p>Key decisions, open questions, ideas</p></div>
+      <button class="add-note" onclick="addNote()">+ Add new note…</button>
+      <div id="notes-list">
+        <div class="note-card"><div class="note-module">Operations</div><div class="note-text">Variations are NOT raised by Operations — only by Sales or Production Managers. Operations is read-only, just tracks status and sends reminders if stuck.</div><div class="note-date">Today</div></div>
+        <div class="note-card"><div class="note-module">Curtain & Blinds</div><div class="note-text">Dedicated install team separate from workshop. Sequence: Site measure → Fabric order → Arrives → Cut & sew → Track fitting → QC → Install → Sign-off. Client signs physical form on site.</div><div class="note-date">Today</div></div>
+        <div class="note-card"><div class="note-module">BOM Ownership</div><div class="note-text">3 modes per dept: (1) Wait for PM — 48h deadline, (2) Operations fills directly, (3) Delegate to any staff with deadline + alert. Flexibility is key.</div><div class="note-date">Today</div></div>
+        <div class="note-card"><div class="note-module">Budget Approval</div><div class="note-text">Under BD 5,000 — Operations approves immediately. Over BD 5,000 — escalates to Owner (Salman) before production starts. Production is on hold until approved.</div><div class="note-date">Today</div></div>
+        <div class="note-card"><div class="note-module">Mixed Projects</div><div class="note-text">One quote auto-splits to department work-orders. Departments only converge at final delivery. Each dept PM sets their own delivery date. Project tracker watches convergence.</div><div class="note-date">Today</div></div>
+        <div class="note-card"><div class="note-module">Accounts</div><div class="note-text">Tally stays for accounting. Bridge needed so invoices don't need double entry. Q-Pro may or may not have an API — check with Nettworksy first.</div><div class="note-date">Today</div></div>
+      </div>
+    </div>
+
+    <!-- CHECKLIST -->
+    <div class="page" id="p-checklist">
+      <div class="ph"><h2>Before sharing with team</h2><p>Complete these first</p></div>
+      <div class="prog-wrap">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span id="cp-text" style="font-size:13px;font-weight:700;color:#fff;"></span>
+          <span id="cp-pct" style="font-size:13px;font-weight:800;color:#34d399;"></span>
+        </div>
+        <div class="prog-bar-track"><div class="prog-bar-fill" id="cp-bar" style="width:0%;"></div></div>
+      </div>
+      <div class="check-section">
+        <div class="cs-title">Design</div>
+        <div class="ci" onclick="tc('c1')"><div class="cbox done" id="cbox-c1"><span style="font-size:10px;color:#fff;font-weight:800;">✓</span></div><div><div class="ci-t done" id="ct-c1">Operations module signed off</div><div class="ci-s">9 screens reviewed and confirmed</div></div></div>
+        <div class="ci" onclick="tc('c2')"><div class="cbox" id="cbox-c2"></div><div><div class="ci-t" id="ct-c2">Curtain production module complete</div><div class="ci-s">Full workshop + install flow designed</div></div></div>
+        <div class="ci" onclick="tc('c3')"><div class="cbox" id="cbox-c3"></div><div><div class="ci-t" id="ct-c3">Upholstery module designed</div><div class="ci-s">Job cards, stages, materials, QC</div></div></div>
+        <div class="ci" onclick="tc('c4')"><div class="cbox" id="cbox-c4"></div><div><div class="ci-t" id="ct-c4">Joinery module designed</div><div class="ci-s">Workshop, machines, labour, sub-stages</div></div></div>
+        <div class="ci" onclick="tc('c5')"><div class="cbox" id="cbox-c5"></div><div><div class="ci-t" id="ct-c5">Owner dashboard designed</div><div class="ci-s">Business health, divisions, cash, escalations</div></div></div>
+      </div>
+      <div class="check-section">
+        <div class="cs-title">Spec & handoff</div>
+        <div class="ci" onclick="tc('c6')"><div class="cbox done" id="cbox-c6"><span style="font-size:10px;color:#fff;font-weight:800;">✓</span></div><div><div class="ci-t done" id="ct-c6">Spec document written</div><div class="ci-s">AlMaraya-Production-Spec.docx ready</div></div></div>
+        <div class="ci" onclick="tc('c7')"><div class="cbox done" id="cbox-c7"><span style="font-size:10px;color:#fff;font-weight:800;">✓</span></div><div><div class="ci-t done" id="ct-c7">Variation flow corrected in spec</div><div class="ci-s">Sales/PM raises — not Operations</div></div></div>
+        <div class="ci" onclick="tc('c8')"><div class="cbox" id="cbox-c8"></div><div><div class="ci-t" id="ct-c8">Production dept specs added</div><div class="ci-s">All 4 departments documented</div></div></div>
+        <div class="ci" onclick="tc('c9')"><div class="cbox" id="cbox-c9"></div><div><div class="ci-t" id="ct-c9">Q-Pro team briefed</div><div class="ci-s">Nettworksy reviewed and confirmed feasibility</div></div></div>
+      </div>
+      <div class="check-section">
+        <div class="cs-title">Team readiness</div>
+        <div class="ci" onclick="tc('c10')"><div class="cbox" id="cbox-c10"></div><div><div class="ci-t" id="ct-c10">Operations Manager role defined</div><div class="ci-s">Job description written, person identified</div></div></div>
+        <div class="ci" onclick="tc('c11')"><div class="cbox" id="cbox-c11"></div><div><div class="ci-t" id="ct-c11">Production Manager roles defined</div><div class="ci-s">One per department — Curtain, Upholstery, Joinery</div></div></div>
+        <div class="ci" onclick="tc('c12')"><div class="cbox" id="cbox-c12"></div><div><div class="ci-t" id="ct-c12">Test run with real jobs</div><div class="ci-s">Walk through system with live data</div></div></div>
+        <div class="ci" onclick="tc('c13')"><div class="cbox" id="cbox-c13"></div><div><div class="ci-t" id="ct-c13">Staff user accounts created</div><div class="ci-s">Individual logins per role</div></div></div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════
+         OPERATIONS MODULE — FULLY EMBEDDED
+    ══════════════════════════════════════════ -->
+    <div class="page" id="p-operations">
+      <!-- Back to ecosystem -->
+      <div style="background:var(--dark2);padding:10px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:10;">
+        <button onclick="goTo('eco')" style="background:rgba(255,255,255,.08);border:0;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;">‹ Ecosystem</button>
+        <span style="font-size:13px;font-weight:700;color:#fff;">Operations</span>
+        <span style="font-size:10px;font-weight:700;background:rgba(15,157,88,.2);color:#34d399;padding:2px 8px;border-radius:20px;">✓ Built</span>
+      </div>
+      <!-- Operations module content wrapped in light theme container -->
+      <div id="ops-module-wrap" style="background:#f7f9fc;min-height:100%;">
+<div class="topbar">
+  <div class="brand">
+    <div class="logo">◣</div>
+    <div><h1>AL MARAYA DECOR · Operations</h1><small>Complete module — definitive version</small></div>
+  </div>
+  <button class="notif-btn" onclick="opsGoTo('alerts')"><div class="pulse"></div>2 new jobs</button>
+</div>
+
+<div class="nav">
+  <button class="ntab active" data-p="dashboard" onclick="opsGoTo('dashboard')">Dashboard</button>
+  <button class="ntab" data-p="alerts" onclick="opsGoTo('alerts')">New Jobs<span class="nbadge">2</span></button>
+  <button class="ntab" data-p="bom" onclick="opsGoTo('bom')">BOM / Budget</button>
+  <button class="ntab" data-p="projects" onclick="opsGoTo('projects')">All Projects</button>
+  <button class="ntab" data-p="delivery" onclick="opsGoTo('delivery')">Delivery</button>
+  <button class="ntab" data-p="capacity" onclick="opsGoTo('capacity')">Capacity</button>
+  <button class="ntab" data-p="reminders" onclick="opsGoTo('reminders')">Reminders</button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════════ -->
+<div class="page active" id="p-dashboard">
+  <div class="kpis">
+    <div class="kpi"><p class="kl">Active jobs</p><p class="kv">11</p><p class="ks">in production</p></div>
+    <div class="kpi warn"><p class="kl">Approval pending</p><p class="kv" style="color:var(--warn)">3</p><p class="ks">budgets + variations</p></div>
+    <div class="kpi bad"><p class="kl">Needs action</p><p class="kv" style="color:var(--bad)">4</p><p class="ks">alerts unresolved</p></div>
+    <div class="kpi warn"><p class="kl">Delegated tasks</p><p class="kv" style="color:var(--warn)">3</p><p class="ks">awaiting completion</p></div>
+    <div class="kpi warn"><p class="kl">Subs overdue</p><p class="kv" style="color:var(--warn)">2</p><p class="ks">not received</p></div>
+    <div class="kpi warn"><p class="kl">Snags open</p><p class="kv" style="color:var(--warn)">3</p><p class="ks">post-delivery</p></div>
+    <div class="kpi"><p class="kl">Invoiced this month</p><p class="kv">BD 24k</p><p class="ks">BD 14k received</p></div>
+    <div class="kpi ok"><p class="kl">Jobs on budget</p><p class="kv" style="color:var(--ok)">7</p><p class="ks">of 11 active</p></div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">Needs your attention now</p>
+    <div class="prow" onclick="openJob('AMD-15010')">
+      <div><div class="pname">Majlis Refurbishment</div><div class="pmeta">AMD-15010 · Ahmed Omar · BD 4,200</div>
+        <div class="ptags"><span class="pill bad">Over budget</span><span class="pill warn">BOM overdue</span><span class="pill warn">Variation pending</span></div></div>
+      <span class="badge">3</span>
+    </div>
+    <div class="prow" onclick="openJob('AMD-15002')">
+      <div><div class="pname">Villa 5 Fit-out</div><div class="pmeta">AMD-15002 · Discovery Dev · BD 8,450</div>
+        <div class="ptags"><span class="pill warn">Subcon overdue</span><span class="pill warn">Invoice not raised</span><span class="pill bad">3 snags open</span></div></div>
+      <span class="badge warn">3</span>
+    </div>
+    <div class="prow" onclick="opsGoTo('bom')">
+      <div><div class="pname">Showroom Door Unit</div><div class="pmeta">AMD-14933 · Al Maraya Decor · BD 6,800</div>
+        <div class="ptags"><span class="pill grey">Awaiting Owner budget approval</span></div></div>
+      <span class="badge warn">1</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">All clear</p>
+    <div class="prow"><div><div class="pname">Pocket Wall Cladding</div><div class="pmeta">AMD-14871 · Cinqo · On budget · 70%</div></div><span class="badge zero">✓</span></div>
+    <div class="prow"><div><div class="pname">Motorised Curtain Set</div><div class="pmeta">AMD-14801 · Asian Vision · On budget · 90%</div></div><span class="badge zero">✓</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     NEW JOBS
+══════════════════════════════════════════ -->
+<div class="page" id="p-alerts">
+  <div style="background:var(--info-bg);border:1px solid var(--info-line);border-radius:var(--r);padding:11px 15px;margin-bottom:14px;display:flex;gap:9px;">
+    <div class="pulse" style="margin-top:5px;"></div>
+    <div><b style="font-size:14px;">2 confirmed jobs need department assignment</b>
+    <p style="margin:3px 0 0;font-size:12px;color:var(--ink2);line-height:1.5;">Assign departments per item, set sequence, release. PMs get 48h to submit BOM. Go to BOM / Budget to fill or delegate any department.</p></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <div><p style="font-weight:700;font-size:15px;">Majlis Refurbishment</p><p style="font-size:13px;color:var(--ink2);margin:2px 0;">AMD-15010 · Ahmed Omar · BD 4,200 · Aslam Qureshi</p></div>
+      <span class="pill info">Assign now</span>
+    </div>
+    <p style="font-size:13px;color:var(--ink2);margin-bottom:10px;">Items: 2 new sofas, 4 armchairs, 3 brass tables, majlis curtains, feature wall panel</p>
+    <div class="btnrow">
+      <button class="primary" onclick="showAlert('✓ Released — Joinery PM, Upholstery PM, Curtain PM alerted. 48h BOM deadline set.')">Assign departments &amp; release →</button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <div><p style="font-weight:700;font-size:15px;">Showroom Door Unit</p><p style="font-size:13px;color:var(--ink2);margin:2px 0;">AMD-14933 · Al Maraya Decor · BD 6,800</p></div>
+      <span class="pill warn">Owner approval needed after BOM</span>
+    </div>
+    <div class="btnrow">
+      <button class="primary" onclick="showAlert('⚠ Released — Carpentry, Metal, Painting PMs alerted. Owner approval required once budget is set.')">Assign departments &amp; release →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     BOM / BUDGET
+══════════════════════════════════════════ -->
+<div class="page" id="p-bom">
+  <div id="bom-picker">
+    <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">Select a job to set or review BOM and budget.</p>
+    <div class="search-row"><input id="bom-search" placeholder="Search job…" oninput="filterBom()"></div>
+    <div id="bom-list"></div>
+  </div>
+  <div id="bom-detail" style="display:none;">
+    <button class="back" onclick="showBomPicker()">← Job list</button>
+    <div style="background:var(--info-bg);border:1px solid var(--info-line);border-radius:var(--r2);padding:10px 13px;margin-bottom:14px;">
+      <p style="font-weight:700;font-size:15px;" id="bd-title"></p>
+      <p style="font-size:13px;color:var(--ink2);margin:3px 0 0;" id="bd-meta"></p>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:11px 13px;margin-bottom:13px;">
+      <p class="card-title" style="margin-bottom:8px;">Ownership options per department</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:7px;">
+        <div style="background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:var(--r3);padding:9px;"><p style="font-size:11px;font-weight:700;color:var(--warn);">⏳ Wait for PM</p><p style="font-size:11px;color:var(--ink2);margin-top:3px;">Default. 48h deadline.</p></div>
+        <div style="background:#faf5ff;border:1px dashed #c4b5fd;border-radius:var(--r3);padding:9px;"><p style="font-size:11px;font-weight:700;color:#7c3aed;">✏️ Fill myself</p><p style="font-size:11px;color:var(--ink2);margin-top:3px;">Operations enters directly.</p></div>
+        <div style="background:var(--info-bg);border:1px solid var(--info-line);border-radius:var(--r3);padding:9px;"><p style="font-size:11px;font-weight:700;color:var(--info);">👤 Delegate</p><p style="font-size:11px;color:var(--ink2);margin-top:3px;">Assign with deadline + alert.</p></div>
+      </div>
+    </div>
+    <div id="bom-dept-cards"></div>
+    <div class="card">
+      <p class="card-title">Combined budget summary</p>
+      <table>
+        <thead><tr><th>Department</th><th class="r">Materials</th><th class="r">Labour</th><th class="r">Other</th><th class="r">Total</th><th>Owner</th><th>Status</th></tr></thead>
+        <tbody id="bom-sum-rows"></tbody>
+        <tfoot><tr class="tot"><td><b>Total</b></td><td class="r" id="s-mat">—</td><td class="r" id="s-lab">—</td><td class="r" id="s-oth">—</td><td class="r" id="s-tot">—</td><td colspan="2" id="s-margin"></td></tr></tfoot>
+      </table>
+      <div id="bom-threshold" class="threshold" style="margin-top:10px;"></div>
+    </div>
+    <div class="btnrow">
+      <button class="primary" onclick="approveBudget()">Approve &amp; set budget →</button>
+      <button class="sec" onclick="showBomPicker()">Back</button>
+    </div>
+    <div id="bom-done" style="display:none;margin-top:10px;border-radius:var(--r2);padding:11px 13px;font-size:13px;font-weight:500;"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ALL PROJECTS (with job detail)
+══════════════════════════════════════════ -->
+<div class="page" id="p-projects">
+  <div id="proj-list">
+    <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">All ongoing projects. Badge = unresolved alerts. Tap to open full view.</p>
+    <div id="all-proj-rows"></div>
+  </div>
+  <div id="proj-detail" style="display:none;">
+    <button class="back" onclick="showProjList()">← All projects</button>
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:flex-start;">
+      <div><p style="font-weight:700;font-size:16px;" id="jd-name"></p><p style="font-size:13px;color:var(--ink2);margin:2px 0;" id="jd-meta"></p></div>
+      <div id="jd-badge"></div>
+    </div>
+    <div class="jtabs" id="jtabs"></div>
+    <div id="jd-content"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     DELIVERY & INSTALLATION
+══════════════════════════════════════════ -->
+<div class="page" id="p-delivery">
+  <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Pre-delivery checklist must be 100% before dispatch. Sign-off uploads the client's physical form and triggers the final invoice.</p>
+  <div class="card">
+    <p class="card-title">Villa 5 Fit-out · Delivery 22 Jun</p>
+    <div class="row2" style="margin-bottom:10px;">
+      <div class="field"><label>Date</label><input type="date" value="2026-06-22"></div>
+      <div class="field"><label>Team</label><select><option>Team A — Ahmed +2</option><option>Team B — Khalid +2</option></select></div>
+    </div>
+    <div class="field"><label>Site notes</label><input type="text" value="Villa 5, Riffa Views — call Sophia on arrival +97333285190"></div>
+    <p class="card-title" style="margin-top:14px;">Pre-delivery checklist</p>
+    <div id="checklist"></div>
+    <p id="check-prog" style="font-size:13px;font-weight:600;margin:10px 0;"></p>
+    <div class="btnrow">
+      <button class="primary" id="dispatch-btn" onclick="confirmDispatch()" disabled style="opacity:.5;">Confirm dispatch &amp; trigger final invoice →</button>
+    </div>
+    <div id="dispatch-done" style="display:none;margin-top:10px;background:var(--ok-bg);border:1px solid var(--ok-line);border-radius:var(--r2);padding:11px 13px;font-size:13px;color:var(--ok);font-weight:500;">✓ Dispatched · Accounts notified to raise BD 2,535 final invoice · Client SMS sent</div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">Upcoming deliveries</p>
+    <table>
+      <thead><tr><th>Job</th><th>Date</th><th>Team</th><th>Checklist</th><th>Sign-off</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:9px 6px;font-weight:600;">Villa 5</td><td style="padding:9px 6px;">22 Jun</td><td style="padding:9px 6px;">Team A</td><td style="padding:9px 6px;"><span class="pill warn">6/8</span></td><td style="padding:9px 6px;"><span class="pill grey">Pending</span></td></tr>
+        <tr style="border-top:1px solid var(--line);"><td style="padding:9px 6px;font-weight:600;">Majlis</td><td style="padding:9px 6px;">25 Jun</td><td style="padding:9px 6px;">Team B</td><td style="padding:9px 6px;"><span class="pill grey">Not started</span></td><td style="padding:9px 6px;"><span class="pill grey">Pending</span></td></tr>
+        <tr style="border-top:1px solid var(--line);"><td style="padding:9px 6px;font-weight:600;">Curtain Set</td><td style="padding:9px 6px;">12 Jun</td><td style="padding:9px 6px;">Team A</td><td style="padding:9px 6px;"><span class="pill ok">✓ Ready</span></td><td style="padding:9px 6px;"><span class="pill ok">✓ Signed</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     CAPACITY
+══════════════════════════════════════════ -->
+<div class="page" id="p-capacity">
+  <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Check before promising delivery dates. Use this to push back on unrealistic timelines before they're given to the client.</p>
+  <div class="card">
+    <div id="heat-grid"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--ink2);">
+      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#c8e6c9;margin-right:3px;vertical-align:middle;"></i>Light</span>
+      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fff3e0;margin-right:3px;vertical-align:middle;"></i>Moderate</span>
+      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ffe0b2;margin-right:3px;vertical-align:middle;"></i>Heavy</span>
+      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ffcdd2;margin-right:3px;vertical-align:middle;"></i>Near full</span>
+      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--bad);margin-right:3px;vertical-align:middle;"></i>Full</span>
+    </div>
+  </div>
+  <div class="card">
+    <p class="card-title">Reading this</p>
+    <p style="font-size:13px;color:var(--ink2);line-height:1.6;">Joinery is <b style="color:var(--bad);">full weeks 1–2.</b> Any new joinery job confirmed today realistically starts week 3. Curtain is free from week 2. Before agreeing a delivery date with Sales or a client, open this view first.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     REMINDERS & ALERTS LOG
+══════════════════════════════════════════ -->
+<div class="page" id="p-reminders">
+  <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Every alert and reminder sent from Operations — what was sent, to whom, when, and whether it was acted on.</p>
+  <div class="card">
+    <div id="rem-list"></div>
+  </div>
+</div>
+
+<p class="foot">Definitive Operations module. All projects → tap any job to see Overview, Budget, Variations, Subcontractors, Payments, Snags, Internal notes, Client log, and Documents — all in one job view.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       CURTAIN & BLINDS MODULE
+  ══════════════════════════════════════════ -->
+  <div class="module" id="curt-module-wrap" style="display:none;">
+    <div class="ops-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);display:flex;align-items:center;justify-content:center;font-size:16px;">🪟</div>
+        <div><p style="font-weight:700;font-size:15px;color:#fff;">Curtain &amp; Blinds</p><p style="font-size:11px;color:rgba(255,255,255,.45);">Silva · Production Manager</p></div>
+      </div>
+      <button class="icon-btn" onclick="goTo('eco')" title="Back to ecosystem" style="color:rgba(255,255,255,.4);font-size:18px;">✕</button>
+    </div>
+
+    <div class="nav" id="curt-nav">
+      <button class="ntab active" data-p="curt-dashboard" onclick="curtGoTo('curt-dashboard')">Dashboard</button>
+      <button class="ntab" data-p="curt-jobs"      onclick="curtGoTo('curt-jobs')">Jobs</button>
+      <button class="ntab" data-p="curt-windows"   onclick="curtGoTo('curt-windows')">Windows</button>
+      <button class="ntab" data-p="curt-bom"       onclick="curtGoTo('curt-bom')">BOM</button>
+      <button class="ntab" data-p="curt-workshop"  onclick="curtGoTo('curt-workshop')">Workshop</button>
+      <button class="ntab" data-p="curt-fabric"    onclick="curtGoTo('curt-fabric')">Fabric</button>
+      <button class="ntab" data-p="curt-install"   onclick="curtGoTo('curt-install')">Installation</button>
+    </div>
+
+    <div class="scroll" id="curt-scroll">
+
+      <!-- ══ CURTAIN DASHBOARD ══ -->
+      <div class="page active" id="p-curt-dashboard">
+        <div class="kpis" id="curt-kpis">
+          <!-- rendered by curtain.js -->
+        </div>
+        <div class="card" id="curt-alerts-card">
+          <p class="card-title">Material overage alerts</p>
+          <div id="curt-budget-alerts"></div>
+        </div>
+        <div class="card">
+          <p class="card-title">Active jobs</p>
+          <div id="curt-active-jobs"></div>
+        </div>
+        <div class="card" style="margin-top:12px;">
+          <p class="card-title">5-week schedule overview</p>
+          <div id="curt-dash-gantt"></div>
+        </div>
+      </div>
+
+      <!-- ══ CURTAIN JOBS LIST ══ -->
+      <div class="page" id="p-curt-jobs">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">All curtain jobs. Tap a job to open its full window schedule, BOM and budget.</p>
+        <div id="curt-jobs-list"></div>
+      </div>
+
+      <!-- ══ WINDOW SCHEDULE ══ -->
+      <div class="page" id="p-curt-windows">
+
+        <!-- Job picker (shown when no job selected) -->
+        <div id="curt-win-picker">
+          <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">Select a job to open its window schedule.</p>
+          <div id="curt-win-job-list"></div>
+        </div>
+
+        <!-- Window schedule (shown when job selected) -->
+        <div id="curt-win-detail" style="display:none;">
+          <button class="back" onclick="showCurtWinPicker()">← Job list</button>
+
+          <!-- Job header -->
+          <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+              <div>
+                <p style="font-weight:700;font-size:15px;" id="cw-job-name"></p>
+                <p style="font-size:12px;color:var(--ink2);margin:2px 0;" id="cw-job-meta"></p>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <label style="font-size:12px;color:var(--ink2);">Wastage buffer</label>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <input type="number" id="cw-wastage" min="0" max="30" value="10"
+                    style="width:52px;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13px;text-align:center;"
+                    onchange="updateWastage(this.value)">
+                  <span style="font-size:12px;color:var(--ink2);">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fabric summary totals -->
+          <div class="card" style="margin-bottom:14px;">
+            <p class="card-title">Calculated fabric totals</p>
+            <div id="cw-fabric-totals" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px;"></div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
+              <p style="font-size:12px;color:var(--ink2);">Track requirements</p>
+              <div id="cw-track-totals" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;"></div>
+            </div>
+            <div id="cw-motor-flag" style="display:none;margin-top:10px;padding:8px 10px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:var(--r3);">
+              <p style="font-size:12px;font-weight:600;color:#a78bfa;" id="cw-motor-text"></p>
+            </div>
+          </div>
+
+          <!-- Room-by-room window schedule -->
+          <div id="cw-rooms"></div>
+
+          <!-- Push to BOM -->
+          <div class="btnrow" style="margin-top:14px;">
+            <button class="primary" onclick="pushWindowsToBOM()" style="background:rgba(124,58,237,.8);border-color:rgba(124,58,237,.5);">Generate BOM from windows →</button>
+          </div>
+        </div>
+
+        <!-- ── Calc Sheet Slide-up Panel ── -->
+        <div id="curt-calc-sheet" style="display:none;flex-direction:column;position:fixed;bottom:0;left:0;right:0;top:0;z-index:300;background:#fff;overflow-y:auto;">
+
+          <!-- Header -->
+          <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+            <div>
+              <p style="color:#fff;font-weight:700;font-size:15px;" id="cs-win-label">Window</p>
+              <p style="color:#94a3b8;font-size:12px;margin-top:2px;" id="cs-win-room"></p>
+            </div>
+            <button onclick="closeCalcSheet()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">✕ Close</button>
+          </div>
+
+          <!-- Window info strip -->
+          <div style="background:#f0f4ff;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;gap:16px;flex-wrap:wrap;flex:none;">
+            <span style="font-size:12px;color:#64748b;">Size: <strong id="cs-win-size" style="color:#1e2a3b;"></strong></span>
+            <span style="font-size:12px;color:#64748b;">Treatment: <strong id="cs-win-treatment" style="color:#7c3aed;"></strong></span>
+            <span style="font-size:12px;color:#64748b;">Fabric: <strong id="cs-win-fabric" style="color:#1e2a3b;"></strong></span>
+            <span style="font-size:12px;color:#64748b;">Design: <strong id="cs-win-design" style="color:#1e2a3b;"></strong></span>
+          </div>
+
+          <!-- Form body -->
+          <div style="padding:16px;flex:1;">
+
+            <!-- Fabric inputs -->
+            <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Fabric calculation</p>
+
+            <div class="cs-row">
+              <label class="cs-label">Fullness ratio</label>
+              <input id="cs-fullness" type="number" class="cs-input" step="0.1" min="1" max="4" oninput="calcSheetLive()">
+            </div>
+            <div class="cs-row" style="margin-top:10px;">
+              <label class="cs-label">Roll width (cm)</label>
+              <input id="cs-rollwidth" type="number" class="cs-input" min="1" oninput="calcSheetLive()">
+            </div>
+            <div class="cs-row" style="margin-top:10px;">
+              <label class="cs-label">Pattern repeat V (cm)</label>
+              <input id="cs-repv" type="number" class="cs-input" min="0" oninput="calcSheetLive()">
+            </div>
+            <div class="cs-row" style="margin-top:10px;">
+              <label class="cs-label">Pattern repeat H (cm)</label>
+              <input id="cs-reph" type="number" class="cs-input" min="0" oninput="calcSheetLive()">
+            </div>
+
+            <!-- Hem inputs -->
+            <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin:16px 0 10px;">Hems (cm)</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+              <div>
+                <label class="cs-label">Top</label>
+                <input id="cs-top-hem" type="number" class="cs-input" min="0" oninput="calcSheetLive()">
+              </div>
+              <div>
+                <label class="cs-label">Bottom</label>
+                <input id="cs-bottom-hem" type="number" class="cs-input" min="0" oninput="calcSheetLive()">
+              </div>
+              <div>
+                <label class="cs-label">Side</label>
+                <input id="cs-side-hem" type="number" class="cs-input" min="0" oninput="calcSheetLive()">
+              </div>
+            </div>
+
+            <!-- Track / rail inputs -->
+            <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin:16px 0 10px;">Track / rail</p>
+            <div class="cs-row">
+              <label class="cs-label">Track length (cm)</label>
+              <input id="cs-track-length" type="number" class="cs-input" min="1" oninput="calcSheetLive()">
+            </div>
+            <div class="cs-row" style="margin-top:10px;">
+              <label class="cs-label">Rail type</label>
+              <select id="cs-rail-type" class="cs-input">
+                <option>Wave Rail</option>
+                <option>Cord Rail</option>
+                <option>Eyelet Rail</option>
+                <option>Motorised Rail (Somfy)</option>
+                <option>Motorised Rail (Other)</option>
+                <option>Somfy Glydea Track</option>
+                <option>Unisoiel Track</option>
+                <option>Roman Blind Rail</option>
+                <option>Roller Blind Bracket</option>
+                <option>Wooden Pole</option>
+                <option>Double Rail (Sheer + Curtain)</option>
+                <option>Triple Rail (Sheer + 2 Curtain)</option>
+              </select>
+            </div>
+
+            <!-- Motor -->
+            <div class="cs-row" style="margin-top:12px;align-items:center;">
+              <label class="cs-label">Motorized</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="cs-motorized" onchange="toggleCalcMotorBrand(this.checked)" style="width:18px;height:18px;">
+                <span style="font-size:13px;color:#1e2a3b;">Yes</span>
+              </label>
+            </div>
+            <div id="cs-motor-brand-wrap" style="display:none;margin-top:10px;">
+              <div class="cs-row">
+                <label class="cs-label">Motor brand</label>
+                <select id="cs-motorbrand" class="cs-input">
+                  <option value="somfy">Somfy</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="cs-row" style="margin-top:10px;">
+                <label class="cs-label">Motor model</label>
+                <select id="cs-motormodel" class="cs-input">
+                  <!-- populated from MOTOR_MODELS by curtain.js -->
+                </select>
+              </div>
+              <div class="cs-row" style="margin-top:10px;">
+                <label class="cs-label">Remote</label>
+                <input id="cs-remote-type" type="text" class="cs-input" placeholder="e.g. Multi-channel Somfy Remote">
+              </div>
+            </div>
+
+            <!-- extras injected here by curtain.js (opening direction / bracket / cord) -->
+
+            <!-- Live result -->
+            <div id="cs-result" style="display:none;margin-top:16px;background:#f0fdf4;border:1px solid #d1fae5;border-radius:10px;padding:14px;">
+            </div>
+
+            <!-- Save button -->
+            <div style="margin-top:16px;padding-bottom:20px;">
+              <button onclick="saveCalcSheet()" style="width:100%;padding:14px;background:#7c3aed;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">
+                Save calc sheet →
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── Copy Calc Sheet Panel ── -->
+        <div id="curt-copy-calc-panel" style="display:none;flex-direction:column;position:fixed;bottom:0;left:0;right:0;top:0;z-index:300;background:#fff;overflow-y:auto;">
+
+          <!-- Header -->
+          <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+            <div>
+              <p style="color:#fff;font-weight:700;font-size:15px;">Copy calc from <span id="cc-src-label"></span></p>
+              <p style="color:#94a3b8;font-size:12px;margin-top:2px;" id="cc-src-meta"></p>
+            </div>
+            <button onclick="closeCopyCalcPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">✕ Close</button>
+          </div>
+
+          <div style="padding:16px;flex:1;">
+            <p style="font-size:12px;color:#64748b;margin-bottom:14px;">
+              Copies fullness, hems, rail type, motor, opening direction, bracket and cord specs to the windows you select below. Each window keeps its own width, height and track length.
+            </p>
+            <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Select windows to copy to</p>
+            <div id="cc-target-list"></div>
+
+            <div style="margin-top:16px;padding-bottom:20px;">
+              <button onclick="applyCopyCalc()" style="width:100%;padding:14px;background:#7c3aed;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">
+                Copy to selected windows →
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ══ BOM ══ -->
+      <div class="page" id="p-curt-bom">
+
+        <!-- Job picker -->
+        <div id="curt-bom-picker">
+          <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">Select a job to view or edit its Bill of Materials.</p>
+          <div id="curt-bom-job-list"></div>
+        </div>
+
+        <!-- BOM detail -->
+        <div id="curt-bom-detail" style="display:none;">
+          <button class="back" onclick="showCurtBomPicker()">← Job list</button>
+          <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
+            <p style="font-weight:700;font-size:15px;" id="cb-job-name"></p>
+            <p style="font-size:12px;color:var(--ink2);margin:3px 0;" id="cb-job-meta"></p>
+          </div>
+
+          <!-- Material overage alerts -->
+          <div id="cb-budget-alerts" style="margin-bottom:12px;"></div>
+
+          <!-- Project summary (quantities) -->
+          <div class="card" style="margin-bottom:12px;">
+            <p class="card-title">Project summary</p>
+            <div id="cb-project-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:8px;"></div>
+          </div>
+
+          <!-- Per-window breakdown -->
+          <div class="card" style="margin-bottom:12px;">
+            <p class="card-title">Per-window breakdown</p>
+            <div id="cb-breakdown"></div>
+          </div>
+
+          <!-- Compiled summary — rolled up by exact fabric code / rail type -->
+          <div class="card" style="margin-bottom:12px;">
+            <p class="card-title">Compiled summary</p>
+            <p style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px;">Fabric — by code</p>
+            <div id="cb-fabric"></div>
+            <p style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px;">Tracks — by rail type</p>
+            <div id="cb-tracks"></div>
+          </div>
+          <div class="card" style="margin-bottom:12px;">
+            <p class="card-title">Motors</p>
+            <div id="cb-motors"></div>
+          </div>
+          <div class="card" style="margin-bottom:12px;">
+            <p class="card-title">Accessories</p>
+            <div id="cb-accessories"></div>
+          </div>
+
+          <!-- Submit for budget approval -->
+          <div id="cb-approval-section">
+            <div class="btnrow">
+              <button class="primary" onclick="submitCurtainBudget()" style="background:rgba(124,58,237,.8);border-color:rgba(124,58,237,.5);">Submit for budget approval →</button>
+            </div>
+          </div>
+          <div id="cb-approval-done" style="display:none;margin-top:10px;background:var(--ok-bg);border:1px solid var(--ok-line);border-radius:var(--r2);padding:11px 13px;font-size:13px;color:var(--ok);font-weight:500;"></div>
+        </div>
+      </div>
+
+      <!-- ══ WORKSHOP ══ -->
+      <div class="page" id="p-curt-workshop">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">Manage stitching and track making. Production only starts after budget approval.</p>
+        <div id="curt-workshop-jobs"></div>
+        <div class="card" style="margin-top:4px;">
+          <p class="card-title">5-week production schedule</p>
+          <div id="curt-workshop-gantt"></div>
+        </div>
+      </div>
+
+      <!-- ══ FABRIC ══ -->
+      <div class="page" id="p-curt-fabric">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">Source each fabric line — vendor order or Al Maraya stock. Flag reservations for the Stock Controller.</p>
+        <div id="curt-fabric-list"></div>
+      </div>
+
+      <!-- ══ INSTALLATION ══ -->
+      <div class="page" id="p-curt-install">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">All three readiness checks must be complete before scheduling. Assign crew and confirm install date.</p>
+        <div id="curt-install-list"></div>
+      </div>
+
+      <p class="foot">Curtain &amp; Blinds module · Silva · Cost control first, production second, installation third.</p>
+    </div>
+  </div>
+
+  <div class="bnav">
+    <div class="bni active" id="bn-eco" onclick="goTo('eco')"><div class="bni-icon">🌐</div><div class="bni-label">Ecosystem</div></div>
+    <div class="bni" id="bn-roadmap" onclick="goTo('roadmap')"><div class="bni-icon">🗺️</div><div class="bni-label">Roadmap</div></div>
+    <div class="bni" id="bn-notes" onclick="goTo('notes')"><div class="bni-icon">📝</div><div class="bni-label">Notes</div></div>
+    <div class="bni" id="bn-checklist" onclick="goTo('checklist')"><div class="bni-icon">✅</div><div class="bni-label">Checklist</div></div>
+  </div>
+</div>
+
+<!-- OVERLAY + INFO PANEL -->
+<div class="overlay" id="overlay" onclick="closePanel()"></div>
+<div class="info-panel" id="info-panel">
+  <div class="panel-handle"></div>
+  <button class="panel-close" onclick="closePanel()">✕</button>
+  <div class="panel-head">
+    <div class="ph-icon" id="pi"></div>
+    <div class="ph-text">
+      <div class="pt" id="pt"></div>
+      <div class="ps" id="ps"></div>
+      <span class="ph-status" id="pst"></span>
+    </div>
+  </div>
+  <div class="panel-body" id="pb"></div>
+</div>
+
+
+<!-- Coming-soon tooltip -->
+<div id="eco-tooltip">Coming soon</div>
+
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script src="operations.js"></script>
+<script src="curtain.js"></script>
+
+<script>
+// ── Curtain sub-node touch glow ─────────────────────────────
+const SUB_NODE_MAP = {
+  tracks:  { node: 'sub-tracks',  branch: 'branch-tracks'  },
+  qc:      { node: 'sub-qc',      branch: 'branch-qc'      },
+  install: { node: 'sub-install', branch: 'branch-install' },
+};
+
+function subNodeTouch(id, active) {
+  const map = SUB_NODE_MAP[id];
+  if (!map) return;
+  const nodeEl   = document.getElementById(map.node);
+  const branchEl = document.getElementById(map.branch);
+  if (!nodeEl || !branchEl) return;
+  if (active) {
+    nodeEl.classList.add('active');
+    branchEl.classList.add('active');
+    const bg   = nodeEl.querySelector('circle.sub-bg');
+    const glow = nodeEl.querySelector('circle.sub-glow');
+    if (bg)   { bg.setAttribute('r', '18'); }
+    if (glow) { glow.setAttribute('r', '28'); glow.style.opacity = '.35'; }
+  } else {
+    nodeEl.classList.remove('active');
+    branchEl.classList.remove('active');
+    const bg   = nodeEl.querySelector('circle.sub-bg');
+    const glow = nodeEl.querySelector('circle.sub-glow');
+    if (bg)   { bg.setAttribute('r', '14'); }
+    if (glow) { glow.setAttribute('r', '22'); glow.style.opacity = '0'; }
+  }
+}
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// ECOSYSTEM LIVE ANIMATION
+// Touch/glide — nodes light green, lines zap with electricity
+// Built nodes → direct launch   Soon nodes → tooltip flash
+// ═══════════════════════════════════════════════════════
+
+(function() {
+
+  // ── Node registry ──────────────────────────────────────
+  // cx/cy are SVG coordinates; hitRadius is the touch catch zone
+  const NODES = [
+    { id:'operations', cx:190, cy:123, built:true,  launch:()=>{ closePanel(); setTimeout(()=>goTo('operations'),150); } },
+    { id:'curtain',    cx:316, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchCurtainModule(),150); } },
+    // Sub-nodes (Curtain children — direct launch)
+    { id:'sub-tracks', cx:355, cy:112, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openTracksDashboard&&openTracksDashboard(),150); }, isSubNode:true },
+    { id:'sub-qc',     cx:372, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openQCDashboard&&openQCDashboard(),150); },     isSubNode:true },
+    { id:'sub-install',cx:355, cy:224, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openInstallCrewDashboard&&openInstallCrewDashboard(),150); }, isSubNode:true },
+    // Ring 2 soon
+    { id:'upholstery', cx:334, cy:268, built:false },
+    { id:'joinery',    cx:258, cy:358, built:false },
+    { id:'painting',   cx:122, cy:358, built:false },
+    { id:'sales',      cx:46,  cy:268, built:false },
+    { id:'estimation', cx:64,  cy:168, built:false },
+    // Ring 3 soon
+    { id:'owner',      cx:190, cy:32,  built:false },
+    { id:'accounts',   cx:354, cy:85,  built:false },
+    { id:'delivery',   cx:364, cy:385, built:false },
+    { id:'hr',         cx:190, cy:464, built:false },
+    { id:'approvals',  cx:16,  cy:385, built:false },
+    { id:'tally',      cx:26,  cy:85,  built:false },
+  ];
+
+  // Hit radii per ring
+  const HIT = { 'operations':36, 'curtain':30, default:26, subNode:20 };
+
+  function getHit(n) {
+    if (n.isSubNode) return HIT.subNode;
+    return HIT[n.id] || HIT.default;
+  }
+
+  // ── State ──────────────────────────────────────────────
+  let litNodes = new Set();
+  let tooltipTimer = null;
+  const tooltip   = document.getElementById('eco-tooltip');
+
+  // ── Helpers ────────────────────────────────────────────
+  function getNodeEl(n) {
+    return document.getElementById('node-' + n.id) || document.getElementById(n.id);
+  }
+  function getLineEl(n) {
+    if (n.isSubNode) return document.getElementById('branch-' + n.id.replace('sub-',''));
+    return document.getElementById('line-' + n.id);
+  }
+
+  function litNode(n, on) {
+    const el = getNodeEl(n);
+    if (!el) return;
+    const lineEl = getLineEl(n);
+    if (on) {
+      el.classList.add(n.built ? 'eco-lit' : 'eco-soon-lit');
+      if (lineEl) lineEl.classList.add('eco-zap');
+    } else {
+      el.classList.remove('eco-lit', 'eco-soon-lit');
+      if (lineEl) lineEl.classList.remove('eco-zap');
+    }
+  }
+
+  function clearAll() {
+    litNodes.forEach(n => litNode(n, false));
+    litNodes.clear();
+  }
+
+  // Show "Coming soon" tooltip near SVG node
+  function showTooltip(n, svgEl) {
+    if (!tooltip || !svgEl) return;
+    const rect   = svgEl.getBoundingClientRect();
+    const vb     = svgEl.viewBox.baseVal; // 0 0 380 500
+    const scaleX = rect.width  / vb.width;
+    const scaleY = rect.height / vb.height;
+    const x = rect.left + n.cx * scaleX;
+    const y = rect.top  + n.cy * scaleY;
+
+    tooltip.style.left = x + 'px';
+    tooltip.style.top  = y + 'px';
+    tooltip.classList.add('show');
+    if (tooltipTimer) clearTimeout(tooltipTimer);
+    tooltipTimer = setTimeout(() => tooltip.classList.remove('show'), 1200);
+  }
+
+  // ── SVG coordinate from pointer event ─────────────────
+  function svgPoint(svg, e) {
+    const pt = svg.createSVGPoint();
+    const touch = e.touches ? e.touches[0] : e;
+    pt.x = touch.clientX;
+    pt.y = touch.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  // ── Find nodes under SVG point ─────────────────────────
+  function nodesAt(svgPt) {
+    return NODES.filter(n => {
+      const dx = svgPt.x - n.cx;
+      const dy = svgPt.y - n.cy;
+      return Math.sqrt(dx*dx + dy*dy) <= getHit(n);
+    });
+  }
+
+  // ── Debounce for tap vs glide distinction ──────────────
+  let tapStart = null;
+  let tapMoved = false;
+
+  // ── Wire up events on the SVG ─────────────────────────
+  function initEco() {
+    const svg = document.querySelector('.eco-svg');
+    if (!svg) { setTimeout(initEco, 200); return; }
+
+    // Touch start — record position, begin lighting
+    svg.addEventListener('touchstart', function(e) {
+      tapStart  = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      tapMoved  = false;
+      const pt  = svgPoint(svg, e);
+      const hit = nodesAt(pt);
+      clearAll();
+      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
+    }, { passive:true });
+
+    // Touch move — glide lights up nodes as finger passes
+    svg.addEventListener('touchmove', function(e) {
+      if (tapStart) {
+        const dx = e.touches[0].clientX - tapStart.x;
+        const dy = e.touches[0].clientY - tapStart.y;
+        if (Math.sqrt(dx*dx + dy*dy) > 6) tapMoved = true;
+      }
+      const pt  = svgPoint(svg, e);
+      const hit = nodesAt(pt);
+
+      // Light new hits, keep previously lit for 400ms fade
+      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
+    }, { passive:true });
+
+    // Touch end — if short tap (no move) trigger action
+    svg.addEventListener('touchend', function(e) {
+      if (!tapMoved && litNodes.size > 0) {
+        const firstNode = [...litNodes][0];
+        handleNodeTap(firstNode, svg);
+      }
+      // Fade out all lit nodes after brief hold
+      setTimeout(clearAll, 350);
+      tapStart = null; tapMoved = false;
+    }, { passive:true });
+
+    svg.addEventListener('touchcancel', function() {
+      setTimeout(clearAll, 200);
+      tapStart = null;
+    }, { passive:true });
+
+    // Mouse equivalents for desktop testing
+    let mouseDown = false;
+    svg.addEventListener('mousedown', function(e) {
+      mouseDown = true;
+      tapMoved  = false;
+      tapStart  = { x: e.clientX, y: e.clientY };
+      const pt  = svgPoint(svg, e);
+      const hit = nodesAt(pt);
+      clearAll();
+      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
+    });
+    svg.addEventListener('mousemove', function(e) {
+      if (!mouseDown) return;
+      if (tapStart) {
+        const dx = e.clientX - tapStart.x;
+        const dy = e.clientY - tapStart.y;
+        if (Math.sqrt(dx*dx + dy*dy) > 6) tapMoved = true;
+      }
+      const pt  = svgPoint(svg, e);
+      const hit = nodesAt(pt);
+      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
+    });
+    svg.addEventListener('mouseup', function(e) {
+      if (!tapMoved && litNodes.size > 0) {
+        const firstNode = [...litNodes][0];
+        handleNodeTap(firstNode, svg);
+      }
+      mouseDown = false;
+      setTimeout(clearAll, 350);
+      tapStart = null;
+    });
+    svg.addEventListener('mouseleave', function() {
+      mouseDown = false;
+      setTimeout(clearAll, 200);
+    });
+  }
+
+  // ── Handle a confirmed tap on a node ──────────────────
+  function handleNodeTap(n, svg) {
+    if (n.built && n.launch) {
+      // Prevent the SVG onclick from also firing showPanel
+      // by intercepting — the onclick on the <g> still fires
+      // but we override: for built nodes we call launch directly.
+      // We need to suppress showPanel for built nodes.
+      // Strategy: set a flag that showPanel checks.
+      window._ecoDirectLaunch = true;
+      n.launch();
+      setTimeout(() => { window._ecoDirectLaunch = false; }, 500);
+    } else {
+      // Soon node — show tooltip only, no panel
+      window._ecoDirectLaunch = true;
+      showTooltip(n, svg);
+      setTimeout(() => { window._ecoDirectLaunch = false; }, 500);
+    }
+  }
+
+  // ── Patch showPanel to respect direct-launch flag ─────
+  const _origShowPanel = window.showPanel;
+  window.showPanel = function(id) {
+    if (window._ecoDirectLaunch) return; // suppress panel on direct launch
+    _origShowPanel && _origShowPanel(id);
+  };
+
+  // ── Init ───────────────────────────────────────────────
+  initEco();
+
+})();
+</script>
+</body>
+</html>
