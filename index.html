@@ -293,6 +293,10 @@
             <circle class="sub-bg"   cx="355" cy="112" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
             <text x="355" y="108" text-anchor="middle" font-size="9">🔩</text>
             <text x="355" y="120" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">TRACKS</text>
+            <g id="badge-sub-tracks" style="display:none;">
+              <circle cx="364" cy="103" r="7" fill="#ef4444" stroke="#1e2a3b" stroke-width="1.5"/>
+              <text x="364" y="106" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
+            </g>
           </g>
 
           <!-- Sub-node: QC (372, 168) -->
@@ -308,6 +312,10 @@
             <circle class="sub-bg"   cx="372" cy="168" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
             <text x="372" y="164" text-anchor="middle" font-size="9">🔍</text>
             <text x="372" y="176" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">QC</text>
+            <g id="badge-sub-qc" style="display:none;">
+              <circle cx="381" cy="159" r="7" fill="#ef4444" stroke="#1e2a3b" stroke-width="1.5"/>
+              <text x="381" y="162" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
+            </g>
           </g>
 
           <!-- Sub-node: Installation (355, 224) -->
@@ -323,6 +331,10 @@
             <circle class="sub-bg"   cx="355" cy="224" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
             <text x="355" y="220" text-anchor="middle" font-size="9">🏠</text>
             <text x="355" y="232" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">INSTALL</text>
+            <g id="badge-sub-install" style="display:none;">
+              <circle cx="364" cy="215" r="7" fill="#3b82f6" stroke="#1e2a3b" stroke-width="1.5"/>
+              <text x="364" y="218" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
+            </g>
           </g>
 
           <!-- RING 2 UPHOLSTERY (soon) -->
@@ -651,6 +663,7 @@
 <div class="page" id="p-projects">
   <div id="proj-list">
     <p style="font-size:13px;color:var(--ink2);margin-bottom:12px;">All ongoing projects. Badge = unresolved alerts. Tap to open full view.</p>
+    <div id="ops-curtain-alerts" style="margin-bottom:12px;"></div>
     <div id="all-proj-rows"></div>
   </div>
   <div id="proj-detail" style="display:none;">
@@ -768,6 +781,7 @@
           <p class="card-title">Material overage alerts</p>
           <div id="curt-budget-alerts"></div>
         </div>
+        <div id="curt-accounts-alerts"></div>
         <div class="card">
           <p class="card-title">Active jobs</p>
           <div id="curt-active-jobs"></div>

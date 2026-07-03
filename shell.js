@@ -13,7 +13,7 @@ function pt(v){
   for(let i=0;i<4;i++){const d=document.getElementById('d'+i);d.classList.toggle('filled',i<entered.length);}
   if(entered.length===4){
     setTimeout(()=>{
-      if(entered===PIN){document.getElementById('lock').style.display='none';document.getElementById('app').style.display='flex';updCP();}
+      if(entered===PIN){document.getElementById('lock').style.display='none';document.getElementById('app').style.display='flex';updCP();updateHubBadges();}
       else{document.querySelectorAll('.pin-dot').forEach(d=>d.classList.add('error'));setTimeout(()=>{entered='';for(let i=0;i<4;i++)document.getElementById('d'+i).classList.remove('filled','error');},700);}
     },100);
   }
@@ -34,6 +34,7 @@ function goTo(p){
   document.getElementById('bn-'+p)?.classList.add('active');
   document.getElementById('tb-title').textContent=TT[p]||p;
   scroll?.scrollTo({top:0,behavior:'smooth'});
+  updateHubBadges();
 }
 
 // MODULE DATA
@@ -114,6 +115,49 @@ function updCP(){
   if(txt)txt.textContent=done+' of '+total+' done';
   const pctEl=document.getElementById('cp-pct');
   if(pctEl)pctEl.textContent=pct+'%';
+}
+
+// HUB PUSH BADGES
+// Reads live item-card state from curtain.js/data.js and reflects it as
+// small numbered badges on the three Curtain sub-nodes (Tracks/QC/Install)
+// on the ecosystem hub. Safe no-op if curtain.js hasn't loaded/hydrated yet.
+function updateHubBadges(){
+  if (typeof curtainJobs === 'undefined' || !Array.isArray(curtainJobs)) return;
+
+  let reworkCount = 0, qcNewCount = 0, readyToInstallCount = 0;
+
+  curtainJobs.forEach(job => {
+    if (typeof ensureItemCards === 'function') ensureItemCards(job);
+    if (!job.itemCards) return;
+
+    const qcStatus = typeof getJobQCStatus === 'function' ? getJobQCStatus(job) : null;
+    const released = !!(qcStatus && (qcStatus.allPassed || (job.installation && job.installation.partialRelease === true)));
+
+    (job.windows || []).forEach(w => {
+      if (!w.calcDone) return;
+      const card = job.itemCards[w.id];
+      if (!card) return;
+      if (card.isRework) reworkCount++;
+      if (card.qcQueuedAt && !card.qcSeen) qcNewCount++;
+      if (card.stage === 'Ready' && !card.isRework && released) readyToInstallCount++;
+    });
+  });
+
+  setHubBadge('badge-sub-tracks', reworkCount);
+  setHubBadge('badge-sub-qc', qcNewCount);
+  setHubBadge('badge-sub-install', readyToInstallCount);
+}
+
+function setHubBadge(groupId, count){
+  const g = document.getElementById(groupId);
+  if (!g) return;
+  if (count > 0) {
+    g.style.display = '';
+    const t = g.querySelector('text');
+    if (t) t.textContent = count > 9 ? '9+' : String(count);
+  } else {
+    g.style.display = 'none';
+  }
 }
 
 // NOTES

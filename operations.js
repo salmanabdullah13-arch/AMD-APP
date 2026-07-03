@@ -17,9 +17,96 @@ function showAlert(msg){
 }
 
 // ══════════════════════════════
+// CURTAIN ACCOUNTS-ALERT SYNC
+// Curtain flags job.accountsAlert once a whole job clears QC (balance
+// invoice can be requested before install). This pulls that signal into
+// Operations' own alert feed. curtainJobs and projects are separate
+// datasets — as of this session their IDs don't overlap, so unmatched
+// alerts surface in a standalone banner here instead of being silently
+// dropped. Once Q-Pro-issued job IDs align across both (Operations
+// assigns a Job Card, Silva works the same ID), matched alerts route
+// straight into that project's own Alerts tab — no code change needed.
+// ══════════════════════════════
+let curtainUnlinkedAlerts = []; // [{jobId, jobName, client, raisedAt, r}]
+
+function syncCurtainAccountsAlerts(){
+  if (typeof curtainJobs === 'undefined' || !Array.isArray(curtainJobs)) return;
+
+  curtainJobs.forEach(job => {
+    if (!job.accountsAlert) return;
+    const proj = projects.find(p => p.id === job.id);
+
+    if (job.accountsAlert.seen) {
+      // Curtain-side "Mark sent" already handled it — echo the resolution
+      if (proj) {
+        const existing = proj.alerts.find(a => a.curtainSync && a.sourceRaisedAt === job.accountsAlert.raisedAt);
+        if (existing) existing.r = true;
+      }
+      const unlinked = curtainUnlinkedAlerts.find(a => a.jobId === job.id && a.raisedAt === job.accountsAlert.raisedAt);
+      if (unlinked) unlinked.r = true;
+      return;
+    }
+
+    if (proj) {
+      const already = proj.alerts.some(a => a.curtainSync && a.sourceRaisedAt === job.accountsAlert.raisedAt);
+      if (!already) {
+        proj.alerts.push({
+          t:  'Balance invoice due — Curtain QC complete',
+          s:  'All items passed QC — request balance invoice before install.',
+          tp: 'warn',
+          r:  false,
+          curtainSync: true,
+          sourceRaisedAt: job.accountsAlert.raisedAt,
+        });
+      }
+    } else {
+      const already = curtainUnlinkedAlerts.some(a => a.jobId === job.id && a.raisedAt === job.accountsAlert.raisedAt);
+      if (!already) {
+        curtainUnlinkedAlerts.push({
+          jobId:    job.id,
+          jobName:  job.name,
+          client:   job.client,
+          raisedAt: job.accountsAlert.raisedAt,
+          r: false,
+        });
+      }
+    }
+  });
+}
+
+function renderCurtainUnlinkedAlerts(){
+  const box = document.getElementById('ops-curtain-alerts');
+  if (!box) return;
+  const open = curtainUnlinkedAlerts.filter(a => !a.r);
+  if (open.length === 0) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div class="card" style="border:1px solid var(--warn-line, #fde68a);background:var(--warn-bg, #fffbeb);">
+      <p class="card-title">Curtain — Accounts alerts (${open.length})</p>
+      <p style="font-size:11px;color:var(--ink2);margin-bottom:8px;">No matching project found yet for these Curtain job IDs — showing here until job IDs align.</p>
+      ${open.map(a => `
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--warn);"></div>
+          <div class="tl-body">
+            <div class="tl-t">${a.jobName} (${a.jobId})</div>
+            <div class="tl-s">${a.client} — all items passed QC, request balance invoice before install.</div>
+            <div style="margin-top:7px;"><button class="sm ok" onclick="resolveCurtainUnlinkedAlert('${a.jobId}','${a.raisedAt}')">Resolve ✓</button></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function resolveCurtainUnlinkedAlert(jobId, raisedAt){
+  const a = curtainUnlinkedAlerts.find(a => a.jobId === jobId && a.raisedAt === raisedAt);
+  if (a) a.r = true;
+  renderCurtainUnlinkedAlerts();
+}
+
+// ══════════════════════════════
 // PROJECT LIST
 // ══════════════════════════════
 function renderProjList(){
+  syncCurtainAccountsAlerts();
+  renderCurtainUnlinkedAlerts();
   document.getElementById("all-proj-rows").innerHTML=projects.map((p,pi)=>{
     const u=unres(p);
     return`<div class="prow" onclick="openJob('${p.id}')">
@@ -403,8 +490,6 @@ function addDoc(id){
 
 // ══════════════════════════════
 // BOM / BUDGET
-
-];
 let selBomJob=null;
 function money2(n){return "BD "+(parseFloat(n)||0).toFixed(3);}
 function filterBom(){
@@ -555,8 +640,6 @@ function approveBudget(){
 }
 
 // ══════════════════════════════
-
-];
 function renderChecklist(){
   const done=checks.filter(c=>c.done).length;
   document.getElementById("checklist").innerHTML=checks.map((c,i)=>`
