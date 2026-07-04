@@ -640,6 +640,78 @@ function approveBudget(){
 }
 
 // ══════════════════════════════
+// CURTAIN BOM APPROVALS
+// Separate from the BOM/Budget screen above — that screen works on the
+// generic multi-division bomJobs/depts[] structure. This queue is specific
+// to curtainJobs (Silva's BOM submissions from the Curtain module), which
+// use their own bomStatus/budgetStatus/bomRejectionComment fields.
+// ══════════════════════════════
+function curtainBomTotal(job){
+  if(!job.bom) return 0;
+  const sum=arr=>(arr||[]).reduce((s,x)=>s+(x.actual||0),0);
+  return sum(job.bom.fabric)+sum(job.bom.tracks)+sum(job.bom.motors)+sum(job.bom.accessories)+sum(job.bom.labour);
+}
+function curtainPendingApprovals(){
+  return curtainJobs.filter(j=>j.budgetStatus==="pending");
+}
+function updateCurtAppBadge(){
+  const badge=document.getElementById("curtapp-badge");
+  if(!badge) return;
+  const n=curtainPendingApprovals().length;
+  badge.textContent=n;
+  badge.style.display=n>0?"inline-block":"none";
+}
+function renderCurtainApprovals(){
+  const pending=curtainPendingApprovals();
+  document.getElementById("curtapp-list").innerHTML=pending.length?pending.map(j=>{
+    const tot=curtainBomTotal(j);
+    return`<div class="bom-card" id="curtapp-card-${j.id}">
+      <div class="bom-head">
+        <div class="bom-head-l"><div class="dept-dot" style="background:${dc("curt").c}"></div>
+          <div><div style="font-weight:700;font-size:13px;">${j.name}</div><div style="font-size:11px;color:var(--ink2);">${j.id} · ${j.client}</div></div>
+        </div>
+        <span class="pill warn">⏳ Awaiting approval</span>
+      </div>
+      <div style="padding:11px 13px;">
+        <table><thead><tr><th>BOM total (materials + labour, actuals)</th></tr></thead>
+          <tbody><tr><td class="r"><b>${money2(tot)}</b></td></tr></tbody>
+        </table>
+        <div class="btnrow" style="margin-top:10px;">
+          <button class="sm ok" onclick="approveCurtainBom('${j.id}')">✓ Approve</button>
+          <button class="sm bad" onclick="toggleCurtainRejectPanel('${j.id}')">✕ Reject</button>
+        </div>
+        <div id="curtapp-reject-panel-${j.id}" style="display:none;background:var(--warn-bg);border-top:1px solid var(--warn-line);margin-top:10px;padding:12px 13px 13px;border-radius:0 0 var(--r2) var(--r2);">
+          <div class="field"><label>Reason (required — Silva will see this)</label><textarea id="curtapp-reject-note-${j.id}" rows="2" placeholder="e.g. Track budget over estimate on Living Room window — check rail spec"></textarea></div>
+          <div class="btnrow"><button class="sm bad" onclick="rejectCurtainBom('${j.id}')">Send back to Silva →</button></div>
+        </div>
+      </div>
+    </div>`;
+  }).join(""):'<p style="font-size:13px;color:var(--ink3);">No curtain BOMs awaiting approval right now.</p>';
+  updateCurtAppBadge();
+}
+function toggleCurtainRejectPanel(id){
+  const p=document.getElementById("curtapp-reject-panel-"+id);
+  if(p) p.style.display=p.style.display==="block"?"none":"block";
+}
+function approveCurtainBom(id){
+  const job=curtainJobs.find(j=>j.id===id);
+  if(!job) return;
+  job.budgetStatus="approved";
+  job.bomStatus="approved";
+  renderCurtainApprovals();
+}
+function rejectCurtainBom(id){
+  const note=(document.getElementById("curtapp-reject-note-"+id)?.value||"").trim();
+  if(!note){ showAlert("Please enter a reason before sending back — Silva needs to know what to fix."); return; }
+  const job=curtainJobs.find(j=>j.id===id);
+  if(!job) return;
+  job.budgetStatus="rejected";
+  job.bomStatus="bom_pending";
+  job.bomRejectionComment=note;
+  renderCurtainApprovals();
+}
+
+// ══════════════════════════════
 function renderChecklist(){
   const done=checks.filter(c=>c.done).length;
   document.getElementById("checklist").innerHTML=checks.map((c,i)=>`
@@ -659,10 +731,8 @@ renderChecklist();
 // ══════════════════════════════
 // CAPACITY
 // ══════════════════════════════
-const weeks=["2–6 Jun","9–13 Jun","16–20 Jun","23–27 Jun","30J–4Jul","7–11 Jul"];
-const cap=[{n:"Carpentry",l:[4,4,3,2,1,1]},{n:"Painting",l:[3,2,2,1,2,1]},{n:"Upholstery",l:[1,1,2,1,0,0]},{n:"Curtain",l:[2,1,0,1,2,1]},{n:"Metal",l:[3,2,1,0,0,1]}];
-const hstyles=["background:#e8f5e9;color:#2e7d32","background:#c8e6c9;color:#1b5e20","background:#fff3e0;color:#e65100","background:#ffe0b2;color:#bf360c","background:#ffcdd2;color:#b71c1c","background:#d9342b;color:#fff"];
-const hl=["Free","Light","Mod","Heavy","~Full","FULL"];
+// weeks[], cap[], hstyles[], hl[] are declared once in data.js (loaded before
+// this file) — reused here, not redeclared, to avoid a global const collision.
 function buildHeat(){
   const g=document.getElementById("heat-grid");
   let h=`<div style="font-size:10px;color:var(--ink2);padding:3px 0;"></div>`+weeks.map(w=>`<div style="font-size:9px;font-weight:700;color:var(--ink2);text-align:center;padding:3px 1px;">${w}</div>`).join("");
@@ -676,8 +746,17 @@ buildHeat();
 
 // ══════════════════════════════
 // REMINDERS LOG
+// No persistent reminders log exists yet — "Send reminder" buttons on
+// Subcontractors/Payments/Variations currently fire a toast via showAlert()
+// only; nothing is recorded. This stub renders an honest empty state so the
+// tab doesn't crash. Wire to a real reminders[] array in data.js as its own
+// task when ready.
 // ══════════════════════════════
-
+function renderReminders(){
+  const box = document.getElementById('rem-list');
+  if (!box) return;
+  box.innerHTML = '<p style="font-size:13px;color:var(--ink3);">No reminders log wired up yet — "Send reminder" actions currently show a confirmation toast only, nothing is recorded here.</p>';
+}
 
 // ══════════════════════════════
 // NAV
@@ -689,9 +768,11 @@ function opsGoTo(p){
   document.querySelector("[data-p="+p+"]").classList.add("active");
   window.scrollTo({top:0,behavior:"smooth"});
   if(p==="bom"){ renderBomList(""); }
+  if(p==="curtapp"){ renderCurtainApprovals(); }
   if(p==="projects"){ renderProjList(); }
   if(p==="reminders"){ renderReminders(); }
 }
 
 // init
 renderProjList();
+updateCurtAppBadge();

@@ -53,6 +53,7 @@ const curtainJobs = [
     status: "execution", // stages: bom_pending | bom_submitted | budget_pending | budget_approved | execution | complete
     bomStatus: "approved", // bom_pending | submitted | approved
     budgetStatus: "approved", // pending | approved | rejected
+    bomRejectionComment: null, // string set by Operations on reject; cleared on (re)submit — single current comment, not a log
     wastageBuffer: 10, // % — adjustable per job
     windowGroups: [
       // ── Master Bedroom ──
@@ -151,6 +152,7 @@ const curtainJobs = [
     status: "execution",
     bomStatus: "approved",
     budgetStatus: "approved",
+    bomRejectionComment: null,
     wastageBuffer: 10,
     windowGroups: [
       // ── Living Room ──
@@ -379,6 +381,7 @@ const curtainJobs = [
     status: "execution",
     bomStatus: "approved",
     budgetStatus: "approved",
+    bomRejectionComment: null,
     wastageBuffer: 10,
     windowGroups: [
       // ── External Majlis ──
@@ -1091,7 +1094,8 @@ function getCurtainKPIs() {
     fabricOrdersPending: 0,   // purchase inquiries not yet received by Curtain
     fabricArrivedAwaitingReceipt: 0, // arrived in Bahrain but not yet handed to Curtain
     productionInProgress: 0,
-    installationPending: 0
+    installationPending: 0,
+    windowsBehindSchedule: 0  // planned labour.endDate passed, item not yet Ready/Installed
   };
 
   curtainJobs.forEach(job => {
@@ -1100,6 +1104,9 @@ function getCurtainKPIs() {
       kpis.totalRunningJobs++;
       // Total items = physical windows (qty-weighted) in non-complete jobs
       kpis.totalItemsToProduce += (job.windows ? job.windows.reduce((s, w) => s + (w.qty || 1), 0) : 0);
+
+      // Stage-vs-Plan — only meaningful for jobs actively running
+      kpis.windowsBehindSchedule += getBehindScheduleWindows(job).length;
     }
 
     if (job.bomStatus === "bom_pending")   kpis.awaitingBOM++;
@@ -1120,6 +1127,29 @@ function getCurtainKPIs() {
   });
 
   return kpis;
+}
+
+// ═══════════════════════════════════════
+// STAGE-VS-PLAN — behind schedule detection
+// Zero new data entry: compares each window's planned labour.endDate
+// (already entered in the WIP tab) against its actual current stage
+// (already recorded every time Mark Complete is tapped). A window is
+// "behind" if its planned end date has passed and it hasn't reached
+// Ready/Installed yet. Deliberately simple — no interim checkpoint
+// tracking, just planned-done-by vs actually-done.
+// ═══════════════════════════════════════
+function getBehindScheduleWindows(job) {
+  if (!job.windows) return [];
+  ensureItemCards(job);
+  const today = todayStr();
+  return job.windows
+    .filter(w => {
+      const card = job.itemCards[w.id];
+      if (!card || !card.labour || !card.labour.endDate) return false;
+      if (card.stage === 'Ready' || card.stage === 'Installed') return false;
+      return daysBetween(card.labour.endDate, today) > 0;
+    })
+    .map(w => ({ w, card: job.itemCards[w.id] }));
 }
 
 // ═══════════════════════════════════════

@@ -28,7 +28,7 @@ function goTo(p){
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('#scroll > .page').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.bni').forEach(x=>x.classList.remove('active'));
   document.getElementById('p-'+p)?.classList.add('active');
   document.getElementById('bn-'+p)?.classList.add('active');
