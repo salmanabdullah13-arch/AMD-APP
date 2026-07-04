@@ -26,9 +26,26 @@ const MOTOR_MODELS = [
   'Other',
 ];
 
-const STITCH_TEAM = ['Waseem', 'Aslam', 'Rijwan', 'Ibrahim'];
+const STITCH_TEAM = ['Waseem', 'Aslam', 'Rijwan', 'Ibrahim', 'Silva'];
 const TRACK_TEAM  = ['Abdullah', 'Prince'];
 const INSTALL_CREW = ['Shibu', 'Sohail', 'Mushraf', 'Furqan', 'Shahzad', 'Saeed'];
+
+// QC department doesn't exist yet (as of 3 Jul 2026) — unlike STITCH_TEAM/
+// TRACK_TEAM/INSTALL_CREW above, there are no real names to hardcode.
+// `let` (not `const`) so names can be added from the QC panel itself as
+// people are hired — tap "+ Add QC person" once, then it's on the roster
+// for tap-select from then on. Once the department is staffed for real,
+// swap this back to a `const` with the actual names, matching the other
+// rosters.
+let QC_TEAM = [];
+
+// ── Labour tab (formerly "Workshop") — task roles a person can be
+// assigned per job. Any name in STITCH_TEAM can take any role, and roles
+// can repeat across people (e.g. two people ironing) or across jobs.
+// 'Other' reveals a free-text box — used for a same-day replacement pulled
+// from Upholstery when someone on STITCH_TEAM is out sick, until a full
+// cross-department staff roster exists.
+const LABOUR_ROLES = ['Cutting', 'Stitching', 'Heming', 'Tape Header Fixing', 'Ironing', 'Other'];
 
 // ── State ──────────────────────────────
 let curtCurrentJob   = null;
@@ -218,14 +235,16 @@ function buildJobGanttData(job) {
   const inst = job.installation || {};
   const stages = [];
 
-  // Stitching stage
-  if (ws.stitching) {
+  // Labour (stitching crew) stage
+  if (ws.labour && (ws.labour.startDate || ws.labour.endDate)) {
+    const labourStatus = !ws.labour.team.length ? 'pending'
+      : ws.labour.team.every(r => r.worker) ? 'in_progress' : 'pending';
     stages.push({
-      label: 'Stitching',
-      start: ws.stitching.startDate || null,
-      end:   ws.stitching.targetDate || null,
-      status: ws.stitching.stage || 'pending',
-      color: stageColor(ws.stitching.stage || 'pending'),
+      label: 'Labour',
+      start: ws.labour.startDate || null,
+      end:   ws.labour.endDate || null,
+      status: labourStatus,
+      color: stageColor(labourStatus),
     });
   }
 
@@ -677,10 +696,23 @@ function renderFabricTotals() {
   }
 }
 
+// ── Live crew banner — who's on this job right now (from Labour tab) ──
+function renderCrewBanner(job) {
+  const ws = job.workshop;
+  if (!ws || !ws.labour || !ws.labour.team.length) return '';
+  const active = ws.labour.team.filter(r => r.worker);
+  if (!active.length) return '';
+  return `
+    <div style="background:var(--card2,#f7f9fc);border:1px solid var(--line);border-radius:var(--r3);padding:8px 12px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+      <span style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px;">👷 On this job:</span>
+      ${active.map(r => `<span class="pill grey" style="font-size:11px;">${r.worker==='Other'?(r.otherName||'—'):r.worker} — ${r.role||'—'}</span>`).join('')}
+    </div>`;
+}
+
 // ── Room accordion ─────────────────────
 function renderRooms() {
   const rooms = getWindowsByRoom(curtCurrentJob);
-  let html = '';
+  let html = renderCrewBanner(curtCurrentJob);
   Object.entries(rooms).forEach(([roomName, windows]) => {
     const isCollapsed = roomCollapsed[roomName] === true;
     const totalM      = windows.filter(w => w.calcDone).reduce((s, w) => s + (w.calc ? w.calc.totalMetres : 0), 0);
@@ -765,8 +797,57 @@ function renderWindowRow(w) {
           onclick="openCopyCalcPicker('${w.id}')">
           Copy to others →
         </button>` : ''}
+        ${done ? renderWinStageAction(w) : ''}
       </div>
     </div>`;
+}
+
+// ── Stage-advance block on each window row ──────────────────────
+// Silva leads the department, so she sees BOTH tracks here: the fabric
+// track is hers to advance (Cutting/Stitching), the rail track is shown
+// read-only underneath so she can see where the track team is without
+// being able to mark it for them — that stays self-picked in the Tracks
+// Dashboard. Once both tracks converge the item moves to Hoist QC.
+function renderWinStageAction(w) {
+  if (!curtCurrentJob) return '';
+  const jobId = curtCurrentJob.id;
+  const card  = getItemCard(jobId, w.id);
+  if (!card) return '';
+
+  // Terminal / QC states — unified status, no track breakdown needed
+  if (['Hoist QC', 'Ready', 'Installed'].includes(card.stage) && !card.isRework) {
+    if (card.stage === 'Hoist QC') {
+      return `<div style="margin-top:4px;">${statusPill('hoist_qc')} <span style="font-size:10px;color:var(--ink2);">Sent to QC</span></div>`;
+    }
+    return `<div style="margin-top:4px;">${statusPill(card.stage.toLowerCase())}</div>`;
+  }
+
+  const fab  = getFabricDisplay(card);
+  const rail = getRailDisplay(card);
+  let html = '<div style="margin-top:4px;display:flex;flex-direction:column;gap:5px;">';
+
+  if (fab.stage) {
+    if (fab.stage === 'Done') {
+      html += `<div><span class="pill ok" style="font-size:10px;">✓ Fabric done</span></div>`;
+    } else {
+      html += `
+        <div>
+          ${fab.isRework ? `<span class="pill bad" style="font-size:10px;">Rework → ${fab.stage}</span>` : `<span class="pill warn" style="font-size:10px;">${fab.stage}</span>`}
+        </div>
+        <button class="sec" style="font-size:11px;white-space:nowrap;"
+          onclick="${fab.isRework ? `advanceReworkTrack('${jobId}','${w.id}')` : `advanceProdTrack('${jobId}','${w.id}','fabric')`};renderWindowSchedule();">
+          Mark ${fab.stage} complete →
+        </button>`;
+    }
+  }
+
+  if (rail.stage) {
+    const railLabel = rail.stage === 'Done' ? 'Rail done' : `Rail: ${rail.stage}${rail.isRework ? ' (rework)' : ''}`;
+    html += `<div style="font-size:10px;color:var(--ink2);">🔩 ${railLabel} <span style="opacity:.7;">— with track team</span></div>`;
+  }
+
+  html += '</div>';
+  return html;
 }
 
 function toggleRoom(roomName) {
@@ -1381,15 +1462,92 @@ function submitCurtainBudget() {
 // WORKSHOP TAB
 // ══════════════════════════════════════════
 
+// ── Track Making status is now fully automatic — no manual entry.
+// Derived live from item-card stages, so Silva never assigns dates or
+// people here; track makers self-pick per item in the Tracks Dashboard
+// (Cutting → Assembly/Track work → Hoist QC → Ready).
+function computeTrackMakingStatus(job) {
+  const items = job.windows.filter(w => w.calcDone && needsTrackWork(w));
+  if (items.length === 0) return 'pending';
+  ensureItemCards(job);
+  const allReady = items.every(w => {
+    const card = job.itemCards[w.id];
+    return card && !card.isRework && (card.stage === 'Ready' || card.stage === 'Installed');
+  });
+  if (allReady) return 'ready';
+  const anyStarted = items.some(w => {
+    const card = job.itemCards[w.id];
+    if (!card) return false;
+    if (card.isRework) return true;
+    if (card.stage !== 'Production') return true; // past production = started
+    if (!card.railTrack) return false; // no rail track to have started
+    const railStages = getProdTracks(w.treatment).rail;
+    return card.railTrack.done || card.railTrack.stage !== railStages[0];
+  });
+  return anyStarted ? 'in_production' : 'pending';
+}
+
+// ── Labour row helpers ──────────────────
+function addLabourRow(jobId) {
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job || !job.workshop) return;
+  job.workshop.labour.team.push({
+    id: 'lab_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    worker: '', role: '', otherName: '',
+  });
+  renderCurtWorkshop();
+}
+
+function removeLabourRow(jobId, rowId) {
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job || !job.workshop) return;
+  job.workshop.labour.team = job.workshop.labour.team.filter(r => r.id !== rowId);
+  renderCurtWorkshop();
+}
+
+function updateLabourRow(jobId, rowId, field, value) {
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job || !job.workshop) return;
+  const row = job.workshop.labour.team.find(r => r.id === rowId);
+  if (!row) return;
+  row[field] = value;
+  if (field === 'worker' && value !== 'Other') row.otherName = '';
+  renderCurtWorkshop();
+}
+
+function replaceLabourWorker(jobId, rowId, newWorker) {
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job || !job.workshop) return;
+  const row = job.workshop.labour.team.find(r => r.id === rowId);
+  if (!row || !newWorker) return;
+  if (!row.replacedLog) row.replacedLog = [];
+  row.replacedLog.push({ was: row.worker || row.otherName || '(unassigned)', at: new Date().toISOString() });
+  row.worker = newWorker;
+  row.otherName = '';
+  curtAlert(`🔁 ${row.role || 'Role'} reassigned to ${newWorker} on ${job.name}`);
+  renderCurtWorkshop();
+}
+
+function updateLabourDates(jobId, field, value) {
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job || !job.workshop) return;
+  job.workshop.labour[field] = value;
+  renderGanttFull('curt-workshop-gantt', 5);
+  if (curtCurrentPage === 'curt-dashboard') renderGanttMini('curt-dash-gantt');
+}
+
 function renderCurtWorkshop() {
   // Ensure all jobs have workshop data structure
   curtainJobs.forEach(job => {
-    if (!job.workshop) {
-      job.workshop = {
-        stitching: { tailor: '', stage: 'pending', startDate: '', targetDate: '', notes: '' },
-        trackMaking: { assignee: '', status: 'pending', startDate: '', targetDate: '' },
-      };
+    if (!job.workshop) job.workshop = {};
+    if (!job.workshop.labour) {
+      job.workshop.labour = { startDate: '', endDate: '', team: [] };
     }
+    // trackMaking is now a read-only derived object — recomputed every render
+    job.workshop.trackMaking = {
+      status: computeTrackMakingStatus(job),
+      assignee: '', startDate: '', targetDate: '', // kept for backward compatibility, unused
+    };
   });
 
   let html = '';
@@ -1418,55 +1576,69 @@ function renderCurtWorkshop() {
 
         <div style="${!approved ? 'opacity:.45;pointer-events:none;' : ''}">
 
-          <!-- STITCHING SECTION -->
+          <!-- LABOUR SECTION — multi-person, multi-role work schedule -->
           <div style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px;">
-            <p class="card-title" style="margin-bottom:10px;">✂️ Stitching</p>
-            <div class="row2" style="margin-bottom:8px;">
-              <div class="field">
-                <label>Assign tailor</label>
-                <select onchange="wsUpdate('${job.id}','stitching','tailor',this.value)">
-                  <option value="">— Select —</option>
-                  ${STITCH_TEAM.map(t => `<option value="${t}" ${ws.stitching.tailor===t?'selected':''}>${t}</option>`).join('')}
-                </select>
-              </div>
-              <div class="field">
-                <label>Stage</label>
-                <select onchange="wsUpdate('${job.id}','stitching','stage',this.value)">
-                  <option value="pending"   ${ws.stitching.stage==='pending'   ?'selected':''}>Pending</option>
-                  <option value="cutting"   ${ws.stitching.stage==='cutting'   ?'selected':''}>Cutting</option>
-                  <option value="stitching" ${ws.stitching.stage==='stitching' ?'selected':''}>Stitching</option>
-                  <option value="qc"        ${ws.stitching.stage==='qc'        ?'selected':''}>QC</option>
-                  <option value="ready"     ${ws.stitching.stage==='ready'     ?'selected':''}>Ready</option>
-                </select>
-              </div>
-            </div>
-            <div class="row2" style="margin-bottom:8px;">
+            <p class="card-title" style="margin-bottom:10px;">👷 Labour — work schedule</p>
+
+            <div class="row2" style="margin-bottom:10px;">
               <div class="field">
                 <label>Start date</label>
-                <input type="date" value="${ws.stitching.startDate||''}"
-                  onchange="wsUpdate('${job.id}','stitching','startDate',this.value)">
+                <input type="date" value="${ws.labour.startDate||''}"
+                  onchange="updateLabourDates('${job.id}','startDate',this.value)">
               </div>
               <div class="field">
-                <label>Target completion</label>
-                <input type="date" value="${ws.stitching.targetDate||''}"
-                  onchange="wsUpdate('${job.id}','stitching','targetDate',this.value)">
+                <label>End date</label>
+                <input type="date" value="${ws.labour.endDate||''}"
+                  onchange="updateLabourDates('${job.id}','endDate',this.value)">
               </div>
             </div>
-            <div class="field" style="margin-bottom:4px;">
-              <label>Notes</label>
-              <input type="text" value="${ws.stitching.notes||''}" placeholder="e.g. double-check lining quantity"
-                onchange="wsUpdate('${job.id}','stitching','notes',this.value)">
-            </div>
-            <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              ${statusPill(ws.stitching.stage||'pending')}
-              ${ws.stitching.tailor ? `<span style="font-size:12px;color:var(--ink2);">Assigned: ${ws.stitching.tailor}</span>` : ''}
-              ${ws.stitching.targetDate ? `<span style="font-size:12px;color:var(--ink2);">Due: ${fmtDate(ws.stitching.targetDate)}</span>` : ''}
-            </div>
+
+            ${ws.labour.team.map(row => `
+              <div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;padding:8px;background:var(--card2,#f7f9fc);border-radius:8px;">
+                <div class="field" style="flex:1;min-width:110px;">
+                  <label>Worker</label>
+                  <select onchange="updateLabourRow('${job.id}','${row.id}','worker',this.value)">
+                    <option value="">— Select —</option>
+                    ${STITCH_TEAM.map(t => `<option value="${t}" ${row.worker===t?'selected':''}>${t}</option>`).join('')}
+                    <option value="Other" ${row.worker==='Other'?'selected':''}>Other (replacement)…</option>
+                  </select>
+                  ${row.worker === 'Other' ? `
+                  <input type="text" placeholder="Name — e.g. from Upholstery" value="${row.otherName||''}"
+                    style="margin-top:4px;" onchange="updateLabourRow('${job.id}','${row.id}','otherName',this.value)">` : ''}
+                </div>
+                <div class="field" style="flex:1;min-width:110px;">
+                  <label>Task</label>
+                  <select onchange="updateLabourRow('${job.id}','${row.id}','role',this.value)">
+                    <option value="">— Select —</option>
+                    ${LABOUR_ROLES.map(r => `<option value="${r}" ${row.role===r?'selected':''}>${r}</option>`).join('')}
+                  </select>
+                </div>
+                <button class="sec" style="font-size:11px;padding:6px 8px;white-space:nowrap;"
+                  onclick="const n=prompt('Replace with who?'); if(n) replaceLabourWorker('${job.id}','${row.id}',n);">
+                  🔁 Replace
+                </button>
+                <button class="sec" style="font-size:11px;padding:6px 8px;color:var(--bad,#ef4444);"
+                  onclick="removeLabourRow('${job.id}','${row.id}')">✕</button>
+              </div>
+              ${row.replacedLog && row.replacedLog.length ? `
+                <p style="font-size:10px;color:var(--ink2);margin:-4px 0 8px 8px;">
+                  ${row.replacedLog.map(l => `was ${l.was} until ${fmtDate(l.at)}`).join(' · ')}
+                </p>` : ''}
+            `).join('')}
+
+            <button class="sec" style="font-size:12px;" onclick="addLabourRow('${job.id}')">+ Add worker</button>
+
+            ${ws.labour.team.length > 0 ? `
+            <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
+              ${ws.labour.team.filter(r => r.worker).map(r =>
+                `<span class="pill grey" style="font-size:11px;">${r.worker==='Other'?(r.otherName||'—'):r.worker} — ${r.role||'no task set'}</span>`
+              ).join('')}
+            </div>` : ''}
           </div>
 
-          <!-- TRACK MAKING SECTION -->
+          <!-- TRACK MAKING — fully automatic, no manual entry -->
           <div style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px;">
-            <p class="card-title" style="margin-bottom:10px;">🔩 Track Making</p>
+            <p class="card-title" style="margin-bottom:10px;">🔩 Track Making <span style="font-weight:400;color:var(--ink2);font-size:11px;">(auto — self-pick by track team)</span></p>
 
             ${trackLines.length > 0 ? `
             <div style="background:var(--card2,rgba(124,58,237,.05));border:1px solid rgba(124,58,237,.15);border-radius:var(--r3);padding:10px 12px;margin-bottom:10px;">
@@ -1478,40 +1650,11 @@ function renderCurtWorkshop() {
                 </div>`).join('')}
             </div>` : `<p style="font-size:12px;color:var(--ink2);margin-bottom:10px;">No track data yet — complete window calc sheets first.</p>`}
 
-            <div class="row2" style="margin-bottom:8px;">
-              <div class="field">
-                <label>Assign to</label>
-                <select onchange="wsUpdate('${job.id}','trackMaking','assignee',this.value)">
-                  <option value="">— Select —</option>
-                  ${TRACK_TEAM.map(t => `<option value="${t}" ${ws.trackMaking.assignee===t?'selected':''}>${t}</option>`).join('')}
-                </select>
-              </div>
-              <div class="field">
-                <label>Status</label>
-                <select onchange="wsUpdate('${job.id}','trackMaking','status',this.value)">
-                  <option value="pending"       ${ws.trackMaking.status==='pending'       ?'selected':''}>Pending</option>
-                  <option value="in_production" ${ws.trackMaking.status==='in_production' ?'selected':''}>In Production</option>
-                  <option value="ready"         ${ws.trackMaking.status==='ready'         ?'selected':''}>Ready</option>
-                </select>
-              </div>
-            </div>
-            <div class="row2">
-              <div class="field">
-                <label>Start date</label>
-                <input type="date" value="${ws.trackMaking.startDate||''}"
-                  onchange="wsUpdate('${job.id}','trackMaking','startDate',this.value)">
-              </div>
-              <div class="field">
-                <label>Target date</label>
-                <input type="date" value="${ws.trackMaking.targetDate||''}"
-                  onchange="wsUpdate('${job.id}','trackMaking','targetDate',this.value)">
-              </div>
-            </div>
-            <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               ${statusPill(ws.trackMaking.status||'pending')}
-              ${ws.trackMaking.assignee ? `<span style="font-size:12px;color:var(--ink2);">Assigned: ${ws.trackMaking.assignee}</span>` : ''}
-              ${ws.trackMaking.targetDate ? `<span style="font-size:12px;color:var(--ink2);">Due: ${fmtDate(ws.trackMaking.targetDate)}</span>` : ''}
+              <span style="font-size:12px;color:var(--ink2);">Approved jobs feed straight into the Tracks Dashboard — ${TRACK_TEAM.join(' / ')} pick their own items there, nothing to assign here.</span>
             </div>
+            <button class="sec" style="font-size:12px;margin-top:8px;" onclick="openTracksDashboard();">Open Tracks Dashboard →</button>
           </div>
 
         </div><!-- end locked wrapper -->
@@ -1535,15 +1678,6 @@ function buildTrackSummaryForJob(job) {
     trackAgg[tType].totalM = parseFloat((trackAgg[tType].totalM + (w.calc.trackLength / 100)).toFixed(2));
   });
   return Object.entries(trackAgg).map(([type, data]) => ({ type, ...data }));
-}
-
-function wsUpdate(jobId, section, field, value) {
-  const job = curtainJobs.find(j => j.id === jobId);
-  if (!job || !job.workshop) return;
-  job.workshop[section][field] = value;
-  // Re-render gantt on change
-  renderGanttFull('curt-workshop-gantt', 5);
-  if (curtCurrentPage === 'curt-dashboard') renderGanttMini('curt-dash-gantt');
 }
 
 
@@ -1666,10 +1800,8 @@ function getInstallReadiness(job) {
     return pi && piIsDone(pi);
   });
 
-  // Rails: track making status = 'ready'
-  const railsReady = job.workshop &&
-    job.workshop.trackMaking &&
-    job.workshop.trackMaking.status === 'ready';
+  // Rails: track making status = 'ready' — computed live, not manually set
+  const railsReady = computeTrackMakingStatus(job) === 'ready';
 
   // Accessories: manual checkbox
   const accessoriesReady = job.installation && job.installation.accessoriesReady === true;
@@ -1677,14 +1809,22 @@ function getInstallReadiness(job) {
   return { fabricReady, railsReady, accessoriesReady };
 }
 
+// Shared defaults — called from both the Ops Install tab and the Install
+// Crew Dashboard so either entry point can be opened first without the
+// other's fields being missing.
+function ensureInstallDefaults(job) {
+  if (!job.installation) {
+    job.installation = { status: 'pending', scheduledDate: '', team: [], siteContact: '', accessoriesReady: false, handoverSigned: false };
+  }
+  const inst = job.installation;
+  if (!inst.team) inst.team = [];
+  if (inst.partialRelease === undefined) inst.partialRelease = false;
+  if (!inst.snags) inst.snags = [];
+  if (!inst.signoff) inst.signoff = { signedName: null, signatureDataUrl: null, photos: [], signedAt: null };
+}
+
 function renderCurtInstall() {
-  curtainJobs.forEach(job => {
-    if (!job.installation) {
-      job.installation = { status: 'pending', scheduledDate: '', team: [], siteContact: '', accessoriesReady: false, handoverSigned: false };
-    }
-    if (!job.installation.team) job.installation.team = [];
-    if (job.installation.partialRelease === undefined) job.installation.partialRelease = false;
-  });
+  curtainJobs.forEach(job => ensureInstallDefaults(job));
 
   const html = curtainJobs.map(job => {
     const inst = job.installation;
@@ -1718,7 +1858,7 @@ function renderCurtInstall() {
           ${checkRow('Fabric received / reserved', ready.fabricReady,
             job.bom.fabric.length === 0 ? 'No fabric lines in BOM yet' : 'Go to Fabric tab to mark received or reserve from stock')}
           ${checkRow('Rails ready', ready.railsReady,
-            'Go to Workshop tab → Track Making → mark Ready')}
+            'All track/rail items must reach Ready in the Tracks Dashboard')}
           <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
             <div style="width:22px;height:22px;border-radius:50%;background:${ready.accessoriesReady?'var(--ok)':'var(--line)'};display:flex;align-items:center;justify-content:center;flex:none;">
               ${ready.accessoriesReady ? '<span style="color:#fff;font-size:12px;font-weight:800;">✓</span>' : '<span style="color:var(--ink2);font-size:10px;">○</span>'}
@@ -1789,7 +1929,7 @@ function renderCurtInstall() {
               <button class="primary" onclick="scheduleInstall('${job.id}')">
                 ${inst.status === 'pending' ? 'Confirm schedule →' : 'Update schedule'}
               </button>
-              <button class="sm ok" onclick="completeInstall('${job.id}')">Mark complete + handover signed</button>
+              <button class="sm ok" onclick="openSignoffPanel('${job.id}')">Client sign-off →</button>
             ` : `
               <span class="pill ok">✓ Complete · Client handover signed</span>
             `}
@@ -1798,8 +1938,13 @@ function renderCurtInstall() {
       </div>`;
   }).join('');
 
-  document.getElementById('curt-install-list').innerHTML = html ||
-    '<p style="font-size:13px;color:var(--ink2);">No curtain jobs yet.</p>';
+  const crewEntryBtn = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="sec" style="font-size:12px;" onclick="openInstallCrewDashboard()">🏠 Open Install Crew Dashboard →</button>
+    </div>`;
+
+  document.getElementById('curt-install-list').innerHTML = crewEntryBtn + (html ||
+    '<p style="font-size:13px;color:var(--ink2);">No curtain jobs yet.</p>');
 }
 
 function instSetAccessories(jobId, val) {
@@ -1847,16 +1992,9 @@ function scheduleInstall(jobId) {
   renderCurtInstall();
 }
 
-function completeInstall(jobId) {
-  const job = curtainJobs.find(j => j.id === jobId);
-  if (!job) return;
-  job.installation.status = 'complete';
-  job.installation.handoverSigned = true;
-  job.status = 'complete';
-  curtAlert('✓ Installation complete. Client handover recorded.');
-  renderCurtInstall();
-  renderCurtDashboard();
-}
+// completeInstall() replaced by the sign-off panel below (openSignoffPanel /
+// submitSignoff) — that flow gates on open snags and captures a real
+// signature + photos instead of a single "mark complete" click.
 
 // ── Toast alert ────────────────────────
 function curtAlert(msg) {
@@ -1891,24 +2029,40 @@ function launchCurtainModule() {
 // ══════════════════════════════════════════════════════════════
 // ITEM CARD MODEL
 // One item card per window. Auto-created when calc sheet saved.
-// Treatment-aware stage lifecycle with QC + Rework support.
+// Curtain/Roman items run TWO PARALLEL production tracks — a fabric/
+// stitch track (Silva's stitching team) and a rail/track-making track
+// (Abdullah/Prince) — since both teams work the same window at the same
+// time, not one after the other. An item only moves to Hoist QC once
+// EVERY track it needs has finished. Roller-family treatments only ever
+// need the rail track (no stitching); blackout (not used in live data
+// today) only needs the fabric track.
 // ══════════════════════════════════════════════════════════════
 
-// Treatment → ordered stages
-const ITEM_STAGES = {
-  curtain:  ['Cutting', 'Stitching', 'Hoist QC', 'Ready', 'Installed'],
-  roller:   ['Cutting', 'Assembly',  'Hoist QC', 'Ready', 'Installed'],
-  roman:    ['Cutting', 'Stitching', 'Assembly', 'Hoist QC', 'Ready', 'Installed'],
-  tracks:   ['Cutting', 'Assembly',  'Hoist QC', 'Ready', 'Installed'],
-  motorized:['Cutting', 'Assembly',  'Hoist QC', 'Ready', 'Installed'],
-  japanese: ['Cutting', 'Assembly',  'Hoist QC', 'Ready', 'Installed'],
-  wooden:   ['Cutting', 'Assembly',  'Hoist QC', 'Ready', 'Installed'],
-  zebra:    ['Cutting', 'Assembly',  'Hoist QC', 'Ready', 'Installed'],
-  blackout: ['Cutting', 'Stitching', 'Hoist QC', 'Ready', 'Installed'],
+// Treatment → which production track(s) it needs, and that track's own
+// stage list. null = this treatment doesn't need that track at all.
+const PROD_TRACKS = {
+  curtain:   { fabric: ['Cutting', 'Stitching'], rail: ['Cutting', 'Assembly'] },
+  roman:     { fabric: ['Cutting', 'Stitching'], rail: ['Cutting', 'Assembly'] },
+  blackout:  { fabric: ['Cutting', 'Stitching'], rail: null },
+  roller:    { fabric: null, rail: ['Cutting', 'Assembly'] },
+  tracks:    { fabric: null, rail: ['Cutting', 'Assembly'] },
+  motorized: { fabric: null, rail: ['Cutting', 'Assembly'] },
+  japanese:  { fabric: null, rail: ['Cutting', 'Assembly'] },
+  wooden:    { fabric: null, rail: ['Cutting', 'Assembly'] },
+  zebra:     { fabric: null, rail: ['Cutting', 'Assembly'] },
 };
+function getProdTracks(treatment) {
+  return PROD_TRACKS[treatment] || PROD_TRACKS['curtain'];
+}
+// Shared stages once both tracks converge — same for every treatment.
+const POST_QC_STAGES = ['Hoist QC', 'Ready', 'Installed'];
 
+// Full combined stage list for a treatment (fabric stages, then rail
+// stages, then the shared post-QC stages). Kept for anywhere a flat list
+// is genuinely useful; track-specific UI uses getProdTracks() directly.
 function getItemStages(treatment) {
-  return ITEM_STAGES[treatment] || ITEM_STAGES['curtain'];
+  const t = getProdTracks(treatment);
+  return [...(t.fabric || []), ...(t.rail || []), ...POST_QC_STAGES];
 }
 
 // ── QC critical-info checklist (treatment-aware) ───────────────
@@ -1936,17 +2090,23 @@ function ensureItemCards(job) {
   job.windows.forEach(w => {
     if (!w.calcDone) return;
     if (!job.itemCards[w.id]) {
+      const tracks = getProdTracks(w.treatment);
       job.itemCards[w.id] = {
         windowId:    w.id,
         jobId:       job.id,
-        stage:       'Cutting',       // current live stage
-        stageDates:  {},              // { 'Cutting': '2026-06-01', ... }
+        fabricTrack: tracks.fabric ? { stage: tracks.fabric[0], done: false, stageDates: {} } : null,
+        railTrack:   tracks.rail   ? { stage: tracks.rail[0],   done: false, stageDates: {} } : null,
+        stage:       'Production',    // 'Production' | 'Hoist QC' | 'Ready' | 'Installed'
+        stageDates:  {},              // timestamps for Hoist QC / Ready / Installed
         qcResult:    null,            // null | 'pass' | 'fail'
         qcHistory:   [],              // array of QC attempt records
         reworkLog:   [],              // array of rework records
         isRework:    false,
-        reworkStage: null,            // stage QC sent it back to
+        reworkTrack: null,            // 'fabric' | 'rail' — which track QC sent back
+        reworkStage: null,            // stage within reworkTrack QC sent it back to
         assignedTo:  null,            // 'Abdullah' | 'Prince' | null — track team assignment
+        qcLockedBy:  null,            // QC_TEAM name currently inspecting this item, or null
+        qcLockedAt:  null,            // ISO timestamp lock was claimed — used to expire stale locks
       };
     }
   });
@@ -1959,103 +2119,189 @@ function getItemCard(jobId, windowId) {
   return job.itemCards[windowId] || null;
 }
 
-function advanceItemStage(jobId, windowId) {
+// Once every track an item needs has finished, send it to Hoist QC.
+function checkTracksConverged(job, win, card) {
+  if (card.stage !== 'Production') return;
+  const fabricOk = !card.fabricTrack || card.fabricTrack.done;
+  const railOk   = !card.railTrack   || card.railTrack.done;
+  if (fabricOk && railOk) {
+    card.stage = 'Hoist QC';
+    card.qcQueuedAt = new Date().toISOString();
+    card.qcSeen = false;
+    curtAlert(`✓ ${win.label} — fabric${card.railTrack ? ' + rail' : ''} complete, sent to QC`);
+  }
+}
+
+// Advance ONE production track (fabric or rail) by one stage. Each team
+// only ever advances its own track — Silva advancing fabric never touches
+// rail, and vice versa. When a track finishes, checks whether the item is
+// now ready for Hoist QC (i.e. every track it needs is done).
+function advanceProdTrack(jobId, windowId, trackName) {
   const job  = curtainJobs.find(j => j.id === jobId);
   const win  = job && job.windows.find(w => w.id === windowId);
   const card = getItemCard(jobId, windowId);
   if (!job || !win || !card) return;
+  const track = trackName === 'fabric' ? card.fabricTrack : card.railTrack;
+  if (!track || track.done || card.stage !== 'Production') return;
 
-  const stages  = getItemStages(win.treatment);
-  const current = card.isRework ? card.reworkStage : card.stage;
-  const idx     = stages.indexOf(current);
+  const stages = getProdTracks(win.treatment)[trackName];
+  const idx    = stages.indexOf(track.stage);
+  if (idx === -1) return;
 
-  if (idx === -1 || idx >= stages.length - 1) return; // already at last stage
+  track.stageDates[track.stage] = track.stageDates[track.stage] || new Date().toISOString();
 
-  // Cannot advance past QC without a pass result
-  const nextStage = stages[idx + 1];
-  if (current === 'Hoist QC') {
-    curtAlert('QC result required before advancing. Use the QC dashboard.');
-    return;
-  }
-
-  // Record completion timestamp for current stage
-  card.stageDates[current] = card.stageDates[current] || new Date().toISOString();
-
-  if (card.isRework) {
-    card.reworkStage = nextStage;
-    if (nextStage === 'Hoist QC') card.isRework = false; // back in QC, rework complete
+  if (idx >= stages.length - 1) {
+    track.done = true;
+    curtAlert(`✓ ${win.label} — ${trackName === 'fabric' ? 'fabric' : 'rail'} work done`);
+    checkTracksConverged(job, win, card);
   } else {
-    card.stage = nextStage;
+    track.stage = stages[idx + 1];
+    curtAlert(`✓ ${win.label} → ${track.stage}`);
+  }
+}
+
+// Advance a track that's currently in rework (QC sent it back). Only the
+// flagged track is affected — the other track's completed work stands.
+function advanceReworkTrack(jobId, windowId) {
+  const job  = curtainJobs.find(j => j.id === jobId);
+  const win  = job && job.windows.find(w => w.id === windowId);
+  const card = getItemCard(jobId, windowId);
+  if (!job || !win || !card || !card.isRework) return;
+
+  const trackName = card.reworkTrack;
+  const track = trackName === 'fabric' ? card.fabricTrack : card.railTrack;
+  const stages = getProdTracks(win.treatment)[trackName];
+  const idx = stages.indexOf(card.reworkStage);
+  if (!track || idx === -1) return;
+
+  track.stageDates[card.reworkStage] = new Date().toISOString();
+
+  if (idx >= stages.length - 1) {
+    track.done  = true;
+    track.stage = stages[stages.length - 1];
+    card.isRework    = false;
+    card.reworkTrack = null;
+    card.reworkStage = null;
+    curtAlert(`✓ ${win.label} — rework complete`);
+    checkTracksConverged(job, win, card);
+  } else {
+    card.reworkStage = stages[idx + 1];
+    curtAlert(`✓ ${win.label} → ${card.reworkStage} (rework)`);
   }
 }
 
 // Called from QC dashboard: pass or fail
-function recordQCResult(jobId, windowId, result, notes, photo, qcPerson, reworkStage, checklist) {
+function recordQCResult(jobId, windowId, result, notes, photos, qcPerson, reworkTrack, reworkStage, checklist) {
   const job  = curtainJobs.find(j => j.id === jobId);
   const win  = job && job.windows.find(w => w.id === windowId);
   const card = getItemCard(jobId, windowId);
   if (!job || !win || !card) return false;
 
   const timestamp = new Date().toISOString();
-  const stages    = getItemStages(win.treatment);
-  const qcIdx     = stages.indexOf('Hoist QC');
 
   const qcRecord = {
     result,
     notes:    notes || '',
     checklist: checklist || [],  // [{key,label,ok,remark}] — critical-info checklist for this attempt
-    photo:    photo || null,   // base64 for now, Nettworksy migrates to cloud
+    photos:   photos || [],    // array of base64 — for now, Nettworksy migrates to cloud
     person:   qcPerson || 'QC',
     timestamp,
     attempt:  card.qcHistory.length + 1,
+    // Snapshot of when this attempt was queued (set by checkTracksConverged
+    // each time the item enters Hoist QC, first pass or after rework) —
+    // captured here before it gets overwritten by the next queue event, so
+    // turnaround time per attempt survives in history for the Performance view.
+    queuedAt: card.qcQueuedAt || null,
   };
   card.qcHistory.push(qcRecord);
   card.stageDates['Hoist QC'] = timestamp;
   card.qcSeen = true; // opened/actioned — clears the "new" badge either way
 
+  // Release the inspection lock — this attempt is now recorded either way.
+  card.qcLockedBy = null;
+  card.qcLockedAt = null;
+
   if (result === 'pass') {
-    card.qcResult  = 'pass';
-    card.isRework  = false;
-    card.reworkStage = null;
-    card.stage     = stages[qcIdx + 1] || 'Ready'; // advance to Ready
-    card.stageDates[card.stage] = timestamp;
+    card.qcResult    = 'pass';
+    card.isRework     = false;
+    card.reworkTrack  = null;
+    card.reworkStage  = null;
+    card.stage         = 'Ready';
+    card.stageDates['Ready'] = timestamp;
     curtAlert(`✓ QC passed — ${win.label} is now Ready`);
     checkJobQCCompletion(job);
   } else {
-    // Fail — send to rework
-    const returnTo = reworkStage || stages[0]; // QC picks, default to Cutting
-    card.qcResult  = 'fail';
-    card.isRework  = true;
-    card.reworkStage = returnTo;
+    // Fail — send the flagged track back to rework. QC picks which track
+    // caused the fail; defaults to whichever track exists for single-track
+    // treatments where there's no ambiguity.
+    const track    = reworkTrack || (card.fabricTrack ? 'fabric' : 'rail');
+    const stages   = getProdTracks(win.treatment)[track];
+    const returnTo = reworkStage || stages[0];
+    const t = track === 'fabric' ? card.fabricTrack : card.railTrack;
+    if (t) { t.done = false; t.stage = returnTo; }
+
+    card.qcResult    = 'fail';
+    card.isRework     = true;
+    card.reworkTrack  = track;
+    card.reworkStage  = returnTo;
+    card.stage         = 'Production';
     card.reworkLog.push({
       attempt:   card.qcHistory.length,
       timestamp,
+      track,
       returnTo,
       reason:    notes || '',
     });
-    curtAlert(`⚠ QC failed — ${win.label} sent back to ${returnTo}`);
+    curtAlert(`⚠ QC failed — ${win.label} sent back to ${returnTo} (${track === 'fabric' ? 'fabric' : 'rail'})`);
     checkJobQCCompletion(job);
   }
   return true;
 }
 
+// ── Overall status — for terminal-state grouping (Hoist QC/Ready/Installed)
+// and generic rework display where the track doesn't matter to the caller.
+// Windows tab and Tracks Dashboard use getFabricDisplay/getRailDisplay
+// instead, so each team only ever sees its own track.
 function getItemCardStageDisplay(card, treatment) {
-  if (!card) return { stage: '—', isRework: false };
-  if (card.isRework) return { stage: card.reworkStage, isRework: true };
-  return { stage: card.stage, isRework: false };
+  if (!card) return { stage: '—', isRework: false, track: null };
+  if (card.isRework) return { stage: card.reworkStage, isRework: true, track: card.reworkTrack };
+  return { stage: card.stage, isRework: false, track: null };
+}
+
+// ── Silva's view — fabric track only (Windows tab). Shows 'Done' once
+// fabric work is finished, even while the rail track (or a rail rework)
+// is still in progress — Silva can see it happened, but can't act on it.
+function getFabricDisplay(card) {
+  if (!card || !card.fabricTrack) return { stage: null, isRework: false, actionable: false };
+  if (card.isRework && card.reworkTrack === 'fabric') return { stage: card.reworkStage, isRework: true, actionable: true };
+  if (card.stage !== 'Production') return { stage: 'Done', isRework: false, actionable: false };
+  if (card.isRework && card.reworkTrack === 'rail')   return { stage: 'Done', isRework: false, actionable: false };
+  if (card.fabricTrack.done) return { stage: 'Done', isRework: false, actionable: false };
+  return { stage: card.fabricTrack.stage, isRework: false, actionable: true };
+}
+
+// ── Track team's view — rail track only (Tracks Dashboard).
+function getRailDisplay(card) {
+  if (!card || !card.railTrack) return { stage: null, isRework: false, actionable: false };
+  if (card.isRework && card.reworkTrack === 'rail') return { stage: card.reworkStage, isRework: true, actionable: true };
+  if (card.stage !== 'Production') return { stage: 'Done', isRework: false, actionable: false };
+  if (card.isRework && card.reworkTrack === 'fabric') return { stage: 'Done', isRework: false, actionable: false };
+  if (card.railTrack.done) return { stage: 'Done', isRework: false, actionable: false };
+  return { stage: card.railTrack.stage, isRework: false, actionable: true };
 }
 
 function itemCardStagePill(card, treatment) {
   if (!card) return statusPill('pending');
-  const { stage, isRework } = getItemCardStageDisplay(card, treatment);
+  const { stage, isRework, track } = getItemCardStageDisplay(card, treatment);
   const stageKey = (stage || '').toLowerCase().replace(/\s/g, '_');
   const pill = statusPill(stageKey) || `<span class="pill grey">${stage}</span>`;
   if (isRework) {
-    return `<span class="pill bad">Rework → ${stage}</span>`;
+    return `<span class="pill bad">Rework → ${stage}${track ? ` (${track === 'fabric' ? 'Fabric' : 'Rail'})` : ''}</span>`;
   }
   if (card.qcResult === 'pass' && card.stage === 'Ready') return `<span class="pill ok">✓ Ready</span>`;
   if (card.stage === 'Installed') return `<span class="pill ok">✓ Installed</span>`;
   if (stage === 'Hoist QC') return `<span class="pill info">QC</span>`;
+  if (stage === 'Production') return `<span class="pill warn">In production</span>`;
   return `<span class="pill warn">${stage}</span>`;
 }
 
@@ -2194,6 +2440,9 @@ function closeTracksDashboard() {
 }
 
 // ── Collect all track work items ──────────────
+// Only items that actually have a rail track belong here — the track
+// team's queue is the rail track, full stop. (Fabric-only items like
+// blackout, if ever used, simply never appear.)
 function getAllTrackItems() {
   const items = [];
   curtainJobs.forEach(job => {
@@ -2201,10 +2450,11 @@ function getAllTrackItems() {
     const days = daysUntilInstall(job);
     job.windows.forEach(w => {
       if (!w.calcDone) return;
-      if (!needsTrackWork(w)) return;
-      const card      = job.itemCards[w.id];
-      const stageInfo = getItemCardStageDisplay(card, w.treatment);
-      items.push({ job, w, card, stageInfo, days });
+      const card = job.itemCards[w.id];
+      if (!card || !card.railTrack) return;
+      const stageInfo = getItemCardStageDisplay(card, w.treatment); // overall (terminal/rework) status
+      const railInfo  = getRailDisplay(card);                        // rail-track-only status
+      items.push({ job, w, card, stageInfo, railInfo, days });
     });
   });
   // Sort by urgency — closest install first, then no-date at bottom
@@ -2246,8 +2496,12 @@ function renderTracksDashboard() {
   if (tracksDetailItem) { renderTracksDetailPanel(); return; }
 
   const all       = getAllTrackItems();
-  const active    = all.filter(i => !['Ready','Installed','Hoist QC'].includes(i.stageInfo.stage) && !i.stageInfo.isRework);
-  const rework    = all.filter(i => i.stageInfo.isRework);
+  // Bucketed off the RAIL track directly — that's the track team's own
+  // work. A fabric rework doesn't reopen the track team's queue (rail's
+  // work already stands); it shows under "waiting" instead.
+  const active    = all.filter(i => i.railInfo.actionable && !i.railInfo.isRework);
+  const rework    = all.filter(i => i.railInfo.isRework);
+  const waitingOnFabric = all.filter(i => !i.railInfo.actionable && i.railInfo.stage === 'Done' && i.stageInfo.stage === 'Production');
   const atHoistQC = all.filter(i => i.stageInfo.stage === 'Hoist QC');
   const ready     = all.filter(i => i.stageInfo.stage === 'Ready');
   const installed = all.filter(i => i.stageInfo.stage === 'Installed');
@@ -2330,7 +2584,7 @@ function renderTracksDashboard() {
   // ── Render active view ──
   let bodyHtml = '';
   if (tracksDashView === 'queue') {
-    bodyHtml = renderTracksQueueView(rework, active, atHoistQC);
+    bodyHtml = renderTracksQueueView(rework, active, atHoistQC, waitingOnFabric);
   } else if (tracksDashView === 'jobs') {
     bodyHtml = renderTracksJobView(all);
   } else if (tracksDashView === 'cutlist') {
@@ -2361,8 +2615,9 @@ function renderTracksDashboard() {
 
 
 // ── Queue view — sorted by urgency ────────────
-function renderTracksQueueView(rework, active, atHoistQC) {
+function renderTracksQueueView(rework, active, atHoistQC, waitingOnFabric) {
   let html = '';
+  waitingOnFabric = waitingOnFabric || [];
 
   // Rework items first — urgent
   if (rework.length > 0) {
@@ -2380,6 +2635,14 @@ function renderTracksQueueView(rework, active, atHoistQC) {
     active.forEach(i => { html += tracksItemCard(i, 'active'); });
   }
 
+  // Rail's done, waiting on the stitching team to finish fabric
+  if (waitingOnFabric.length > 0) {
+    html += `<div style="padding:12px 16px 6px;">
+      <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#a78bfa;text-transform:uppercase;">Rail Done — Waiting on Fabric (${waitingOnFabric.length})</p>
+    </div>`;
+    waitingOnFabric.forEach(i => { html += tracksItemCard(i, 'waiting-fabric'); });
+  }
+
   // At Hoist QC — waiting, not actionable for tracks team
   if (atHoistQC.length > 0) {
     html += `<div style="padding:12px 16px 6px;">
@@ -2388,7 +2651,7 @@ function renderTracksQueueView(rework, active, atHoistQC) {
     atHoistQC.forEach(i => { html += tracksItemCard(i, 'waiting'); });
   }
 
-  if (rework.length === 0 && active.length === 0 && atHoistQC.length === 0) {
+  if (rework.length === 0 && active.length === 0 && atHoistQC.length === 0 && waitingOnFabric.length === 0) {
     html = `<div style="padding:60px 20px;text-align:center;">
       <p style="font-size:40px;margin-bottom:12px;">✓</p>
       <p style="font-size:15px;color:#9ca3af;font-weight:600;">Queue is clear</p>
@@ -2418,12 +2681,7 @@ function renderTracksJobView(all) {
       </div>`;
     jobItems.forEach(i => { html += tracksItemCard(i, 'active', true); });
     // Group mark all ready button
-    const actionable = jobItems.filter(i => {
-      const stages  = getItemStages(i.w.treatment);
-      const current = i.stageInfo.stage;
-      const idx     = stages.indexOf(current);
-      return idx >= 0 && idx < stages.length - 1 && !['Hoist QC','Ready','Installed'].includes(current);
-    });
+    const actionable = jobItems.filter(i => i.railInfo.actionable);
     if (actionable.length > 1) {
       html += `<div style="padding:12px 16px;">
         <button onclick="tracksMarkAllReady('${job.id}')"
@@ -2608,24 +2866,23 @@ function renderTracksCutListView(items) {
 // ── Item card — the core display unit ─────────
 function tracksItemCard(i, mode, showDetail) {
   const { job, w, card, days } = i;
-  const stages  = getItemStages(w.treatment);
-  const current = i.stageInfo.stage;
-  const idx     = stages.indexOf(current);
+  const railInfo = i.railInfo || getRailDisplay(card);
+  const railStages = getProdTracks(w.treatment).rail || [];
   const isRoller = isRollerItem(w);
   const siblings = getGroupSiblings(job, w);
 
   const daysColor = urgencyColor(days);
   const daysText  = urgencyLabel(days);
 
-  // Stage progress dots
-  const stageDots = stages.map((s, si) => {
-    const done    = card && card.stageDates && card.stageDates[s];
-    const isCurr  = s === current && !i.stageInfo.isRework;
+  // Stage progress dots — rail track only, this is the track team's own work
+  const stageDots = railStages.map((s, si) => {
+    const done    = card && card.railTrack && card.railTrack.stageDates && card.railTrack.stageDates[s];
+    const isCurr  = railInfo.stage === s;
     const bg      = done ? '#10b981' : isCurr ? '#7c3aed' : '#374151';
     return `<div style="display:flex;align-items:center;gap:3px;">
       <div style="width:8px;height:8px;border-radius:50%;background:${bg};flex:none;"></div>
       <span style="font-size:9px;color:${done?'#10b981':isCurr?'#a78bfa':'#4b5563'};white-space:nowrap;">${s}</span>
-      ${si < stages.length-1 ? `<div style="width:10px;height:1px;background:#374151;margin:0 1px;"></div>` : ''}
+      ${si < railStages.length-1 ? `<div style="width:10px;height:1px;background:#374151;margin:0 1px;"></div>` : ''}
     </div>`;
   }).join('');
 
@@ -2647,46 +2904,49 @@ function tracksItemCard(i, mode, showDetail) {
       ${w.motorized ? `<div style="grid-column:1/-1;"><p style="font-size:10px;color:#6b7280;">Motor</p><p style="font-size:12px;color:#f59e0b;font-weight:700;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)} — needs motor team fit</p></div>` : ''}
     </div>`;
 
-  // Action buttons based on mode
+  // Action buttons — derived straight from the rail track's own state, so
+  // this is correct regardless of which bucket the card is rendered under.
   let actions = '';
-  if (mode === 'rework') {
-    const reworkStage = i.stageInfo.stage;
+  const railIdx     = railStages.indexOf(railInfo.stage);
+  const railNext    = railIdx >= 0 && railIdx < railStages.length - 1 ? railStages[railIdx + 1] : null;
+  const needsMotor  = w.motorized && railInfo.stage === 'Assembly' && !railInfo.isRework;
+
+  if (railInfo.isRework) {
     actions = `
       <div style="background:#450a0a;border:1px solid #7f1d1d;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
-        <p style="font-size:11px;color:#f87171;font-weight:700;">QC failed — rework required</p>
-        <p style="font-size:11px;color:#ef4444;">Return to: ${reworkStage}</p>
+        <p style="font-size:11px;color:#f87171;font-weight:700;">QC failed — rail rework required</p>
+        <p style="font-size:11px;color:#ef4444;">Return to: ${railInfo.stage}</p>
         ${card && card.reworkLog.length ? `<p style="font-size:10px;color:#991b1b;margin-top:4px;">Reason: ${card.reworkLog[card.reworkLog.length-1].reason || 'No notes'}</p>` : ''}
       </div>
       <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');renderTracksDashboard()"
         style="width:100%;padding:12px;background:#dc2626;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
         Rework complete — send to QC again →
       </button>`;
-  } else if (mode === 'active') {
-    const nextStage = idx >= 0 && idx < stages.length - 1 ? stages[idx + 1] : null;
-    const canAdv    = nextStage && !['Hoist QC','Ready','Installed'].includes(current);
-    const needsMotor = w.motorized && current === 'Assembly';
-    if (needsMotor) {
-      actions = `
-        <div style="background:#1c1208;border:1px solid #78350f;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
-          <p style="font-size:11px;color:#f59e0b;font-weight:700;">⚡ Motor fit required before QC</p>
-          <p style="font-size:11px;color:#92400e;">Mark assembly done — motor team will be notified</p>
-        </div>
-        <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');renderTracksDashboard()"
-          style="width:100%;padding:12px;background:#d97706;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
-          Assembly done — notify motor team →
-        </button>`;
-    } else if (canAdv) {
-      const btnLabel = nextStage === 'Hoist QC' ? 'Send to hoist QC →' : `Mark ${nextStage} complete →`;
-      actions = `
-        <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');renderTracksDashboard()"
-          style="width:100%;padding:12px;background:#7c3aed;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
-          ${btnLabel}
-        </button>`;
+  } else if (!railInfo.actionable) {
+    if (railInfo.stage === 'Done' && i.stageInfo.stage === 'Production') {
+      actions = `<p style="font-size:12px;color:#a78bfa;padding:4px 0;text-align:center;">✂️ Rail done — waiting on the stitching team</p>`;
+    } else if (i.stageInfo.stage === 'Hoist QC') {
+      actions = `<p style="font-size:12px;color:#3b82f6;padding:4px 0;text-align:center;">Waiting for hoist QC result</p>`;
+    } else if (i.stageInfo.stage === 'Ready') {
+      actions = `<p style="font-size:12px;color:#10b981;font-weight:600;padding:4px 0;text-align:center;">✓ Ready — awaiting hoist inspection</p>`;
     }
-  } else if (mode === 'waiting') {
-    actions = `<p style="font-size:12px;color:#3b82f6;padding:4px 0;text-align:center;">Waiting for hoist QC result</p>`;
-  } else if (mode === 'ready') {
-    actions = `<p style="font-size:12px;color:#10b981;font-weight:600;padding:4px 0;text-align:center;">✓ Ready — awaiting hoist inspection</p>`;
+  } else if (needsMotor) {
+    actions = `
+      <div style="background:#1c1208;border:1px solid #78350f;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+        <p style="font-size:11px;color:#f59e0b;font-weight:700;">⚡ Motor fit required before QC</p>
+        <p style="font-size:11px;color:#92400e;">Mark assembly done — motor team will be notified</p>
+      </div>
+      <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');renderTracksDashboard()"
+        style="width:100%;padding:12px;background:#d97706;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
+        Assembly done — notify motor team →
+      </button>`;
+  } else {
+    const btnLabel = !railNext ? 'Send to hoist QC →' : `Mark ${railInfo.stage} complete →`;
+    actions = `
+      <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');renderTracksDashboard()"
+        style="width:100%;padding:12px;background:#7c3aed;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
+        ${btnLabel}
+      </button>`;
   }
 
   // QC history badge
@@ -2769,10 +3029,11 @@ function renderTracksDetailPanel() {
   const card = getItemCard(jobId, windowId);
   if (!job || !w || !card) { tracksDetailItem = null; renderTracksDashboard(); return; }
 
-  const stages     = getItemStages(w.treatment);
+  const railStages = getProdTracks(w.treatment).rail || [];
   const days       = daysUntilInstall(job);
   const isRoller   = isRollerItem(w);
-  const stageInfo  = getItemCardStageDisplay(card, w.treatment);
+  const railInfo   = getRailDisplay(card);
+  const fabInfo    = getFabricDisplay(card);
 
   const historyRows = card.qcHistory.map(h => `
     <div style="border-bottom:1px solid #1f2937;padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -2783,21 +3044,28 @@ function renderTracksDetailPanel() {
         <p style="font-size:11px;color:#6b7280;">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
         ${h.notes ? `<p style="font-size:11px;color:#9ca3af;margin-top:3px;">${h.notes}</p>` : ''}
       </div>
-      ${h.photo ? `<img src="${h.photo}" style="width:44px;height:44px;border-radius:7px;object-fit:cover;flex:none;">` : ''}
+      ${h.photos && h.photos.length ? `<div style="position:relative;flex:none;"><img src="${h.photos[0]}" style="width:44px;height:44px;border-radius:7px;object-fit:cover;">${h.photos.length>1?`<span style="position:absolute;bottom:-4px;right:-4px;background:#1e2a3b;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:8px;">+${h.photos.length-1}</span>`:''}</div>` : ''}
     </div>`).join('');
 
-  const stageLine = stages.map(s => {
-    const done = card.stageDates && card.stageDates[s];
-    const curr = stageInfo.stage === s;
+  // Rail track timeline — this is the track team's own work
+  const stageLine = railStages.map(s => {
+    const done = card.railTrack && card.railTrack.stageDates && card.railTrack.stageDates[s];
+    const curr = railInfo.stage === s;
     return `
       <div style="flex:1;text-align:center;">
         <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;background:${done?'#10b981':curr?'#7c3aed':'#374151'};border:2px solid ${done?'#10b981':curr?'#a78bfa':'#4b5563'};">
           ${done ? `<span style="color:#fff;font-size:11px;font-weight:800;">✓</span>` : curr ? `<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:block;"></span>` : ''}
         </div>
         <p style="font-size:9px;color:${done?'#10b981':curr?'#a78bfa':'#4b5563'};font-weight:${done||curr?'700':'400'};">${s}</p>
-        ${done && card.stageDates[s] ? `<p style="font-size:8px;color:#4b5563;">${new Date(card.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</p>` : ''}
+        ${done && card.railTrack.stageDates[s] ? `<p style="font-size:8px;color:#4b5563;">${new Date(card.railTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</p>` : ''}
       </div>`;
   }).join('');
+
+  // Fabric status note — read-only context for the track team, not actionable here
+  const fabricNote = fabInfo.stage ? `
+    <p style="font-size:11px;color:#a78bfa;margin-top:8px;">
+      ✂️ Fabric: ${fabInfo.stage === 'Done' ? '✓ Done' : fabInfo.stage + (fabInfo.isRework ? ' (rework)' : '')}
+    </p>` : '';
 
   const siblings = getGroupSiblings(job, w);
   const stock = !isRoller && w.railItemCode ? getTrackStock(w.railItemCode) : null;
@@ -2843,8 +3111,9 @@ function renderTracksDetailPanel() {
 
       <!-- Stage timeline -->
       <div style="background:#1f2937;padding:16px;border-bottom:1px solid #374151;">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;">Stage progress</p>
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;">Rail progress</p>
         <div style="display:flex;align-items:flex-start;">${stageLine}</div>
+        ${fabricNote}
       </div>
 
       <!-- Full spec -->
@@ -2889,56 +3158,31 @@ function tracksMarkStageComplete(jobId, windowId) {
   const card = getItemCard(jobId, windowId);
   if (!job || !w || !card) return;
 
-  const stages  = getItemStages(w.treatment);
-  const current = card.isRework ? card.reworkStage : card.stage;
-  const idx     = stages.indexOf(current);
-  if (idx < 0 || idx >= stages.length - 1) return;
-
-  const nextStage = stages[idx + 1];
-  card.stageDates[current] = card.stageDates[current] || new Date().toISOString();
-
-  if (card.isRework) {
-    if (nextStage === 'Hoist QC' || nextStage === 'QC') {
-      card.isRework    = false;
-      card.reworkStage = null;
-      card.stage       = nextStage;
-    } else {
-      card.reworkStage = nextStage;
-    }
+  const railInfo = getRailDisplay(card);
+  if (!railInfo.actionable) return;
+  if (railInfo.isRework) {
+    advanceReworkTrack(jobId, windowId);
   } else {
-    card.stage = nextStage;
+    advanceProdTrack(jobId, windowId, 'rail');
   }
-
-  // Tracks handed off to QC — flag as new so it stands out in the QC queue
-  if (nextStage === 'Hoist QC') {
-    card.qcQueuedAt = new Date().toISOString();
-    card.qcSeen = false;
-  }
-
-  curtAlert(`✓ ${w.label} → ${nextStage}`);
 }
 
-// ── Mark all items for a job ready ────────────
+// ── Mark all items for a job ready (rail track only) ──
 function tracksMarkAllReady(jobId) {
   const job = curtainJobs.find(j => j.id === jobId);
   if (!job) return;
   ensureItemCards(job);
   let count = 0;
   job.windows.forEach(w => {
-    if (!w.calcDone || !needsTrackWork(w)) return;
-    const card   = job.itemCards[w.id];
-    if (!card) return;
-    const stages = getItemStages(w.treatment);
-    const current = card.isRework ? card.reworkStage : card.stage;
-    const idx    = stages.indexOf(current);
-    if (idx < 0 || idx >= stages.length - 1) return;
-    const nextStage = stages[idx + 1];
-    if (['Hoist QC','Ready','Installed'].includes(current)) return;
-    card.stageDates[current] = card.stageDates[current] || new Date().toISOString();
-    card.stage = nextStage;
-    if (nextStage === 'Hoist QC') {
-      card.qcQueuedAt = new Date().toISOString();
-      card.qcSeen = false;
+    if (!w.calcDone) return;
+    const card = job.itemCards[w.id];
+    if (!card || !card.railTrack) return;
+    const railInfo = getRailDisplay(card);
+    if (!railInfo.actionable) return;
+    if (railInfo.isRework) {
+      advanceReworkTrack(job.id, w.id);
+    } else {
+      advanceProdTrack(job.id, w.id, 'rail');
     }
     count++;
   });
@@ -2955,6 +3199,26 @@ function tracksMarkAllReady(jobId) {
 let qcActiveItem = null; // { jobId, windowId } for open QC panel
 let qcChecklistState = {};      // { key: { ok: boolean, remark: string } } for the open panel
 let qcActiveChecklistItems = []; // checklist item defs (key+label) for the open panel's treatment
+let qcDashView = 'queue';        // 'queue' | 'performance' | 'log' — top-level tab
+let qcCurrentUser = null;        // QC_TEAM name "acting as" for this device session
+let qcLogFilter = 'all';         // 'all' | 'pass' | 'fail' — Log view filter
+
+// Stale locks auto-expire — protects against a crashed/abandoned session
+// permanently blocking an item. Real cross-device enforcement needs a
+// backend/sync layer (Nettworksky) — until then this only guards against
+// two people picking up the same item on the same shared device.
+const QC_LOCK_TIMEOUT_MS = 15 * 60 * 1000; // 15 min
+
+function qcLockIsStale(card) {
+  if (!card.qcLockedAt) return true;
+  return (Date.now() - new Date(card.qcLockedAt).getTime()) > QC_LOCK_TIMEOUT_MS;
+}
+
+function qcLockAgeLabel(card) {
+  if (!card.qcLockedAt) return '';
+  const mins = Math.max(1, Math.round((Date.now() - new Date(card.qcLockedAt).getTime()) / 60000));
+  return mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
+}
 
 function openQCDashboard() {
   const scroll = document.getElementById('scroll');
@@ -2981,10 +3245,88 @@ function closeQCDashboard() {
   document.querySelectorAll('.module').forEach(m => m.style.display = '');
 }
 
+// Every qcHistory entry across every job, flattened, for Performance + Log
+// views. Each row carries its own job/window/treatment context.
+function collectAllQCHistory() {
+  const rows = [];
+  curtainJobs.forEach(job => {
+    ensureItemCards(job);
+    job.windows.forEach(w => {
+      if (!w.calcDone) return;
+      const card = job.itemCards[w.id];
+      if (!card || !card.qcHistory) return;
+      card.qcHistory.forEach(h => rows.push({ job, w, card, h }));
+    });
+  });
+  rows.sort((a, b) => new Date(b.h.timestamp) - new Date(a.h.timestamp));
+  return rows;
+}
+
+function qcTurnaroundMs(h) {
+  if (!h.queuedAt) return null;
+  const ms = new Date(h.timestamp).getTime() - new Date(h.queuedAt).getTime();
+  return ms >= 0 ? ms : null;
+}
+
+function qcTurnaroundLabel(ms) {
+  if (ms == null) return '—';
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  if (mins < 1440) return `${(mins/60).toFixed(1)}h`;
+  return `${(mins/1440).toFixed(1)}d`;
+}
+
+function qcSetView(v) {
+  qcDashView = v;
+  renderQCDashboard();
+}
+
 function renderQCDashboard() {
   const wrap = document.getElementById('qc-dash-wrap');
   if (!wrap) return;
 
+  const tabs = ['queue', 'performance', 'log'];
+  const tabLabels = { queue: 'Queue', performance: 'Performance', log: 'Log' };
+  const tabBar = `
+    <div style="display:flex;gap:6px;padding:10px 16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
+      ${tabs.map(t => `
+        <button onclick="qcSetView('${t}')" style="flex:1;padding:8px;border-radius:8px;border:1px solid ${qcDashView===t?'#1e2a3b':'#e2e8f0'};background:${qcDashView===t?'#1e2a3b':'#f7f9fc'};color:${qcDashView===t?'#fff':'#475569'};font-size:12px;font-weight:700;cursor:pointer;">
+          ${tabLabels[t]}
+        </button>`).join('')}
+    </div>`;
+
+  const acting = `
+    <div style="padding:8px 16px;background:#f1f5f9;border-bottom:1px solid #e8ecf0;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <span style="font-size:11px;color:#64748b;">Acting as: <b style="color:#1e2a3b;">${qcCurrentUser || 'not set'}</b></span>
+      <button onclick="qcSwitchUser()" style="background:none;border:none;color:#3b82f6;font-size:11px;font-weight:600;cursor:pointer;">Switch</button>
+    </div>`;
+
+  let body = '';
+  if (qcDashView === 'performance') body = renderQCPerformanceView();
+  else if (qcDashView === 'log') body = renderQCLogView();
+  else body = renderQCQueueView();
+
+  wrap.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:16px;">🔍 QC Dashboard</p>
+        <p style="color:#94a3b8;font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+      </div>
+      <button onclick="closeQCDashboard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
+    </div>
+    ${tabBar}
+    ${acting}
+    ${body}
+    <!-- QC Panel overlay (hidden by default) -->
+    <div id="qc-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+}
+
+function qcSwitchUser() {
+  qcCurrentUser = null;
+  renderQCDashboard();
+}
+
+function renderQCQueueView() {
   // Collect all items currently at QC stage or in Rework (waiting to return to QC)
   const qcItems     = [];
   const reworkItems = [];
@@ -3033,8 +3375,9 @@ function renderQCDashboard() {
     const attempts = i.card.qcHistory.length;
     const lastFail = i.card.qcHistory.filter(h => h.result === 'fail').pop();
     const isNew = i.card.qcQueuedAt && !i.card.qcSeen;
+    const locked = i.card.qcLockedBy && !qcLockIsStale(i.card) && i.card.qcLockedBy !== qcCurrentUser;
     return `
-      <div style="border:1px solid ${isNew?'#3b82f6':'#e8ecf0'};border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;cursor:pointer;"
+      <div style="border:1px solid ${locked?'#f59e0b':isNew?'#3b82f6':'#e8ecf0'};border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;cursor:pointer;"
         onclick="openQCPanel('${i.job.id}','${i.w.id}')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
@@ -3047,6 +3390,9 @@ function renderQCDashboard() {
             ${attempts > 0 ? `<span class="pill bad" style="font-size:10px;">Attempt ${attempts+1}</span>` : ''}
           </div>
         </div>
+        ${locked ? `<div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;">
+          <p style="font-size:11px;color:#b45309;font-weight:600;">🔒 Being inspected by ${i.card.qcLockedBy} · ${qcLockAgeLabel(i.card)}</p>
+        </div>` : ''}
         ${lastFail ? `<div style="margin-top:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
           <p style="font-size:11px;color:#dc2626;font-weight:600;">Previous fail: ${lastFail.notes || 'No notes'}</p>
           <p style="font-size:10px;color:#ef4444;">${new Date(lastFail.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
@@ -3063,7 +3409,7 @@ function renderQCDashboard() {
             <p style="font-size:14px;font-weight:700;color:#1e2a3b;">${i.w.label}</p>
             <p style="font-size:11px;color:#64748b;">${i.job.name} · ${i.job.id}</p>
           </div>
-          <span class="pill bad">Rework → ${i.stageInfo.stage}</span>
+          <span class="pill bad">Rework → ${i.stageInfo.stage}${i.stageInfo.track ? ` (${i.stageInfo.track === 'fabric' ? 'Fabric' : 'Rail'})` : ''}</span>
         </div>
         <p style="font-size:12px;color:#64748b;margin-top:6px;">Returned to ${i.stageInfo.stage} for correction. Will reappear here when production marks it ready for QC again.</p>
       </div>`;
@@ -3095,18 +3441,172 @@ function renderQCDashboard() {
           </div>`).join('')}` : ''}
     </div>`;
 
-  wrap.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
-      <div>
-        <p style="color:#fff;font-weight:700;font-size:16px;">🔍 QC Dashboard</p>
-        <p style="color:#94a3b8;font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+  return `${kpiRow}${listView}`;
+}
+
+// ── Performance view — pass rate, attempts, turnaround, per QC person ──
+function renderQCPerformanceView() {
+  const rows = collectAllQCHistory();
+
+  if (rows.length === 0) {
+    return `<div style="flex:1;overflow-y:auto;padding:16px;">
+      <div style="text-align:center;padding:48px 20px;">
+        <p style="font-size:32px;margin-bottom:8px;">📊</p>
+        <p style="font-size:14px;color:#64748b;">No QC inspections recorded yet.</p>
       </div>
-      <button onclick="closeQCDashboard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
-    </div>
+    </div>`;
+  }
+
+  const passCount = rows.filter(r => r.h.result === 'pass').length;
+  const failCount = rows.length - passCount;
+  const overallPassRate = Math.round((passCount / rows.length) * 100);
+
+  const turnarounds = rows.map(r => qcTurnaroundMs(r.h)).filter(ms => ms != null);
+  const avgTurnaround = turnarounds.length ? turnarounds.reduce((a,b) => a+b, 0) / turnarounds.length : null;
+
+  // Avg attempts to reach a pass — only counts items that have actually passed
+  const passedCards = new Set();
+  const attemptsToPass = [];
+  rows.forEach(r => {
+    if (r.h.result === 'pass' && !passedCards.has(r.card)) {
+      passedCards.add(r.card);
+      attemptsToPass.push(r.h.attempt);
+    }
+  });
+  const avgAttempts = attemptsToPass.length ? (attemptsToPass.reduce((a,b)=>a+b,0) / attemptsToPass.length) : null;
+
+  const kpiRow = `
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:16px;background:#fff;border-bottom:1px solid #e8ecf0;">
+      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+        <p style="font-size:22px;font-weight:800;color:#10b981;">${overallPassRate}%</p>
+        <p style="font-size:11px;color:#64748b;margin-top:2px;">Overall pass rate (${passCount}/${rows.length})</p>
+      </div>
+      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+        <p style="font-size:22px;font-weight:800;color:#ef4444;">${failCount}</p>
+        <p style="font-size:11px;color:#64748b;margin-top:2px;">Total fails logged</p>
+      </div>
+      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+        <p style="font-size:22px;font-weight:800;color:#3b82f6;">${avgAttempts ? avgAttempts.toFixed(1) : '—'}</p>
+        <p style="font-size:11px;color:#64748b;margin-top:2px;">Avg attempts to pass</p>
+      </div>
+      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+        <p style="font-size:22px;font-weight:800;color:#7c3aed;">${qcTurnaroundLabel(avgTurnaround)}</p>
+        <p style="font-size:11px;color:#64748b;margin-top:2px;">Avg turnaround (queue → result)</p>
+      </div>
+    </div>`;
+
+  // Per-person breakdown
+  const byPerson = {};
+  rows.forEach(r => {
+    const p = r.h.person || 'Unknown';
+    if (!byPerson[p]) byPerson[p] = { total: 0, pass: 0, fail: 0, turnarounds: [] };
+    byPerson[p].total++;
+    if (r.h.result === 'pass') byPerson[p].pass++; else byPerson[p].fail++;
+    const ms = qcTurnaroundMs(r.h);
+    if (ms != null) byPerson[p].turnarounds.push(ms);
+  });
+
+  const personRows = Object.entries(byPerson)
+    .sort((a,b) => b[1].total - a[1].total)
+    .map(([person, s]) => {
+      const rate = Math.round((s.pass / s.total) * 100);
+      const avgT = s.turnarounds.length ? s.turnarounds.reduce((a,b)=>a+b,0)/s.turnarounds.length : null;
+      return `
+        <div style="border-bottom:1px solid #f1f5f9;padding:10px 0;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <p style="font-size:13px;font-weight:700;color:#1e2a3b;">${person}</p>
+            <p style="font-size:11px;color:#64748b;">${s.total} inspection${s.total>1?'s':''} · ${s.pass} pass / ${s.fail} fail</p>
+          </div>
+          <div style="text-align:right;">
+            <p style="font-size:14px;font-weight:700;color:${rate>=80?'#10b981':rate>=50?'#f59e0b':'#ef4444'};">${rate}%</p>
+            <p style="font-size:10px;color:#94a3b8;">avg ${qcTurnaroundLabel(avgT)}</p>
+          </div>
+        </div>`;
+    }).join('');
+
+  // Fail-reason breakdown by checklist key
+  const failReasons = {};
+  rows.forEach(r => {
+    (r.h.checklist || []).forEach(c => {
+      if (!c.ok) failReasons[c.label] = (failReasons[c.label] || 0) + 1;
+    });
+  });
+  const reasonRows = Object.entries(failReasons)
+    .sort((a,b) => b[1] - a[1])
+    .map(([label, count]) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+        <p style="font-size:12px;color:#475569;">${label}</p>
+        <span class="pill bad" style="font-size:11px;">${count}</span>
+      </div>`).join('');
+
+  return `
     ${kpiRow}
-    ${listView}
-    <!-- QC Panel overlay (hidden by default) -->
-    <div id="qc-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+    <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:80px;">
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:8px;">By QC person</p>
+        ${personRows || '<p style="font-size:12px;color:#94a3b8;">No data yet.</p>'}
+      </div>
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:8px;">Most common fail reasons</p>
+        ${reasonRows || '<p style="font-size:12px;color:#94a3b8;">No fails logged yet.</p>'}
+      </div>
+    </div>`;
+}
+
+// ── Log view — global audit trail across every job ──
+function renderQCLogView() {
+  const allRows = collectAllQCHistory();
+  const rows = qcLogFilter === 'all' ? allRows : allRows.filter(r => r.h.result === qcLogFilter);
+
+  const filterBar = `
+    <div style="display:flex;gap:6px;padding:12px 16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
+      ${['all','pass','fail'].map(f => `
+        <button onclick="qcSetLogFilter('${f}')" style="padding:6px 14px;border-radius:20px;border:1px solid ${qcLogFilter===f?'#1e2a3b':'#e2e8f0'};background:${qcLogFilter===f?'#1e2a3b':'#f7f9fc'};color:${qcLogFilter===f?'#fff':'#475569'};font-size:12px;font-weight:600;cursor:pointer;text-transform:capitalize;">
+          ${f} ${f !== 'all' ? `(${allRows.filter(r=>r.h.result===f).length})` : `(${allRows.length})`}
+        </button>`).join('')}
+    </div>`;
+
+  const rowsHtml = rows.map(r => {
+    const ms = qcTurnaroundMs(r.h);
+    return `
+      <div style="border:1px solid #e8ecf0;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div>
+            <p style="font-size:13px;font-weight:700;color:#1e2a3b;">${r.w.label} <span style="font-weight:400;color:#94a3b8;">· Attempt ${r.h.attempt}</span></p>
+            <p style="font-size:11px;color:#64748b;">${r.job.name} · ${r.job.id} · ${treatmentLabel(r.w.treatment)}</p>
+          </div>
+          <span class="pill ${r.h.result==='pass'?'ok':'bad'}">${r.h.result==='pass'?'✓ Pass':'✗ Fail'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <p style="font-size:11px;color:#64748b;">${r.h.person} · ${new Date(r.h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+          <p style="font-size:11px;color:#7c3aed;font-weight:600;">⏱ ${qcTurnaroundLabel(ms)}</p>
+        </div>
+        ${r.h.checklist && r.h.checklist.some(c => !c.ok) ? `
+          <div style="margin-top:6px;background:#fef2f2;border-radius:8px;padding:6px 10px;">
+            ${r.h.checklist.filter(c => !c.ok).map(c => `<p style="font-size:11px;color:#dc2626;">✗ ${c.label}${c.remark ? ' — ' + c.remark : ''}</p>`).join('')}
+          </div>` : ''}
+        ${r.h.notes ? `<p style="font-size:12px;color:#475569;margin-top:6px;">${r.h.notes}</p>` : ''}
+        ${r.h.photos && r.h.photos.length ? `
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            ${r.h.photos.map(p => `<img src="${p}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;" />`).join('')}
+          </div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    ${filterBar}
+    <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:80px;">
+      ${rows.length ? rowsHtml : `
+        <div style="text-align:center;padding:48px 20px;">
+          <p style="font-size:32px;margin-bottom:8px;">📋</p>
+          <p style="font-size:14px;color:#64748b;">No QC records${qcLogFilter!=='all' ? ` for "${qcLogFilter}"` : ''} yet.</p>
+        </div>`}
+    </div>`;
+}
+
+function qcSetLogFilter(f) {
+  qcLogFilter = f;
+  renderQCDashboard();
 }
 
 function openQCPanel(jobId, windowId) {
@@ -3115,10 +3615,23 @@ function openQCPanel(jobId, windowId) {
   const card = getItemCard(jobId, windowId);
   if (!job || !win || !card) return;
 
+  // Locking — if someone else has this locked and it's not stale, show a
+  // read-only "being inspected" view instead of the form.
+  const lockedByOther = card.qcLockedBy && !qcLockIsStale(card) && card.qcLockedBy !== qcCurrentUser;
+  if (lockedByOther) {
+    qcActiveItem = { jobId, windowId };
+    openQCLockedPanel(job, win, card);
+    return;
+  }
+  // Claim the lock — for whoever is acting now (may be null if no QC
+  // person has been picked yet this session; they'll pick one in the panel).
+  card.qcLockedBy = qcCurrentUser;
+  card.qcLockedAt = new Date().toISOString();
+
   qcActiveItem = { jobId, windowId };
   card.qcSeen = true; // clears the "new" badge once QC opens the item
 
-  const stages    = getItemStages(win.treatment);
+  const prodTracks = getProdTracks(win.treatment);
   const attempts  = card.qcHistory.length;
   const lastFail  = card.qcHistory.filter(h => h.result === 'fail').pop();
 
@@ -3142,10 +3655,10 @@ function openQCPanel(jobId, windowId) {
       </div>
     </div>`).join('');
 
-  const stageOptions = stages
-    .filter(s => s !== 'Hoist QC' && s !== 'Ready' && s !== 'Installed')
-    .map(s => `<option value="${s}">${s}</option>`)
-    .join('');
+  const stageOptions = [
+    ...(prodTracks.fabric ? prodTracks.fabric.map(s => `<option value="fabric:${s}">${s} (Fabric)</option>`) : []),
+    ...(prodTracks.rail   ? prodTracks.rail.map(s   => `<option value="rail:${s}">${s} (Rail)</option>`)     : []),
+  ].join('');
 
   const historyRows = card.qcHistory.map((h, idx) => `
     <div style="border-bottom:1px solid #e8ecf0;padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -3161,7 +3674,7 @@ function openQCPanel(jobId, windowId) {
         ${h.notes ? `<p style="font-size:12px;color:#475569;margin-top:3px;">${h.notes}</p>` : ''}
         ${h.result==='fail' && card.reworkLog[idx] ? `<p style="font-size:11px;color:#ef4444;margin-top:2px;">Returned to: ${card.reworkLog[idx].returnTo}</p>` : ''}
       </div>
-      ${h.photo ? `<img src="${h.photo}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex:none;" />` : ''}
+      ${h.photos && h.photos.length ? `<div style="display:flex;gap:4px;flex:none;flex-wrap:wrap;max-width:104px;justify-content:flex-end;">${h.photos.map(p => `<img src="${p}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;" />`).join('')}</div>` : ''}
     </div>`).join('');
 
   const panel = document.getElementById('qc-panel');
@@ -3192,18 +3705,34 @@ function openQCPanel(jobId, windowId) {
       <!-- Lifecycle stages -->
       <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
         <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Stage progress</p>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${stages.map(s => {
-            const done = card.stageDates[s];
-            const isCurrent = card.stage === s && !card.isRework;
+        ${prodTracks.fabric ? `
+        <p style="font-size:10px;color:#94a3b8;margin-bottom:4px;">✂️ Fabric</p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          ${prodTracks.fabric.map(s => {
+            const done = card.fabricTrack && card.fabricTrack.stageDates[s];
+            const isCurrent = card.fabricTrack && card.fabricTrack.stage === s && !card.fabricTrack.done;
             const bg = done ? '#10b981' : isCurrent ? '#3b82f6' : '#e2e8f0';
             const col = (done || isCurrent) ? '#fff' : '#94a3b8';
             return `<div style="background:${bg};color:${col};border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;">
               ${s}${done ? ' ✓' : ''}
-              ${done ? `<span style="font-size:10px;opacity:.8;"> ${new Date(card.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</span>` : ''}
+              ${done ? `<span style="font-size:10px;opacity:.8;"> ${new Date(card.fabricTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</span>` : ''}
             </div>`;
           }).join('')}
-        </div>
+        </div>` : ''}
+        ${prodTracks.rail ? `
+        <p style="font-size:10px;color:#94a3b8;margin-bottom:4px;">🔩 Rail</p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${prodTracks.rail.map(s => {
+            const done = card.railTrack && card.railTrack.stageDates[s];
+            const isCurrent = card.railTrack && card.railTrack.stage === s && !card.railTrack.done;
+            const bg = done ? '#10b981' : isCurrent ? '#3b82f6' : '#e2e8f0';
+            const col = (done || isCurrent) ? '#fff' : '#94a3b8';
+            return `<div style="background:${bg};color:${col};border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;">
+              ${s}${done ? ' ✓' : ''}
+              ${done ? `<span style="font-size:10px;opacity:.8;"> ${new Date(card.railTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</span>` : ''}
+            </div>`;
+          }).join('')}
+        </div>` : ''}
       </div>
 
       <!-- QC form -->
@@ -3211,9 +3740,10 @@ function openQCPanel(jobId, windowId) {
         <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:12px;">QC inspection — Attempt ${attempts + 1}</p>
 
         <div style="margin-bottom:12px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">QC person name</label>
-          <input id="qc-person-name" type="text" placeholder="Your name"
-            style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;background:#f8fafc;">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">QC person</label>
+          <div id="qc-person-roster" style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${qcPersonRosterHtml(card)}
+          </div>
         </div>
 
         <div style="margin-bottom:14px;">
@@ -3231,18 +3761,18 @@ function openQCPanel(jobId, windowId) {
         </div>
 
         <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Photo <span style="color:#ef4444;">*required — pass or fail</span></label>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Photos <span style="color:#ef4444;">*at least 1 required — pass or fail</span></label>
           <input id="qc-photo-input" type="file" accept="image/*" capture="environment"
-            onchange="qcPhotoPreview(this)"
+            onchange="qcPhotoAdd(this)"
             style="display:none;">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button onclick="document.getElementById('qc-photo-input').click()"
               style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;">
-              📷 Take / upload photo
+              📷 Add photo
             </button>
             <span id="qc-photo-name" style="font-size:11px;color:#94a3b8;"></span>
           </div>
-          <img id="qc-photo-preview" src="" alt="" style="display:none;width:100%;max-width:200px;border-radius:10px;margin-top:8px;object-fit:cover;" />
+          <div id="qc-photo-gallery" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
         </div>
 
         <!-- Result buttons -->
@@ -3289,27 +3819,126 @@ function openQCPanel(jobId, windowId) {
   panel.style.display = 'block';
   panel.scrollTop = 0;
   window._qcSelectedResult = null;
+  window._qcPhotos = [];
+  window._qcSelectedPerson = qcCurrentUser || null;
 }
 
 function closeQCPanel() {
+  // Release the lock if it's still ours (nothing submitted this visit) —
+  // recordQCResult already clears it on submit, this covers cancel/back-out.
+  if (qcActiveItem) {
+    const card = getItemCard(qcActiveItem.jobId, qcActiveItem.windowId);
+    if (card && card.qcLockedBy === qcCurrentUser) {
+      card.qcLockedBy = null;
+      card.qcLockedAt = null;
+    }
+  }
   const panel = document.getElementById('qc-panel');
   if (panel) panel.style.display = 'none';
   qcActiveItem = null;
   renderQCDashboard();
 }
 
-function qcPhotoPreview(input) {
+// Read-only view shown when another QC person already has this item open.
+function openQCLockedPanel(job, win, card) {
+  const panel = document.getElementById('qc-panel');
+  panel.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:15px;">QC — ${win.label}</p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${win.room}</p>
+      </div>
+      <button onclick="closeQCPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← List</button>
+    </div>
+    <div style="padding:16px;">
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px;text-align:center;">
+        <p style="font-size:32px;margin-bottom:10px;">🔒</p>
+        <p style="font-size:14px;font-weight:700;color:#b45309;">Being inspected by ${card.qcLockedBy}</p>
+        <p style="font-size:12px;color:#92400e;margin-top:4px;">Started ${qcLockAgeLabel(card)}. This item will unlock automatically after 15 minutes of inactivity.</p>
+        <button onclick="qcOverrideLock('${job.id}','${win.id}')"
+          style="margin-top:14px;background:#fff;border:1px solid #f59e0b;color:#b45309;padding:9px 18px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
+          Override — take over inspection
+        </button>
+        <p style="font-size:10px;color:#92400e;margin-top:8px;">Only override if you know that session was abandoned (crashed app, wrong device, etc).</p>
+      </div>
+    </div>`;
+  panel.style.display = 'block';
+  panel.scrollTop = 0;
+}
+
+function qcOverrideLock(jobId, windowId) {
+  const card = getItemCard(jobId, windowId);
+  if (!card) return;
+  card.qcLockedBy = null;
+  card.qcLockedAt = null;
+  openQCPanel(jobId, windowId);
+}
+
+function qcPhotoAdd(input) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];
-  document.getElementById('qc-photo-name').textContent = file.name;
   const reader = new FileReader();
   reader.onload = e => {
-    const preview = document.getElementById('qc-photo-preview');
-    preview.src   = e.target.result;
-    preview.style.display = 'block';
-    window._qcPhotoData = e.target.result; // base64
+    if (!window._qcPhotos) window._qcPhotos = [];
+    window._qcPhotos.push(e.target.result); // base64
+    qcRenderPhotoGallery();
   };
   reader.readAsDataURL(file);
+  input.value = ''; // allow re-selecting the same file / adding another right after
+}
+
+function qcPhotoRemove(idx) {
+  if (!window._qcPhotos) return;
+  window._qcPhotos.splice(idx, 1);
+  qcRenderPhotoGallery();
+}
+
+function qcRenderPhotoGallery() {
+  const gallery = document.getElementById('qc-photo-gallery');
+  const nameEl  = document.getElementById('qc-photo-name');
+  if (!gallery) return;
+  const photos = window._qcPhotos || [];
+  gallery.innerHTML = photos.map((p, idx) => `
+    <div style="position:relative;">
+      <img src="${p}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;" />
+      <button onclick="qcPhotoRemove(${idx})"
+        style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#ef4444;color:#fff;border:2px solid #fff;font-size:11px;line-height:1;cursor:pointer;">✕</button>
+    </div>`).join('');
+  if (nameEl) nameEl.textContent = photos.length ? `${photos.length} photo${photos.length>1?'s':''}` : '';
+}
+
+// ── QC person roster — tap to select (mirrors TRACK_TEAM pattern) ──
+function qcPersonRosterHtml(card) {
+  const selected = window._qcSelectedPerson || qcCurrentUser;
+  const chips = QC_TEAM.map(p => `
+    <button onclick="qcSelectPerson('${p}')"
+      style="padding:8px 14px;border-radius:20px;border:1px solid ${selected===p?'#1e2a3b':'#e2e8f0'};background:${selected===p?'#1e2a3b':'#f8fafc'};color:${selected===p?'#fff':'#475569'};font-size:13px;font-weight:600;cursor:pointer;">
+      ${p}
+    </button>`).join('');
+  return `${chips}
+    <button onclick="qcAddPersonPrompt()"
+      style="padding:8px 14px;border-radius:20px;border:1px dashed #94a3b8;background:#fff;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">
+      + Add QC person
+    </button>`;
+}
+
+function qcSelectPerson(name) {
+  window._qcSelectedPerson = name;
+  qcCurrentUser = name; // remembered for the rest of this device session
+  const roster = document.getElementById('qc-person-roster');
+  if (roster && qcActiveItem) {
+    const card = getItemCard(qcActiveItem.jobId, qcActiveItem.windowId);
+    roster.innerHTML = qcPersonRosterHtml(card);
+    // Claiming a name also claims/refreshes the lock on this item
+    if (card) { card.qcLockedBy = name; card.qcLockedAt = new Date().toISOString(); }
+  }
+}
+
+function qcAddPersonPrompt() {
+  const name = (window.prompt('QC person\'s name:', '') || '').trim();
+  if (!name) return;
+  if (!QC_TEAM.includes(name)) QC_TEAM.push(name);
+  qcSelectPerson(name);
 }
 
 // Checklist item toggled — show/hide its remark box, then re-evaluate
@@ -3385,28 +4014,31 @@ function submitQCResult() {
   }
 
   const notes     = (document.getElementById('qc-notes') || {}).value || '';
-  const person    = (document.getElementById('qc-person-name') || {}).value || 'QC';
-  const photo     = window._qcPhotoData || null;
+  const person    = window._qcSelectedPerson;
+  const photos    = window._qcPhotos || [];
   const reworkStageEl = document.getElementById('qc-rework-stage');
-  const reworkStage   = (result === 'fail' && reworkStageEl) ? reworkStageEl.value : null;
+  const reworkRaw = (result === 'fail' && reworkStageEl) ? reworkStageEl.value : null;
+  const [reworkTrack, reworkStage] = reworkRaw ? reworkRaw.split(':') : [null, null];
 
-  if (!person.trim()) { curtAlert('Please enter your name.'); return; }
-  if (!photo) { curtAlert('Photo required before submitting — pass or fail.'); return; }
+  if (!person) { curtAlert('Please select who is doing this QC inspection.'); return; }
+  if (photos.length === 0) { curtAlert('At least one photo is required before submitting — pass or fail.'); return; }
 
   const ok = recordQCResult(
     qcActiveItem.jobId,
     qcActiveItem.windowId,
     result,
     notes,
-    photo,
-    person.trim(),
+    photos,
+    person,
+    reworkTrack,
     reworkStage,
     checklist
   );
 
   if (ok) {
-    window._qcPhotoData    = null;
+    window._qcPhotos       = [];
     window._qcSelectedResult = null;
+    window._qcSelectedPerson = null;
     qcChecklistState = {};
     qcActiveChecklistItems = [];
     closeQCPanel();
@@ -3451,7 +4083,8 @@ function renderInstallCrewDashboard() {
   // Collect all items that are Ready or Installed, grouped by job
   const jobCards = curtainJobs.map(job => {
     ensureItemCards(job);
-    const inst   = job.installation || {};
+    ensureInstallDefaults(job);
+    const inst   = job.installation;
     const allItems = job.windows.filter(w => w.calcDone);
     const readyAll = allItems.filter(w => {
       const card = job.itemCards[w.id];
@@ -3481,6 +4114,7 @@ function renderInstallCrewDashboard() {
     const { job, inst, ready, installed, total } = jc;
     const daysToInstall = inst.scheduledDate ? daysBetween(today, inst.scheduledDate) : null;
     const readyPct = total > 0 ? Math.round(((ready.length + installed.length) / total) * 100) : 0;
+    const openSnags = getOpenSnagCount(job);
 
     return `
       <div style="border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;">
@@ -3533,12 +4167,28 @@ function renderInstallCrewDashboard() {
             </button>`).join('')}
         </div>` : ''}
 
+        <!-- Client sign-off -->
+        ${installed.length === total && total > 0 && inst.status !== 'complete' ? `
+        <div style="margin-top:10px;">
+          <button style="width:100%;background:#10b981;color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;"
+            onclick="openSignoffPanel('${job.id}')">✍️ Client sign-off →</button>
+        </div>` : ''}
+
+        <!-- Snags -->
+        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f1f5f9;padding-top:10px;">
+          <span style="font-size:12px;color:${openSnags > 0 ? '#ef4444' : '#94a3b8'};font-weight:${openSnags > 0 ? '700' : '400'};">
+            ${openSnags > 0 ? `⚠ ${openSnags} open snag${openSnags > 1 ? 's' : ''}` : 'No open snags'}
+          </span>
+          <button onclick="openSnagPanel('${job.id}')" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Snags →</button>
+        </div>
+
         ${inst.status === 'complete' ? `<div style="margin-top:8px;"><span class="pill ok">✓ All done · Handover signed</span></div>` : ''}
       </div>`;
   }
 
   function heldJobCard(jc) {
     const { job, held, qc, total } = jc;
+    const openSnags = getOpenSnagCount(job);
     return `
       <div style="border:1px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:10px;background:#fffbeb;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
@@ -3551,6 +4201,12 @@ function renderInstallCrewDashboard() {
         <p style="font-size:12px;color:#92400e;margin-bottom:6px;">${held.length} of ${total} items finished, but held back — QC: ${qc.done}/${qc.total} passed. Released once the whole job clears QC, or Ops enables partial release for this job in the Install tab.</p>
         <div style="display:flex;flex-wrap:wrap;gap:4px;">
           ${held.map(w => `<span style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;font-size:11px;color:#1e2a3b;">${w.label}</span>`).join('')}
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #fde68a;padding-top:10px;">
+          <span style="font-size:12px;color:${openSnags > 0 ? '#ef4444' : '#92400e'};font-weight:${openSnags > 0 ? '700' : '400'};">
+            ${openSnags > 0 ? `⚠ ${openSnags} open snag${openSnags > 1 ? 's' : ''}` : 'No open snags'}
+          </span>
+          <button onclick="openSnagPanel('${job.id}')" style="background:#fff;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Snags →</button>
         </div>
       </div>`;
   }
@@ -3616,6 +4272,407 @@ function renderInstallCrewDashboard() {
           <p style="font-size:14px;color:#64748b;">No items ready for installation yet.</p>
         </div>` : ''}
     </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ON-SITE SNAGS  (Install Crew Dashboard)
+// Lightweight, install-specific snag tracking on job.installation.snags[].
+// This is separate from Operations' formal job-card snags workflow in
+// data.js (top-level `snags[]` on the Operations job object) — this one
+// is what the install crew logs and resolves on-site, and it's what
+// gates client sign-off below.
+// ══════════════════════════════════════════════════════════════
+let snagActiveJobId = null;
+let snagResolvingId = null; // id of the snag currently showing its resolve form
+
+function getOpenSnagCount(job) {
+  ensureInstallDefaults(job);
+  return job.installation.snags.filter(s => !s.resolved).length;
+}
+
+function openSnagPanel(jobId) {
+  snagActiveJobId  = jobId;
+  snagResolvingId  = null;
+  window._snagPhotos   = [];
+  window._snagReporter = null;
+
+  let panel = document.getElementById('snag-panel-wrap');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'snag-panel-wrap';
+    panel.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:#f7f9fc;overflow:hidden;';
+    document.body.appendChild(panel);
+  }
+  panel.style.display = 'flex';
+  renderSnagPanel();
+}
+
+function closeSnagPanel() {
+  const panel = document.getElementById('snag-panel-wrap');
+  if (panel) panel.style.display = 'none';
+  snagActiveJobId = null;
+  renderInstallCrewDashboard();
+}
+
+function renderSnagPanel() {
+  const panel = document.getElementById('snag-panel-wrap');
+  if (!panel) return;
+  const job = curtainJobs.find(j => j.id === snagActiveJobId);
+  if (!job) { closeSnagPanel(); return; }
+  ensureInstallDefaults(job);
+  const snags    = job.installation.snags;
+  const open     = snags.filter(s => !s.resolved);
+  const resolved = snags.filter(s => s.resolved);
+
+  const reporterChips = INSTALL_CREW.map(name => `
+    <button type="button" style="padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid ${window._snagReporter===name?'#1e2a3b':'#e2e8f0'};background:${window._snagReporter===name?'#1e2a3b':'#fff'};color:${window._snagReporter===name?'#fff':'#475569'};cursor:pointer;"
+      onclick="selectSnagReporter('${name}')">${name}</button>`).join('');
+
+  function newPhotoGallery() {
+    const photos = window._snagPhotos || [];
+    if (photos.length === 0) return '';
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      ${photos.map((p, i) => `
+        <div style="position:relative;width:56px;height:56px;">
+          <img src="${p}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;">
+          <button onclick="snagPhotoRemove(${i})" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">×</button>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  function snagRow(s) {
+    const isResolving = snagResolvingId === s.id;
+    return `
+      <div style="background:#fff;border:1px solid ${s.resolved ? '#e8ecf0' : '#fecaca'};border-radius:10px;padding:12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+          <div style="flex:1;">
+            <p style="font-size:13px;font-weight:600;color:#1e2a3b;">${s.desc}</p>
+            <p style="font-size:11px;color:#94a3b8;margin-top:2px;">Reported by ${s.reportedBy} · ${fmtDate(s.reportedAt)}</p>
+          </div>
+          ${s.resolved ? `<span class="pill ok">✓ Resolved</span>` : `<span class="pill bad">Open</span>`}
+        </div>
+        ${s.photos && s.photos.length > 0 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${s.photos.map(p => `<img src="${p}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;">`).join('')}</div>` : ''}
+        ${s.resolved
+          ? `<p style="font-size:11px;color:#64748b;margin-top:8px;">${s.resolvedNotes ? '— ' + s.resolvedNotes + ' ' : ''}${s.resolvedAt ? '· ' + fmtDate(s.resolvedAt) : ''}</p>`
+          : (isResolving ? `
+          <div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:10px;">
+            <textarea id="snag-resolve-notes-${s.id}" rows="2" placeholder="What was done to fix it..."
+              style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;resize:vertical;box-sizing:border-box;"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button onclick="confirmResolveSnag('${s.id}')" style="flex:1;background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;">✓ Confirm resolved</button>
+              <button onclick="cancelResolveSnag()" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;">Cancel</button>
+            </div>
+          </div>` : `
+          <button onclick="startResolveSnag('${s.id}')" style="margin-top:8px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Mark resolved</button>`)}
+      </div>`;
+  }
+
+  panel.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:15px;">Snags — ${job.name}</p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.id} · ${open.length} open · ${resolved.length} resolved</p>
+      </div>
+      <button onclick="closeSnagPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:100px;">
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Report a snag</p>
+        <textarea id="snag-new-desc" rows="2" placeholder="What's the issue..."
+          style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;margin-bottom:10px;"></textarea>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:6px;">Reported by</p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${reporterChips}</div>
+        <input id="snag-photo-input" type="file" accept="image/*" capture="environment" onchange="snagPhotoAdd(this)" style="display:none;">
+        <button onclick="document.getElementById('snag-photo-input').click()"
+          style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">📷 Add photo</button>
+        ${newPhotoGallery()}
+        <button onclick="submitSnag()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;background:#1e2a3b;color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer;">Submit snag</button>
+      </div>
+
+      ${open.length > 0 ? `<p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#ef4444;margin-bottom:8px;">Open (${open.length})</p>${open.map(snagRow).join('')}` : ''}
+      ${resolved.length > 0 ? `<p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:16px 0 8px;">Resolved (${resolved.length})</p>${resolved.map(snagRow).join('')}` : ''}
+      ${snags.length === 0 ? `<p style="font-size:13px;color:#94a3b8;text-align:center;padding:24px;">No snags reported for this job.</p>` : ''}
+    </div>`;
+}
+
+function selectSnagReporter(name) {
+  window._snagReporter = name;
+  renderSnagPanel();
+}
+
+function snagPhotoAdd(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!window._snagPhotos) window._snagPhotos = [];
+    window._snagPhotos.push(e.target.result);
+    renderSnagPanel();
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function snagPhotoRemove(idx) {
+  if (!window._snagPhotos) return;
+  window._snagPhotos.splice(idx, 1);
+  renderSnagPanel();
+}
+
+function submitSnag() {
+  const job = curtainJobs.find(j => j.id === snagActiveJobId);
+  if (!job) return;
+  const descEl = document.getElementById('snag-new-desc');
+  const desc = descEl ? descEl.value.trim() : '';
+  if (!desc) { curtAlert('Please describe the snag first.'); return; }
+  if (!window._snagReporter) { curtAlert('Please select who is reporting this.'); return; }
+  ensureInstallDefaults(job);
+  job.installation.snags.push({
+    id: 'snag-' + Date.now(),
+    desc,
+    reportedBy: window._snagReporter,
+    reportedAt: new Date().toISOString(),
+    photos: window._snagPhotos || [],
+    resolved: false,
+    resolvedAt: null,
+    resolvedNotes: ''
+  });
+  window._snagPhotos   = [];
+  window._snagReporter = null;
+  curtAlert('✓ Snag logged for ' + job.name);
+  renderSnagPanel();
+}
+
+function startResolveSnag(snagId) {
+  snagResolvingId = snagId;
+  renderSnagPanel();
+}
+
+function cancelResolveSnag() {
+  snagResolvingId = null;
+  renderSnagPanel();
+}
+
+function confirmResolveSnag(snagId) {
+  const job = curtainJobs.find(j => j.id === snagActiveJobId);
+  if (!job) return;
+  const snag = job.installation.snags.find(s => s.id === snagId);
+  if (!snag) return;
+  const notesEl = document.getElementById('snag-resolve-notes-' + snagId);
+  snag.resolved       = true;
+  snag.resolvedAt     = new Date().toISOString();
+  snag.resolvedNotes  = notesEl ? notesEl.value.trim() : '';
+  snagResolvingId = null;
+  curtAlert('✓ Snag marked resolved');
+  renderSnagPanel();
+}
+
+// ══════════════════════════════════════════════════════════════
+// CLIENT SIGN-OFF
+// Canvas signature pad + client name + completion photos. Hard-gated:
+// cannot sign off while the job has any unresolved on-site snag.
+// ══════════════════════════════════════════════════════════════
+let signoffJobId    = null;
+let signoffHasDrawn = false;
+let signoffDrawing  = false;
+let signoffCtx      = null;
+let signoffLastPt   = null;
+
+function openSignoffPanel(jobId) {
+  signoffJobId    = jobId;
+  signoffHasDrawn = false;
+  signoffDrawing  = false;
+  signoffCtx      = null;
+  signoffLastPt   = null;
+  window._signoffPhotos = [];
+
+  let panel = document.getElementById('signoff-panel-wrap');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'signoff-panel-wrap';
+    panel.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:#f7f9fc;overflow:hidden;';
+    document.body.appendChild(panel);
+  }
+  panel.style.display = 'flex';
+  renderSignoffPanel();
+}
+
+function closeSignoffPanel() {
+  const panel = document.getElementById('signoff-panel-wrap');
+  if (panel) panel.style.display = 'none';
+  signoffJobId = null;
+  renderInstallCrewDashboard();
+  renderCurtInstall();
+}
+
+function renderSignoffPanel() {
+  const panel = document.getElementById('signoff-panel-wrap');
+  if (!panel) return;
+  const job = curtainJobs.find(j => j.id === signoffJobId);
+  if (!job) { closeSignoffPanel(); return; }
+  ensureInstallDefaults(job);
+  const openSnags = getOpenSnagCount(job);
+
+  const header = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:15px;">Client sign-off — ${job.name}</p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.id} · ${job.client}</p>
+      </div>
+      <button onclick="closeSignoffPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
+    </div>`;
+
+  // Hard gate — no form at all while snags are open.
+  if (openSnags > 0) {
+    panel.innerHTML = header + `
+      <div style="flex:1;overflow-y:auto;padding:16px;">
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:24px;text-align:center;">
+          <p style="font-size:32px;margin-bottom:10px;">🔒</p>
+          <p style="font-size:14px;font-weight:700;color:#dc2626;">${openSnags} open snag${openSnags > 1 ? 's' : ''} must be resolved first</p>
+          <p style="font-size:12px;color:#991b1b;margin-top:6px;">Client sign-off is locked until every on-site snag for this job is marked resolved.</p>
+          <button onclick="closeSignoffPanel();openSnagPanel('${job.id}');" style="margin-top:16px;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;">Go to snags →</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const photos = window._signoffPhotos || [];
+  const photoGallery = photos.length === 0 ? '' : `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      ${photos.map((p, i) => `
+        <div style="position:relative;width:56px;height:56px;">
+          <img src="${p}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;">
+          <button onclick="signoffPhotoRemove(${i})" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">×</button>
+        </div>`).join('')}
+    </div>`;
+
+  panel.innerHTML = header + `
+    <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:100px;">
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:14px;">
+        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Client name</p>
+        <input id="signoff-client-name" type="text" placeholder="Name of person signing"
+          style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">
+      </div>
+
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:14px;">
+        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Completion photos</p>
+        <input id="signoff-photo-input" type="file" accept="image/*" capture="environment" onchange="signoffPhotoAdd(this)" style="display:none;">
+        <button onclick="document.getElementById('signoff-photo-input').click()"
+          style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">📷 Add photo</button>
+        ${photoGallery}
+      </div>
+
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:14px;">
+        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Client signature</p>
+        <canvas id="signoff-canvas" width="320" height="160"
+          style="width:100%;height:160px;border:1px dashed #cbd5e1;border-radius:8px;background:#fafafa;touch-action:none;"></canvas>
+        <button onclick="clearSignoffCanvas()" style="margin-top:8px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;">Clear</button>
+      </div>
+
+      <button onclick="submitSignoff()" style="width:100%;padding:13px;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;">
+        ✓ Confirm sign-off
+      </button>
+    </div>`;
+
+  setupSignoffCanvas();
+}
+
+function setupSignoffCanvas() {
+  const canvas = document.getElementById('signoff-canvas');
+  if (!canvas) return;
+  // Match internal pixel size to displayed size for crisp, correctly-aligned strokes.
+  canvas.width  = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  signoffCtx = canvas.getContext('2d');
+  signoffCtx.strokeStyle = '#1e2a3b';
+  signoffCtx.lineWidth   = 2;
+  signoffCtx.lineCap     = 'round';
+
+  function pointFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const src  = e.touches && e.touches[0] ? e.touches[0] : e;
+    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+  }
+  function start(e) {
+    e.preventDefault();
+    signoffDrawing = true;
+    signoffLastPt  = pointFromEvent(e);
+  }
+  function move(e) {
+    if (!signoffDrawing) return;
+    e.preventDefault();
+    const pt = pointFromEvent(e);
+    signoffCtx.beginPath();
+    signoffCtx.moveTo(signoffLastPt.x, signoffLastPt.y);
+    signoffCtx.lineTo(pt.x, pt.y);
+    signoffCtx.stroke();
+    signoffLastPt   = pt;
+    signoffHasDrawn = true;
+  }
+  function end() { signoffDrawing = false; }
+
+  canvas.onmousedown  = start;
+  canvas.onmousemove  = move;
+  canvas.onmouseup    = end;
+  canvas.onmouseleave = end;
+  canvas.ontouchstart = start;
+  canvas.ontouchmove  = move;
+  canvas.ontouchend   = end;
+}
+
+function clearSignoffCanvas() {
+  const canvas = document.getElementById('signoff-canvas');
+  if (!canvas || !signoffCtx) return;
+  signoffCtx.clearRect(0, 0, canvas.width, canvas.height);
+  signoffHasDrawn = false;
+}
+
+function signoffPhotoAdd(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!window._signoffPhotos) window._signoffPhotos = [];
+    window._signoffPhotos.push(e.target.result);
+    renderSignoffPanel();
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function signoffPhotoRemove(idx) {
+  if (!window._signoffPhotos) return;
+  window._signoffPhotos.splice(idx, 1);
+  renderSignoffPanel();
+}
+
+function submitSignoff() {
+  const job = curtainJobs.find(j => j.id === signoffJobId);
+  if (!job) return;
+  if (getOpenSnagCount(job) > 0) { curtAlert('Open snags must be resolved before sign-off.'); return; }
+  const nameEl = document.getElementById('signoff-client-name');
+  const name   = nameEl ? nameEl.value.trim() : '';
+  if (!name) { curtAlert('Please enter the client name.'); return; }
+  if (!signoffHasDrawn) { curtAlert('Please capture the client signature first.'); return; }
+
+  const canvas = document.getElementById('signoff-canvas');
+  const signatureDataUrl = canvas ? canvas.toDataURL('image/png') : null;
+
+  ensureInstallDefaults(job);
+  job.installation.signoff = {
+    signedName: name,
+    signatureDataUrl,
+    photos: window._signoffPhotos || [],
+    signedAt: new Date().toISOString()
+  };
+  job.installation.status = 'complete';
+  job.installation.handoverSigned = true;
+  job.status = 'complete';
+
+  curtAlert(`✓ Sign-off recorded for ${job.name} — ${name}`);
+  closeSignoffPanel();
+  renderCurtDashboard();
 }
 
 function markItemInstalled(jobId, windowId) {
