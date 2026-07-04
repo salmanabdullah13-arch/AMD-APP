@@ -443,6 +443,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sa
 #curt-module-wrap .inst-row .ir-meta{font-size:11px;color:var(--ink2);margin-top:2px;}
 
 /* DASHBOARD — INFOGRAPHIC TILES */
+#curt-module-wrap .dash-body{display:block;width:100%;}
 #curt-module-wrap .dash-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);margin:16px 0 8px;}
 
 #curt-module-wrap .dash-rings{display:flex;gap:10px;margin-bottom:10px;}

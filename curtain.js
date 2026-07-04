@@ -548,6 +548,7 @@ function renderCurtDashboard() {
   const qcVolume = getWindowsToQCPerDay(7);
 
   document.getElementById('curt-kpis').innerHTML = `
+  <div class="dash-body">
     <div class="dash-rings">
       ${ringStatCard(stitchPct, `${stitchPct}%`, 'Stitching Finished', `${finishedTotals.finished} of ${finishedTotals.total} windows`, 'var(--purple)')}
       ${ringStatCard(qc.pct ?? 0, qc.pct == null ? '—' : `${qc.pct}%`, 'QC Pass Rate', qc.total ? `${qc.passCount} of ${qc.total} attempts` : 'No inspections yet', qcColor)}
@@ -622,7 +623,8 @@ function renderCurtDashboard() {
         <p class="kv" style="color:var(--purple)">${kpis.totalItemsToProduce}</p>
         <p class="ks">windows across all jobs</p>
       </div>
-    </div>`;
+    </div>
+  </div>`;
 
   let alertsHtml = '';
   curtainJobs.forEach(job => {
