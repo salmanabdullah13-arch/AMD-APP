@@ -47,6 +47,17 @@ let QC_TEAM = [];
 // cross-department staff roster exists.
 const LABOUR_ROLES = ['Cutting', 'Stitching', 'Heming', 'Tape Header Fixing', 'Ironing', 'Other'];
 
+// ── Worker pay rates (BD/hr) — for the Daily Time Log's costing rollup.
+// PLACEHOLDER VALUES — not yet confirmed with Salman. Never rendered
+// anywhere in Curtain UI (Silva's screens show hours only, never cost,
+// per the cost-free rule for this module); this table exists purely so
+// Operations can later compute actual labour cost from logged hours.
+// TODO: replace with real per-person rates once confirmed.
+const WORKER_RATES = {
+  'Waseem': 8, 'Aslam': 8, 'Rijwan': 8, 'Ibrahim': 8, 'Silva': 8,
+  'Abdullah': 8, 'Prince': 8
+};
+
 // ── State ──────────────────────────────
 let curtCurrentJob   = null;
 let curtCurrentPage  = 'curt-dashboard';
@@ -57,6 +68,10 @@ let copyCalcSourceId = null;
 // ── WIP tab (formerly Labour) state ────
 let wipProjectPanelOpen = false;
 let wipProjectDraft = { team: [], startDate: '', endDate: '' };
+
+// ── Daily Time Log state ───────────────
+let timeLogWeekStart  = null;              // ISO date (Monday) of the displayed week; set on first render
+let timeLogActiveCell = null;              // { worker, date } while the entry panel is open
 
 // ── Module entry ───────────────────────
 function openCurtainModule() {
@@ -88,6 +103,7 @@ function curtGoTo(pageId) {
   if (pageId === 'curt-workshop')  showWipPicker();
   if (pageId === 'curt-fabric')    renderCurtFabric();
   if (pageId === 'curt-install')   renderCurtInstall();
+  if (pageId === 'curt-timelog')   renderTimeLog();
 }
 
 // ── Helpers ────────────────────────────
@@ -4573,6 +4589,214 @@ function submitQCResult() {
   }
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// DAILY TIME LOG  (costing — actual hours per worker, per job)
+// Writes to the top-level `timeLogs[]` array in data.js. This is a
+// separate, additive ledger — it does NOT touch or overwrite
+// job.bom.labour (Operations' task-based budget/actual view). Cost
+// (hours × WORKER_RATES) is computed only in getJobLoggedHours(), for
+// Operations' future use — Curtain UI itself only ever shows hours.
+// ══════════════════════════════════════════════════════════════
+
+const TIMELOG_WORKERS = [...new Set([...STITCH_TEAM, ...TRACK_TEAM])];
+
+function tlMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay(); // 0=Sun..6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // shift back to Monday
+  date.setDate(date.getDate() + diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function tlISO(d) { return d.toISOString().slice(0,10); }
+
+function getTimeLogWeekDates() {
+  if (!timeLogWeekStart) timeLogWeekStart = tlISO(tlMonday(new Date()));
+  const start = new Date(timeLogWeekStart);
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(start); d.setDate(d.getDate()+i);
+    return tlISO(d);
+  });
+}
+function tlPrevWeek() {
+  const d = new Date(timeLogWeekStart); d.setDate(d.getDate()-7);
+  timeLogWeekStart = tlISO(d);
+  renderTimeLog();
+}
+function tlNextWeek() {
+  const d = new Date(timeLogWeekStart); d.setDate(d.getDate()+7);
+  timeLogWeekStart = tlISO(d);
+  renderTimeLog();
+}
+
+function getTimeLogRowsFor(worker, date) {
+  return timeLogs.filter(t => t.worker === worker && t.date === date);
+}
+function getTimeLogCellTotal(worker, date) {
+  return getTimeLogRowsFor(worker, date).reduce((a,r) => a + r.hours, 0);
+}
+
+// ── Job rollup — for Operations' future cross-check against bom.labour.
+// Not called from any UI yet this session; exposed ready to use.
+function getJobLoggedHours(jobId) {
+  const rows = timeLogs.filter(t => t.jobId === jobId);
+  const byRole = {};
+  let totalHours = 0, totalCost = 0;
+  rows.forEach(r => {
+    byRole[r.role] = (byRole[r.role] || 0) + r.hours;
+    totalHours += r.hours;
+    totalCost += r.hours * (WORKER_RATES[r.worker] || 0);
+  });
+  return { totalHours, totalCost, byRole };
+}
+
+// ── Main grid ───────────────────────────
+function renderTimeLog() {
+  const wrap = document.getElementById('curt-timelog-wrap');
+  if (!wrap) return;
+  const dates = getTimeLogWeekDates();
+  const weekLabel = `${new Date(dates[0]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})} – ${new Date(dates[6]).toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}`;
+
+  const headCells = dates.map(d => {
+    const dd = new Date(d);
+    const isToday = tlISO(new Date()) === d;
+    return `<div class="tl-cell tl-head ${isToday?'today':''}">${dd.toLocaleDateString('en-BH',{weekday:'short'})}<br>${dd.getDate()}</div>`;
+  }).join('');
+
+  const bodyRows = TIMELOG_WORKERS.map(worker => {
+    const dayCells = dates.map(d => {
+      const total = getTimeLogCellTotal(worker, d);
+      return `<div class="tl-cell tl-day ${total>0?'filled':''}" onclick="openTimeLogCell('${worker}','${d}')">${total>0 ? total+'h' : '–'}</div>`;
+    }).join('');
+    return `<div class="tl-cell tl-worker">${worker}</div>${dayCells}`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="tl-toolbar">
+      <button class="sm" onclick="tlPrevWeek()">‹ Prev</button>
+      <span class="tl-week-label">${weekLabel}</span>
+      <button class="sm" onclick="tlNextWeek()">Next ›</button>
+    </div>
+    <div class="tl-scroll">
+      <div class="tl-grid">
+        <div class="tl-cell tl-head"></div>
+        ${headCells}
+        ${bodyRows}
+      </div>
+    </div>
+    <p class="foot">Tap any cell to log hours. A worker can log against more than one job on the same day — each entry is added separately and the cell shows the total.</p>
+    <div id="curt-timelog-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+}
+
+// ── Cell entry panel ────────────────────
+function openTimeLogCell(worker, date) {
+  timeLogActiveCell = { worker, date };
+  renderTimeLogPanel();
+  document.getElementById('curt-timelog-panel').style.display = 'block';
+}
+function closeTimeLogPanel() {
+  timeLogActiveCell = null;
+  document.getElementById('curt-timelog-panel').style.display = 'none';
+}
+
+function tlPopulateWindowOptions() {
+  const jobSel = document.getElementById('tl-job-select');
+  const winSel = document.getElementById('tl-window-select');
+  if (!jobSel || !winSel) return;
+  const job = curtainJobs.find(j => j.id === jobSel.value);
+  const windows = job ? job.windows.filter(w => w.calcDone) : [];
+  winSel.innerHTML = windows.map(w => `<option value="${w.id}">${w.room} — ${w.label}</option>`).join('')
+    || '<option value="">No calc-done windows on this job</option>';
+}
+
+function renderTimeLogPanel() {
+  const panel = document.getElementById('curt-timelog-panel');
+  if (!panel || !timeLogActiveCell) return;
+  const { worker, date } = timeLogActiveCell;
+  const rows = getTimeLogRowsFor(worker, date);
+  const total = rows.reduce((a,r) => a+r.hours, 0);
+  const dateLabel = new Date(date).toLocaleDateString('en-BH',{weekday:'long',day:'numeric',month:'short'});
+
+  const rowsHtml = rows.map(r => {
+    const job = curtainJobs.find(j => j.id === r.jobId);
+    const win = job ? job.windows.find(w => w.id === r.windowId) : null;
+    return `
+      <div class="proc-row">
+        <div class="pr-top">
+          <div>
+            <p class="pr-name">${job ? job.name : r.jobId} · ${r.role}</p>
+            <p class="pr-meta">${win ? win.room+' — '+win.label : ''} · ${r.hours}h</p>
+          </div>
+          <button class="sm bad" onclick="tlDeleteEntry('${r.id}')">Remove</button>
+        </div>
+      </div>`;
+  }).join('') || '<p style="font-size:13px;color:var(--ink2);margin-bottom:10px;">No hours logged yet for this day.</p>';
+
+  panel.innerHTML = `
+    <div style="padding:14px 18px;">
+      <button class="back" onclick="closeTimeLogPanel()">‹ Back to grid</button>
+      <p style="font-size:15px;font-weight:700;">${worker} — ${dateLabel}</p>
+      <p style="font-size:12px;color:var(--ink2);margin:2px 0 14px;">${total}h logged so far</p>
+
+      ${rowsHtml}
+
+      <div class="card" style="margin-top:6px;">
+        <p class="card-title">Add entry</p>
+        <div class="field">
+          <label>Job</label>
+          <select id="tl-job-select" onchange="tlPopulateWindowOptions()">
+            ${curtainJobs.map(j => `<option value="${j.id}">${j.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Window</label>
+          <select id="tl-window-select"></select>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Role</label>
+            <select id="tl-role-select">
+              ${LABOUR_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Hours</label>
+            <input id="tl-hours-input" type="number" min="0.5" step="0.5" placeholder="e.g. 4">
+          </div>
+        </div>
+        <button class="primary" style="width:100%;" onclick="tlAddEntry()">+ Add entry</button>
+      </div>
+    </div>`;
+
+  tlPopulateWindowOptions();
+}
+
+function tlAddEntry() {
+  const { worker, date } = timeLogActiveCell;
+  const jobId    = document.getElementById('tl-job-select').value;
+  const windowId = document.getElementById('tl-window-select').value;
+  const role     = document.getElementById('tl-role-select').value;
+  const hours    = parseFloat(document.getElementById('tl-hours-input').value);
+
+  if (!jobId)    { curtAlert('Please select a job.'); return; }
+  if (!windowId) { curtAlert('Please select a window.'); return; }
+  if (!hours || hours <= 0) { curtAlert('Please enter hours greater than 0.'); return; }
+
+  timeLogs.push({
+    id: 'tl_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    date, worker, jobId, windowId, role, hours
+  });
+  renderTimeLogPanel();
+  renderTimeLog();
+}
+
+function tlDeleteEntry(id) {
+  const idx = timeLogs.findIndex(t => t.id === id);
+  if (idx > -1) timeLogs.splice(idx, 1);
+  renderTimeLogPanel();
+  renderTimeLog();
+}
 
 // ══════════════════════════════════════════════════════════════
 // INSTALLATION CREW DASHBOARD  (Shibu's crew — separate screen)

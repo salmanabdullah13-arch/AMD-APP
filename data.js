@@ -862,6 +862,28 @@ function piIsDone(inquiry) {
 }
 
 // ═══════════════════════════════════════
+// DAILY TIME LOG — global entity, NOT nested under curtainJobs.
+// Same pattern as purchaseInquiries above: a flat, top-level list so it
+// doesn't collide with anything job-shaped.
+//
+// One row = one (worker, date, job, window, role) entry with hours. A
+// worker can have multiple rows on the same date to split a day across
+// jobs — there's no single "day record" object, just flat rows filtered
+// by worker+date.
+//
+// This is a SEPARATE ledger from job.bom.labour (Operations' existing
+// task-based budget/actual view, in the curtainJobs seed data above) —
+// it does not overwrite or reconcile with those numbers automatically.
+// Per-person rates live in WORKER_RATES (curtain.js) and are only ever
+// used to compute cost for Operations' future reference — Curtain UI
+// shows hours only, never BD figures, per the cost-free rule.
+//
+// Starts empty — real entries are added from the Time Log grid as
+// workshop days are logged going forward.
+// ═══════════════════════════════════════
+const timeLogs = [];
+
+// ═══════════════════════════════════════
 // TRACK STOCK — raw rail/track profile inventory
 // Sourced from the Q-Pro stock export (StockItemExcelExport, imported 3 Jul 2026).
 // This is now the SINGLE SOURCE OF TRUTH for rail/track types — curtain.js's

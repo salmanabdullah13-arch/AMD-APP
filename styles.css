@@ -467,5 +467,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sa
 #curt-module-wrap .mini-bar-val{font-size:10px;font-weight:700;color:var(--ink);margin-top:4px;}
 #curt-module-wrap .mini-bar-label{font-size:8.5px;color:var(--ink3);margin-top:1px;text-align:center;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 
+/* DAILY TIME LOG */
+#curt-module-wrap .tl-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+#curt-module-wrap .tl-week-label{font-size:13px;font-weight:700;color:var(--ink);}
+#curt-module-wrap .tl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--r2);}
+#curt-module-wrap .tl-grid{display:grid;grid-template-columns:88px repeat(7,minmax(52px,1fr));min-width:520px;background:var(--card);}
+#curt-module-wrap .tl-cell{padding:8px 4px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;}
+#curt-module-wrap .tl-cell:nth-child(8n){border-right:0;}
+#curt-module-wrap .tl-head{background:var(--bg);font-size:10px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.3px;line-height:1.5;padding:6px 2px;}
+#curt-module-wrap .tl-head.today{color:var(--purple);}
+#curt-module-wrap .tl-worker{background:var(--bg);font-weight:700;color:var(--ink);justify-content:flex-start;padding-left:10px;font-size:12px;}
+#curt-module-wrap .tl-day{cursor:pointer;color:var(--ink3);font-weight:600;}
+#curt-module-wrap .tl-day:active{background:var(--purple-bg);}
+#curt-module-wrap .tl-day.filled{color:var(--purple);background:var(--purple-bg);}
+
 /* FOOTER */
 #curt-module-wrap .foot{font-size:11px;color:var(--ink3);line-height:1.55;padding:4px 18px 20px;}
