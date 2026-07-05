@@ -848,6 +848,39 @@ const purchaseInquiries = [
   },
 ];
 
+function nextPIId() {
+  return "PI-" + String(purchaseInquiries.length + 1).padStart(4, "0");
+}
+// Raises a new fabric/rail purchase inquiry from the Curtain module (Silva).
+// Additive only — same shape as every existing purchaseInquiries[] entry.
+// Does not touch the new purchaseRequests/purchaseOrders chain; Curtain's
+// tracker stays its own system per the earlier architecture decision.
+function raiseInquiry({ jobId, windowIds, vendor, vendorRegion, source, fabricCode = null, quantityOrdered = null, notes = "" }) {
+  const pi = {
+    id: nextPIId(),
+    division: "curtain",
+    jobId,
+    windowIds,
+    vendor,
+    vendorRegion,
+    source,              // "vendor" | "stock"
+    fabricCode,
+    quantityOrdered,
+    stage: "inquiry_raised",
+    eta: null,
+    stageDates: { inquiry_raised: todayStrGlobal() },
+    notes
+  };
+  purchaseInquiries.push(pi);
+  return pi;
+}
+// Local date helper — data.js has no existing todayStr(); curtain.js has its
+// own todayStr() already, kept separate so this file has no cross-file
+// dependency on load order.
+function todayStrGlobal() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function getInquiryForWindow(windowId) {
   return purchaseInquiries.find(pi => pi.windowIds.includes(windowId)) || null;
 }
@@ -1413,3 +1446,275 @@ function resendReminder(i){
   renderReminders();
 }
 renderReminders();
+
+// ═══════════════════════════════════════
+// PURCHASER MODULE — Purchase Request → Purchase Order → Purchase Invoice
+// Built session: 5 Jul 2026
+//
+// SCOPE: covers all departments EXCEPT Curtain fabric ordering — Curtain's
+// fabric/track requests are tracked separately via purchaseInquiries[]
+// above (Silva's tracker, unchanged, do not touch). This system is for
+// Upholstery, Joinery (incl. Painting), Metal Works, and general/stock
+// purchasing — anything that isn't a curtain fabric/rail order.
+//
+// WORKFLOW: a department can only RAISE A REQUEST (purchaseRequests[]).
+// Only the Purchaser converts a request into an actual Purchase Order.
+// Every PO must be approved by Operations Manager or Owner before it can
+// be converted into a Purchase Invoice on goods receipt. Conversion
+// functions carry line items/supplier/job forward so nothing gets
+// retyped between stages.
+//
+// FIELD NAMES on purchaseOrders[]/purchaseInvoices[] match the existing
+// Q-Pro Purchase Order / Purchase Invoice print formats word-for-word
+// (Supplier Name/Tel, Supplier Ref, Product/Service, FxRate (BD), etc.)
+// so these feel identical to what Salman/the Purchaser already know.
+//
+// ID NOTE: Q-Pro's own Purchase Invoice also uses prefix "PI-" — but that
+// collides with purchaseInquiries[] IDs (PI-0001 etc.) already in this
+// file. Purchase Invoices here use prefix "INV-" instead. PR- and PO-
+// were free, so those match Q-Pro as-is.
+//
+// JOB LINKING: linkedJobId always uses this system's own AMD-XXXXX job ID
+// (matches projects[].id / curtainJobs[].id — the real link for all
+// lookups/joins). qproJobRef is a display-only text field for the old
+// Q-Pro job number (e.g. "JB26AMD02242"), kept only for cross-checking
+// during the Q-Pro transition — never used in lookups or joins, safe to
+// leave blank or drop later.
+//
+// DEPARTMENTS reuse the existing DEPTS keys (carp/paint/uph/curt/metal)
+// rather than inventing a new enum. Painting rolls up into the Joinery
+// KPI bucket on the dashboard (Salman's call, 5 Jul 2026) — "paint"
+// stays its own DEPTS key underneath so nothing else that reads DEPTS
+// breaks; the rollup only happens inside getPurchasingKPIs() below.
+// ═══════════════════════════════════════
+
+const purchaseRequests = [];
+
+function nextPRId() {
+  return "PR-" + String(purchaseRequests.length + 1).padStart(4, "0") + "-AMD";
+}
+// destinationType: "inventory" (goes into shared stock pool) | "job-direct" (issued straight to a job)
+function raisePurchaseRequest({ department, raisedBy, linkedJobId = null, destinationType, items }) {
+  const pr = {
+    id: nextPRId(),
+    department,            // one of DEPTS keys: carp, paint, uph, curt, metal
+    raisedBy,
+    dateRaised: new Date().toISOString().slice(0, 10),
+    linkedJobId,           // AMD-XXXXX or null
+    destinationType,       // "inventory" | "job-direct"
+    items,                 // [{ name, qty, unit }]
+    status: "open"         // open | converted | cancelled
+  };
+  purchaseRequests.push(pr);
+  return pr;
+}
+
+const purchaseOrders = [];
+
+function nextPOId() {
+  return "PO-" + String(purchaseOrders.length + 1).padStart(4, "0") + "-AMD";
+}
+
+// Converts a Purchase Request into a Purchase Order. Carries the items and
+// job link forward automatically — the Purchaser only fills in supplier
+// and pricing details, matching the Q-Pro PO creation form field-for-field.
+function convertPRtoPO(prId, supplierDetails = {}) {
+  const pr = purchaseRequests.find(p => p.id === prId);
+  if (!pr) return null;
+  const po = {
+    id: nextPOId(),
+    sourcePR: pr.id,
+    date: new Date().toISOString().slice(0, 10),
+    company: "Al Maraya Decor",
+    paymentMode: supplierDetails.paymentMode || "Cash",
+    supplierNameTel: supplierDetails.supplierNameTel || "",
+    supplierRef: supplierDetails.supplierRef || "",
+    purchaseRequest: pr.id,
+    type: pr.destinationType === "job-direct" ? "Job" : "Stock",
+    linkedJobId: pr.linkedJobId,
+    qproJobRef: null,
+    currency: "Bahraini Dinar",
+    exRate: 1,
+    deliveryTerms: "",
+    supplyAddress: "",
+    items: pr.items.map(it => ({
+      productService: it.name,
+      qty: it.qty,
+      unit: it.unit,
+      fxRateBD: 0,
+      amountBD: 0,
+      discountBD: 0,
+      vatPercent: 10,
+      vatBD: 0,
+      netAmountBD: 0,
+      ledger: "Purchase"
+    })),
+    approvalStatus: "pending",   // pending | approved | rejected
+    approvedBy: null,
+    approvalDate: null,
+    rejectionComment: null,
+    preparedBy: supplierDetails.preparedBy || null,
+    status: "draft"              // draft | issued | invoiced
+  };
+  purchaseOrders.push(po);
+  pr.status = "converted";
+  return po;
+}
+
+// Approval gate — nothing downstream (convertPOtoInvoice) will accept a PO
+// that hasn't been through this. Restrict calling this in the UI to
+// Operations Manager / Owner logins.
+function approvePO(poId, approvedBy) {
+  const po = purchaseOrders.find(p => p.id === poId);
+  if (!po) return null;
+  po.approvalStatus = "approved";
+  po.approvedBy = approvedBy;
+  po.approvalDate = new Date().toISOString().slice(0, 10);
+  po.status = "issued";
+  return po;
+}
+function rejectPO(poId, rejectedBy, comment) {
+  const po = purchaseOrders.find(p => p.id === poId);
+  if (!po) return null;
+  po.approvalStatus = "rejected";
+  po.approvedBy = rejectedBy;
+  po.approvalDate = new Date().toISOString().slice(0, 10);
+  po.rejectionComment = comment;
+  return po;
+}
+function getPendingPOApprovals() {
+  return purchaseOrders.filter(po => po.approvalStatus === "pending");
+}
+
+const purchaseInvoices = [];
+
+function nextInvoiceId() {
+  return "INV-" + String(purchaseInvoices.length + 1).padStart(4, "0") + "-AMD";
+}
+
+// Converts an APPROVED Purchase Order into a Purchase Invoice on goods
+// receipt. Refuses to convert an unapproved PO — the approval gate is
+// enforced here in code, not just hidden in the UI.
+function convertPOtoInvoice(poId, receiptDetails = {}) {
+  const po = purchaseOrders.find(p => p.id === poId);
+  if (!po) return null;
+  if (po.approvalStatus !== "approved") {
+    return { error: "PO must be approved before it can be invoiced." };
+  }
+  const inv = {
+    id: nextInvoiceId(),
+    sourcePO: po.id,
+    dateReceived: new Date().toISOString().slice(0, 10),
+    supplierNameTel: po.supplierNameTel,
+    supplierRef: receiptDetails.supplierRef || "",   // vendor's own invoice number
+    linkedJobId: po.linkedJobId,
+    qproJobRef: null,
+    items: (receiptDetails.items || po.items).map(it => ({
+      itemName: it.productService || it.itemName,
+      qty: it.qty,
+      rateBD: it.rateBD || 0,
+      discBD: it.discBD || 0,
+      vatPercent: it.vatPercent || 10,
+      amtBD: it.amtBD || 0
+    })),
+    totals: receiptDetails.totals || { total: 0, vat: 0, roundOff: 0, netAmount: 0 },
+    preparedBy: receiptDetails.preparedBy || null,
+    status: "received"
+  };
+  purchaseInvoices.push(inv);
+  po.status = "invoiced";
+
+  // If this order was Stock-type (not job-direct), the received items land
+  // in the shared inventory pool, awaiting the (future) Storekeeper screen.
+  if (po.type === "Stock") {
+    inv.items.forEach(it => {
+      stockEntries.push({
+        id: "STK-" + String(stockEntries.length + 1).padStart(4, "0"),
+        sourceInvoice: inv.id,
+        itemName: it.itemName,
+        qty: it.qty,
+        unit: "",
+        status: "in-pool",     // in-pool | released
+        releasedTo: null,
+        dateReceived: inv.dateReceived
+      });
+    });
+  }
+  return inv;
+}
+
+// ── INVENTORY STOCK POOL ──
+// Populated automatically by convertPOtoInvoice() above for Stock-type
+// orders. Release-to-department is the Storekeeper's screen — deferred to
+// a later session. Entries just sit at "in-pool" until that screen exists.
+const stockEntries = [];
+
+// ── ITEM CARDS ──
+// Flat, top-level — NOT nested inside job records, since jobs currently
+// live in different arrays per module (projects[], curtainJobs[]) with no
+// single unified job object yet. Same flat-list pattern as
+// purchaseInquiries[]/timeLogs[] above. code format: "<jobId>-IT01",
+// sequential per job (e.g. AMD-15002-IT01, AMD-15002-IT02).
+const itemCards = [];
+
+function nextItemCardCode(jobId) {
+  const existing = itemCards.filter(ic => ic.jobId === jobId);
+  return jobId + "-IT" + String(existing.length + 1).padStart(2, "0");
+}
+function issueItemCard(jobId, { description, qty, department, sourcePO = null, sourceStockEntry = null }) {
+  const card = {
+    code: nextItemCardCode(jobId),
+    jobId,
+    description,
+    qty,
+    department,
+    sourcePO,
+    sourceStockEntry,
+    dateIssued: new Date().toISOString().slice(0, 10)
+  };
+  itemCards.push(card);
+  return card;
+}
+
+// ── PURCHASER DASHBOARD KPIs ──
+// Segregated by division: Curtain reads from purchaseInquiries[] (its own
+// unchanged tracker); Upholstery, Joinery (carp+paint combined), and Metal
+// Works read from the new purchaseRequests/purchaseOrders chain above.
+function getPurchasingKPIs() {
+  const openPRs = purchaseRequests.filter(pr => pr.status === "open");
+  const pendingApprovals = getPendingPOApprovals();
+  const awaitingDelivery = purchaseOrders.filter(po => po.status === "issued");
+  const openCurtainInquiries = purchaseInquiries.filter(pi => !piIsDone(pi));
+
+  function bucket(deptKeys) {
+    return {
+      openRequests: purchaseRequests.filter(pr => deptKeys.includes(pr.department) && pr.status === "open").length,
+      pendingApprovals: purchaseOrders.filter(po => {
+        const pr = purchaseRequests.find(p => p.id === po.sourcePR);
+        return pr && deptKeys.includes(pr.department) && po.approvalStatus === "pending";
+      }).length,
+      awaitingDelivery: purchaseOrders.filter(po => {
+        const pr = purchaseRequests.find(p => p.id === po.sourcePR);
+        return pr && deptKeys.includes(pr.department) && po.status === "issued";
+      }).length
+    };
+  }
+
+  return {
+    totals: {
+      openRequests: openPRs.length,
+      pendingPOApprovals: pendingApprovals.length,
+      awaitingDelivery: awaitingDelivery.length,
+      curtainOpenInquiries: openCurtainInquiries.length
+    },
+    byDivision: {
+      curtain: {
+        openInquiries: openCurtainInquiries.length,
+        awaitingVendor: purchaseInquiries.filter(pi => pi.source === "vendor" && !piIsDone(pi)).length
+      },
+      upholstery: bucket(["uph"]),
+      joinery: bucket(["carp", "paint"]),
+      metal: bucket(["metal"])
+    }
+  };
+}
