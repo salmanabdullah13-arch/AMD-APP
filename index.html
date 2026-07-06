@@ -1265,6 +1265,139 @@
         </div>
       </div>
     </div>
+
+    <!-- NEW PURCHASE REQUEST FORM (direct — origination, no approval gate) -->
+    <div class="p-panel" id="purch-pr-form">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">New Purchase Request</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Requests don't require approval — the Purchaser converts to a PO when ready.</p>
+
+        <div class="p-field">
+          <label>Department</label>
+          <select id="pr-form-dept" onchange="prFormDeptChanged(this.value)"></select>
+        </div>
+        <div class="p-field">
+          <label>Job</label>
+          <select id="pr-form-job" onchange="prFormJobChanged(this.value)"></select>
+        </div>
+        <div class="p-field">
+          <label>Destination</label>
+          <select id="pr-form-dest" onchange="prFormDestChanged(this.value)">
+            <option value="inventory">Stock (shared pool)</option>
+            <option value="job-direct">Job-direct</option>
+          </select>
+        </div>
+
+        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Line items</p>
+        <div id="pr-form-items"></div>
+
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="primary" style="flex:1;" onclick="savePRForm()">Raise Request →</button>
+          <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closePRForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW PURCHASE ORDER FORM (direct — no PR behind it, still needs approval) -->
+    <div class="p-panel" id="purch-po-form-direct">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">New Purchase Order</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Created directly, without a Purchase Request. Still goes through Owner/Ops approval before issue.</p>
+
+        <div class="p-field">
+          <label>Department</label>
+          <select id="pod-form-dept" onchange="poDirectFormDeptChanged(this.value)"></select>
+        </div>
+        <div class="p-field">
+          <label>Job</label>
+          <select id="pod-form-job" onchange="poDirectFormJobChanged(this.value)"></select>
+        </div>
+        <div class="p-field">
+          <label>Destination</label>
+          <select id="pod-form-dest" onchange="poDirectFormDestChanged(this.value)">
+            <option value="inventory">Stock (shared pool)</option>
+            <option value="job-direct">Job-direct</option>
+          </select>
+        </div>
+        <div class="p-field">
+          <label>Payment mode</label>
+          <select id="pod-payment-mode">
+            <option>Cash</option>
+            <option>Credit</option>
+            <option>Cheque</option>
+            <option>Bank Transfer</option>
+          </select>
+        </div>
+        <div class="p-field">
+          <label>Supplier name / tel</label>
+          <input id="pod-supplier-name-tel" type="text" placeholder="e.g. Gulf Glass Trading — 1723 4455">
+        </div>
+        <div class="p-field">
+          <label>Supplier ref</label>
+          <input id="pod-supplier-ref" type="text" placeholder="Optional">
+        </div>
+        <div class="p-field">
+          <label>Delivery terms</label>
+          <input id="pod-delivery-terms" type="text" placeholder="e.g. 7 days from PO">
+        </div>
+        <div class="p-field">
+          <label>Supply address</label>
+          <input id="pod-supply-address" type="text" placeholder="Delivery address">
+        </div>
+        <div class="p-field">
+          <label>Exchange rate</label>
+          <input id="pod-ex-rate" type="number" step="0.001" value="1">
+        </div>
+
+        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Line items</p>
+        <div id="pod-form-items"></div>
+
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="primary" style="flex:1;" onclick="savePODirectForm()">Create PO →</button>
+          <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closePODirectForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW PURCHASE INVOICE FORM (direct — no PO behind it, needs its own approval) -->
+    <div class="p-panel" id="purch-invoice-form-direct">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">New Purchase Invoice</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Created directly, without a Purchase Order. Needs Owner/Ops approval before items are received.</p>
+
+        <div class="p-field">
+          <label>Department</label>
+          <select id="invd-form-dept" onchange="invDirectFormDeptChanged(this.value)"></select>
+        </div>
+        <div class="p-field">
+          <label>Job</label>
+          <select id="invd-form-job" onchange="invDirectFormJobChanged(this.value)"></select>
+        </div>
+        <div class="p-field">
+          <label>Destination</label>
+          <select id="invd-form-dest" onchange="invDirectFormDestChanged(this.value)">
+            <option value="inventory">Stock (shared pool)</option>
+            <option value="job-direct">Job-direct</option>
+          </select>
+        </div>
+        <div class="p-field">
+          <label>Supplier name / tel</label>
+          <input id="invd-supplier-name-tel" type="text" placeholder="e.g. Gulf Glass Trading — 1723 4455">
+        </div>
+        <div class="p-field">
+          <label>Supplier ref (vendor's invoice number)</label>
+          <input id="invd-supplier-ref" type="text" placeholder="Optional">
+        </div>
+
+        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Line items</p>
+        <div id="invd-form-items"></div>
+
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="primary" style="flex:1;" onclick="saveInvDirectForm()">Save Invoice →</button>
+          <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closeInvDirectForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="bnav">

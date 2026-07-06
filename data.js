@@ -1502,8 +1502,9 @@ function raisePurchaseRequest({ department, raisedBy, linkedJobId = null, destin
     dateRaised: new Date().toISOString().slice(0, 10),
     linkedJobId,           // AMD-XXXXX or null
     destinationType,       // "inventory" | "job-direct"
-    items,                 // [{ name, qty, unit }]
-    status: "open"         // open | converted | cancelled
+    items,                 // [{ name, qty, unit, itemRef }] — itemRef is optional: { id, label } for a
+                            // Curtain window/opening, or a free-text string for other divisions
+    status: "open"         // open | converted | cancelled — PRs never require approval
   };
   purchaseRequests.push(pr);
   return pr;
@@ -1524,6 +1525,7 @@ function convertPRtoPO(prId, supplierDetails = {}) {
   const po = {
     id: nextPOId(),
     sourcePR: pr.id,
+    department: pr.department,   // stamped directly so approvals/KPIs never need a sourcePR lookup
     date: new Date().toISOString().slice(0, 10),
     company: "Al Maraya Decor",
     paymentMode: supplierDetails.paymentMode || "Cash",
@@ -1541,6 +1543,7 @@ function convertPRtoPO(prId, supplierDetails = {}) {
       productService: it.name,
       qty: it.qty,
       unit: it.unit,
+      itemRef: it.itemRef || null,   // optional { id, label } window/item allocation tag, or free text
       fxRateBD: 0,
       amountBD: 0,
       discountBD: 0,
@@ -1558,6 +1561,52 @@ function convertPRtoPO(prId, supplierDetails = {}) {
   };
   purchaseOrders.push(po);
   pr.status = "converted";
+  return po;
+}
+
+// Creates a Purchase Order directly, with no Purchase Request behind it.
+// Same shape/approval gate as a converted PO (sourcePR stays null) — per
+// Salman's call (5 Jul 2026): PRs never require approval, but every PO
+// does, regardless of whether it came from a PR or was raised directly.
+function createPurchaseOrderDirect({ department, linkedJobId = null, destinationType = "inventory", supplierDetails = {}, items }) {
+  const po = {
+    id: nextPOId(),
+    sourcePR: null,
+    department,
+    date: new Date().toISOString().slice(0, 10),
+    company: "Al Maraya Decor",
+    paymentMode: supplierDetails.paymentMode || "Cash",
+    supplierNameTel: supplierDetails.supplierNameTel || "",
+    supplierRef: supplierDetails.supplierRef || "",
+    purchaseRequest: null,
+    type: destinationType === "job-direct" ? "Job" : "Stock",
+    linkedJobId,
+    qproJobRef: null,
+    currency: "Bahraini Dinar",
+    exRate: supplierDetails.exRate || 1,
+    deliveryTerms: supplierDetails.deliveryTerms || "",
+    supplyAddress: supplierDetails.supplyAddress || "",
+    items: items.map(it => ({
+      productService: it.name,
+      qty: it.qty,
+      unit: it.unit,
+      itemRef: it.itemRef || null,
+      fxRateBD: it.fxRateBD || 0,
+      amountBD: 0,
+      discountBD: it.discountBD || 0,
+      vatPercent: it.vatPercent || 10,
+      vatBD: 0,
+      netAmountBD: 0,
+      ledger: "Purchase"
+    })),
+    approvalStatus: "pending",
+    approvedBy: null,
+    approvalDate: null,
+    rejectionComment: null,
+    preparedBy: supplierDetails.preparedBy || null,
+    status: "draft"
+  };
+  purchaseOrders.push(po);
   return po;
 }
 
@@ -1604,6 +1653,8 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
   const inv = {
     id: nextInvoiceId(),
     sourcePO: po.id,
+    department: po.department,
+    type: po.type,
     dateReceived: new Date().toISOString().slice(0, 10),
     supplierNameTel: po.supplierNameTel,
     supplierRef: receiptDetails.supplierRef || "",   // vendor's own invoice number
@@ -1612,6 +1663,7 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
     items: (receiptDetails.items || po.items).map(it => ({
       itemName: it.productService || it.itemName,
       qty: it.qty,
+      itemRef: it.itemRef || null,
       rateBD: it.rateBD || 0,
       discBD: it.discBD || 0,
       vatPercent: it.vatPercent || 10,
@@ -1619,6 +1671,13 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
     })),
     totals: receiptDetails.totals || { total: 0, vat: 0, roundOff: 0, netAmount: 0 },
     preparedBy: receiptDetails.preparedBy || null,
+    // A PO-converted invoice is already gated — its PO went through approval
+    // before it could reach "issued". Auto-approved here so it never shows
+    // up in the Approvals tab a second time.
+    approvalStatus: "approved",
+    approvedBy: po.approvedBy,
+    approvalDate: new Date().toISOString().slice(0, 10),
+    rejectionComment: null,
     status: "received"
   };
   purchaseInvoices.push(inv);
@@ -1641,6 +1700,82 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
     });
   }
   return inv;
+}
+
+// Creates a Purchase Invoice directly, with no Purchase Order behind it.
+// Unlike a PO-converted invoice (auto-approved because its PO already went
+// through approval), a direct invoice has never been gated by anything —
+// so per Salman's call (5 Jul 2026) it needs its own approval before the
+// items are treated as received / released to the stock pool.
+function createPurchaseInvoiceDirect({ department, linkedJobId = null, destinationType = "inventory", supplierDetails = {}, items, preparedBy }) {
+  const inv = {
+    id: nextInvoiceId(),
+    sourcePO: null,
+    department,
+    type: destinationType === "job-direct" ? "Job" : "Stock",
+    dateReceived: new Date().toISOString().slice(0, 10),
+    supplierNameTel: supplierDetails.supplierNameTel || "",
+    supplierRef: supplierDetails.supplierRef || "",
+    linkedJobId,
+    qproJobRef: null,
+    items: items.map(it => ({
+      itemName: it.name,
+      qty: it.qty,
+      itemRef: it.itemRef || null,
+      rateBD: it.rateBD || 0,
+      discBD: it.discBD || 0,
+      vatPercent: it.vatPercent || 10,
+      amtBD: it.amtBD || 0
+    })),
+    totals: supplierDetails.totals || { total: 0, vat: 0, roundOff: 0, netAmount: 0 },
+    preparedBy: preparedBy || null,
+    approvalStatus: "pending",   // pending | approved | rejected
+    approvedBy: null,
+    approvalDate: null,
+    rejectionComment: null,
+    status: "pending_approval"   // pending_approval | received
+  };
+  purchaseInvoices.push(inv);
+  return inv;
+}
+
+// Approval gate for direct invoices (mirrors approvePO/rejectPO). Only on
+// approval do Stock-type items get released into the shared inventory pool
+// — matches the same rule convertPOtoInvoice already follows.
+function approveInvoice(invId, approvedBy) {
+  const inv = purchaseInvoices.find(i => i.id === invId);
+  if (!inv) return null;
+  inv.approvalStatus = "approved";
+  inv.approvedBy = approvedBy;
+  inv.approvalDate = new Date().toISOString().slice(0, 10);
+  inv.status = "received";
+  if (inv.type === "Stock") {
+    inv.items.forEach(it => {
+      stockEntries.push({
+        id: "STK-" + String(stockEntries.length + 1).padStart(4, "0"),
+        sourceInvoice: inv.id,
+        itemName: it.itemName,
+        qty: it.qty,
+        unit: "",
+        status: "in-pool",
+        releasedTo: null,
+        dateReceived: inv.dateReceived
+      });
+    });
+  }
+  return inv;
+}
+function rejectInvoice(invId, rejectedBy, comment) {
+  const inv = purchaseInvoices.find(i => i.id === invId);
+  if (!inv) return null;
+  inv.approvalStatus = "rejected";
+  inv.approvedBy = rejectedBy;
+  inv.approvalDate = new Date().toISOString().slice(0, 10);
+  inv.rejectionComment = comment;
+  return inv;
+}
+function getPendingInvoiceApprovals() {
+  return purchaseInvoices.filter(inv => inv.approvalStatus === "pending");
 }
 
 // ── INVENTORY STOCK POOL ──
@@ -1686,17 +1821,15 @@ function getPurchasingKPIs() {
   const awaitingDelivery = purchaseOrders.filter(po => po.status === "issued");
   const openCurtainInquiries = purchaseInquiries.filter(pi => !piIsDone(pi));
 
+  // Reads po.department directly (stamped on every PO whether converted
+  // from a PR or created directly) rather than looking up sourcePR — a
+  // direct PO has no PR to look up, so the old sourcePR-lookup version
+  // silently dropped direct POs from every division bucket.
   function bucket(deptKeys) {
     return {
       openRequests: purchaseRequests.filter(pr => deptKeys.includes(pr.department) && pr.status === "open").length,
-      pendingApprovals: purchaseOrders.filter(po => {
-        const pr = purchaseRequests.find(p => p.id === po.sourcePR);
-        return pr && deptKeys.includes(pr.department) && po.approvalStatus === "pending";
-      }).length,
-      awaitingDelivery: purchaseOrders.filter(po => {
-        const pr = purchaseRequests.find(p => p.id === po.sourcePR);
-        return pr && deptKeys.includes(pr.department) && po.status === "issued";
-      }).length
+      pendingApprovals: purchaseOrders.filter(po => deptKeys.includes(po.department) && po.approvalStatus === "pending").length,
+      awaitingDelivery: purchaseOrders.filter(po => deptKeys.includes(po.department) && po.status === "issued").length
     };
   }
 
@@ -1704,6 +1837,7 @@ function getPurchasingKPIs() {
     totals: {
       openRequests: openPRs.length,
       pendingPOApprovals: pendingApprovals.length,
+      pendingInvoiceApprovals: getPendingInvoiceApprovals().length,
       awaitingDelivery: awaitingDelivery.length,
       curtainOpenInquiries: openCurtainInquiries.length
     },
