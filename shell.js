@@ -27,6 +27,8 @@ function goTo(p){
   if (curtMod) curtMod.style.cssText = 'display:none;';
   const purchMod = document.getElementById('purch-module-wrap');
   if (purchMod) purchMod.style.cssText = 'display:none;';
+  const skMod = document.getElementById('sk-module-wrap');
+  if (skMod) skMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
@@ -45,6 +47,7 @@ const M={
   operations:{icon:'⚙️',title:'Operations',sub:'Full job lifecycle management',status:'built',sl:'✓ Fully designed · 9 screens',features:['Dashboard + KPIs','New job alerts','Dept assignment + item detail','BOM with 3 ownership modes','Delegated tasks queue','Variations tracker (read-only)','Subcontractor tracking','Payment milestones','Snag list + sign-off','Internal notes','Client log + Documents','Delivery checklist','Capacity heatmap','Reminders log'],note:'Fully designed. Ready to hand to Nettworksy. Variations are raised by Sales/PM — not Operations.',btn:'View module summary'},
   curtain:{icon:'🪟',title:'Curtain & Blinds',sub:'Silva · Workshop + dedicated install crew',status:'built',sl:'✓ Built · 6 screens',features:['Dashboard — cost control KPIs','Window schedule with fabric calculator','Pattern repeat + roll width calculation','Room accordion — copy room / copy window','BOM — auto-generated from window schedule','Budget approval with BD 5k threshold','Procurement tracking','Installation scheduling + handover'],note:'Full module built. Window schedule calculates fabric metres from roll width, fullness, and pattern repeats. BOM auto-populates. Budget escalates to Salman over BD 5,000.',btn:'Open Curtain Module →'},
   purchasing:{icon:'🛒',title:'Purchaser',sub:'Ops/Owner · Request → PO → Invoice',status:'built',sl:'✓ Built · 4 screens',features:['Dashboard — KPI rollup by division','Purchase Request queue, dept-filterable','Convert PR → PO with supplier + pricing','PO approval — mandatory rejection comment','Receive & convert PO → Invoice','Curtain fabric/rail shown read-only for context'],note:'Covers Upholstery, Joinery (incl. Painting) and Metal Works purchasing. Curtain keeps its own fabric/rail tracker (raised from the Fabric tab) — reconciled here only as a read-only rollup, never merged.',btn:'Open Purchaser →'},
+  storekeeper:{icon:'📦',title:'Storekeeper',sub:'Stock pool → department release',status:'built',sl:'✓ Built · release with full traceability',features:['Stock pool — all received Stock-type invoice items','Search pool by item or source invoice','Release to department, tied to a job (always produces an itemCard)','Partial release — remainder stays in-pool','Release history log'],note:'Every Stock-type PO/Invoice receipt lands here automatically. Release always requires a job so it stays traceable end-to-end via the itemCard it produces.',btn:'Open Storekeeper →'},
   upholstery:{icon:'🛋️',title:'Upholstery',sub:'Sofas, re-upholstery, headboards',status:'soon',sl:'Planned — after Curtain',features:[],soon:['Job cards + measurements','Frame making stage','Foam & fabric cutting','Sewing & covering','QC checklist'],note:'After Curtain module is complete, this is next.'},
   joinery:{icon:'🪵',title:'Joinery',sub:'Woodwork, wardrobes, doors',status:'soon',sl:'Planned',features:[],soon:['Workshop job cards','Cutting & CNC','Assembly','Machine scheduling','Labour hours','Paint & metal sub-stages'],note:'Largest module — painting and metal works sit inside Joinery.'},
   painting:{icon:'🎨',title:'Painting',sub:'Finishes, spray, metal coating',status:'soon',sl:'Planned',features:[],soon:['Queue from Joinery','Finish specs (RAL, texture)','Spray stages','Curing tracking','QC sign-off'],note:'Serves both Joinery and Metal Works.'},
@@ -87,6 +90,10 @@ function showPanel(id){
   } else if(id==='purchasing'){
     btnAction="closePanel();setTimeout(()=>launchPurchasingModule(),300)";
     btnLabel='Open Purchaser →';
+    btnDim=false;
+  } else if(id==='storekeeper'){
+    btnAction="closePanel();setTimeout(()=>launchStorekeeperModule(),300)";
+    btnLabel='Open Storekeeper →';
     btnDim=false;
   }
 

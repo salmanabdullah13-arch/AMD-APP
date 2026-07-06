@@ -229,6 +229,7 @@
           <!-- lines to ring2 -->
           <line id="line-curtain"    class="eco-line" x1="190" y1="225" x2="316" y2="168" stroke="rgba(124,58,237,.2)"  stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-purchasing" class="eco-line" x1="190" y1="225" x2="270" y2="60"  stroke="rgba(212,160,23,.35)" stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-storekeeper" class="eco-line" x1="190" y1="225" x2="245" y2="25" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-upholstery" class="eco-line" x1="190" y1="225" x2="334" y2="268" stroke="rgba(214,51,108,.15)" stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-joinery"    class="eco-line" x1="190" y1="225" x2="258" y2="358" stroke="rgba(15,157,88,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-painting"   class="eco-line" x1="190" y1="225" x2="122" y2="358" stroke="rgba(196,125,0,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
@@ -288,6 +289,17 @@
             <text x="270" y="68" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.85)" font-weight="700">PURCHASER</text>
             <circle cx="283" cy="46" r="7" fill="#0f9d58"/>
             <text x="283" y="50" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
+          </g>
+
+          <!-- RING 2 STOREKEEPER (built) -->
+          <g id="node-storekeeper" class="eco-node" onclick="showPanel('storekeeper')" style="cursor:pointer;">
+            <circle cx="245" cy="25" r="24" fill="rgba(15,157,88,.07)"/>
+            <circle cx="245" cy="25" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
+            <circle cx="245" cy="25" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
+            <text x="245" y="21" text-anchor="middle" font-size="11">📦</text>
+            <text x="245" y="32" text-anchor="middle" font-size="5.2" fill="rgba(255,255,255,.85)" font-weight="700">STOREKEEPER</text>
+            <circle cx="258" cy="11" r="7" fill="#0f9d58"/>
+            <text x="258" y="15" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
           </g>
 
           <!-- ══ CURTAIN SUB-BRANCHES ══ -->
@@ -1433,6 +1445,7 @@
 <script src="operations.js"></script>
 <script src="curtain.js"></script>
 <script src="purchasing.js"></script>
+<script src="storekeeper.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1481,6 +1494,7 @@ function subNodeTouch(id, active) {
     { id:'operations', cx:190, cy:123, built:true,  launch:()=>{ closePanel(); setTimeout(()=>goTo('operations'),150); } },
     { id:'curtain',    cx:316, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchCurtainModule(),150); } },
     { id:'purchasing', cx:270, cy:60,  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPurchasingModule(),150); } },
+    { id:'storekeeper', cx:245, cy:25, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchStorekeeperModule(),150); } },
     // Sub-nodes (Curtain children — direct launch)
     { id:'sub-tracks', cx:355, cy:112, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openTracksDashboard&&openTracksDashboard(),150); }, isSubNode:true },
     { id:'sub-qc',     cx:372, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openQCDashboard&&openQCDashboard(),150); },     isSubNode:true },

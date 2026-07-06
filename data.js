@@ -1796,7 +1796,7 @@ function nextItemCardCode(jobId) {
   const existing = itemCards.filter(ic => ic.jobId === jobId);
   return jobId + "-IT" + String(existing.length + 1).padStart(2, "0");
 }
-function issueItemCard(jobId, { description, qty, department, sourcePO = null, sourceStockEntry = null }) {
+function issueItemCard(jobId, { description, qty, department, sourcePO = null, sourceStockEntry = null, itemRef = null }) {
   const card = {
     code: nextItemCardCode(jobId),
     jobId,
@@ -1805,10 +1805,85 @@ function issueItemCard(jobId, { description, qty, department, sourcePO = null, s
     department,
     sourcePO,
     sourceStockEntry,
+    itemRef,   // optional { id, label } window/item allocation tag, or free text — same shape as PR/PO/Invoice itemRef
     dateIssued: new Date().toISOString().slice(0, 10)
   };
   itemCards.push(card);
   return card;
+}
+
+// ── STOREKEEPER — release stock pool entries to departments ──
+// Built session: 6 Jul 2026. Every release requires a job (Salman's call)
+// so it always produces a traceable itemCard via issueItemCard() above.
+// Supports partial release: if the released qty is less than the entry's
+// full qty, the original entry keeps the remainder "in-pool" under its own
+// id, and a NEW stock entry is created to carry the released portion — so
+// "released" status always describes a fully-consumed record, never a
+// part-consumed one.
+function releaseStockEntry(entryId, { department, jobId, qty, issuedBy, itemRef = null }) {
+  const entry = stockEntries.find(s => s.id === entryId);
+  if (!entry) return { error: "Stock entry not found." };
+  if (entry.status !== "in-pool") return { error: "This entry has already been released." };
+  if (!jobId) return { error: "A job is required to release stock." };
+  if (!issuedBy) return { error: "Issued-by name is required." };
+  const releaseQty = Number(qty);
+  if (!releaseQty || releaseQty <= 0) return { error: "Enter a quantity to release." };
+  if (releaseQty > entry.qty) return { error: `Only ${entry.qty} ${entry.unit || ""} available in this entry.` };
+
+  let releasedEntry;
+  const today = new Date().toISOString().slice(0, 10);
+  if (releaseQty === entry.qty) {
+    entry.status = "released";
+    entry.releasedTo = department;
+    entry.releasedJobId = jobId;
+    entry.dateReleased = today;
+    entry.issuedBy = issuedBy;
+    releasedEntry = entry;
+  } else {
+    entry.qty -= releaseQty; // remainder stays in-pool under the original id
+    releasedEntry = {
+      id: "STK-" + String(stockEntries.length + 1).padStart(4, "0"),
+      sourceInvoice: entry.sourceInvoice,
+      itemName: entry.itemName,
+      qty: releaseQty,
+      unit: entry.unit,
+      status: "released",
+      releasedTo: department,
+      releasedJobId: jobId,
+      dateReceived: entry.dateReceived,
+      dateReleased: today,
+      issuedBy
+    };
+    stockEntries.push(releasedEntry);
+  }
+
+  // Trace sourcePO through the invoice for the itemCard, since stock
+  // entries only carry sourceInvoice, not sourcePO directly.
+  const invoice = purchaseInvoices.find(i => i.id === releasedEntry.sourceInvoice);
+  const sourcePO = invoice ? invoice.sourcePO : null;
+
+  const card = issueItemCard(jobId, {
+    description: releasedEntry.itemName,
+    qty: releaseQty,
+    department,
+    sourcePO,
+    sourceStockEntry: releasedEntry.id,
+    itemRef
+  });
+
+  return { stockEntry: releasedEntry, itemCard: card };
+}
+
+// ── STOREKEEPER DASHBOARD SUMMARY ──
+function getStockPoolSummary() {
+  const inPool = stockEntries.filter(s => s.status === "in-pool");
+  const today = new Date().toISOString().slice(0, 10);
+  const releasedToday = stockEntries.filter(s => s.status === "released" && s.dateReleased === today);
+  return {
+    inPoolCount: inPool.length,
+    inPoolQty: inPool.reduce((sum, s) => sum + s.qty, 0),
+    releasedTodayCount: releasedToday.length
+  };
 }
 
 // ── PURCHASER DASHBOARD KPIs ──
@@ -1852,3 +1927,106 @@ function getPurchasingKPIs() {
     }
   };
 }
+
+
+// ═══════════════════════════════════════
+// EMPLOYEE RATES — fully-loaded labour cost per hour (BD), by full name.
+// Built 6 Jul 2026 from real May/June 2026 payroll files (Admin +
+// Production), covering basic salary + allowances + employer-side extras:
+// GOSI (3% expat employer), EOSB/indemnity (4.2% employer monthly SIO
+// contribution, ≤3yr tenure tier — no per-person hire dates available yet,
+// so every entry defaults to the lower tier; bump individually to 8.4%
+// once tenure is confirmed), LMRA work permit + health card (amortized
+// over a 2-year permit), a flat BD 150 2-way home ticket (amortized over
+// 2 years), and a 30-day/year paid annual leave accrual. Standard hours
+// assumed at 240/month (30 days x 8h), matching AMD's own timesheet
+// convention. Full source workbook: AMD_Labour_Cost_Per_Hour.xlsx.
+//
+// Full-name keyed (not first-name) to avoid collisions — several people
+// share a first name / role name across departments. curtain.js's
+// existing first-name rosters (STITCH_TEAM/TRACK_TEAM/INSTALL_CREW) and
+// timeLogs[] stay on first names for the UI; CURTAIN_NAME_MAP in
+// curtain.js bridges the 7 Curtain-side first names to their full-name
+// key here for the cost lookup only.
+//
+// 'Shameer Shah' appeared in both payroll files with two different
+// basic figures (admin batch vs production batch) — Salman confirmed
+// it is one person and to use the admin-file figure; department is
+// still tagged Carpentry (their real production role) below.
+//
+// TODO: replace the default EOSB tier with per-person actual tenure once
+// hire dates are confirmed — several entries (Owner, Directors) likely
+// already exceed 3 years and should be on the 8.4% tier.
+// ═══════════════════════════════════════
+const EMPLOYEE_RATES = {
+  'Abdul Raheem Mohammed': { rate: 1.352, department: 'Admin/Office', category: 'Admin' },
+  'Abdul Rehman Aslam Qureshi': { rate: 3.366, department: 'Admin/Office', category: 'Admin' },
+  'Abdullah Abdul Haq': { rate: 10.957, department: 'Admin/Office', category: 'Admin' },
+  'Altaf Hasan Ali Ghare': { rate: 2.26, department: 'Admin/Office', category: 'Admin' },
+  'Arbaz Iqbal Malim': { rate: 0.787, department: 'Admin/Office', category: 'Admin' },
+  'Arun Kumar A': { rate: 1.538, department: 'Admin/Office', category: 'Admin' },
+  'Aslam Abdul Rehman Qureshi': { rate: 10.957, department: 'Admin/Office', category: 'Admin' },
+  'Aysha Aslam Qureshi': { rate: 2.292, department: 'Admin/Office', category: 'Admin' },
+  'Jinesh Valiyavalappil Jayarajan': { rate: 2.26, department: 'Admin/Office', category: 'Admin' },
+  'Karthikeyan Selvaraj': { rate: 1.331, department: 'Admin/Office', category: 'Admin' },
+  'Latif Ullah': { rate: 1.57, department: 'Admin/Office', category: 'Admin' },
+  'Rajneesh Vailezhath': { rate: 1.954, department: 'Admin/Office', category: 'Admin' },
+  'Salman Abdullah': { rate: 7.023, department: 'Admin/Office', category: 'Admin' },
+  'Sampath Suresh Kumar': { rate: 1.811, department: 'Admin/Office', category: 'Admin' },
+  'Sharad Kumar Viswakarma': { rate: 4.153, department: 'Admin/Office', category: 'Admin' },
+  'Shuhaib Mundel Kattil': { rate: 0.896, department: 'Admin/Office', category: 'Admin' },
+  'Sidharth Sathyan': { rate: 0.992, department: 'Admin/Office', category: 'Admin' },
+  'Sujith Kumar Angadipurath': { rate: 2.452, department: 'Admin/Office', category: 'Admin' },
+  'Venkateswara Rao Neredimilli': { rate: 0.655, department: 'Admin/Office', category: 'Admin' },
+  'Zahra Abdullah': { rate: 3.783, department: 'Admin/Office', category: 'Admin' },
+  'Ajay Paswan': { rate: 1.209, department: 'Carpentry', category: 'Production' },
+  'Amith Sharma': { rate: 0.848, department: 'Carpentry', category: 'Production' },
+  'Balwinder Signh': { rate: 0.89, department: 'Carpentry', category: 'Production' },
+  'Brijanandan': { rate: 0.841, department: 'Carpentry', category: 'Production' },
+  'Elakkiyaselvan Maharajan': { rate: 0.704, department: 'Carpentry', category: 'Production' },
+  'Govind Kharwar': { rate: 0.704, department: 'Carpentry', category: 'Production' },
+  'Gufran Ahmed': { rate: 1.538, department: 'Carpentry', category: 'Production' },
+  'Jai Prakash': { rate: 0.89, department: 'Carpentry', category: 'Production' },
+  'Jithendra': { rate: 0.752, department: 'Carpentry', category: 'Production' },
+  'Mahendra Sahani': { rate: 0.896, department: 'Carpentry', category: 'Production' },
+  'Manoj Sharma': { rate: 0.793, department: 'Carpentry', category: 'Production' },
+  'Mohammed Khalid': { rate: 0.704, department: 'Carpentry', category: 'Production' },
+  'Mohammed Raza': { rate: 0.704, department: 'Carpentry', category: 'Production' },
+  'Raheed Mohammed': { rate: 1.137, department: 'Carpentry', category: 'Production' },
+  'Raj Kumar': { rate: 0.992, department: 'Carpentry', category: 'Production' },
+  'Ravindar Gadde': { rate: 0.931, department: 'Carpentry', category: 'Production' },
+  'Sainath Vangala': { rate: 0.852, department: 'Carpentry', category: 'Production' },
+  'Sameer Pasha': { rate: 0.835, department: 'Carpentry', category: 'Production' },
+  'Shameer Shah': { rate: 0.896, department: 'Carpentry', category: 'Production' },
+  'Subhan': { rate: 0.992, department: 'Carpentry', category: 'Production' },
+  'Suneel Kumar': { rate: 0.896, department: 'Carpentry', category: 'Production' },
+  'Upendra Paswan': { rate: 0.655, department: 'Carpentry', category: 'Production' },
+  'Vijay Kumar': { rate: 0.697, department: 'Carpentry', category: 'Production' },
+  'Vinod Sharma': { rate: 0.938, department: 'Carpentry', category: 'Production' },
+  'Ibrahim Khurshid': { rate: 0.704, department: 'Curtain & Blinds', category: 'Production' },
+  'Md Alenabi': { rate: 0.607, department: 'Curtain & Blinds', category: 'Production' },
+  'Mhd Sahil': { rate: 0.607, department: 'Curtain & Blinds', category: 'Production' },
+  'Mohammad Abdullah': { rate: 0.655, department: 'Curtain & Blinds', category: 'Production' },
+  'Mohammed Waseem Rahmani': { rate: 0.776, department: 'Curtain & Blinds', category: 'Production' },
+  'Mohd. Javed': { rate: 0.992, department: 'Curtain & Blinds', category: 'Production' },
+  'Muhammad Aslam': { rate: 0.655, department: 'Curtain & Blinds', category: 'Production' },
+  'Muhammad Furqan': { rate: 0.829, department: 'Curtain & Blinds', category: 'Production' },
+  'Murugaiya Pillai Selvaraj': { rate: 1.329, department: 'Curtain & Blinds', category: 'Production' },
+  'Mushraf Hussain': { rate: 0.824, department: 'Curtain & Blinds', category: 'Production' },
+  'Rijwan Alam': { rate: 0.655, department: 'Curtain & Blinds', category: 'Production' },
+  'Saeed Ahmad': { rate: 1.028, department: 'Curtain & Blinds', category: 'Production' },
+  'Shahzad Farooq': { rate: 0.655, department: 'Curtain & Blinds', category: 'Production' },
+  'Sohail Qureshi': { rate: 0.92, department: 'Curtain & Blinds', category: 'Production' },
+  'Subutktgin (SHIBU)': { rate: 1.028, department: 'Curtain & Blinds', category: 'Production' },
+  'Amran Mia Md Rahis Mia': { rate: 0.992, department: 'Upholstery', category: 'Production' },
+  'Ifran Hussain': { rate: 0.704, department: 'Upholstery', category: 'Production' },
+  'Jamaluddin': { rate: 0.8, department: 'Upholstery', category: 'Production' },
+  'Mohammad Naeem': { rate: 0.8, department: 'Upholstery', category: 'Production' },
+  'Mohammed Rubel Miah': { rate: 0.704, department: 'Upholstery', category: 'Production' },
+  'Muhammad Jamshed': { rate: 0.8, department: 'Upholstery', category: 'Production' },
+  'Prince Kaler': { rate: 0.704, department: 'Upholstery', category: 'Production' },
+  'Rajendra Kumar': { rate: 0.655, department: 'Upholstery', category: 'Production' },
+  'Shamim Ansari': { rate: 0.704, department: 'Upholstery', category: 'Production' },
+  'Soheb Ahmed': { rate: 0.704, department: 'Upholstery', category: 'Production' },
+  'Ammar Bahadur': { rate: 0.704, department: 'Watchman', category: 'Production' },
+};

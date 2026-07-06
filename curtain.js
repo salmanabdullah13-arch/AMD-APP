@@ -47,15 +47,24 @@ let QC_TEAM = [];
 // cross-department staff roster exists.
 const LABOUR_ROLES = ['Cutting', 'Stitching', 'Heming', 'Tape Header Fixing', 'Ironing', 'Other'];
 
-// ── Worker pay rates (BD/hr) — for the Daily Time Log's costing rollup.
-// PLACEHOLDER VALUES — not yet confirmed with Salman. Never rendered
-// anywhere in Curtain UI (Silva's screens show hours only, never cost,
-// per the cost-free rule for this module); this table exists purely so
-// Operations can later compute actual labour cost from logged hours.
-// TODO: replace with real per-person rates once confirmed.
-const WORKER_RATES = {
-  'Waseem': 8, 'Aslam': 8, 'Rijwan': 8, 'Ibrahim': 8, 'Silva': 8,
-  'Abdullah': 8, 'Prince': 8
+// ── Worker pay rates — REAL fully-loaded BD/hr rates now live in
+// EMPLOYEE_RATES (data.js), full-name keyed, covering all 70 employees
+// company-wide (built 6 Jul 2026 from actual payroll files). The old
+// placeholder WORKER_RATES table is gone.
+//
+// timeLogs[] and the rosters below (STITCH_TEAM/TRACK_TEAM/INSTALL_CREW)
+// stay on first names for the UI — that's not changing. This map bridges
+// the 7 Curtain-side first names to their EMPLOYEE_RATES full-name key,
+// used only inside getJobLoggedHours()'s cost lookup below. Never
+// rendered anywhere in Curtain UI — hours only, per the cost-free rule.
+const CURTAIN_NAME_MAP = {
+  'Waseem':   'Mohammed Waseem Rahmani',
+  'Aslam':    'Muhammad Aslam',
+  'Rijwan':   'Rijwan Alam',
+  'Ibrahim':  'Ibrahim Khurshid',
+  'Silva':    'Murugaiya Pillai Selvaraj',
+  'Abdullah': 'Mohammad Abdullah',
+  'Prince':   'Prince Kaler',
 };
 
 // ── State ──────────────────────────────
@@ -4505,7 +4514,15 @@ function closeQCPanel() {
   const panel = document.getElementById('qc-panel');
   if (panel) panel.style.display = 'none';
   qcActiveItem = null;
-  renderQCDashboard();
+  // If this inspection was launched from the Pipeline board, drop back
+  // there instead of surfacing the full QC Dashboard queue view.
+  if (qcOpenedFromPipeline) {
+    qcOpenedFromPipeline = false;
+    closeQCDashboard();
+    renderPipelineBoard();
+  } else {
+    renderQCDashboard();
+  }
 }
 
 // Read-only view shown when another QC person already has this item open.
@@ -4764,6 +4781,10 @@ function getTimeLogCellTotal(worker, date) {
 
 // ── Job rollup — for Operations' future cross-check against bom.labour.
 // Not called from any UI yet this session; exposed ready to use.
+// Rate lookup: first-name worker -> CURTAIN_NAME_MAP -> full-name key
+// into EMPLOYEE_RATES (data.js). Falls back to 0 (never throws) if a
+// worker isn't in the map or has no rate on file, so a missing mapping
+// shows up as an obviously-wrong 0-cost row rather than crashing.
 function getJobLoggedHours(jobId) {
   const rows = timeLogs.filter(t => t.jobId === jobId);
   const byRole = {};
@@ -4771,7 +4792,9 @@ function getJobLoggedHours(jobId) {
   rows.forEach(r => {
     byRole[r.role] = (byRole[r.role] || 0) + r.hours;
     totalHours += r.hours;
-    totalCost += r.hours * (WORKER_RATES[r.worker] || 0);
+    const fullName = CURTAIN_NAME_MAP[r.worker];
+    const rate = (fullName && EMPLOYEE_RATES[fullName]) ? EMPLOYEE_RATES[fullName].rate : 0;
+    totalCost += r.hours * rate;
   });
   return { totalHours, totalCost, byRole };
 }
@@ -5560,6 +5583,272 @@ function markItemInstalled(jobId, windowId) {
   card.stage = 'Installed';
   card.stageDates['Installed'] = new Date().toISOString();
   curtAlert(`✓ ${win.label} marked as installed`);
+}
+
+// ══════════════════════════════════════════════════════════════
+// PIPELINE BOARD — bird's-eye Kanban across all active jobs
+// Job → Window → Stitching / Track / QC / Ready for Delivery.
+// This is a pure aggregate VIEW over existing item-card data — no new
+// tracking fields, no new source of truth. Every action here calls the
+// SAME functions the Tracks / QC / Install dashboards already use
+// (finishFabricWork, finishFabricRework, tracksMarkStageComplete,
+// openQCPanel, markItemInstalled), so stage-advance logic only ever
+// lives in one place; this is just another door into it.
+// ══════════════════════════════════════════════════════════════
+
+// True while a QC inspection was launched FROM this board — tells
+// closeQCPanel() (edited below) to drop back here instead of surfacing
+// the full QC Dashboard queue view.
+let qcOpenedFromPipeline = false;
+
+// ── Collect every in-flight window across all active jobs ─────
+// A window can appear as a card in more than one column at once — e.g.
+// still open on both fabric AND rail. That's correct: it's genuinely
+// queued in both places simultaneously, matching the parallel-track model.
+function getPipelineItems() {
+  const items = { stitching: [], track: [], qc: [], ready: [] };
+  curtainJobs.forEach(job => {
+    if (job.status === 'complete') return;
+    ensureItemCards(job);
+    const days = daysUntilInstall(job);
+    job.windows.forEach(w => {
+      if (!w.calcDone) return;
+      const card = job.itemCards[w.id];
+      if (!card) return;
+      const entry = { job, w, card, days };
+
+      if (card.stage === 'Production') {
+        const fabricInfo = getFabricDisplay(card);
+        const railInfo   = getRailDisplay(card);
+        if (fabricInfo.actionable) items.stitching.push({ ...entry, fabricInfo });
+        if (railInfo.actionable)   items.track.push({ ...entry, railInfo });
+      } else if (card.stage === 'Hoist QC') {
+        items.qc.push(entry);
+      } else if (card.stage === 'Ready' || card.stage === 'Installed') {
+        items.ready.push(entry);
+      }
+    });
+  });
+
+  function byUrgency(a, b) {
+    if (a.days === null && b.days === null) return 0;
+    if (a.days === null) return 1;
+    if (b.days === null) return -1;
+    return a.days - b.days;
+  }
+  items.stitching.sort(byUrgency);
+  items.track.sort(byUrgency);
+  items.qc.sort(byUrgency);
+  items.ready.sort((a, b) => {
+    const aInst = a.card.stage === 'Installed' ? 1 : 0; // Installed sinks to the bottom
+    const bInst = b.card.stage === 'Installed' ? 1 : 0;
+    if (aInst !== bInst) return aInst - bInst;
+    return byUrgency(a, b);
+  });
+  return items;
+}
+
+// ── Open / close the board ─────────────────────
+function openPipelineBoard() {
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = 'none';
+  document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
+
+  let wrap = document.getElementById('pipeline-board-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'pipeline-board-wrap';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:#111827;overflow:hidden;font-family:inherit;';
+    document.body.appendChild(wrap);
+  }
+  wrap.style.display = 'flex';
+  renderPipelineBoard();
+}
+
+function closePipelineBoard() {
+  const wrap = document.getElementById('pipeline-board-wrap');
+  if (wrap) wrap.style.display = 'none';
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = '';
+  document.querySelectorAll('.module').forEach(m => m.style.display = '');
+}
+
+// ── Card renderer — same card shape, per-column stage label ────
+function pipelineCard(entry, colType) {
+  const { job, w, days } = entry;
+  const card = entry.card;
+  const daysColor = urgencyColor(days);
+  const daysText  = urgencyLabel(days);
+  const isRework  = (colType === 'stitching' && entry.fabricInfo && entry.fabricInfo.isRework)
+                  || (colType === 'track' && entry.railInfo && entry.railInfo.isRework);
+
+  let stageLabel = '';
+  if (colType === 'stitching') stageLabel = entry.fabricInfo.stage;
+  else if (colType === 'track') stageLabel = entry.railInfo.stage;
+  else if (colType === 'qc') stageLabel = 'Awaiting inspection';
+  else if (colType === 'ready') stageLabel = card.stage === 'Installed' ? '✓ Installed' : 'Ready — awaiting install';
+
+  return `
+    <div onclick="openPipelineDetail('${job.id}','${w.id}','${colType}')"
+      style="background:${isRework ? '#450a0a' : '#1a2332'};border:1px solid ${isRework ? '#7f1d1d' : '#2d3748'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+      <p style="font-size:13px;font-weight:700;color:#e2e8f0;">${w.label}</p>
+      <p style="font-size:11px;color:#9ca3af;margin-top:1px;">${job.name} · ${w.room}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <span style="font-size:11px;font-weight:600;color:${isRework ? '#f87171' : '#a78bfa'};">${isRework ? 'Rework → ' : ''}${stageLabel}</span>
+        <span style="font-size:10px;font-weight:600;color:${daysColor};">${daysText}</span>
+      </div>
+    </div>`;
+}
+
+// ── Column renderer ─────────────────────────────
+function pipelineColumn(title, icon, entries, colType) {
+  return `
+    <div style="flex:none;width:78vw;max-width:320px;background:#0d1420;border-radius:14px;margin-right:12px;display:flex;flex-direction:column;max-height:100%;overflow:hidden;">
+      <div style="padding:12px 14px;border-bottom:1px solid #1f2937;flex:none;">
+        <p style="font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#e2e8f0;">${icon} ${title} <span style="color:#6b7280;">(${entries.length})</span></p>
+      </div>
+      <div style="padding:12px;overflow-y:auto;flex:1;">
+        ${entries.length ? entries.map(e => pipelineCard(e, colType)).join('') : `<p style="font-size:12px;color:#4b5563;text-align:center;padding:20px 0;">Nothing here</p>`}
+      </div>
+    </div>`;
+}
+
+// ── Main render ─────────────────────────────────
+function renderPipelineBoard() {
+  const wrap = document.getElementById('pipeline-board-wrap');
+  if (!wrap) return;
+  const items = getPipelineItems();
+
+  wrap.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:16px;">🧵 Pipeline Board</p>
+        <p style="color:#94a3b8;font-size:12px;margin-top:2px;">All active jobs · ${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+      </div>
+      <button onclick="closePipelineBoard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
+    </div>
+    <div style="display:flex;overflow-x:auto;overflow-y:hidden;flex:1;padding:14px;-webkit-overflow-scrolling:touch;">
+      ${pipelineColumn('Stitching', '✂️', items.stitching, 'stitching')}
+      ${pipelineColumn('Track', '🔩', items.track, 'track')}
+      ${pipelineColumn('QC', '🔍', items.qc, 'qc')}
+      ${pipelineColumn('Ready for Delivery', '📦', items.ready, 'ready')}
+    </div>
+    <!-- Detail panel overlay (hidden by default) -->
+    <div id="pipeline-detail-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+}
+
+// ── Detail panel — routes to the right EXISTING action per column ──
+function openPipelineDetail(jobId, windowId, colType) {
+  // QC column: full reuse of the existing QC inspection panel. It lives
+  // inside qc-dash-wrap, so we open that (it layers on top of the board)
+  // then jump straight into the item — no new QC code at all.
+  if (colType === 'qc') {
+    qcOpenedFromPipeline = true;
+    openQCDashboard();
+    openQCPanel(jobId, windowId);
+    return;
+  }
+
+  const job  = curtainJobs.find(j => j.id === jobId);
+  const w    = job && job.windows.find(x => x.id === windowId);
+  const card = getItemCard(jobId, windowId);
+  if (!job || !w || !card) return;
+
+  const panel = document.getElementById('pipeline-detail-panel');
+  if (!panel) return;
+
+  let body = '';
+  if (colType === 'stitching') {
+    const info = getFabricDisplay(card);
+    body = `
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Fabric / stitching</p>
+        <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.fabricCode || '—'}</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : '#1e2a3b'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+        ${info.isRework ? `
+          <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
+          <button onclick="finishFabricRework('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#dc2626;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            Rework complete — send to QC again →
+          </button>` : `
+          <button onclick="finishFabricWork('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#1e2a3b;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            Mark Fabric Complete →
+          </button>`}
+      </div>`;
+  } else if (colType === 'track') {
+    const info = getRailDisplay(card);
+    const railStages = getProdTracks(w.treatment).rail || [];
+    const idx = railStages.indexOf(info.stage);
+    const isLast = idx >= railStages.length - 1;
+    body = `
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Rail / track</p>
+        <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.railType || '—'}</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : '#1e2a3b'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+        ${info.isRework ? `
+          <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
+          <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#dc2626;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            Rework complete — send to QC again →
+          </button>` : `
+          <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#7c3aed;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            ${isLast ? 'Send to hoist QC →' : `Mark ${info.stage} complete →`}
+          </button>`}
+      </div>`;
+  } else if (colType === 'ready') {
+    ensureInstallDefaults(job);
+    const qc = getJobQCStatus(job);
+    const released = qc.allPassed || job.installation.partialRelease === true;
+    if (card.stage === 'Installed') {
+      body = `
+        <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;text-align:center;">
+          <p style="font-size:32px;margin-bottom:8px;">✅</p>
+          <p style="font-size:14px;font-weight:700;color:#10b981;">${w.label} is installed</p>
+          <p style="font-size:12px;color:#64748b;margin-top:4px;">${job.name}${job.client ? ' · ' + job.client : ''}</p>
+        </div>`;
+    } else if (!released) {
+      body = `
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px;">
+          <p style="font-size:13px;font-weight:700;color:#b45309;">⚠ Held</p>
+          <p style="font-size:12px;color:#92400e;margin-top:6px;">${job.name} hasn't fully cleared QC yet (${qc.done}/${qc.total} passed). This item is released once the whole job clears, or Ops enables partial release for this job from the Install dashboard.</p>
+        </div>`;
+    } else {
+      body = `
+        <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Ready for delivery</p>
+          <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${w.label}</b> — ${job.name}</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:12px 0 16px;">
+            <div><span style="color:#94a3b8;">Install date:</span> <b>${job.installation.scheduledDate ? fmtDate(job.installation.scheduledDate) : '—'}</b></div>
+            <div><span style="color:#94a3b8;">Site contact:</span> <b>${job.installation.siteContact || '—'}</b></div>
+            <div style="grid-column:1/-1;"><span style="color:#94a3b8;">Crew:</span> <b>${job.installation.team && job.installation.team.length ? job.installation.team.join(', ') : '—'}</b></div>
+          </div>
+          <button onclick="markItemInstalled('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            ✓ Mark Installed
+          </button>
+        </div>`;
+    }
+  }
+
+  panel.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:15px;">${w.label}</p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${w.room}</p>
+      </div>
+      <button onclick="closePipelineDetail()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Board</button>
+    </div>
+    <div style="padding:16px;">${body}</div>`;
+  panel.style.display = 'block';
+  panel.scrollTop = 0;
+}
+
+function closePipelineDetail() {
+  const panel = document.getElementById('pipeline-detail-panel');
+  if (panel) panel.style.display = 'none';
+  renderPipelineBoard();
 }
 
 // ══════════════════════════════════════════════════════════════
