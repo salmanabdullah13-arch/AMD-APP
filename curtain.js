@@ -2178,7 +2178,7 @@ function renderInquiryStageBar(inquiry) {
 }
 
 function renderCurtFabric() {
-  let html = '';
+  let html = '<button class="primary" style="width:100%;margin-bottom:14px;" onclick="openRaiseInquirySheet()">+ Raise Purchase Request</button>';
 
   curtainJobs.forEach(job => {
     const inquiries = getInquiriesForJob(job.id);
@@ -2247,6 +2247,131 @@ function markInquiryReceived(inquiryId) {
   pi.stage = 'received_by_curtain';
   pi.stageDates['received_by_curtain'] = todayStr();
   curtAlert(`✓ ${pi.fabricCode || 'Stock item'} marked as received by Curtain department`);
+  renderCurtFabric();
+}
+
+// ══════════════════════════════════════════
+// RAISE PURCHASE REQUEST (Fabric tab)
+// Lets Silva raise a fabric/rail purchase inquiry directly from the Fabric
+// tab. Pushes into the EXISTING purchaseInquiries[] system via raiseInquiry()
+// (data.js) — deliberately does NOT touch the new purchaseRequests/
+// purchaseOrders chain (see architecture note in data.js: Curtain keeps its
+// own tracker). Built as a body-injected full-screen sheet, same visual
+// pattern as the calc sheet, so no index.html changes are needed for it.
+// ══════════════════════════════════════════
+
+function ensureRaiseInquirySheet() {
+  if (document.getElementById('curt-raise-inquiry-sheet')) return;
+  const el = document.createElement('div');
+  el.id = 'curt-raise-inquiry-sheet';
+  el.style.cssText = 'display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:#fff;overflow-y:auto;';
+  el.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <p style="color:#fff;font-weight:700;font-size:15px;">Raise Purchase Request</p>
+      <button onclick="closeRaiseInquirySheet()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">✕ Close</button>
+    </div>
+    <div style="padding:16px;flex:1;">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Job</label>
+        <select id="ri-job" onchange="riJobChanged()"></select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Vendor / Source</label>
+        <select id="ri-vendor" onchange="riVendorChanged()"></select>
+        <p id="ri-vendor-region" style="font-size:11px;color:var(--ink2);margin-top:4px;"></p>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Windows covered by this order</label>
+        <div id="ri-windows" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div style="margin-bottom:12px;" id="ri-fabriccode-row">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Fabric code</label>
+        <input id="ri-fabriccode" type="text" placeholder="e.g. Gulf Sheer Voile">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Quantity ordered (m)</label>
+        <input id="ri-qty" type="number" min="0" step="0.5">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Notes</label>
+        <textarea id="ri-notes" rows="3" placeholder="Optional"></textarea>
+      </div>
+      <button class="primary" style="width:100%;" onclick="saveRaiseInquiry()">Raise Purchase Request →</button>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function openRaiseInquirySheet(presetJobId) {
+  ensureRaiseInquirySheet();
+
+  const jobSel = document.getElementById('ri-job');
+  jobSel.innerHTML = curtainJobs.map(j => `<option value="${j.id}">${j.name} (${j.id})</option>`).join('');
+  if (presetJobId) jobSel.value = presetJobId;
+
+  const vendorSel = document.getElementById('ri-vendor');
+  vendorSel.innerHTML = VENDORS.map(v => `<option value="${v.name}">${v.name} — ${v.region}</option>`).join('');
+
+  document.getElementById('ri-fabriccode').value = '';
+  document.getElementById('ri-qty').value = '';
+  document.getElementById('ri-notes').value = '';
+
+  riJobChanged();
+  riVendorChanged();
+
+  const panel = document.getElementById('curt-raise-inquiry-sheet');
+  panel.style.display = 'flex';
+  panel.scrollTop = 0;
+}
+
+function riJobChanged() {
+  const jobId = document.getElementById('ri-job').value;
+  const job = curtainJobs.find(j => j.id === jobId);
+  const wrap = document.getElementById('ri-windows');
+  if (!job) { wrap.innerHTML = ''; return; }
+  const calcDone = job.windows.filter(w => w.calcDone);
+  wrap.innerHTML = calcDone.length ? calcDone.map(w => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;">
+      <input type="checkbox" value="${w.id}" class="ri-window-cb">
+      ${w.label} (${w.room})
+    </label>`).join('') :
+    '<p style="font-size:12px;color:var(--ink2);">No completed calc sheets for this job yet.</p>';
+}
+
+function riVendorChanged() {
+  const name = document.getElementById('ri-vendor').value;
+  const v = VENDORS.find(x => x.name === name);
+  document.getElementById('ri-vendor-region').textContent = v ? v.region : '';
+  const isStock = name === 'AMD';
+  document.getElementById('ri-fabriccode-row').style.display = isStock ? 'none' : '';
+}
+
+function closeRaiseInquirySheet() {
+  const panel = document.getElementById('curt-raise-inquiry-sheet');
+  if (panel) panel.style.display = 'none';
+}
+
+function saveRaiseInquiry() {
+  const jobId = document.getElementById('ri-job').value;
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job) { curtAlert('Select a job.'); return; }
+
+  const vendorName = document.getElementById('ri-vendor').value;
+  const v = VENDORS.find(x => x.name === vendorName);
+  if (!v) { curtAlert('Select a vendor.'); return; }
+
+  const windowIds = Array.from(document.querySelectorAll('.ri-window-cb:checked')).map(cb => cb.value);
+  if (windowIds.length === 0) { curtAlert('Select at least one window.'); return; }
+
+  const source = v.name === 'AMD' ? 'stock' : 'vendor';
+  const fabricCode = source === 'stock' ? null : (document.getElementById('ri-fabriccode').value.trim() || null);
+  const qtyRaw = document.getElementById('ri-qty').value;
+  const quantityOrdered = qtyRaw ? Number(qtyRaw) : null;
+  const notes = document.getElementById('ri-notes').value.trim();
+
+  raiseInquiry({ jobId, windowIds, vendor: v.name, vendorRegion: v.region, source, fabricCode, quantityOrdered, notes });
+
+  curtAlert(`✓ Purchase request raised for ${windowIds.length} window${windowIds.length > 1 ? 's' : ''}`);
+  closeRaiseInquirySheet();
   renderCurtFabric();
 }
 

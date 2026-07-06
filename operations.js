@@ -375,7 +375,7 @@ function renderNotes(j){
       </div>`).join("")||'<p style="font-size:13px;color:var(--ink3);">No notes yet.</p>'}
     <div style="border-top:1px solid var(--line);margin-top:8px;padding-top:12px;">
       <textarea id="note-text" rows="2" placeholder="Add an internal note…" style="margin-bottom:8px;"></textarea>
-      <div class="btnrow"><button class="primary" onclick="addNote('${j.id}')">Add note</button></div>
+      <div class="btnrow"><button class="primary" onclick="addJobNote('${j.id}')">Add note</button></div>
     </div>
   </div>`;
 }
@@ -464,7 +464,7 @@ function recordSignoff(id){
   p.signoff={done:true,date:new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})};
   showAlert("Sign-off recorded — final invoice triggered to Accounts."); setJobTab("snags");
 }
-function addNote(id){
+function addJobNote(id){
   const p=projects.find(j=>j.id===id);
   const t=document.getElementById("note-text")?.value; if(!t) return;
   p.notes.unshift({by:"Operations",note:t,d:new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short"})});
@@ -746,18 +746,14 @@ buildHeat();
 
 // ══════════════════════════════
 // REMINDERS LOG
-// No persistent reminders log exists yet — "Send reminder" buttons on
-// Subcontractors/Payments/Variations currently fire a toast via showAlert()
-// only; nothing is recorded. This stub renders an honest empty state so the
-// tab doesn't crash. Wire to a real reminders[] array in data.js as its own
-// task when ready.
-// ══════════════════════════════
-function renderReminders(){
-  const box = document.getElementById('rem-list');
-  if (!box) return;
-  box.innerHTML = '<p style="font-size:13px;color:var(--ink3);">No reminders log wired up yet — "Send reminder" actions currently show a confirmation toast only, nothing is recorded here.</p>';
-}
-
+// renderReminders() and the reminders[] array live in data.js (real, seeded
+// data) — do NOT redefine renderReminders() here. A stub with this same
+// name used to live in this file and silently overwrote data.js's version
+// on load (function redeclarations don't throw, so it went undetected).
+// That meant the Reminders tab showed real data only until the first time
+// you navigated away and back, then it flipped to a fake "not wired up"
+// placeholder. Fixed by removing the duplicate — opsGoTo('reminders')
+// below now calls the one real renderReminders() from data.js.
 // ══════════════════════════════
 // NAV
 // ══════════════════════════════

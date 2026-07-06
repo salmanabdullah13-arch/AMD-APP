@@ -196,6 +196,10 @@
               <stop offset="0%" stop-color="#5c3a00"/>
               <stop offset="100%" stop-color="#3a2400"/>
             </radialGradient>
+            <radialGradient id="PUG" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#f4c430"/>
+              <stop offset="100%" stop-color="#8a6d00"/>
+            </radialGradient>
             <filter id="glow-ok" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="4" result="b"/>
               <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
@@ -224,6 +228,7 @@
           <line id="line-operations" class="eco-line" x1="190" y1="225" x2="190" y2="123" stroke="rgba(15,157,88,.45)" stroke-width="1.5" stroke-dasharray="4,4"/>
           <!-- lines to ring2 -->
           <line id="line-curtain"    class="eco-line" x1="190" y1="225" x2="316" y2="168" stroke="rgba(124,58,237,.2)"  stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-purchasing" class="eco-line" x1="190" y1="225" x2="270" y2="60"  stroke="rgba(212,160,23,.35)" stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-upholstery" class="eco-line" x1="190" y1="225" x2="334" y2="268" stroke="rgba(214,51,108,.15)" stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-joinery"    class="eco-line" x1="190" y1="225" x2="258" y2="358" stroke="rgba(15,157,88,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-painting"   class="eco-line" x1="190" y1="225" x2="122" y2="358" stroke="rgba(196,125,0,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
@@ -272,6 +277,17 @@
             <text x="316" y="176" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.85)" font-weight="700">CURTAIN</text>
             <circle cx="330" cy="152" r="7" fill="#0f9d58"/>
             <text x="330" y="156" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
+          </g>
+
+          <!-- RING 2 PURCHASER (built) -->
+          <g id="node-purchasing" class="eco-node" onclick="showPanel('purchasing')" style="cursor:pointer;">
+            <circle cx="270" cy="60" r="26" fill="rgba(212,160,23,.08)"/>
+            <circle cx="270" cy="60" r="21" fill="url(#PUG)" filter="url(#glow-ok)"/>
+            <circle cx="270" cy="60" r="21" fill="none" stroke="rgba(212,160,23,.6)" stroke-width="1.5"/>
+            <text x="270" y="56" text-anchor="middle" font-size="12">🛒</text>
+            <text x="270" y="68" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.85)" font-weight="700">PURCHASER</text>
+            <circle cx="283" cy="46" r="7" fill="#0f9d58"/>
+            <text x="283" y="50" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
           </g>
 
           <!-- ══ CURTAIN SUB-BRANCHES ══ -->
@@ -1139,6 +1155,118 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════
+       PURCHASER MODULE (Ops/Owner)
+  ══════════════════════════════════════════ -->
+  <div class="module" id="purch-module-wrap" style="display:none;">
+    <div class="ops-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.35);display:flex;align-items:center;justify-content:center;font-size:16px;">🛒</div>
+        <div><p style="font-weight:700;font-size:15px;color:#fff;">Purchaser</p><p style="font-size:11px;color:rgba(255,255,255,.6);">Request → PO → Invoice</p></div>
+      </div>
+      <button class="icon-btn" onclick="closePurchasingModule();goTo('eco')" title="Back to ecosystem" style="color:rgba(255,255,255,.7);font-size:18px;">✕</button>
+    </div>
+
+    <div class="nav" id="purch-nav">
+      <button class="ntab active" data-p="purch-dashboard" onclick="purchGoTo('purch-dashboard')">Dashboard</button>
+      <button class="ntab" data-p="purch-requests" onclick="purchGoTo('purch-requests')">Requests</button>
+      <button class="ntab" data-p="purch-approvals" onclick="purchGoTo('purch-approvals')">Approvals</button>
+      <button class="ntab" data-p="purch-orders" onclick="purchGoTo('purch-orders')">Orders</button>
+    </div>
+
+    <div class="scroll" id="purch-scroll">
+
+      <!-- ══ DASHBOARD ══ -->
+      <div class="page active" id="p-purch-dashboard">
+        <div id="purch-dashboard-body"></div>
+      </div>
+
+      <!-- ══ REQUESTS ══ -->
+      <div class="page" id="p-purch-requests">
+        <div id="purch-requests-body"></div>
+      </div>
+
+      <!-- ══ APPROVALS ══ -->
+      <div class="page" id="p-purch-approvals">
+        <div id="purch-approvals-body"></div>
+      </div>
+
+      <!-- ══ ORDERS ══ -->
+      <div class="page" id="p-purch-orders">
+        <div id="purch-orders-body"></div>
+      </div>
+
+      <p class="foot">Purchaser module · Upholstery, Joinery (incl. Painting) &amp; Metal Works purchasing. Curtain's fabric/rail requests are tracked in its own module — shown here read-only.</p>
+    </div>
+
+    <!-- PO CREATION FORM -->
+    <div class="p-panel" id="purch-po-form">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">Convert to Purchase Order</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;"><span id="po-form-pr-id"></span> · <span id="po-form-dept"></span></p>
+
+        <div class="p-field">
+          <label>Payment mode</label>
+          <select id="po-payment-mode">
+            <option>Cash</option>
+            <option>Credit</option>
+            <option>Cheque</option>
+            <option>Bank Transfer</option>
+          </select>
+        </div>
+        <div class="p-field">
+          <label>Supplier name / tel</label>
+          <input id="po-supplier-name-tel" type="text" placeholder="e.g. Gulf Glass Trading — 1723 4455">
+        </div>
+        <div class="p-field">
+          <label>Supplier ref</label>
+          <input id="po-supplier-ref" type="text" placeholder="Optional">
+        </div>
+        <div class="p-field">
+          <label>Delivery terms</label>
+          <input id="po-delivery-terms" type="text" placeholder="e.g. 7 days from PO">
+        </div>
+        <div class="p-field">
+          <label>Supply address</label>
+          <input id="po-supply-address" type="text" placeholder="Delivery address">
+        </div>
+        <div class="p-field">
+          <label>Exchange rate</label>
+          <input id="po-ex-rate" type="number" step="0.001" value="1">
+        </div>
+
+        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Line items</p>
+        <div id="po-form-items"></div>
+
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="primary" style="flex:1;" onclick="savePOForm()">Create PO →</button>
+          <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closePOForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVOICE / GOODS RECEIPT FORM -->
+    <div class="p-panel" id="purch-invoice-form">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">Receive &amp; Convert to Invoice</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;"><span id="inv-form-po-id"></span></p>
+
+        <div class="p-field">
+          <label>Supplier ref (vendor's invoice number)</label>
+          <input id="inv-supplier-ref" type="text" placeholder="Optional">
+        </div>
+
+        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Line items</p>
+        <div id="inv-form-items"></div>
+
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="primary" style="flex:1;" onclick="saveInvoiceForm()">Save Invoice →</button>
+          <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closeInvoiceForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="bnav">
     <div class="bni active" id="bn-eco" onclick="goTo('eco')"><div class="bni-icon">🌐</div><div class="bni-label">Ecosystem</div></div>
     <div class="bni" id="bn-roadmap" onclick="goTo('roadmap')"><div class="bni-icon">🗺️</div><div class="bni-label">Roadmap</div></div>
@@ -1171,6 +1299,7 @@
 <script src="shell.js"></script>
 <script src="operations.js"></script>
 <script src="curtain.js"></script>
+<script src="purchasing.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1218,6 +1347,7 @@ function subNodeTouch(id, active) {
   const NODES = [
     { id:'operations', cx:190, cy:123, built:true,  launch:()=>{ closePanel(); setTimeout(()=>goTo('operations'),150); } },
     { id:'curtain',    cx:316, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchCurtainModule(),150); } },
+    { id:'purchasing', cx:270, cy:60,  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPurchasingModule(),150); } },
     // Sub-nodes (Curtain children — direct launch)
     { id:'sub-tracks', cx:355, cy:112, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openTracksDashboard&&openTracksDashboard(),150); }, isSubNode:true },
     { id:'sub-qc',     cx:372, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openQCDashboard&&openQCDashboard(),150); },     isSubNode:true },

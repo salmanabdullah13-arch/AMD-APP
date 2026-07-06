@@ -9,6 +9,14 @@
 const purchStyleTag = document.createElement('style');
 purchStyleTag.textContent = `
 #purch-module-wrap { font-family: inherit; }
+#purch-module-wrap .ops-header{background:#8a6d00;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#purch-module-wrap .nav{background:#fff;border-bottom:1px solid #e2e8f0;overflow-x:auto;display:flex;padding:0 16px;flex:none;}
+#purch-module-wrap .ntab{background:none;border:0;border-bottom:2.5px solid transparent;color:#64748b;padding:10px 11px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;position:relative;}
+#purch-module-wrap .ntab.active{color:#8a6d00;border-bottom-color:#d4a017;font-weight:700;}
+#purch-module-wrap .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px;}
+#purch-module-wrap .page{display:none;padding:16px 18px;max-width:980px;margin:0 auto;}
+#purch-module-wrap .page.active{display:block;}
+#purch-module-wrap button.primary{background:#d4a017;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
 #purch-module-wrap .p-card {
   background:#fff; border:1px solid #e2e8f0; border-radius:12px;
   padding:14px; margin-bottom:12px;

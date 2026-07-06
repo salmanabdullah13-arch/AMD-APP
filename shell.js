@@ -22,9 +22,11 @@ function pt(v){
 // NAV
 const TT={eco:'Ecosystem',roadmap:'Roadmap',notes:'Notes',checklist:'Checklist',operations:'Operations',curtain:'Curtain & Blinds'};
 function goTo(p){
-  // Hide curtain module, restore main scroll
+  // Hide curtain/purchasing modules, restore main scroll
   const curtMod = document.getElementById('curt-module-wrap');
   if (curtMod) curtMod.style.cssText = 'display:none;';
+  const purchMod = document.getElementById('purch-module-wrap');
+  if (purchMod) purchMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
@@ -42,6 +44,7 @@ const M={
   center:{icon:'◣',title:'Al Maraya Decor',sub:'Business Operations System',status:'built',sl:'Core · all modules branch from here',features:['Operations module complete','Curtain & Blinds module complete','Production modules building','Owner dashboard planned','Tally bridge planned'],note:'Every module in the ecosystem connects back to the core business. Tap any node to see its details.',btn:'System overview'},
   operations:{icon:'⚙️',title:'Operations',sub:'Full job lifecycle management',status:'built',sl:'✓ Fully designed · 9 screens',features:['Dashboard + KPIs','New job alerts','Dept assignment + item detail','BOM with 3 ownership modes','Delegated tasks queue','Variations tracker (read-only)','Subcontractor tracking','Payment milestones','Snag list + sign-off','Internal notes','Client log + Documents','Delivery checklist','Capacity heatmap','Reminders log'],note:'Fully designed. Ready to hand to Nettworksy. Variations are raised by Sales/PM — not Operations.',btn:'View module summary'},
   curtain:{icon:'🪟',title:'Curtain & Blinds',sub:'Silva · Workshop + dedicated install crew',status:'built',sl:'✓ Built · 6 screens',features:['Dashboard — cost control KPIs','Window schedule with fabric calculator','Pattern repeat + roll width calculation','Room accordion — copy room / copy window','BOM — auto-generated from window schedule','Budget approval with BD 5k threshold','Procurement tracking','Installation scheduling + handover'],note:'Full module built. Window schedule calculates fabric metres from roll width, fullness, and pattern repeats. BOM auto-populates. Budget escalates to Salman over BD 5,000.',btn:'Open Curtain Module →'},
+  purchasing:{icon:'🛒',title:'Purchaser',sub:'Ops/Owner · Request → PO → Invoice',status:'built',sl:'✓ Built · 4 screens',features:['Dashboard — KPI rollup by division','Purchase Request queue, dept-filterable','Convert PR → PO with supplier + pricing','PO approval — mandatory rejection comment','Receive & convert PO → Invoice','Curtain fabric/rail shown read-only for context'],note:'Covers Upholstery, Joinery (incl. Painting) and Metal Works purchasing. Curtain keeps its own fabric/rail tracker (raised from the Fabric tab) — reconciled here only as a read-only rollup, never merged.',btn:'Open Purchaser →'},
   upholstery:{icon:'🛋️',title:'Upholstery',sub:'Sofas, re-upholstery, headboards',status:'soon',sl:'Planned — after Curtain',features:[],soon:['Job cards + measurements','Frame making stage','Foam & fabric cutting','Sewing & covering','QC checklist'],note:'After Curtain module is complete, this is next.'},
   joinery:{icon:'🪵',title:'Joinery',sub:'Woodwork, wardrobes, doors',status:'soon',sl:'Planned',features:[],soon:['Workshop job cards','Cutting & CNC','Assembly','Machine scheduling','Labour hours','Paint & metal sub-stages'],note:'Largest module — painting and metal works sit inside Joinery.'},
   painting:{icon:'🎨',title:'Painting',sub:'Finishes, spray, metal coating',status:'soon',sl:'Planned',features:[],soon:['Queue from Joinery','Finish specs (RAL, texture)','Spray stages','Curing tracking','QC sign-off'],note:'Serves both Joinery and Metal Works.'},
@@ -80,6 +83,10 @@ function showPanel(id){
   } else if(id==='curtain'){
     btnAction="closePanel();setTimeout(()=>launchCurtainModule(),300)";
     btnLabel='Open Curtain & Blinds →';
+    btnDim=false;
+  } else if(id==='purchasing'){
+    btnAction="closePanel();setTimeout(()=>launchPurchasingModule(),300)";
+    btnLabel='Open Purchaser →';
     btnDim=false;
   }
 
