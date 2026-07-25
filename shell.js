@@ -29,6 +29,10 @@ function goTo(p){
   if (purchMod) purchMod.style.cssText = 'display:none;';
   const skMod = document.getElementById('sk-module-wrap');
   if (skMod) skMod.style.cssText = 'display:none;';
+  const salesMod = document.getElementById('sales-module-wrap');
+  if (salesMod) salesMod.style.cssText = 'display:none;';
+  const estimatorMod = document.getElementById('estimator-module-wrap');
+  if (estimatorMod) estimatorMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
@@ -51,8 +55,8 @@ const M={
   upholstery:{icon:'🛋️',title:'Upholstery',sub:'Sofas, re-upholstery, headboards',status:'soon',sl:'Planned — after Curtain',features:[],soon:['Job cards + measurements','Frame making stage','Foam & fabric cutting','Sewing & covering','QC checklist'],note:'After Curtain module is complete, this is next.'},
   joinery:{icon:'🪵',title:'Joinery',sub:'Woodwork, wardrobes, doors',status:'soon',sl:'Planned',features:[],soon:['Workshop job cards','Cutting & CNC','Assembly','Machine scheduling','Labour hours','Paint & metal sub-stages'],note:'Largest module — painting and metal works sit inside Joinery.'},
   painting:{icon:'🎨',title:'Painting',sub:'Finishes, spray, metal coating',status:'soon',sl:'Planned',features:[],soon:['Queue from Joinery','Finish specs (RAL, texture)','Spray stages','Curing tracking','QC sign-off'],note:'Serves both Joinery and Metal Works.'},
-  sales:{icon:'💼',title:'Sales',sub:'Enquiry → Quote → Estimation → Approval',status:'built',sl:'✓ Enquiry built · Quote/Estimation/Approval next',features:['Enquiry — customer capture with Accounts verification gate','Follow-up log — appointments, meeting type, outcome','Unallocated / In Progress / Quoted / Lost tracking'],soon:['Quotation builder','Estimation routing','Approval gate','Variation raising','Client follow-up beyond Enquiry'],note:'Sales RAISES variations — this is where that flow starts. Not Operations. Enquiry is the first piece built; Quote/Estimation/Approval are separate upcoming sessions on the same foundation.',btn:'Open Enquiry →'},
-  estimation:{icon:'📋',title:'Estimation',sub:'BOQ, BOM, pricing, margins',status:'soon',sl:'Planned',features:[],soon:['Quote estimation','BOM per product','Margin analysis','Variation pricing'],note:'One estimator today. Design must allow expansion later.'},
+  sales:{icon:'💼',title:'Sales',sub:'Enquiry → Quotation',status:'built',sl:'✓ Built · Enquiry + Quotation',features:['Enquiry dashboard with filters (Un Assigned/Un Attended/Un Quoted)','Create Enquiry + inline New Customer','Enquiry Basic/Follow-up tabs, salesman-locked','Convert Quotation — only once linked to a real Customer','3-step Quotation wizard: Client & Project, Product & Services, Finalise','With Estimation locks pricing, routes to Estimator stage'],note:'Quotations can ONLY be created by converting an Enquiry linked to a real Customer — no standalone Create button, matching live Q-Pro. Estimator is its own standalone module (see the Estimator hub node) — Approver is tracked but not yet built as a screen.',btn:'Open Sales →'},
+  estimation:{icon:'📐',title:'Estimator',sub:'Pick → BOM → Selling Price',status:'built',sl:'✓ Built · standalone module',features:['Dashboard: Pending to Pick, My Actions, With Approver, Confirmed, PR','Pick a quotation off the Estimator stage','Manage Quote hub (Estimator view) with ESTIMATION tile','Estimation index — per-item Add/Update/Clear BOM','6-tab Job Estimation: Materials, Labour, Sub Contract, Hiring, Others, Summary','Cost-plus waterfall: overhead % per category → profit % → Selling Price, with manual override'],note:'Split out as its own module with its own simulated user identity (Salman\'s call, 25 Jul 2026) — Estimator is a distinct role in Q-Pro, not a Sales tab. Shares quotations[] with Sales via data.js.',btn:'Open Estimator →'},
   owner:{icon:'👑',title:'Owner Dashboard',sub:'Daily business health view',status:'soon',sl:'Planned',features:[],soon:['Revenue vs costs','Division performance','Cash position','Escalations only','Job profitability ranking'],note:'Daily view for Salman — answers 3 questions in 3 seconds. No noise.'},
   accounts:{icon:'💰',title:'Accounts',sub:'Tally bridge',status:'soon',sl:'Planned',features:[],soon:['Invoice sync to Tally','Payment reconciliation','P&L per division','Supplier payments'],note:'Tally stays for accounting. Bridge removes double entry.'},
   delivery:{icon:'🚚',title:'Delivery',sub:'Scheduling + sign-off',status:'soon',sl:'Partially built in Operations',features:['Pre-delivery checklist (in Operations)','Dispatch → invoice trigger','Delivery schedule'],soon:['Standalone driver view','Photo proof of delivery'],note:'Basic delivery is inside Operations already.'},
@@ -96,8 +100,12 @@ function showPanel(id){
     btnLabel='Open Storekeeper →';
     btnDim=false;
   } else if(id==='sales'){
-    btnAction="closePanel();setTimeout(()=>launchEnquiryModule(),300)";
-    btnLabel='Open Enquiry →';
+    btnAction="closePanel();setTimeout(()=>launchSalesModule(),300)";
+    btnLabel='Open Sales →';
+    btnDim=false;
+  } else if(id==='estimation'){
+    btnAction="closePanel();setTimeout(()=>launchEstimatorModule(),300)";
+    btnLabel='Open Estimator →';
     btnDim=false;
   }
 

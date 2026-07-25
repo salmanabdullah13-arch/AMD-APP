@@ -2031,207 +2031,416 @@ const EMPLOYEE_RATES = {
   'Ammar Bahadur': { rate: 0.704, department: 'Watchman', category: 'Production' },
 };
 
-// ══════════════════════════════════════════════
-// SALES — CUSTOMERS + ENQUIRY
-// Built session: 24 Jul 2026. First piece of the Enquiry -> Quotation ->
-// Estimation -> Approval pipeline (replacing Q-Pro's Sales module).
-// Quote/Estimation/Approval are separate future sessions built on this
-// same foundation — see markEnquiryQuoted() below.
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════
+// SALES MODULE DATA — Enquiry → Quotation
+// Rebuilt 25 Jul 2026 from a live reverse-engineered Q-Pro reference
+// (qpro.almarayadecor.com) supplied by Salman, replacing an earlier
+// version of this module that was designed from a handoff brief but never
+// actually landed in this repo (lost between sessions).
+//
+// GLOBAL WORKFLOW RULE (confirmed against live Q-Pro, not guessed):
+// Quotations can ONLY be created by converting an existing Enquiry, and
+// only once that Enquiry is linked to a real Customer record — never
+// standalone, never from a bare prospect. Q-Pro's own error for the
+// prospect-only case is "Please Select Customer To Proceed!!!" — reused
+// verbatim in canConvertToQuotation()/convertEnquiryToQuotation() below.
+//
+// Estimator and Approver (the next two stages after Quotation) have not
+// been mapped yet — do not build UI for them. quotation.stage tracks
+// which of the three roles currently owns a quotation (sales/estimator/
+// approver) so that hand-off is modeled even though only the Sales side
+// has a real screen right now.
+// ═══════════════════════════════════════
 
-// ── CUSTOMER MASTER ──
-// New customers are entered inline during Enquiry creation, but every one
-// needs Accounts to verify it isn't a duplicate of an existing record
-// before it's trusted — duplicate customer records have broken SOA
-// generation before. approvalStatus gates that, same pattern as
-// approveInvoice/rejectInvoice above.
-const customers = [];
-
-function nextCustomerId() {
-  return "C-" + String(customers.length + 1).padStart(4, "0") + "-AMD";
-}
-
-function createCustomer({
-  name, tel, tel2 = "", email = "", address, vatName = "", vatNo = "", crNo = "", country = "Bahrain",
-  taxPercent = 10, isCredit = false, creditLimit = 0, creditDays = 0,
-  bankAccountNumber = "", bankAccountHolder = "", iban = "", swift = "", bankName = "", bankBranch = "",
-  openingBalance = 0, createdBy
-}) {
-  const customer = {
-    id: nextCustomerId(),
-    name,
-    tel,
-    tel2,
-    email,
-    address,
-    vatName,
-    vatNo,
-    crNo,
-    country,
-    taxPercent,
-    isCredit,
-    creditLimit,
-    creditDays,
-    bankAccountNumber,
-    bankAccountHolder,
-    iban,
-    swift,
-    bankName,
-    bankBranch,
-    openingBalance,
-    contactPersons: [],
-    approvalStatus: "pending",   // pending | approved | rejected
-    approvedBy: null,
-    approvalDate: null,
-    rejectionComment: null,
-    duplicateOfCustomerId: null, // set on reject when this turns out to be a duplicate — points Accounts at the real record
-    createdBy,
-    dateCreated: new Date().toISOString().slice(0, 10)
-  };
-  customers.push(customer);
-  return customer;
-}
-
-function addCustomerContactPerson(customerId, name) {
-  const customer = customers.find(c => c.id === customerId);
-  if (!customer) return { error: "Customer not found." };
-  const contact = { id: customerId + "-CP" + String(customer.contactPersons.length + 1).padStart(2, "0"), name };
-  customer.contactPersons.push(contact);
-  return contact;
-}
-
-function approveCustomer(customerId, approvedBy) {
-  const customer = customers.find(c => c.id === customerId);
-  if (!customer) return null;
-  customer.approvalStatus = "approved";
-  customer.approvedBy = approvedBy;
-  customer.approvalDate = new Date().toISOString().slice(0, 10);
-  return customer;
-}
-
-function rejectCustomer(customerId, rejectedBy, comment, duplicateOfCustomerId = null) {
-  const customer = customers.find(c => c.id === customerId);
-  if (!customer) return null;
-  customer.approvalStatus = "rejected";
-  customer.approvedBy = rejectedBy;
-  customer.approvalDate = new Date().toISOString().slice(0, 10);
-  customer.rejectionComment = comment;
-  customer.duplicateOfCustomerId = duplicateOfCustomerId;
-  return customer;
-}
-
-function getPendingCustomerApprovals() {
-  return customers.filter(c => c.approvalStatus === "pending");
-}
-
-// ── ENQUIRY ──
-const enquiries = [];
-
-// Cross-referenced from a live Q-Pro dashboard screenshot (Sales Person
-// Assigned dropdown) plus real enquiry records (sales_man field) — still
-// likely a partial list, not Q-Pro's full user directory. Extend as more
-// of the real team is confirmed.
-const SALES_PEOPLE = ["Salman Abdullah", "Karthik Silva", "Aslam Abdul Rehman Qureshi", "Rajneesh V", "Jinesh Jayarajan", "Mohammad Shafeel", "Arun Kumar", "Sampath S Kumar", "Altaf Ghare", "Abdul Raheem Mohammed"];
-
-const ENQUIRY_SOURCES = ["Architect/Interior Designer", "Email", "Existing client", "Q-pro (Old quotes)", "Referrals", "Social Media", "Walk-in"];
-const FOLLOWUP_MEETING_TYPES = ["Telephone Call", "Email", "Meeting at Client Office", "Meeting at Our Office", "On Site Meeting", "Sample Delivery", "Whatsapp Chat"];
+const ENQUIRY_SOURCES = ["Architect/Interior Designer", "Email", "Existing client", "Q-pro/Old quotes", "Referrals", "Social Media", "walk inn"];
+const MEETING_TYPES = ["Telephone Call", "Whatsapp Chat", "Meeting at Client Office", "Meeting at Al Maraya Showroom", "Site Visit"];
 const FOLLOWUP_OUTCOMES = ["On call/whatsapp", "Required design/proposal", "Client not attended", "On site measurements"];
+// Divisions this Enquiry form offers — only "furniture" has been seen in the live
+// Q-Pro URL path (furniture/Enquiry/createenquiry); the rest mirror AMD's own
+// production divisions (DEPTS above) until Q-Pro's full division list is captured.
+const SALES_DIVISIONS = ["Curtain & Blinds", "Furniture", "Joinery", "Upholstery", "Metal Works"];
+const QUOTE_UNITS = ["Nos", "Meters", "Sqmtr", "CFT", "CBM", "Box", "Btl", "Ctn", "Yard", "Lot", "Window", "Room"];
+// Common subset, NOT the full ISO-3166 list Q-Pro's Add Customer dropdown actually has —
+// good enough until that full list is captured.
+const COUNTRIES = ["Bahrain", "Saudi Arabia", "United Arab Emirates", "Kuwait", "Qatar", "Oman", "India", "Pakistan", "Bangladesh", "Philippines", "Sri Lanka", "Nepal", "Egypt", "Jordan", "Lebanon", "United Kingdom", "United States", "Other"];
+const COVERING_LETTER_TEMPLATES = { "Al Maraya decor.": (project) => `Sub: ${project}\n\nDear Sir/Madam,\n\nThank you for the opportunity to quote for the above-mentioned project. Please find our detailed quotation enclosed.\n\nWe look forward to being of service.\n\nRegards,\nAl Maraya Decor` };
+const TERMS_TEMPLATES = { "Al Maraya Decor Standard.": `1. This quotation is valid for 30 days from the date of issue.\n2. 50% advance payment required to confirm the order, balance on completion.\n3. Delivery/installation timeline to be confirmed upon order confirmation.\n4. Prices are subject to change if scope of work changes.\n5. Any additional work outside this quotation will be charged separately.` };
 
-function nextEnquiryId() {
-  return "ENQ-" + String(enquiries.length + 1).padStart(4, "0") + "-AMD";
+// ── CUSTOMERS ──
+// Customer Code format matches the live reference (C1508) — sequential from
+// an arbitrary Q-Pro-observed starting point, not a business-meaningful number.
+const customers = [
+  {
+    id: "C1508", name: "ZZTEST", contactPerson: "Test Contact", tel: "00099911", tel2: "", email: "", fax: "",
+    vatName: "", vatNo: "", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0,
+    bankAccountNumber: "", bankAccountHolderName: "", ibanNumber: "", bankSwift: "", bankName: "", bankBranch: "",
+    address: "Test Address, Manama", crNo: "", country: "Bahrain", openingBalance: 0, salesMan: "Salman Abdullah"
+  }
+];
+function nextCustomerCode() { return "C" + (1508 + customers.length); }
+function customerTelExists(tel, excludeId = null) {
+  return customers.some(c => c.id !== excludeId && c.tel === tel);
+}
+// Mirrors the live Add Customer form field-for-field. Telephone uniqueness is
+// enforced here (confirmed live Q-Pro validation), matching the "*" required
+// fields: Name, Contact Person, Telephone, Address.
+function createCustomer({ name, contactPerson, tel, tel2 = "", email = "", fax = "", vatName = "", vatNo = "", taxPercent = 0, isCredit = false, creditLimit = 0, creditDays = 0, bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "", bankSwift = "", bankName = "", bankBranch = "", address, crNo = "", country = "Bahrain", openingBalance = 0, salesMan }) {
+  if (!name || !contactPerson || !tel || !address) return { error: "Name, Contact Person, Telephone and Address are required." };
+  if (customerTelExists(tel)) return { error: "Telephone must be unique across all customers." };
+  const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, address, crNo, country, openingBalance, salesMan };
+  customers.push(c);
+  return c;
 }
 
-function createEnquiry({ customerId, contactPersonId = null, tel = "", email = "", requirements, sourceOfEnquiry, salesPersonAssigned = null }) {
-  const enquiry = {
-    id: nextEnquiryId(),
-    dateCreated: new Date().toISOString().slice(0, 10),
-    customerId,
-    contactPersonId,
-    tel,
-    email,
-    requirements,
-    sourceOfEnquiry,
-    salesPersonAssigned,
-    status: salesPersonAssigned ? "in-progress" : "unallocated", // unallocated | in-progress | quoted | lost
-    lostReason: null,
-    followUps: [],
-    linkedQuotationId: null
+// ── ENQUIRIES ──
+// Enq No format matches the live reference (ENQ04061AMD).
+function nextEnquiryNo() { return "ENQ" + String(4061 + enquiries.length).padStart(5, "0") + "AMD"; }
+// "Basic" tab (all fields below except followUps) is editable only by the
+// assigned salesPerson in the live system — other roles see it locked with a
+// banner. Enforced in the UI layer (sales.js), not here.
+function createEnquiry({ division, customerId = null, prospectName = "", contactPerson, tel, email = "", requirements = "", source, salesPerson, dateCreated }) {
+  if (!customerId && !prospectName) return { error: "Select a Customer or enter a New Prospect Name." };
+  const e = {
+    id: nextEnquiryNo(), division, customerId, prospectName: customerId ? "" : prospectName,
+    contactPerson, tel, email, requirements, source, salesPerson,
+    dateCreated: dateCreated || new Date().toISOString().slice(0, 10),
+    followUps: [], linkedQuotationId: null
   };
-  enquiries.push(enquiry);
-  return enquiry;
+  enquiries.push(e);
+  return e;
 }
-
-function assignEnquirySalesPerson(enquiryId, salesPerson) {
-  const enquiry = enquiries.find(e => e.id === enquiryId);
-  if (!enquiry) return null;
-  enquiry.salesPersonAssigned = salesPerson;
-  if (enquiry.status === "unallocated") enquiry.status = "in-progress";
-  return enquiry;
+// Notes must be at least 10 characters (live Q-Pro form validation).
+function addFollowUp(enquiryId, { date, meetingType, outcome, notes }) {
+  const e = enquiries.find(x => x.id === enquiryId);
+  if (!e) return { error: "Enquiry not found." };
+  if (!notes || notes.trim().length < 10) return { error: "Notes must be at least 10 characters." };
+  e.followUps.push({ date: date || new Date().toISOString().slice(0, 10), meetingType, outcome, notes: notes.trim() });
+  return e;
 }
+// "Cancel" on the live Enquiry List is a real permanent delete, not a status
+// change — reproduced faithfully here rather than softened into a status flag.
+function cancelEnquiry(enquiryId) {
+  const idx = enquiries.findIndex(e => e.id === enquiryId);
+  if (idx === -1) return { error: "Enquiry not found." };
+  enquiries.splice(idx, 1);
+  return { ok: true };
+}
+// Only available once the Enquiry is linked to a real Customer — reproduces
+// the live "Please Select Customer To Proceed!!!" error for prospect-only enquiries.
+function canConvertToQuotation(enquiry) { return !!(enquiry && enquiry.customerId); }
 
-function addEnquiryFollowUp(enquiryId, { dateOfAppointment, meetingType, outcome, notes }) {
-  const enquiry = enquiries.find(e => e.id === enquiryId);
-  if (!enquiry) return { error: "Enquiry not found." };
-  if (!notes || notes.length < 10) return { error: "Notes must be at least 10 characters." };
-  const followUp = {
-    id: enquiryId + "-FU" + String(enquiry.followUps.length + 1).padStart(2, "0"),
-    dateOfAppointment,
-    meetingType,
-    outcome,
-    notes,
-    loggedAt: new Date().toISOString().slice(0, 10)
+// ── QUOTATIONS ──
+// Qtn No format matches the live reference (AMD-15350-0) — "-0" is revision 0.
+const quotations = [];
+function nextQtnNo() { return "AMD-" + (15350 + quotations.length) + "-0"; }
+function computeQuotationTotals(qtn) {
+  let itemTotal = 0, discTotal = 0, vatTotal = 0, netTotal = 0;
+  qtn.items.forEach(it => {
+    itemTotal += it.amount || 0;
+    discTotal += it.discAmt || 0;
+    vatTotal += ((it.amount || 0) - (it.discAmt || 0)) * (it.vatPercent || 0) / 100;
+    netTotal += it.netAmount || 0;
+  });
+  return { itemTotal, discTotal, vatTotal, netTotal };
+}
+// Step 1 of the 3-step wizard. Refuses conversion from a prospect-only
+// Enquiry — see canConvertToQuotation() above.
+function convertEnquiryToQuotation(enquiryId, { projectName, taxPercent, contactPerson, withEstimation, notes = "" }) {
+  const enq = enquiries.find(e => e.id === enquiryId);
+  if (!enq) return { error: "Enquiry not found." };
+  if (!canConvertToQuotation(enq)) return { error: "Please Select Customer To Proceed!!!" };
+  const qtn = {
+    id: nextQtnNo(), rev: 0, enquiryId, customerId: enq.customerId,
+    projectName, taxPercent, contactPerson, withEstimation: !!withEstimation, notes,
+    items: [], coveringLetterTemplate: null, coveringLetterBody: "", termsTemplate: null, termsBody: "",
+    lifecycleStatus: "draft", stage: "sales", pickedBy: null,
+    date: new Date().toISOString().slice(0, 10), confirmDate: null
   };
-  enquiry.followUps.push(followUp);
-  return followUp;
+  quotations.push(qtn);
+  enq.linkedQuotationId = qtn.id;
+  return qtn;
+}
+function nextQuotationItemId(qtn) { return qtn.items.length + 1; }
+function addQuotationItem(qtnId, item) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const amount = (item.qty || 0) * (item.rate || 0);
+  const discAmt = item.discAmt || (amount * (item.discPercent || 0) / 100);
+  const netAmount = qtn.withEstimation ? 0 : (amount - discAmt) * (1 + (item.vatPercent || 0) / 100);
+  const row = {
+    lineId: nextQuotationItemId(qtn), group: item.group || "", subgroup: item.subgroup || "",
+    product: item.product, qty: item.qty || 0, unit: item.unit || "Nos",
+    rate: qtn.withEstimation ? 0 : (item.rate || 0), amount: qtn.withEstimation ? 0 : amount,
+    vatPercent: item.vatPercent || 0, discPercent: item.discPercent || 0, discAmt: qtn.withEstimation ? 0 : discAmt,
+    netAmount: qtn.withEstimation ? 0 : netAmount,
+    description: item.description || "", internalComments: item.internalComments || "", optional: !!item.optional,
+    bom: null // set by ensureItemBOM() once the Estimator adds a BOM — see ESTIMATOR section below
+  };
+  qtn.items.push(row);
+  return row;
+}
+function removeQuotationItem(qtnId, lineId) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  qtn.items = qtn.items.filter(it => it.lineId !== lineId);
+  return { ok: true };
+}
+// Step 3 of the wizard — "Update Quotation" on the live system. If "With
+// Estimation" was checked in Step 1, pricing is locked for Sales, so the
+// quotation is routed straight to the Estimator stage (matches the live
+// reference AMD-15350-0, which sits in Estimator with rate locked at 0).
+function finaliseQuotation(qtnId, { coveringLetterTemplate, termsTemplate }) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  if (coveringLetterTemplate && COVERING_LETTER_TEMPLATES[coveringLetterTemplate]) {
+    qtn.coveringLetterTemplate = coveringLetterTemplate;
+    qtn.coveringLetterBody = COVERING_LETTER_TEMPLATES[coveringLetterTemplate](qtn.projectName);
+  }
+  if (termsTemplate && TERMS_TEMPLATES[termsTemplate]) {
+    qtn.termsTemplate = termsTemplate;
+    qtn.termsBody = TERMS_TEMPLATES[termsTemplate];
+  }
+  qtn.lifecycleStatus = "open";
+  qtn.stage = qtn.withEstimation ? "estimator" : "sales";
+  return qtn;
+}
+// Every hand-off between roles is a fresh assignment — pickedBy is always
+// cleared here, whichever direction the transfer goes.
+function transferQuotationStage(qtnId, newStage) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  qtn.stage = newStage;
+  qtn.pickedBy = null;
+  return qtn;
 }
 
-function markEnquiryLost(enquiryId, reason = null) {
-  const enquiry = enquiries.find(e => e.id === enquiryId);
-  if (!enquiry) return null;
-  enquiry.status = "lost";
-  enquiry.lostReason = reason;
-  return enquiry;
+// ═══════════════════════════════════════
+// MODULE 3 — ESTIMATOR
+// Rebuilt 25 Jul 2026 from the same live Q-Pro reverse-engineering pass as
+// Enquiry/Quotation above. Covers: the Estimator dashboard (Pending to Pick /
+// My Actions / With Approver / Confirmed / PR), picking a quotation, and the
+// per-item Job Estimation BOM entry (Materials / Labour / Sub Contract /
+// Hiring / Others / Summary) with the cost-plus pricing waterfall that
+// writes the calculated Selling Price back onto the quotation item.
+// ═══════════════════════════════════════
+
+// Placeholder item/inventory master for the Materials tab's typeahead — Q-Pro's
+// real item master (with live cost/stock columns) hasn't been captured yet, so
+// this is a small seed list only, enough to exercise the BOM entry screen.
+const ITEM_MASTER = [
+  { code: "IT001886", name: "Aluminium U-Shape Head Rail — Ningbo CH016", cost: 4.2, stock: 120, unit: "Meters" },
+  { code: "IT002395", name: "Cord Rail — Heavy Duty White (COR001)", cost: 3.6, stock: 85, unit: "Meters" },
+  { code: "IT450", name: "Somfy Glydea Track — raw rail", cost: 28.5, stock: 14, unit: "Meters" },
+  { code: "IT330", name: "Unisoiel Cord Track — DC01 Heavy", cost: 5.1, stock: 60, unit: "Meters" },
+  { code: "IT362", name: "Roman Blind Headrail — Unisoiel RAE01", cost: 6.8, stock: 22, unit: "Nos" },
+  { code: "GEN-FAB", name: "Test Curtain Fabric - Mapping Exercise", cost: 2.0, stock: 500, unit: "Meters" }
+];
+function searchItemMaster(query) {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return ITEM_MASTER;
+  return ITEM_MASTER.filter(it => it.name.toLowerCase().includes(q) || it.code.toLowerCase().includes(q));
+}
+// Emp Category list — not captured from Q-Pro's own dropdown yet, seeded from
+// common production role tiers used elsewhere in this app (EMPLOYEE_RATES 'category').
+const EMP_CATEGORIES = ["Skilled", "Semi-Skilled", "Helper", "Supervisor"];
+
+// Only quotations sitting in the Estimator stage are ever "pending to pick" —
+// picking assigns the quote to whichever estimator name is passed in.
+function pickQuotation(qtnId, estimatorName) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  if (qtn.stage !== "estimator") return { error: "This quotation is not in the Estimator stage." };
+  if (qtn.pickedBy) return { error: "This quotation has already been picked." };
+  qtn.pickedBy = estimatorName;
+  return qtn;
 }
 
-// Reserved for the future Quote-building session — nothing in this
-// session's Enquiry build calls this yet.
-function markEnquiryQuoted(enquiryId, quotationId) {
-  const enquiry = enquiries.find(e => e.id === enquiryId);
-  if (!enquiry) return null;
-  enquiry.status = "quoted";
-  enquiry.linkedQuotationId = quotationId;
-  return enquiry;
+function findQuotationItem(qtnId, lineId) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return null;
+  return qtn.items.find(it => it.lineId === lineId) || null;
 }
 
-// ── SALES DASHBOARD KPIs ──
-function getEnquiryKPIs() {
+// Creates the BOM container the first time "+ Add BOM" is used on an item.
+// Overhead defaults match the live-observed percentages (Material/Labour/
+// Subcontract 5%, Hiring/Others 0%, Profit 30%).
+function ensureItemBOM(item) {
+  if (!item.bom) {
+    item.bom = {
+      materials: [], labour: [], subcontract: [], hiring: [], others: [],
+      ohPercents: { material: 5, labour: 5, subcontract: 5, hiring: 0, others: 0 },
+      profitPercent: 30, sellingPriceOverride: null, submitted: false
+    };
+  }
+  return item.bom;
+}
+function addBOMMaterial(qtnId, lineId, { name, description = "", qty, unit, rate }) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  const bom = ensureItemBOM(item);
+  const amount = (qty || 0) * (rate || 0);
+  bom.materials.push({ id: bom.materials.length + 1, name, description, qty: qty || 0, unit, rate: rate || 0, amount });
+  return bom;
+}
+function addBOMLabour(qtnId, lineId, { department, empCategory, noOfPpl, hrs, rate }) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  const bom = ensureItemBOM(item);
+  const manHrs = (noOfPpl || 0) * (hrs || 0);
+  const amount = manHrs * (rate || 0);
+  bom.labour.push({ id: bom.labour.length + 1, department, empCategory, noOfPpl: noOfPpl || 0, hrs: hrs || 0, manHrs, rate: rate || 0, amount });
+  return bom;
+}
+function addBOMSubcontract(qtnId, lineId, { vendor, workType, amount }) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  const bom = ensureItemBOM(item);
+  bom.subcontract.push({ id: bom.subcontract.length + 1, vendor, workType, amount: amount || 0 });
+  return bom;
+}
+function addBOMHiring(qtnId, lineId, { vendor, workType, amount }) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  const bom = ensureItemBOM(item);
+  bom.hiring.push({ id: bom.hiring.length + 1, vendor, workType, amount: amount || 0 });
+  return bom;
+}
+function addBOMOther(qtnId, lineId, { party, details, amount }) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  const bom = ensureItemBOM(item);
+  bom.others.push({ id: bom.others.length + 1, party, details, amount: amount || 0 });
+  return bom;
+}
+function removeBOMEntry(qtnId, lineId, category, entryId) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item || !item.bom) return { error: "BOM not found." };
+  item.bom[category] = item.bom[category].filter(r => r.id !== entryId);
+  return item.bom;
+}
+function setBOMOHPercent(qtnId, lineId, category, val) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item || !item.bom) return { error: "BOM not found." };
+  item.bom.ohPercents[category] = val;
+  return item.bom;
+}
+function setBOMProfitPercent(qtnId, lineId, val) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item || !item.bom) return { error: "BOM not found." };
+  item.bom.profitPercent = val;
+  return item.bom;
+}
+function setBOMSellingOverride(qtnId, lineId, val) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item || !item.bom) return { error: "BOM not found." };
+  item.bom.sellingPriceOverride = (val === null || val === "") ? null : Number(val);
+  return item.bom;
+}
+
+// Cost-plus waterfall — Total Cost -> per-category overhead -> Total Cost
+// Incl. Overhead -> Profit % -> Selling Price. Verified against the live
+// reference calc: 5 Meters x 2.000 material = 10.000 -> +5% Material OH =
+// 10.500 -> +30% profit (3.150) = Selling Price 13.650.
+function computeBOMTotals(bom) {
+  const sum = arr => arr.reduce((s, r) => s + (r.amount || 0), 0);
+  const materialCost = sum(bom.materials), labourCost = sum(bom.labour),
+        subcontractCost = sum(bom.subcontract), hiringCost = sum(bom.hiring), othersCost = sum(bom.others);
+  const totalCost = materialCost + labourCost + subcontractCost + hiringCost + othersCost;
+  const oh = bom.ohPercents;
+  const ohAmounts = {
+    material: materialCost * oh.material / 100,
+    labour: labourCost * oh.labour / 100,
+    subcontract: subcontractCost * oh.subcontract / 100,
+    hiring: hiringCost * oh.hiring / 100,
+    others: othersCost * oh.others / 100
+  };
+  const totalCostInclOH = totalCost + ohAmounts.material + ohAmounts.labour + ohAmounts.subcontract + ohAmounts.hiring + ohAmounts.others;
+  const profitAmount = totalCostInclOH * bom.profitPercent / 100;
+  const calculatedSellingPrice = totalCostInclOH + profitAmount;
+  return { materialCost, labourCost, subcontractCost, hiringCost, othersCost, totalCost, ohAmounts, totalCostInclOH, profitAmount, calculatedSellingPrice };
+}
+
+// "Submit" on the Summary tab — saves the BOM and writes the Selling Price
+// (override if set, else the calculated figure) back onto the quotation
+// item's Rate, recomputing Amount/Net Amount with VAT applied on top, same
+// as the live-verified example (13.650 x 1.10 VAT = 15.015).
+function submitItemBOM(qtnId, lineId) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item || !item.bom) return { error: "BOM not found." };
+  const totals = computeBOMTotals(item.bom);
+  const sellingPrice = item.bom.sellingPriceOverride !== null ? item.bom.sellingPriceOverride : totals.calculatedSellingPrice;
+  item.rate = sellingPrice;
+  item.amount = item.qty * item.rate;
+  item.discAmt = item.amount * (item.discPercent || 0) / 100;
+  item.netAmount = (item.amount - item.discAmt) * (1 + (item.vatPercent || 0) / 100);
+  item.bom.submitted = true;
+  return { item, totals };
+}
+function clearItemBOM(qtnId, lineId) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  item.bom = null;
+  item.rate = 0; item.amount = 0; item.discAmt = 0; item.netAmount = 0;
+  return { ok: true };
+}
+
+// Estimator dashboard KPIs. PR Pending/Not Received is an approximation off
+// the existing Purchasing chain (open PRs / issued-but-not-yet-invoiced POs)
+// — Estimator's own PR view in Q-Pro hasn't been mapped in detail yet.
+function getEstimatorKPIs(estimatorName) {
+  const estQuotes = quotations.filter(q => q.stage === "estimator");
+  const pendingToPickList = estQuotes.filter(q => !q.pickedBy);
+  const myActionsList = estQuotes.filter(q => q.pickedBy === estimatorName);
+  const withApprover = quotations.filter(q => q.stage === "approver").length;
+  const confirmed = quotations.filter(q => q.lifecycleStatus === "confirmed").length;
+  const prPending = purchaseRequests.filter(pr => pr.status === "open").length;
+  const prNotReceived = purchaseOrders.filter(po => po.status === "issued").length;
+
+  // Furniture/Joinery/Metal Works roll up into "Joinery", mirroring the same
+  // rollup Purchasing already uses for its own category breakdown.
+  function divisionCategory(div) {
+    if (div === "Curtain & Blinds") return "curtain";
+    if (div === "Upholstery") return "upholstery";
+    return "joinery";
+  }
+  const categoryBreakdown = { curtain: 0, upholstery: 0, joinery: 0 };
+  estQuotes.forEach(q => {
+    const enq = enquiries.find(e => e.id === q.enquiryId);
+    categoryBreakdown[divisionCategory(enq ? enq.division : "")]++;
+  });
+
   return {
-    unallocatedCount: enquiries.filter(e => e.status === "unallocated").length,
-    inProgressCount: enquiries.filter(e => e.status === "in-progress").length,
-    lostCount: enquiries.filter(e => e.status === "lost").length,
-    quotedCount: enquiries.filter(e => e.status === "quoted").length,
-    pendingCustomerApprovals: getPendingCustomerApprovals().length
+    pendingToPick: pendingToPickList.length, pendingToPickList,
+    myActions: myActionsList.length, myActionsList,
+    withApprover, confirmed, prPending, prNotReceived, categoryBreakdown
   };
 }
 
-// ── DEMO SEED DATA ──
-// 10 sample customers pulled 24 Jul 2026 from a Chrome-extension session
-// exploring live Q-Pro's Enquiry/Customer form — confirmed synthetic
-// (Salman), not real clients, so imported pre-approved as demo/test data
-// rather than routed through the pending-verification queue.
-[
-  { name: "Sunrise Interiors WLL", contactPerson: "Fatima Al-Sayed", tel: "17334521", tel2: "39887701", email: "fatima.alsayed@sunriseint-test.com", vatName: "Sunrise Interiors WLL", vatNo: "BH-VAT-100234", taxPercent: 10, isCredit: true, creditLimit: 5000, creditDays: 30, address: "Building 224, Road 12, Block 305, Juffair, Bahrain", crNo: "CR-55231", country: "Bahrain", openingBalance: 0 },
-  { name: "Bluewave Furnishings", contactPerson: "Ahmed Khalid", tel: "17556432", tel2: "", email: "a.khalid@bluewave-test.com", vatName: "Bluewave Furnishings", vatNo: "BH-VAT-100987", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Villa 45, Road 3612, Block 436, Seef, Bahrain", crNo: "CR-61245", country: "Bahrain", openingBalance: 1200 },
-  { name: "Al Noor Design Studio", contactPerson: "Mariam Youssef", tel: "33221190", tel2: "", email: "mariam@alnoor-test.com", vatName: "Al Noor Design Studio", vatNo: "BH-VAT-101456", taxPercent: 5, isCredit: true, creditLimit: 3000, creditDays: 15, address: "Office 12, Bahrain Financial Harbour, Manama", crNo: "CR-70012", country: "Bahrain", openingBalance: 0 },
-  { name: "Palm Grove Properties", contactPerson: "Yousif Al-Marzooq", tel: "17998211", tel2: "36445521", email: "yousif@palmgrove-test.com", vatName: "Palm Grove Properties", vatNo: "BH-VAT-102301", taxPercent: 10, isCredit: true, creditLimit: 8000, creditDays: 45, address: "Building 90, Road 1706, Block 317, Hoora, Bahrain", crNo: "CR-48822", country: "Bahrain", openingBalance: 0 },
-  { name: "Heritage Home Decor", contactPerson: "Layla Hassan", tel: "17773344", tel2: "", email: "layla.h@heritagehome-test.com", vatName: "Heritage Home Decor", vatNo: "BH-VAT-103675", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Shop 7, Al Aali Mall, Zinj, Bahrain", crNo: "CR-30044", country: "Bahrain", openingBalance: 500 },
-  { name: "Ebrahim & Sons Trading", contactPerson: "Khalid Ebrahim", tel: "17664521", tel2: "", email: "k.ebrahim@ebrahimsons-test.com", vatName: "Ebrahim & Sons Trading", vatNo: "BH-VAT-104882", taxPercent: 0, isCredit: false, creditLimit: 0, creditDays: 0, address: "Building 12, Road 55, Block 601, Sitra, Bahrain", crNo: "CR-19233", country: "Bahrain", openingBalance: 0 },
-  { name: "Casa Bella Interiors", contactPerson: "Noora Abdulla", tel: "39112233", tel2: "", email: "noora@casabella-test.com", vatName: "Casa Bella Interiors", vatNo: "BH-VAT-105129", taxPercent: 10, isCredit: true, creditLimit: 4500, creditDays: 30, address: "Villa 8, Road 2222, Block 222, Saar, Bahrain", crNo: "CR-58891", country: "Bahrain", openingBalance: 0 },
-  { name: "Marina Bay Contracting", contactPerson: "Hamad Al-Dosari", tel: "17887744", tel2: "", email: "hamad@marinabay-test.com", vatName: "Marina Bay Contracting", vatNo: "BH-VAT-106453", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Office 301, Marina Tower, Manama", crNo: "CR-72219", country: "Bahrain", openingBalance: 2000 },
-  { name: "Desert Rose Furniture", contactPerson: "Amina Salman", tel: "33556677", tel2: "", email: "amina@desertrose-test.com", vatName: "Desert Rose Furniture", vatNo: "BH-VAT-107784", taxPercent: 5, isCredit: false, creditLimit: 0, creditDays: 0, address: "Building 6, Road 405, Block 605, Isa Town, Bahrain", crNo: "CR-33456", country: "Bahrain", openingBalance: 0 },
-  { name: "Golden Gate Interiors", contactPerson: "Sara Al-Khalifa", tel: "17221144", tel2: "", email: "sara@goldengate-test.com", vatName: "Golden Gate Interiors", vatNo: "BH-VAT-108990", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Villa 100, Road 3020, Block 330, Riffa, Bahrain", crNo: "CR-64410", country: "Bahrain", openingBalance: 0 }
-].forEach(seed => {
-  const c = createCustomer({ ...seed, createdBy: "Demo seed" });
-  addCustomerContactPerson(c.id, seed.contactPerson);
-  approveCustomer(c.id, "Demo seed");
+// ── LIVE REFERENCE FIXTURE ──
+// Built for testing against the real Q-Pro flow (Salman, 25 Jul 2026) — safe
+// to reuse as a Claude Code test fixture. ENQ04061AMD -> AMD-15350-0, sitting
+// in the Estimator stage exactly as it does live (With Estimation checked,
+// so the one line item's rate is locked at 0 pending the Estimator role).
+const enquiries = [
+  {
+    id: "ENQ04061AMD", division: "Furniture", customerId: "C1508", prospectName: "",
+    contactPerson: "Test Contact", tel: "00099911", email: "", requirements: "Reference enquiry for Claude Code mapping exercise.",
+    source: "walk inn", salesPerson: "Salman Abdullah", dateCreated: "2026-07-24",
+    followUps: [
+      { date: "2026-07-24", meetingType: "Telephone Call", outcome: "Required design/proposal", notes: "Client requested a quotation for one reference curtain item to validate the Sales module mapping." }
+    ],
+    linkedQuotationId: "AMD-15350-0"
+  }
+];
+quotations.push({
+  id: "AMD-15350-0", rev: 0, enquiryId: "ENQ04061AMD", customerId: "C1508",
+  projectName: "ZZTEST Reference Project - Claude Mapping", taxPercent: 10, contactPerson: "Test Contact",
+  withEstimation: true, notes: "",
+  items: [
+    { lineId: 1, group: "", subgroup: "", product: "Test Curtain Fabric - Mapping Exercise", qty: 1, unit: "Meters", rate: 0, amount: 0, vatPercent: 10, discPercent: 0, discAmt: 0, netAmount: 0, description: "", internalComments: "", optional: false, bom: null }
+  ],
+  coveringLetterTemplate: "Al Maraya decor.", coveringLetterBody: COVERING_LETTER_TEMPLATES["Al Maraya decor."]("ZZTEST Reference Project - Claude Mapping"),
+  termsTemplate: "Al Maraya Decor Standard.", termsBody: TERMS_TEMPLATES["Al Maraya Decor Standard."],
+  lifecycleStatus: "open", stage: "estimator", pickedBy: null,
+  date: "2026-07-24", confirmDate: null
 });

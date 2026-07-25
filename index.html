@@ -233,8 +233,8 @@
           <line id="line-upholstery" class="eco-line" x1="190" y1="225" x2="334" y2="268" stroke="rgba(214,51,108,.15)" stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-joinery"    class="eco-line" x1="190" y1="225" x2="258" y2="358" stroke="rgba(15,157,88,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-painting"   class="eco-line" x1="190" y1="225" x2="122" y2="358" stroke="rgba(196,125,0,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-sales"      class="eco-line" x1="190" y1="225" x2="46"  y2="268" stroke="rgba(67,56,202,.35)" stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-estimation" class="eco-line" x1="190" y1="225" x2="64"  y2="168" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-sales"      class="eco-line" x1="190" y1="225" x2="46"  y2="268" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
+          <line id="line-estimation" class="eco-line" x1="190" y1="225" x2="64"  y2="168" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
           <!-- lines to ring3 -->
           <line id="line-owner"      class="eco-line" x1="190" y1="225" x2="190" y2="32"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-accounts"   class="eco-line" x1="190" y1="225" x2="354" y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
@@ -392,24 +392,26 @@
             <text x="122" y="366" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">PAINTING</text>
           </g>
 
-          <!-- RING 2 SALES (built — Enquiry) -->
+          <!-- RING 2 SALES (built) -->
           <g id="node-sales" class="eco-node" onclick="showPanel('sales')" style="cursor:pointer;">
-            <circle cx="46" cy="268" r="24" fill="rgba(67,56,202,.07)"/>
+            <circle cx="46" cy="268" r="24" fill="rgba(15,157,88,.07)"/>
             <circle cx="46" cy="268" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="46" cy="268" r="19" fill="none" stroke="rgba(129,140,248,.5)" stroke-width="1.5"/>
+            <circle cx="46" cy="268" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
             <text x="46" y="264" text-anchor="middle" font-size="12">💼</text>
             <text x="46" y="276" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.85)" font-weight="700">SALES</text>
             <circle cx="59" cy="254" r="7" fill="#0f9d58"/>
             <text x="59" y="258" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
           </g>
 
-          <!-- RING 2 ESTIMATION (soon) -->
-          <g id="node-estimation" class="eco-node" onclick="showPanel('estimation')" style="cursor:pointer;opacity:.35;">
-            <circle cx="64" cy="168" r="23" fill="rgba(255,255,255,.03)"/>
-            <circle cx="64" cy="168" r="19" fill="rgba(255,255,255,.04)"/>
-            <circle cx="64" cy="168" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
-            <text x="64" y="164" text-anchor="middle" font-size="12">📋</text>
-            <text x="64" y="176" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">ESTIMATION</text>
+          <!-- RING 2 ESTIMATOR (built) -->
+          <g id="node-estimation" class="eco-node" onclick="showPanel('estimation')" style="cursor:pointer;">
+            <circle cx="64" cy="168" r="24" fill="rgba(15,157,88,.07)"/>
+            <circle cx="64" cy="168" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
+            <circle cx="64" cy="168" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
+            <text x="64" y="164" text-anchor="middle" font-size="12">📐</text>
+            <text x="64" y="176" text-anchor="middle" font-size="5.2" fill="rgba(255,255,255,.85)" font-weight="700">ESTIMATOR</text>
+            <circle cx="77" cy="154" r="7" fill="#0f9d58"/>
+            <text x="77" y="158" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
           </g>
 
           <!-- RING 3 (outer, all soon) -->
@@ -1448,7 +1450,8 @@
 <script src="curtain.js"></script>
 <script src="purchasing.js"></script>
 <script src="storekeeper.js"></script>
-<script src="enquiry.js"></script>
+<script src="sales.js"></script>
+<script src="estimator.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1506,8 +1509,8 @@ function subNodeTouch(id, active) {
     { id:'upholstery', cx:334, cy:268, built:false },
     { id:'joinery',    cx:258, cy:358, built:false },
     { id:'painting',   cx:122, cy:358, built:false },
-    { id:'sales',      cx:46,  cy:268, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEnquiryModule(),150); } },
-    { id:'estimation', cx:64,  cy:168, built:false },
+    { id:'sales',      cx:46,  cy:268, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchSalesModule(),150); } },
+    { id:'estimation', cx:64,  cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
     // Ring 3 soon
     { id:'owner',      cx:190, cy:32,  built:false },
     { id:'accounts',   cx:354, cy:85,  built:false },
