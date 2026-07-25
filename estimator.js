@@ -112,7 +112,7 @@ function openEstimatorModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'approver-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -159,7 +159,7 @@ function estimatorToggleTile(tile) {
 
 function estimatorPick(qtnId) {
   if (!window.confirm('Do you Want to Pick This Quotation?')) return;
-  const result = pickQuotation(qtnId, estimatorCurrentUser);
+  const result = pickQuotation(qtnId, estimatorCurrentUser, 'estimator');
   if (result.error) { estimatorAlert(result.error); return; }
   estimatorAlert(`✓ Picked ${qtnId}.`);
   renderEstimatorBody();
@@ -242,8 +242,9 @@ function renderEstimatorQuoteHub() {
       <p style="font-weight:700;font-size:15px;">${q.id} <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span> <span class="sales-pill stage-${q.stage}">${q.stage.toUpperCase()}</span></p>
       <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${eEsc(c ? c.name : '—')} · Project: ${eEsc(q.projectName)}</p>
       <p style="font-size:12px;color:#64748b;">Qtn Date: ${q.date} · Confirm Date: ${q.confirmDate || '—'} · Amount: BD ${totals.netTotal.toFixed(3)}</p>
-      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${eEsc(q.enquiryId)} · Salesman: ${eEsc(enq ? enq.salesPerson : '—')} · Picked by: ${eEsc(q.pickedBy) || '—'}</p>
+      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${eEsc(q.enquiryId)} · Salesman: ${eEsc(enq ? enq.salesPerson : '—')} · Picked by: ${eEsc(q.estimatorPickedBy) || '—'}</p>
     </div>
+    ${q.headerComment ? `<div class="sales-preview"><p style="font-weight:700;color:#1a1f2e;margin-bottom:4px;">Approver Comments</p><p>${eEsc(q.headerComment)}</p></div>` : ''}
     <div class="sales-tile-row">
       <div class="sales-tile" onclick="estimatorAlert('Print Quote — not wired to a document generator yet.')">Print Quote</div>
       <div class="sales-tile" onclick="estimatorAlert('Duplicate — not implemented yet.')">Duplicate</div>
@@ -262,11 +263,14 @@ function renderEstimatorQuoteHub() {
       ${q.items.length === 0 ? `<p style="font-size:12px;color:#64748b;">No line items yet.</p>` :
         `<table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th></tr>` +
         q.items.map(it => `<tr><td>${eEsc(it.product)}</td><td>${it.qty}</td><td>${eEsc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td></tr>`).join('') + `</table>`}
-    </div>`;
+    </div>
+    ${renderQuotationAuditTable(q)}`;
 }
 
+// Matches the live confirmation copy exactly ("Do you Want to Change Status?").
 function estimatorTransferStage(qtnId, stage) {
-  transferQuotationStage(qtnId, stage);
+  if (!window.confirm('Do you Want to Change Status?')) return;
+  transferQuotationStage(qtnId, stage, estimatorCurrentUser);
   estimatorAlert(`✓ Transferred to ${stage === 'approver' ? 'Approver' : 'Sales'}.`);
   estimatorView = 'dashboard';
   renderEstimatorBody();
@@ -288,15 +292,23 @@ function renderEstimationIndex() {
 
   const rows = q.items.map((it, i) => {
     const hasBom = !!(it.bom && it.bom.submitted);
+    // "Copy BOM" — qty changed since Sales last sent this back after a BOM was
+    // already submitted, so the Estimator should revisit material quantities.
+    const qtyDrifted = hasBom && it.bom.qtyAtSubmit !== it.qty;
+    const commentsHtml = (it.internalComments || it.approverComment) ? `
+      <div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">
+        ${it.internalComments ? `<span title="${eEsc(it.internalComments)}" style="cursor:help;">💬 Sales comment</span>` : ''}
+        ${it.approverComment ? ` <span title="${eEsc(it.approverComment)}" style="cursor:help;">👁 Approver comment</span>` : ''}
+      </div>` : '';
     return `
       <tr style="${hasBom ? 'background:#dcfce7;' : ''}">
         <td>${i + 1}</td>
-        <td>${eEsc(it.product)}</td>
+        <td>${eEsc(it.product)}${commentsHtml}</td>
         <td>${it.qty} ${eEsc(it.unit)}</td>
         <td>${it.rate.toFixed(3)}</td>
         <td>${hasBom ? '✓' : ''}</td>
         <td>
-          ${it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">Update BOM</button>
+          ${it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">${qtyDrifted ? 'Copy BOM' : 'Update BOM'}</button>
           <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="estimatorClearBOMConfirm('${q.id}',${it.lineId})">Clear BOM</button>`
           : `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">+ Add BOM</button>`}
         </td>
@@ -350,6 +362,9 @@ function renderJobEstimationBOM() {
       <p><b>Project Name:</b> ${eEsc(q.projectName)}</p>
       <p><b>Item:</b> ${eEsc(item.product)} · <b>Qty/Unit:</b> ${item.qty} ${eEsc(item.unit)}</p>
       <p><b>Quote Date:</b> ${q.date} · <b>Date of Request:</b> ${eEsc(enq ? enq.dateCreated : '—')} · <b>Qtn No:</b> ${eEsc(q.id)}</p>
+      ${item.internalComments ? `<p><b>Internal Comments (Sales):</b> ${eEsc(item.internalComments)}</p>` : ''}
+      ${q.headerComment ? `<p><b>Approver Comments (header):</b> ${eEsc(q.headerComment)}</p>` : ''}
+      ${item.approverComment ? `<p><b>Comments (line-item):</b> ${eEsc(item.approverComment)}</p>` : ''}
     </div>`;
 
   const tabs = ['materials', 'labour', 'subcontract', 'hiring', 'others', 'summary'];

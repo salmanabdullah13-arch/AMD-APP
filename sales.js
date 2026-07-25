@@ -96,6 +96,7 @@ let salesEnqFilters = { from: '', to: '', customer: '', salesPerson: '', unassig
 let salesQtnFilters = { qtnNo: '', customer: '', project: '', tel: '', salesPerson: '' };
 let salesQtnListTab = 'all';           // draft | open | confirmed | closed | all
 let salesDraft = null;                 // scratch object for create forms
+let salesEditingLineId = null;         // which item's inline edit panel is open on Wizard Step 2
 let salesCurrentUser = STAFF.find(s => s !== 'Operations') || STAFF[0]; // simulates the logged-in Salesman for the lock/banner rule
 
 function salesAlert(msg) {
@@ -120,7 +121,7 @@ function openSalesModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap', 'approver-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -595,12 +596,15 @@ function renderQuotationHub() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${q.stage === 'sales' ? `<button class="secondary" style="flex:1;" onclick="salesTransferToEstimator('${q.id}')">Transfer to Estimator</button>` : ''}
-        ${q.stage !== 'sales' ? `<button class="secondary" style="flex:1;" onclick="salesTransferStage('${q.id}','sales')">Back to Sales</button>` : ''}
-        ${q.stage !== 'approver' ? `<button class="primary" style="flex:1;" onclick="salesTransferStage('${q.id}','approver')">Transfer to Approver</button>` : ''}
-      </div>
-      ${q.stage === 'estimator' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">Sitting in Estimator stage${q.pickedBy ? ' · picked by ' + esc(q.pickedBy) : ' · not yet picked'} — Estimator is now its own module (see the ecosystem hub).</p>` : ''}
+      ${q.stage === 'sales'
+        ? `<button class="primary" style="width:100%;" onclick="salesTransferToEstimator('${q.id}')">Transfer to Estimator</button>`
+        : `<p style="font-size:11.5px;color:#64748b;">This quotation is with ${q.stage === 'estimator' ? 'the Estimator' : 'the Approver'} — Sales has no action here until it's sent back.</p>`}
+      ${q.stage === 'estimator' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.estimatorPickedBy ? 'Picked by ' + esc(q.estimatorPickedBy) : 'Not yet picked'} — see the Estimator module.</p>` : ''}
+      ${q.stage === 'approver' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.approverPickedBy ? 'Picked by ' + esc(q.approverPickedBy) : 'Not yet picked'} — see the Approver module.</p>` : ''}
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Approver Comments</p>
+      <p style="font-size:12px;color:#334155;">${q.headerComment ? esc(q.headerComment) : '(none yet)'}</p>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Items (${q.items.length})</p>
@@ -615,19 +619,29 @@ function renderQuotationHub() {
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Related records</p>
       <p style="font-size:11.5px;color:#94a3b8;">Invoices · Receipts · Credit Notes · Jobs · Proforma · Delivery Notes — not built in this app.</p>
+    </div>
+    ${renderQuotationAuditTable(q)}`;
+}
+
+// Shared across every Manage Quote hub view (Sales/Estimator/Approver all
+// render the same log at the bottom of the page) — one running trail of
+// every status transition, per the live reference.
+function renderQuotationAuditTable(qtn) {
+  const log = qtn.auditLog || [];
+  const rows = log.map(r => `<tr><td>${r.seq}</td><td>${esc(r.action)}</td><td>${esc(r.user)}</td><td>${r.date}</td><td>${esc(r.userType)}</td><td>${esc(r.status)}</td></tr>`).join('');
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Audit Trail</p>
+      <table class="sales-items"><tr><th>#</th><th>Action</th><th>User</th><th>Date</th><th>User Type</th><th>Status</th></tr>${rows}</table>
     </div>`;
 }
 
-function salesTransferStage(qtnId, stage) {
-  transferQuotationStage(qtnId, stage);
-  salesAlert(`✓ Transferred to ${stage === 'approver' ? 'Approver' : 'Sales'}.`);
-  renderSalesBody();
-}
-
 // Matches the live confirmation copy exactly ("Do you Want to Change Status?").
+// Sales only ever transfers forward to Estimator — it can't jump straight to
+// Approver (that's Estimator's own action) or re-send to itself.
 function salesTransferToEstimator(qtnId) {
   if (!window.confirm('Do you Want to Change Status?')) return;
-  transferQuotationStage(qtnId, 'estimator');
+  transferQuotationStage(qtnId, 'estimator', salesCurrentUser);
   salesAlert('✓ Transferred to Estimator.');
   renderSalesBody();
 }
@@ -724,10 +738,14 @@ function renderWizardStep2() {
   const rowsHtml = q.items.length === 0
     ? `<p style="font-size:12px;color:#64748b;margin-bottom:10px;">No items added yet.</p>`
     : `<table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th><th></th></tr>` +
-      q.items.map(it => `<tr><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td><td><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})">✕</span></td></tr>`).join('') +
+      q.items.map(it => `<tr><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
+        <td><span style="cursor:pointer;color:#7c3aed;margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})">✎</span><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})">✕</span></td></tr>` +
+        (salesEditingLineId === it.lineId ? `<tr><td colspan="6">${renderSalesItemEditPanel(q, it)}</td></tr>` : '')
+      ).join('') +
       `</table>`;
 
   return `
+    ${q.headerComment ? `<div class="sales-preview"><p style="font-weight:700;color:#1a1f2e;margin-bottom:4px;">Approver Comments</p><p>${esc(q.headerComment)}</p></div>` : ''}
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Item</p>
       ${locked ? `<div class="sales-banner">With Estimation is checked — Rate/Amount/Net Amount are locked at 0.000 for Sales. Pricing will be completed by the Estimator.</div>` : ''}
@@ -748,6 +766,7 @@ function renderWizardStep2() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Items</p>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Once a quotation has been to the Estimator, use ✎ to adjust Qty/Description/Internal Comments — Rate stays Estimator-controlled.</p>
       ${rowsHtml}
       <div style="font-size:12px;color:#334155;">
         <p>Item Total: BD ${totals.itemTotal.toFixed(3)}</p>
@@ -758,6 +777,22 @@ function renderWizardStep2() {
       </div>
     </div>
     <button class="primary" style="width:100%;" onclick="salesWizardStep=3;renderSalesBody();">Save & Proceed</button>`;
+}
+
+function renderSalesItemEditPanel(qtn, item) {
+  return `
+    <div style="background:#faf5ff;border-radius:8px;padding:10px;margin:4px 0;">
+      ${item.approverComment ? `<p style="font-size:11px;color:#92400e;margin-bottom:8px;"><b>Approver comment on this line:</b> ${esc(item.approverComment)}</p>` : ''}
+      <div class="sales-field"><label>Qty</label><input type="number" value="${item.qty}" onchange="salesUpdateItemField(${item.lineId},'qty',Number(this.value))"></div>
+      <div class="sales-field"><label>Description</label><textarea onchange="salesUpdateItemField(${item.lineId},'description',this.value)">${esc(item.description)}</textarea></div>
+      <div class="sales-field"><label>Internal Comments</label><textarea onchange="salesUpdateItemField(${item.lineId},'internalComments',this.value)">${esc(item.internalComments)}</textarea></div>
+      <button class="secondary" style="width:100%;" onclick="salesToggleEditItem(${item.lineId})">Done</button>
+    </div>`;
+}
+function salesToggleEditItem(lineId) { salesEditingLineId = salesEditingLineId === lineId ? null : lineId; renderSalesBody(); }
+function salesUpdateItemField(lineId, key, val) {
+  updateQuotationItemFields(salesActiveQtnId, lineId, { [key]: val });
+  renderSalesBody();
 }
 
 function salesAddItem(qtnId) {

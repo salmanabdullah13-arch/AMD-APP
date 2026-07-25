@@ -1,0 +1,433 @@
+// ══════════════════════════════════════════
+// APPROVER MODULE
+// Built session: 25 Jul 2026, from Salman's full live trace of the Sales ⇄
+// Estimator ⇄ Approver loop (audit trail, comment system, Review Screen).
+// Standalone module with its own identity, same pattern as estimator.js —
+// Approver is a distinct role/login in Q-Pro, not a tab under Sales.
+// Reads/writes quotations[]/enquiries[]/customers[] in data.js. Reuses
+// renderQuotationAuditTable() from sales.js and computeQuotationTotals()/
+// computeBOMTotals() from data.js — must load after both.
+// ══════════════════════════════════════════
+
+const approverStyleTag = document.createElement('style');
+approverStyleTag.textContent = `
+#approver-module-wrap { font-family: inherit; }
+#approver-module-wrap .ops-header{background:#9f1239;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#approver-module-wrap .approver-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
+#approver-module-wrap .approver-userbar{background:#fff1f2;border-bottom:1px solid #fecdd3;padding:8px 18px;font-size:11.5px;color:#9f1239;display:flex;align-items:center;gap:8px;flex:none;}
+#approver-module-wrap .approver-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #fecdd3;background:#fff;}
+#approver-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+#approver-module-wrap .sales-kpi-tile{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center;}
+#approver-module-wrap .sales-kpi-tile .num{font-size:20px;font-weight:800;color:#9f1239;}
+#approver-module-wrap .sales-kpi-tile .lbl{font-size:10.5px;color:#64748b;margin-top:2px;}
+#approver-module-wrap .sales-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:10px;}
+#approver-module-wrap .sales-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:#f1f5f9;color:#64748b;}
+#approver-module-wrap .sales-pill.draft{background:#f1f5f9;color:#64748b;}
+#approver-module-wrap .sales-pill.open{background:#dbeafe;color:#1e40af;}
+#approver-module-wrap .sales-pill.confirmed{background:#dcfce7;color:#166534;}
+#approver-module-wrap .sales-pill.closed{background:#e2e8f0;color:#475569;}
+#approver-module-wrap .sales-pill.stage-sales{background:#ede9fe;color:#5b21b6;}
+#approver-module-wrap .sales-pill.stage-estimator{background:#fef3c7;color:#92400e;}
+#approver-module-wrap .sales-pill.stage-approver{background:#fee2e2;color:#991b1b;}
+#approver-module-wrap button.primary{background:#9f1239;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+#approver-module-wrap button.secondary{background:none;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
+#approver-module-wrap .sales-field{margin-bottom:10px;}
+#approver-module-wrap .sales-field label{font-size:11px;color:#64748b;display:block;margin-bottom:3px;}
+#approver-module-wrap .sales-field input, #approver-module-wrap .sales-field select, #approver-module-wrap .sales-field textarea{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;}
+#approver-module-wrap .sales-preview{background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:12px;margin-bottom:14px;}
+#approver-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:#475569;}
+#approver-module-wrap .sales-preview b{color:#1a1f2e;}
+#approver-module-wrap .sales-back{font-size:12px;color:#9f1239;font-weight:700;cursor:pointer;margin-bottom:10px;display:inline-block;}
+#approver-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px;}
+#approver-module-wrap table.sales-items th{text-align:left;padding:6px;background:#f8fafc;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0;}
+#approver-module-wrap table.sales-items td{padding:6px;border-bottom:1px solid #f1f5f9;vertical-align:top;}
+#approver-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+#approver-module-wrap .sales-tile{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;font-size:12px;font-weight:700;color:#475569;cursor:pointer;}
+#approver-module-wrap .apr-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:20px;}
+#approver-module-wrap .apr-modal-inner{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:420px;box-sizing:border-box;}
+`;
+document.head.appendChild(approverStyleTag);
+
+// Approver identities — same STAFF-derived pool as Estimator, but defaults
+// to Salman Abdullah, since he's the real-world approver at Al Maraya.
+const APPROVER_USERS = STAFF.filter(s => s !== 'Operations');
+let approverCurrentUser = APPROVER_USERS.includes('Salman Abdullah') ? 'Salman Abdullah' : APPROVER_USERS[0];
+
+// ── Module shell ──
+const approverModuleWrap = document.createElement('div');
+approverModuleWrap.id = 'approver-module-wrap';
+approverModuleWrap.style.cssText = 'display:none;';
+approverModuleWrap.innerHTML = `
+  <div class="ops-header">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:20px;">✅</span>
+      <div>
+        <div style="color:#fff;font-weight:700;font-size:15px;">Approver</div>
+        <div style="color:#fecdd3;font-size:11px;">Pick → Review → Approve</div>
+      </div>
+    </div>
+    <button onclick="closeApproverModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
+  </div>
+  <div class="approver-userbar">
+    Logged in as
+    <select id="approver-user-select" onchange="approverSetCurrentUser(this.value)"></select>
+  </div>
+  <div class="approver-scroll">
+    <div id="approver-body"></div>
+  </div>
+  <div class="apr-modal" id="apr-comment-modal">
+    <div class="apr-modal-inner" id="apr-comment-modal-inner"></div>
+  </div>
+`;
+document.body.appendChild(approverModuleWrap);
+
+let approverView = 'dashboard';        // dashboard | hub | review | customers
+let approverActiveQtnId = null;
+let approverDashExpanded = null;       // null | 'pending' | 'forApproval' | 'newCustomers'
+let approverCommentLineId = null;      // which line's Comment modal is open
+
+function aEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
+
+function approverAlert(msg) {
+  if (typeof showAlert === 'function') { showAlert(msg); return; }
+  let toast = document.getElementById('approver-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'approver-toast';
+    toast.style.cssText = `position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1a1f2e;color:#fff;font-size:13px;font-weight:500;padding:10px 18px;border-radius:20px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);max-width:80vw;text-align:center;transition:opacity .3s;`;
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.style.opacity = '0', 2800);
+}
+
+// ── Module open/close ──
+function openApproverModule() {
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = 'none';
+  document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  approverModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  const sel = document.getElementById('approver-user-select');
+  if (sel) sel.innerHTML = APPROVER_USERS.map(u => `<option value="${u}" ${u === approverCurrentUser ? 'selected' : ''}>${u}</option>`).join('');
+  approverView = 'dashboard';
+  renderApproverBody();
+}
+function closeApproverModule() {
+  approverModuleWrap.style.display = 'none';
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = '';
+}
+function launchApproverModule() { openApproverModule(); }
+
+function approverSetCurrentUser(name) {
+  approverCurrentUser = name;
+  renderApproverBody();
+}
+
+function renderApproverBody() {
+  const body = document.getElementById('approver-body');
+  if (!body) return;
+  let content = '';
+  switch (approverView) {
+    case 'dashboard': content = renderApproverDashboard(); break;
+    case 'hub': content = renderApproverQuoteHub(); break;
+    case 'review': content = renderApproverReview(); break;
+    case 'customers': content = renderApproverCustomerQueue(); break;
+    default: content = renderApproverDashboard();
+  }
+  body.innerHTML = content;
+}
+
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+
+function approverToggleTile(tile) {
+  approverDashExpanded = approverDashExpanded === tile ? null : tile;
+  renderApproverBody();
+}
+
+function approverPick(qtnId) {
+  if (!window.confirm('Do you Want to Pick This Quotation?')) return;
+  const result = pickQuotation(qtnId, approverCurrentUser, 'approver');
+  if (result.error) { approverAlert(result.error); return; }
+  approverAlert(`✓ Picked ${qtnId}.`);
+  renderApproverBody();
+}
+
+function approverQtnRowSummary(q) {
+  const enq = enquiries.find(e => e.id === q.enquiryId);
+  const c = customers.find(x => x.id === q.customerId);
+  return { client: c ? c.name : '—', salesman: enq ? enq.salesPerson : '—' };
+}
+
+// "PO Approval" is a rollup + shortcut into Purchasing's own PO approval
+// queue (getPendingPOApprovals()) rather than a second PO approval flow.
+function approverOpenPurchasing() {
+  closeApproverModule();
+  setTimeout(() => { if (typeof launchPurchasingModule === 'function') launchPurchasingModule(); }, 150);
+}
+
+function renderApproverDashboard() {
+  const k = getApproverKPIs(approverCurrentUser);
+
+  const kpiTilesHtml = `
+    <div class="sales-kpi-grid">
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('pending')"><div class="num">${k.pendingToPick}</div><div class="lbl">Pending to Pick</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('forApproval')"><div class="num">${k.forApproval}</div><div class="lbl">For Approval</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.quotationsTotal}</div><div class="lbl">Quotations (Total)</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.poApproval}</div><div class="lbl">PO Approval →</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('newCustomers')"><div class="num">${k.newCustomers}</div><div class="lbl">New Customers</div></div>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>
+      <div style="display:flex;gap:16px;font-size:12.5px;color:#334155;">
+        <span>Curtain: <b>${k.categoryBreakdown.curtain}</b></span>
+        <span>Upholstery: <b>${k.categoryBreakdown.upholstery}</b></span>
+        <span>Joinery: <b>${k.categoryBreakdown.joinery}</b></span>
+      </div>
+    </div>`;
+
+  let expandedHtml = '';
+  if (approverDashExpanded === 'pending') {
+    expandedHtml = `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">Pending to Pick</p>` +
+      (k.pendingToPickList.length === 0 ? `<p style="font-size:12px;color:#64748b;">Nothing pending.</p>` :
+        k.pendingToPickList.map(q => {
+          const s = approverQtnRowSummary(q);
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+            <div><p style="font-weight:700;font-size:12.5px;">${q.id}</p><p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p></div>
+            <button class="primary" style="font-size:11px;padding:6px 10px;" onclick="approverPick('${q.id}')">Pick</button>
+          </div>`;
+        }).join('')) + `</div>`;
+  } else if (approverDashExpanded === 'forApproval') {
+    expandedHtml = `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">For Approval</p>` +
+      (k.forApprovalList.length === 0 ? `<p style="font-size:12px;color:#64748b;">Nothing picked yet.</p>` :
+        k.forApprovalList.map(q => {
+          const s = approverQtnRowSummary(q);
+          return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openApproverReview('${q.id}')">
+            <p style="font-weight:700;font-size:12.5px;color:#9f1239;">${q.id}</p>
+            <p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p>
+          </div>`;
+        }).join('')) + `</div>`;
+  } else if (approverDashExpanded === 'newCustomers') {
+    expandedHtml = renderApproverCustomerQueue(true);
+  }
+
+  return kpiTilesHtml + expandedHtml;
+}
+
+// ══════════════════════════════════════════
+// NEW CUSTOMERS — approval queue
+// Own feature, not part of the live Q-Pro trace above (flagged assumption
+// when this KPI was first built) — createCustomer() defaults new customers
+// to "pending" without blocking their use, so this is after-the-fact
+// governance (catching duplicates/bad data), not a hard gate on Sales.
+// ══════════════════════════════════════════
+
+function renderApproverCustomerQueue(embedded) {
+  const pending = customers.filter(c => c.status === 'pending');
+  const rows = pending.length === 0
+    ? `<p style="font-size:12px;color:#64748b;">No customers awaiting approval.</p>`
+    : pending.map(c => `
+      <div class="sales-card" style="margin-bottom:8px;">
+        <p style="font-weight:700;font-size:13px;">${aEsc(c.name)} <span class="sales-pill">${c.id}</span></p>
+        <p style="font-size:11.5px;color:#64748b;">${aEsc(c.contactPerson)} · ${aEsc(c.tel)} · ${aEsc(c.address)}</p>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="primary" style="flex:1;font-size:11.5px;padding:7px;" onclick="approverApproveCustomer('${c.id}')">Approve</button>
+          <button class="secondary" style="flex:1;font-size:11.5px;padding:7px;color:#b91c1c;" onclick="approverRejectCustomer('${c.id}')">Reject</button>
+        </div>
+      </div>`).join('');
+  const wrap = `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">New Customers</p>${rows}</div>`;
+  return embedded ? wrap : `<span class="sales-back" onclick="approverView='dashboard';renderApproverBody();">‹ Back to Dashboard</span>${wrap}`;
+}
+
+function approverApproveCustomer(customerId) {
+  approveCustomer(customerId, approverCurrentUser);
+  approverAlert('✓ Customer approved.');
+  renderApproverBody();
+}
+function approverRejectCustomer(customerId) {
+  const comment = window.prompt('Reason for rejecting this customer:', '');
+  if (comment === null) return;
+  const result = rejectCustomer(customerId, approverCurrentUser, comment);
+  if (result.error) { approverAlert(result.error); return; }
+  approverAlert('✓ Customer rejected.');
+  renderApproverBody();
+}
+
+// ══════════════════════════════════════════
+// MANAGE QUOTE HUB (Approver view)
+// ══════════════════════════════════════════
+
+function openApproverQuoteHub(qtnId) {
+  approverActiveQtnId = qtnId;
+  approverView = 'hub';
+  renderApproverBody();
+}
+
+function renderApproverQuoteHub() {
+  const q = quotations.find(x => x.id === approverActiveQtnId);
+  if (!q) return `<p style="font-size:12.5px;color:#64748b;">Quotation not found.</p>`;
+  const totals = computeQuotationTotals(q);
+  const enq = enquiries.find(e => e.id === q.enquiryId);
+  const c = customers.find(x => x.id === q.customerId);
+
+  return `
+    <span class="sales-back" onclick="approverView='dashboard';renderApproverBody();">‹ Back to Dashboard</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:15px;">${q.id} <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span> <span class="sales-pill stage-${q.stage}">${q.stage.toUpperCase()}</span></p>
+      <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${aEsc(c ? c.name : '—')} · Project: ${aEsc(q.projectName)}</p>
+      <p style="font-size:12px;color:#64748b;">Qtn Date: ${q.date} · Confirm Date: ${q.confirmDate || '—'} · Amount: BD ${totals.netTotal.toFixed(3)}</p>
+      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${aEsc(q.enquiryId)} · Salesman: ${aEsc(enq ? enq.salesPerson : '—')} · Picked by: ${aEsc(q.approverPickedBy) || '—'}</p>
+    </div>
+    <div class="sales-tile-row">
+      <div class="sales-tile" onclick="openApproverReview('${q.id}')">Review Quote</div>
+      <div class="sales-tile" onclick="approverAlert('Print Quote — not wired to a document generator yet.')">Print Quote</div>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="secondary" style="flex:1;" onclick="approverTransferToEstimator('${q.id}')">Back to Estimator</button>
+        <button class="primary" style="flex:1;" onclick="approverApproveQuote('${q.id}')">Approve Quote</button>
+      </div>
+    </div>
+    ${renderQuotationAuditTable(q)}`;
+}
+
+// ══════════════════════════════════════════
+// APPROVER REVIEW SCREEN (print-style)
+// ══════════════════════════════════════════
+
+function openApproverReview(qtnId) {
+  approverActiveQtnId = qtnId;
+  approverView = 'review';
+  renderApproverBody();
+}
+
+function renderApproverReview() {
+  const q = quotations.find(x => x.id === approverActiveQtnId);
+  if (!q) return `<p style="font-size:12.5px;color:#64748b;">Quotation not found.</p>`;
+  const c = customers.find(x => x.id === q.customerId);
+
+  const rows = q.items.map((it, i) => {
+    let cost = '—', profit = '—', profitPct = '—';
+    if (it.bom) {
+      const t = computeBOMTotals(it.bom);
+      cost = t.totalCostInclOH.toFixed(3);
+      const actualProfit = it.rate * it.qty - t.totalCostInclOH;
+      profit = actualProfit.toFixed(3);
+      profitPct = t.totalCostInclOH > 0 ? (actualProfit / t.totalCostInclOH * 100).toFixed(1) + '%' : '—';
+    }
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${aEsc(it.product)}${it.description ? `<div style="font-size:10.5px;color:#94a3b8;">${aEsc(it.description)}</div>` : ''}</td>
+        <td>${it.qty}</td>
+        <td>${it.rate.toFixed(3)}</td>
+        <td>${it.discPercent}%</td>
+        <td>${it.amount.toFixed(3)}</td>
+        <td>${cost}</td>
+        <td>${profit}</td>
+        <td>${profitPct}</td>
+        <td><button class="secondary" style="font-size:10px;padding:4px 7px;" onclick="approverOpenCommentModal(${it.lineId})">${it.approverComment ? '✎ Comment' : '+ Comment'}</button></td>
+        <td>—</td>
+        <td><span style="cursor:pointer;color:#b91c1c;" onclick="approverDeleteItem('${q.id}',${it.lineId})">✕</span></td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <span class="sales-back" onclick="approverView='dashboard';renderApproverBody();">‹ Back to Dashboard</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:15px;">${aEsc(c ? c.name : '—')}</p>
+      <p style="font-size:12px;color:#64748b;">${aEsc(c ? c.address : '—')} · Tel: ${aEsc(c ? c.tel : '—')}</p>
+      <p style="font-size:12px;color:#64748b;margin-top:4px;">Qtn No: ${aEsc(q.id)} · Date: ${q.date}</p>
+      ${q.notes ? `<p style="font-size:12px;color:#64748b;margin-top:4px;"><b>Notes:</b> ${aEsc(q.notes)}</p>` : ''}
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Common Comments</p>
+      <textarea id="apr-header-comment" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;min-height:60px;">${aEsc(q.headerComment)}</textarea>
+      <button class="primary" style="width:100%;margin-top:8px;" onclick="approverSubmitHeaderComment('${q.id}')">Submit</button>
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Line Items</p>
+      <table class="sales-items"><tr><th>#</th><th>Name/Description</th><th>Qty</th><th>Price</th><th>Disc</th><th>Amount</th><th>Cost</th><th>Profit</th><th>Profit%</th><th>Comments</th><th>Image</th><th></th></tr>${rows}</table>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Terms and Conditions</p>
+      <p style="font-size:11.5px;color:#64748b;white-space:pre-wrap;">${aEsc(q.termsBody) || '—'}</p>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">ACTION</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="secondary" style="flex:1;" onclick="approverView='dashboard';renderApproverBody();">Exit</button>
+        <button class="secondary" style="flex:1;" onclick="openApproverQuoteHub('${q.id}')">Manage Quote</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <button class="secondary" style="flex:1;" onclick="approverTransferToEstimator('${q.id}')">Back to Estimator</button>
+        <button class="primary" style="flex:1;" onclick="approverApproveQuote('${q.id}')">Approve Quote</button>
+      </div>
+    </div>`;
+}
+
+function approverSubmitHeaderComment(qtnId) {
+  const text = document.getElementById('apr-header-comment').value;
+  setQuotationHeaderComment(qtnId, text);
+  approverAlert('✓ Comment saved.');
+  renderApproverBody();
+}
+
+function approverDeleteItem(qtnId, lineId) {
+  if (!window.confirm('Delete this line item?')) return;
+  removeQuotationItem(qtnId, lineId);
+  renderApproverBody();
+}
+
+// Per-line Comment modal
+function approverOpenCommentModal(lineId) {
+  approverCommentLineId = lineId;
+  const item = findQuotationItem(approverActiveQtnId, lineId);
+  const inner = document.getElementById('apr-comment-modal-inner');
+  inner.innerHTML = `
+    <p style="font-weight:700;font-size:14px;margin-bottom:10px;">Comment — ${aEsc(item.product)}</p>
+    <textarea id="apr-line-comment-text" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;min-height:80px;">${aEsc(item.approverComment)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="primary" style="flex:1;" onclick="approverSaveLineComment()">Update</button>
+      <button class="secondary" style="flex:1;" onclick="approverCloseCommentModal()">Cancel</button>
+    </div>`;
+  document.getElementById('apr-comment-modal').style.display = 'flex';
+}
+function approverCloseCommentModal() {
+  document.getElementById('apr-comment-modal').style.display = 'none';
+  approverCommentLineId = null;
+}
+function approverSaveLineComment() {
+  const text = document.getElementById('apr-line-comment-text').value;
+  setLineApproverComment(approverActiveQtnId, approverCommentLineId, text);
+  approverCloseCommentModal();
+  approverAlert('✓ Comment saved.');
+  renderApproverBody();
+}
+
+// Matches the live confirmation copy exactly ("Do you Want to Change Status?").
+function approverTransferToEstimator(qtnId) {
+  if (!window.confirm('Do you Want to Change Status?')) return;
+  transferQuotationStage(qtnId, 'estimator', approverCurrentUser);
+  approverAlert('✓ Sent back to Estimator.');
+  approverView = 'dashboard';
+  renderApproverBody();
+}
+function approverApproveQuote(qtnId) {
+  if (!window.confirm('Do you Want to Change Status?')) return;
+  approveQuotation(qtnId, approverCurrentUser);
+  approverAlert('✓ Quotation approved — back with Sales, status Open.');
+  approverView = 'dashboard';
+  renderApproverBody();
+}

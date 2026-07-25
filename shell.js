@@ -33,6 +33,8 @@ function goTo(p){
   if (salesMod) salesMod.style.cssText = 'display:none;';
   const estimatorMod = document.getElementById('estimator-module-wrap');
   if (estimatorMod) estimatorMod.style.cssText = 'display:none;';
+  const approverMod = document.getElementById('approver-module-wrap');
+  if (approverMod) approverMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
@@ -61,7 +63,7 @@ const M={
   accounts:{icon:'💰',title:'Accounts',sub:'Tally bridge',status:'soon',sl:'Planned',features:[],soon:['Invoice sync to Tally','Payment reconciliation','P&L per division','Supplier payments'],note:'Tally stays for accounting. Bridge removes double entry.'},
   delivery:{icon:'🚚',title:'Delivery',sub:'Scheduling + sign-off',status:'soon',sl:'Partially built in Operations',features:['Pre-delivery checklist (in Operations)','Dispatch → invoice trigger','Delivery schedule'],soon:['Standalone driver view','Photo proof of delivery'],note:'Basic delivery is inside Operations already.'},
   hr:{icon:'👥',title:'HR & Payroll',sub:'Staff, attendance, payroll',status:'soon',sl:'Planned',features:[],soon:['Employee profiles','Attendance','Payroll','Leave management','Visa expiry alerts'],note:'Q-Pro already has HR. Decide whether to extend or build separately.'},
-  approvals:{icon:'✅',title:'Approvals',sub:'Quote, budget, variation sign-off',status:'soon',sl:'Planned',features:[],soon:['Quote approval','Budget approval','Variation approval','Approval history'],note:'Approval logic is already built into Operations. This becomes a standalone role view.'},
+  approvals:{icon:'✅',title:'Approver',sub:'Pick → Review → Approve',status:'built',sl:'✓ Built · standalone module',features:['Dashboard: Pending to Pick, For Approval, Quotations (Total), PR, PO Approval, New Customers','Pick a quotation off the Approver stage','Review Screen — Common Comments + per-line Comments, Cost/Profit/Profit% columns','Approve Quote (Draft → Open, back to Sales) or Back to Estimator','New Customers approval queue','Full audit trail on every Manage Quote hub page'],note:'Split out as its own module with its own simulated user identity (defaults to Salman Abdullah). Approve Quote is the only action that flips a quotation from Draft to Open — "Confirm Quote" (Open → Confirmed, the bridge into Jobs/Invoicing) is out of scope for now.',btn:'Open Approver →'},
   tally:{icon:'🔗',title:'Tally Bridge',sub:'Sync with Tally',status:'soon',sl:'Planned',features:[],soon:['Auto-push invoices','Payment sync','No manual re-entry'],note:'Removes duplicate data entry between this system and Tally.'},
 };
 
@@ -106,6 +108,10 @@ function showPanel(id){
   } else if(id==='estimation'){
     btnAction="closePanel();setTimeout(()=>launchEstimatorModule(),300)";
     btnLabel='Open Estimator →';
+    btnDim=false;
+  } else if(id==='approvals'){
+    btnAction="closePanel();setTimeout(()=>launchApproverModule(),300)";
+    btnLabel='Open Approver →';
     btnDim=false;
   }
 

@@ -2074,7 +2074,8 @@ const customers = [
     id: "C1508", name: "ZZTEST", contactPerson: "Test Contact", tel: "00099911", tel2: "", email: "", fax: "",
     vatName: "", vatNo: "", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0,
     bankAccountNumber: "", bankAccountHolderName: "", ibanNumber: "", bankSwift: "", bankName: "", bankBranch: "",
-    address: "Test Address, Manama", crNo: "", country: "Bahrain", openingBalance: 0, salesMan: "Salman Abdullah"
+    address: "Test Address, Manama", crNo: "", country: "Bahrain", openingBalance: 0, salesMan: "Salman Abdullah",
+    status: "approved", approvedBy: "Salman Abdullah", approvalDate: "2026-07-24", rejectionComment: null
   }
 ];
 function nextCustomerCode() { return "C" + (1508 + customers.length); }
@@ -2084,11 +2085,38 @@ function customerTelExists(tel, excludeId = null) {
 // Mirrors the live Add Customer form field-for-field. Telephone uniqueness is
 // enforced here (confirmed live Q-Pro validation), matching the "*" required
 // fields: Name, Contact Person, Telephone, Address.
+//
+// ASSUMPTION (not yet confirmed against live Q-Pro — flagged for Salman to
+// correct): new customers start "pending" so they show up on the Approver's
+// "New Customers" KPI, but are NOT blocked from use in the meantime — Sales
+// can still pick a pending customer on an Enquiry right away. Approval here
+// is presented as after-the-fact governance (catching duplicates/bad data),
+// not a hard gate that would slow Sales down. If Q-Pro actually blocks a
+// pending customer from being used until approved, this needs to change.
 function createCustomer({ name, contactPerson, tel, tel2 = "", email = "", fax = "", vatName = "", vatNo = "", taxPercent = 0, isCredit = false, creditLimit = 0, creditDays = 0, bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "", bankSwift = "", bankName = "", bankBranch = "", address, crNo = "", country = "Bahrain", openingBalance = 0, salesMan }) {
   if (!name || !contactPerson || !tel || !address) return { error: "Name, Contact Person, Telephone and Address are required." };
   if (customerTelExists(tel)) return { error: "Telephone must be unique across all customers." };
-  const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, address, crNo, country, openingBalance, salesMan };
+  const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, address, crNo, country, openingBalance, salesMan, status: "pending", approvedBy: null, approvalDate: null, rejectionComment: null };
   customers.push(c);
+  return c;
+}
+function approveCustomer(customerId, approvedBy) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return { error: "Customer not found." };
+  c.status = "approved";
+  c.approvedBy = approvedBy;
+  c.approvalDate = new Date().toISOString().slice(0, 10);
+  c.rejectionComment = null;
+  return c;
+}
+function rejectCustomer(customerId, rejectedBy, comment) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return { error: "Customer not found." };
+  if (!comment || !comment.trim()) return { error: "A rejection comment is required." };
+  c.status = "rejected";
+  c.approvedBy = rejectedBy;
+  c.approvalDate = new Date().toISOString().slice(0, 10);
+  c.rejectionComment = comment.trim();
   return c;
 }
 
@@ -2153,11 +2181,14 @@ function convertEnquiryToQuotation(enquiryId, { projectName, taxPercent, contact
     id: nextQtnNo(), rev: 0, enquiryId, customerId: enq.customerId,
     projectName, taxPercent, contactPerson, withEstimation: !!withEstimation, notes,
     items: [], coveringLetterTemplate: null, coveringLetterBody: "", termsTemplate: null, termsBody: "",
-    lifecycleStatus: "draft", stage: "sales", pickedBy: null,
+    lifecycleStatus: "draft", stage: "sales",
+    estimatorPickedBy: null, approverPickedBy: null,
+    headerComment: "", auditLog: [],
     date: new Date().toISOString().slice(0, 10), confirmDate: null
   };
   quotations.push(qtn);
   enq.linkedQuotationId = qtn.id;
+  logQuotationAudit(qtn, { action: "Create", user: enq.salesPerson, userType: "SALES", status: "Draft" });
   return qtn;
 }
 function nextQuotationItemId(qtn) { return qtn.items.length + 1; }
@@ -2174,6 +2205,7 @@ function addQuotationItem(qtnId, item) {
     vatPercent: item.vatPercent || 0, discPercent: item.discPercent || 0, discAmt: qtn.withEstimation ? 0 : discAmt,
     netAmount: qtn.withEstimation ? 0 : netAmount,
     description: item.description || "", internalComments: item.internalComments || "", optional: !!item.optional,
+    approverComment: "", // Approver's per-line comment — see setLineApproverComment() below
     bom: null // set by ensureItemBOM() once the Estimator adds a BOM — see ESTIMATOR section below
   };
   qtn.items.push(row);
@@ -2185,10 +2217,10 @@ function removeQuotationItem(qtnId, lineId) {
   qtn.items = qtn.items.filter(it => it.lineId !== lineId);
   return { ok: true };
 }
-// Step 3 of the wizard — "Update Quotation" on the live system. If "With
-// Estimation" was checked in Step 1, pricing is locked for Sales, so the
-// quotation is routed straight to the Estimator stage (matches the live
-// reference AMD-15350-0, which sits in Estimator with rate locked at 0).
+// Step 3 of the wizard — "Update Quotation" on the live system. Stays
+// lifecycleStatus "draft" — the live reference trace shows Draft persists
+// through the ENTIRE Sales/Estimator/Approver loop, only flipping to "Open"
+// when Approver clicks Approve Quote (see approveQuotation() below).
 function finaliseQuotation(qtnId, { coveringLetterTemplate, termsTemplate }) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
@@ -2200,17 +2232,21 @@ function finaliseQuotation(qtnId, { coveringLetterTemplate, termsTemplate }) {
     qtn.termsTemplate = termsTemplate;
     qtn.termsBody = TERMS_TEMPLATES[termsTemplate];
   }
-  qtn.lifecycleStatus = "open";
   qtn.stage = qtn.withEstimation ? "estimator" : "sales";
   return qtn;
 }
-// Every hand-off between roles is a fresh assignment — pickedBy is always
-// cleared here, whichever direction the transfer goes.
-function transferQuotationStage(qtnId, newStage) {
+// A hand-off never clears estimatorPickedBy/approverPickedBy — those persist
+// for the life of the quotation once set, so returning to a role someone
+// already picked (e.g. "Back to Estimator") lands straight in their queue
+// instead of back in "Pending to Pick". Logged as "Transfer" regardless of
+// which UI action triggered it (Back to Sales, Back to Estimator, Transfer
+// to Estimator/Approver) — matches the live audit trail, which uses one
+// generic action name for every stage move.
+function transferQuotationStage(qtnId, newStage, actorName) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
   qtn.stage = newStage;
-  qtn.pickedBy = null;
+  logQuotationAudit(qtn, { action: "Transfer", user: actorName, userType: newStage.toUpperCase() });
   return qtn;
 }
 
@@ -2244,14 +2280,20 @@ function searchItemMaster(query) {
 // common production role tiers used elsewhere in this app (EMPLOYEE_RATES 'category').
 const EMP_CATEGORIES = ["Skilled", "Semi-Skilled", "Helper", "Supervisor"];
 
-// Only quotations sitting in the Estimator stage are ever "pending to pick" —
-// picking assigns the quote to whichever estimator name is passed in.
-function pickQuotation(qtnId, estimatorName) {
+// Generalized so both Estimator and Approver can pick off their own stage's
+// queue — a quotation is only "pending to pick" while sitting in the stage
+// the picker owns. estimatorPickedBy/approverPickedBy are separate fields
+// (not one shared pickedBy) because the live audit trail shows each role's
+// pick is independent and persists even after the quote moves to another
+// stage and comes back.
+function pickQuotation(qtnId, personName, expectedStage) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
-  if (qtn.stage !== "estimator") return { error: "This quotation is not in the Estimator stage." };
-  if (qtn.pickedBy) return { error: "This quotation has already been picked." };
-  qtn.pickedBy = estimatorName;
+  if (qtn.stage !== expectedStage) return { error: `This quotation is not in the ${expectedStage[0].toUpperCase()}${expectedStage.slice(1)} stage.` };
+  const field = expectedStage === "approver" ? "approverPickedBy" : "estimatorPickedBy";
+  if (qtn[field]) return { error: "This quotation has already been picked." };
+  qtn[field] = personName;
+  logQuotationAudit(qtn, { action: "Pick", user: personName, userType: expectedStage.toUpperCase() });
   return qtn;
 }
 
@@ -2374,6 +2416,7 @@ function submitItemBOM(qtnId, lineId) {
   item.discAmt = item.amount * (item.discPercent || 0) / 100;
   item.netAmount = (item.amount - item.discAmt) * (1 + (item.vatPercent || 0) / 100);
   item.bom.submitted = true;
+  item.bom.qtyAtSubmit = item.qty; // lets the Estimation index flag "Copy BOM" if Sales changes Qty after this
   return { item, totals };
 }
 function clearItemBOM(qtnId, lineId) {
@@ -2389,8 +2432,8 @@ function clearItemBOM(qtnId, lineId) {
 // — Estimator's own PR view in Q-Pro hasn't been mapped in detail yet.
 function getEstimatorKPIs(estimatorName) {
   const estQuotes = quotations.filter(q => q.stage === "estimator");
-  const pendingToPickList = estQuotes.filter(q => !q.pickedBy);
-  const myActionsList = estQuotes.filter(q => q.pickedBy === estimatorName);
+  const pendingToPickList = estQuotes.filter(q => !q.estimatorPickedBy);
+  const myActionsList = estQuotes.filter(q => q.estimatorPickedBy === estimatorName);
   const withApprover = quotations.filter(q => q.stage === "approver").length;
   const confirmed = quotations.filter(q => q.lifecycleStatus === "confirmed").length;
   const prPending = purchaseRequests.filter(pr => pr.status === "open").length;
@@ -2416,6 +2459,116 @@ function getEstimatorKPIs(estimatorName) {
   };
 }
 
+// ═══════════════════════════════════════
+// MODULE 4 — APPROVER
+// Rebuilt 25 Jul 2026 from Salman's full live trace of the Sales ⇄
+// Estimator ⇄ Approver loop, including the audit trail and the two
+// independent comment channels. Key corrections this made to the Quotation
+// module built earlier:
+//   - lifecycleStatus stays "draft" through the WHOLE Estimator/Approver
+//     loop — it only flips to "open" when Approver clicks Approve Quote.
+//     (finaliseQuotation() below was wrongly setting "open" immediately.)
+//   - pickedBy is per-role, not a single shared field — an Estimator's pick
+//     and an Approver's pick are independent and both persist forever once
+//     set (so "Back to Estimator" / re-transferring to the same role never
+//     needs a re-pick — it lands straight in that person's queue).
+//   - Comments are NOT a reject-time gate. They're two independent,
+//     always-editable channels: one header/common comment (Approver ->
+//     visible to Sales & Estimator), and one per-line comment (Approver ->
+//     visible to Estimator). Sales' existing per-line internalComments is
+//     the third channel, surfaced back to Approver on review.
+// ═══════════════════════════════════════
+
+// Every status transition gets one row here — Sales/Estimator/Approver hub
+// pages all render this same log at the bottom of the page.
+function logQuotationAudit(qtn, { action, user, userType, status }) {
+  if (!qtn.auditLog) qtn.auditLog = [];
+  const displayStatus = status || (qtn.lifecycleStatus.charAt(0).toUpperCase() + qtn.lifecycleStatus.slice(1));
+  qtn.auditLog.push({
+    seq: qtn.auditLog.length + 1,
+    action, user, date: new Date().toISOString().slice(0, 10),
+    userType, status: displayStatus
+  });
+}
+
+// Approve Quote — the only action that flips Draft -> Open. Sends the
+// quotation back to Sales' queue; "Confirm Quote" (Open -> Confirmed, the
+// bridge into Jobs/Invoicing) is explicitly out of scope for this rebuild.
+function approveQuotation(qtnId, approvedBy) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  qtn.stage = "sales";
+  qtn.lifecycleStatus = "open";
+  logQuotationAudit(qtn, { action: "Transfer", user: approvedBy, userType: "SALES", status: "Open" });
+  return qtn;
+}
+
+// Header/common comment — Approver-authored, one per quote, read-only to
+// Sales/Estimator via their own "View Approver Comments" link.
+function setQuotationHeaderComment(qtnId, text) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  qtn.headerComment = text;
+  return qtn;
+}
+// Per-line comment — Approver-authored, surfaced to the Estimator via the
+// eye icon on the Estimation index / Job Estimation header.
+function setLineApproverComment(qtnId, lineId, text) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  item.approverComment = text;
+  return item;
+}
+
+// Sales-side post-return editing — Qty/Description/Internal Comments only.
+// Rate stays Estimator-controlled even here; Amount/Net Amount recompute
+// live off the current Rate (0 if not yet estimated).
+function updateQuotationItemFields(qtnId, lineId, { qty, description, internalComments }) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  if (qty !== undefined) item.qty = qty;
+  if (description !== undefined) item.description = description;
+  if (internalComments !== undefined) item.internalComments = internalComments;
+  item.amount = item.qty * item.rate;
+  item.discAmt = item.amount * (item.discPercent || 0) / 100;
+  item.netAmount = (item.amount - item.discAmt) * (1 + (item.vatPercent || 0) / 100);
+  return item;
+}
+
+// Approver dashboard KPIs. "PO Approval" deliberately reuses the existing
+// Purchasing approval queue (getPendingPOApprovals()) rather than
+// duplicating that data model — Approver's tile is a rollup + shortcut into
+// Purchasing, not a second PO approval flow.
+function getApproverKPIs(approverName) {
+  const apprQuotes = quotations.filter(q => q.stage === "approver");
+  const pendingToPickList = apprQuotes.filter(q => !q.approverPickedBy);
+  const forApprovalList = apprQuotes.filter(q => q.approverPickedBy === approverName);
+  const poApproval = getPendingPOApprovals().length;
+  const prPending = purchaseRequests.filter(pr => pr.status === "open").length;
+  const prNotReceived = purchaseOrders.filter(po => po.status === "issued").length;
+  const newCustomersList = customers.filter(c => c.status === "pending");
+
+  function divisionCategory(div) {
+    if (div === "Curtain & Blinds") return "curtain";
+    if (div === "Upholstery") return "upholstery";
+    return "joinery";
+  }
+  const categoryBreakdown = { curtain: 0, upholstery: 0, joinery: 0 };
+  apprQuotes.forEach(q => {
+    const enq = enquiries.find(e => e.id === q.enquiryId);
+    categoryBreakdown[divisionCategory(enq ? enq.division : "")]++;
+  });
+
+  return {
+    pendingToPick: pendingToPickList.length, pendingToPickList,
+    forApproval: forApprovalList.length, forApprovalList,
+    quotationsTotal: quotations.length,
+    prPending, prNotReceived, poApproval,
+    newCustomers: newCustomersList.length, newCustomersList,
+    categoryBreakdown
+  };
+}
+
 // ── LIVE REFERENCE FIXTURE ──
 // Built for testing against the real Q-Pro flow (Salman, 25 Jul 2026) — safe
 // to reuse as a Claude Code test fixture. ENQ04061AMD -> AMD-15350-0, sitting
@@ -2437,10 +2590,15 @@ quotations.push({
   projectName: "ZZTEST Reference Project - Claude Mapping", taxPercent: 10, contactPerson: "Test Contact",
   withEstimation: true, notes: "",
   items: [
-    { lineId: 1, group: "", subgroup: "", product: "Test Curtain Fabric - Mapping Exercise", qty: 1, unit: "Meters", rate: 0, amount: 0, vatPercent: 10, discPercent: 0, discAmt: 0, netAmount: 0, description: "", internalComments: "", optional: false, bom: null }
+    { lineId: 1, group: "", subgroup: "", product: "Test Curtain Fabric - Mapping Exercise", qty: 1, unit: "Meters", rate: 0, amount: 0, vatPercent: 10, discPercent: 0, discAmt: 0, netAmount: 0, description: "", internalComments: "", optional: false, approverComment: "", bom: null }
   ],
   coveringLetterTemplate: "Al Maraya decor.", coveringLetterBody: COVERING_LETTER_TEMPLATES["Al Maraya decor."]("ZZTEST Reference Project - Claude Mapping"),
   termsTemplate: "Al Maraya Decor Standard.", termsBody: TERMS_TEMPLATES["Al Maraya Decor Standard."],
-  lifecycleStatus: "open", stage: "estimator", pickedBy: null,
-  date: "2026-07-24", confirmDate: null
+  // Draft the whole way through the loop — only Approve Quote flips this to Open (see approveQuotation()).
+  lifecycleStatus: "draft", stage: "estimator",
+  estimatorPickedBy: null, approverPickedBy: null, headerComment: "",
+  date: "2026-07-24", confirmDate: null,
+  auditLog: [
+    { seq: 1, action: "Create", user: "Salman Abdullah", date: "2026-07-24", userType: "SALES", status: "Draft" }
+  ]
 });

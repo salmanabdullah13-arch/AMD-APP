@@ -240,7 +240,7 @@
           <line id="line-accounts"   class="eco-line" x1="190" y1="225" x2="354" y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-delivery"   class="eco-line" x1="190" y1="225" x2="364" y2="385" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-hr"         class="eco-line" x1="190" y1="225" x2="190" y2="464" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-approvals"  class="eco-line" x1="190" y1="225" x2="16"  y2="385" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-approvals"  class="eco-line" x1="190" y1="225" x2="16"  y2="385" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-tally"      class="eco-line" x1="190" y1="225" x2="26"  y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
 
           <!-- ══ CENTER — MARAYA LOGO ══ -->
@@ -439,11 +439,12 @@
             <text x="190" y="460" text-anchor="middle" font-size="9">👥</text>
             <text x="190" y="470" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">HR</text>
           </g>
-          <g id="node-approvals" class="eco-node" onclick="showPanel('approvals')" style="cursor:pointer;opacity:.22;">
-            <circle cx="16" cy="385" r="16" fill="rgba(255,255,255,.04)"/>
-            <circle cx="16" cy="385" r="12" fill="rgba(255,255,255,.04)"/>
+          <g id="node-approvals" class="eco-node" onclick="showPanel('approvals')" style="cursor:pointer;">
+            <circle cx="16" cy="385" r="17" fill="rgba(15,157,88,.07)"/>
+            <circle cx="16" cy="385" r="12" fill="url(#OKG)" filter="url(#glow-ok)"/>
+            <circle cx="16" cy="385" r="12" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
             <text x="16" y="381" text-anchor="middle" font-size="9">✅</text>
-            <text x="16" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">APPROVALS</text>
+            <text x="16" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.85)" font-weight="700">APPROVER</text>
           </g>
           <g id="node-tally" class="eco-node" onclick="showPanel('tally')" style="cursor:pointer;opacity:.22;">
             <circle cx="26" cy="85" r="16" fill="rgba(255,255,255,.04)"/>
@@ -1452,6 +1453,7 @@
 <script src="storekeeper.js"></script>
 <script src="sales.js"></script>
 <script src="estimator.js"></script>
+<script src="approver.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1516,7 +1518,7 @@ function subNodeTouch(id, active) {
     { id:'accounts',   cx:354, cy:85,  built:false },
     { id:'delivery',   cx:364, cy:385, built:false },
     { id:'hr',         cx:190, cy:464, built:false },
-    { id:'approvals',  cx:16,  cy:385, built:false },
+    { id:'approvals',  cx:16,  cy:385, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
     { id:'tally',      cx:26,  cy:85,  built:false },
   ];
 
