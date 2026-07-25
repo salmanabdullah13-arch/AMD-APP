@@ -51,7 +51,7 @@ const M={
   upholstery:{icon:'🛋️',title:'Upholstery',sub:'Sofas, re-upholstery, headboards',status:'soon',sl:'Planned — after Curtain',features:[],soon:['Job cards + measurements','Frame making stage','Foam & fabric cutting','Sewing & covering','QC checklist'],note:'After Curtain module is complete, this is next.'},
   joinery:{icon:'🪵',title:'Joinery',sub:'Woodwork, wardrobes, doors',status:'soon',sl:'Planned',features:[],soon:['Workshop job cards','Cutting & CNC','Assembly','Machine scheduling','Labour hours','Paint & metal sub-stages'],note:'Largest module — painting and metal works sit inside Joinery.'},
   painting:{icon:'🎨',title:'Painting',sub:'Finishes, spray, metal coating',status:'soon',sl:'Planned',features:[],soon:['Queue from Joinery','Finish specs (RAL, texture)','Spray stages','Curing tracking','QC sign-off'],note:'Serves both Joinery and Metal Works.'},
-  sales:{icon:'💼',title:'Sales',sub:'Enquiry, quoting, variations',status:'soon',sl:'Planned',features:[],soon:['Enquiry management','Quote builder','Variation raising','Client follow-up','Q-Pro link'],note:'Sales RAISES variations — this is where that flow starts. Not Operations.'},
+  sales:{icon:'💼',title:'Sales',sub:'Enquiry → Quote → Estimation → Approval',status:'built',sl:'✓ Enquiry built · Quote/Estimation/Approval next',features:['Enquiry — customer capture with Accounts verification gate','Follow-up log — appointments, meeting type, outcome','Unallocated / In Progress / Quoted / Lost tracking'],soon:['Quotation builder','Estimation routing','Approval gate','Variation raising','Client follow-up beyond Enquiry'],note:'Sales RAISES variations — this is where that flow starts. Not Operations. Enquiry is the first piece built; Quote/Estimation/Approval are separate upcoming sessions on the same foundation.',btn:'Open Enquiry →'},
   estimation:{icon:'📋',title:'Estimation',sub:'BOQ, BOM, pricing, margins',status:'soon',sl:'Planned',features:[],soon:['Quote estimation','BOM per product','Margin analysis','Variation pricing'],note:'One estimator today. Design must allow expansion later.'},
   owner:{icon:'👑',title:'Owner Dashboard',sub:'Daily business health view',status:'soon',sl:'Planned',features:[],soon:['Revenue vs costs','Division performance','Cash position','Escalations only','Job profitability ranking'],note:'Daily view for Salman — answers 3 questions in 3 seconds. No noise.'},
   accounts:{icon:'💰',title:'Accounts',sub:'Tally bridge',status:'soon',sl:'Planned',features:[],soon:['Invoice sync to Tally','Payment reconciliation','P&L per division','Supplier payments'],note:'Tally stays for accounting. Bridge removes double entry.'},
@@ -94,6 +94,10 @@ function showPanel(id){
   } else if(id==='storekeeper'){
     btnAction="closePanel();setTimeout(()=>launchStorekeeperModule(),300)";
     btnLabel='Open Storekeeper →';
+    btnDim=false;
+  } else if(id==='sales'){
+    btnAction="closePanel();setTimeout(()=>launchEnquiryModule(),300)";
+    btnLabel='Open Enquiry →';
     btnDim=false;
   }
 

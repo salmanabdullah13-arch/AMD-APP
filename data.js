@@ -2030,3 +2030,208 @@ const EMPLOYEE_RATES = {
   'Soheb Ahmed': { rate: 0.704, department: 'Upholstery', category: 'Production' },
   'Ammar Bahadur': { rate: 0.704, department: 'Watchman', category: 'Production' },
 };
+
+// ══════════════════════════════════════════════
+// SALES — CUSTOMERS + ENQUIRY
+// Built session: 24 Jul 2026. First piece of the Enquiry -> Quotation ->
+// Estimation -> Approval pipeline (replacing Q-Pro's Sales module).
+// Quote/Estimation/Approval are separate future sessions built on this
+// same foundation — see markEnquiryQuoted() below.
+// ══════════════════════════════════════════════
+
+// ── CUSTOMER MASTER ──
+// New customers are entered inline during Enquiry creation, but every one
+// needs Accounts to verify it isn't a duplicate of an existing record
+// before it's trusted — duplicate customer records have broken SOA
+// generation before. approvalStatus gates that, same pattern as
+// approveInvoice/rejectInvoice above.
+const customers = [];
+
+function nextCustomerId() {
+  return "C-" + String(customers.length + 1).padStart(4, "0") + "-AMD";
+}
+
+function createCustomer({
+  name, tel, tel2 = "", email = "", address, vatName = "", vatNo = "", crNo = "", country = "Bahrain",
+  taxPercent = 10, isCredit = false, creditLimit = 0, creditDays = 0,
+  bankAccountNumber = "", bankAccountHolder = "", iban = "", swift = "", bankName = "", bankBranch = "",
+  openingBalance = 0, createdBy
+}) {
+  const customer = {
+    id: nextCustomerId(),
+    name,
+    tel,
+    tel2,
+    email,
+    address,
+    vatName,
+    vatNo,
+    crNo,
+    country,
+    taxPercent,
+    isCredit,
+    creditLimit,
+    creditDays,
+    bankAccountNumber,
+    bankAccountHolder,
+    iban,
+    swift,
+    bankName,
+    bankBranch,
+    openingBalance,
+    contactPersons: [],
+    approvalStatus: "pending",   // pending | approved | rejected
+    approvedBy: null,
+    approvalDate: null,
+    rejectionComment: null,
+    duplicateOfCustomerId: null, // set on reject when this turns out to be a duplicate — points Accounts at the real record
+    createdBy,
+    dateCreated: new Date().toISOString().slice(0, 10)
+  };
+  customers.push(customer);
+  return customer;
+}
+
+function addCustomerContactPerson(customerId, name) {
+  const customer = customers.find(c => c.id === customerId);
+  if (!customer) return { error: "Customer not found." };
+  const contact = { id: customerId + "-CP" + String(customer.contactPersons.length + 1).padStart(2, "0"), name };
+  customer.contactPersons.push(contact);
+  return contact;
+}
+
+function approveCustomer(customerId, approvedBy) {
+  const customer = customers.find(c => c.id === customerId);
+  if (!customer) return null;
+  customer.approvalStatus = "approved";
+  customer.approvedBy = approvedBy;
+  customer.approvalDate = new Date().toISOString().slice(0, 10);
+  return customer;
+}
+
+function rejectCustomer(customerId, rejectedBy, comment, duplicateOfCustomerId = null) {
+  const customer = customers.find(c => c.id === customerId);
+  if (!customer) return null;
+  customer.approvalStatus = "rejected";
+  customer.approvedBy = rejectedBy;
+  customer.approvalDate = new Date().toISOString().slice(0, 10);
+  customer.rejectionComment = comment;
+  customer.duplicateOfCustomerId = duplicateOfCustomerId;
+  return customer;
+}
+
+function getPendingCustomerApprovals() {
+  return customers.filter(c => c.approvalStatus === "pending");
+}
+
+// ── ENQUIRY ──
+const enquiries = [];
+
+// Cross-referenced from a live Q-Pro dashboard screenshot (Sales Person
+// Assigned dropdown) plus real enquiry records (sales_man field) — still
+// likely a partial list, not Q-Pro's full user directory. Extend as more
+// of the real team is confirmed.
+const SALES_PEOPLE = ["Salman Abdullah", "Karthik Silva", "Aslam Abdul Rehman Qureshi", "Rajneesh V", "Jinesh Jayarajan", "Mohammad Shafeel", "Arun Kumar", "Sampath S Kumar", "Altaf Ghare", "Abdul Raheem Mohammed"];
+
+const ENQUIRY_SOURCES = ["Architect/Interior Designer", "Email", "Existing client", "Q-pro (Old quotes)", "Referrals", "Social Media", "Walk-in"];
+const FOLLOWUP_MEETING_TYPES = ["Telephone Call", "Email", "Meeting at Client Office", "Meeting at Our Office", "On Site Meeting", "Sample Delivery", "Whatsapp Chat"];
+const FOLLOWUP_OUTCOMES = ["On call/whatsapp", "Required design/proposal", "Client not attended", "On site measurements"];
+
+function nextEnquiryId() {
+  return "ENQ-" + String(enquiries.length + 1).padStart(4, "0") + "-AMD";
+}
+
+function createEnquiry({ customerId, contactPersonId = null, tel = "", email = "", requirements, sourceOfEnquiry, salesPersonAssigned = null }) {
+  const enquiry = {
+    id: nextEnquiryId(),
+    dateCreated: new Date().toISOString().slice(0, 10),
+    customerId,
+    contactPersonId,
+    tel,
+    email,
+    requirements,
+    sourceOfEnquiry,
+    salesPersonAssigned,
+    status: salesPersonAssigned ? "in-progress" : "unallocated", // unallocated | in-progress | quoted | lost
+    lostReason: null,
+    followUps: [],
+    linkedQuotationId: null
+  };
+  enquiries.push(enquiry);
+  return enquiry;
+}
+
+function assignEnquirySalesPerson(enquiryId, salesPerson) {
+  const enquiry = enquiries.find(e => e.id === enquiryId);
+  if (!enquiry) return null;
+  enquiry.salesPersonAssigned = salesPerson;
+  if (enquiry.status === "unallocated") enquiry.status = "in-progress";
+  return enquiry;
+}
+
+function addEnquiryFollowUp(enquiryId, { dateOfAppointment, meetingType, outcome, notes }) {
+  const enquiry = enquiries.find(e => e.id === enquiryId);
+  if (!enquiry) return { error: "Enquiry not found." };
+  if (!notes || notes.length < 10) return { error: "Notes must be at least 10 characters." };
+  const followUp = {
+    id: enquiryId + "-FU" + String(enquiry.followUps.length + 1).padStart(2, "0"),
+    dateOfAppointment,
+    meetingType,
+    outcome,
+    notes,
+    loggedAt: new Date().toISOString().slice(0, 10)
+  };
+  enquiry.followUps.push(followUp);
+  return followUp;
+}
+
+function markEnquiryLost(enquiryId, reason = null) {
+  const enquiry = enquiries.find(e => e.id === enquiryId);
+  if (!enquiry) return null;
+  enquiry.status = "lost";
+  enquiry.lostReason = reason;
+  return enquiry;
+}
+
+// Reserved for the future Quote-building session — nothing in this
+// session's Enquiry build calls this yet.
+function markEnquiryQuoted(enquiryId, quotationId) {
+  const enquiry = enquiries.find(e => e.id === enquiryId);
+  if (!enquiry) return null;
+  enquiry.status = "quoted";
+  enquiry.linkedQuotationId = quotationId;
+  return enquiry;
+}
+
+// ── SALES DASHBOARD KPIs ──
+function getEnquiryKPIs() {
+  return {
+    unallocatedCount: enquiries.filter(e => e.status === "unallocated").length,
+    inProgressCount: enquiries.filter(e => e.status === "in-progress").length,
+    lostCount: enquiries.filter(e => e.status === "lost").length,
+    quotedCount: enquiries.filter(e => e.status === "quoted").length,
+    pendingCustomerApprovals: getPendingCustomerApprovals().length
+  };
+}
+
+// ── DEMO SEED DATA ──
+// 10 sample customers pulled 24 Jul 2026 from a Chrome-extension session
+// exploring live Q-Pro's Enquiry/Customer form — confirmed synthetic
+// (Salman), not real clients, so imported pre-approved as demo/test data
+// rather than routed through the pending-verification queue.
+[
+  { name: "Sunrise Interiors WLL", contactPerson: "Fatima Al-Sayed", tel: "17334521", tel2: "39887701", email: "fatima.alsayed@sunriseint-test.com", vatName: "Sunrise Interiors WLL", vatNo: "BH-VAT-100234", taxPercent: 10, isCredit: true, creditLimit: 5000, creditDays: 30, address: "Building 224, Road 12, Block 305, Juffair, Bahrain", crNo: "CR-55231", country: "Bahrain", openingBalance: 0 },
+  { name: "Bluewave Furnishings", contactPerson: "Ahmed Khalid", tel: "17556432", tel2: "", email: "a.khalid@bluewave-test.com", vatName: "Bluewave Furnishings", vatNo: "BH-VAT-100987", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Villa 45, Road 3612, Block 436, Seef, Bahrain", crNo: "CR-61245", country: "Bahrain", openingBalance: 1200 },
+  { name: "Al Noor Design Studio", contactPerson: "Mariam Youssef", tel: "33221190", tel2: "", email: "mariam@alnoor-test.com", vatName: "Al Noor Design Studio", vatNo: "BH-VAT-101456", taxPercent: 5, isCredit: true, creditLimit: 3000, creditDays: 15, address: "Office 12, Bahrain Financial Harbour, Manama", crNo: "CR-70012", country: "Bahrain", openingBalance: 0 },
+  { name: "Palm Grove Properties", contactPerson: "Yousif Al-Marzooq", tel: "17998211", tel2: "36445521", email: "yousif@palmgrove-test.com", vatName: "Palm Grove Properties", vatNo: "BH-VAT-102301", taxPercent: 10, isCredit: true, creditLimit: 8000, creditDays: 45, address: "Building 90, Road 1706, Block 317, Hoora, Bahrain", crNo: "CR-48822", country: "Bahrain", openingBalance: 0 },
+  { name: "Heritage Home Decor", contactPerson: "Layla Hassan", tel: "17773344", tel2: "", email: "layla.h@heritagehome-test.com", vatName: "Heritage Home Decor", vatNo: "BH-VAT-103675", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Shop 7, Al Aali Mall, Zinj, Bahrain", crNo: "CR-30044", country: "Bahrain", openingBalance: 500 },
+  { name: "Ebrahim & Sons Trading", contactPerson: "Khalid Ebrahim", tel: "17664521", tel2: "", email: "k.ebrahim@ebrahimsons-test.com", vatName: "Ebrahim & Sons Trading", vatNo: "BH-VAT-104882", taxPercent: 0, isCredit: false, creditLimit: 0, creditDays: 0, address: "Building 12, Road 55, Block 601, Sitra, Bahrain", crNo: "CR-19233", country: "Bahrain", openingBalance: 0 },
+  { name: "Casa Bella Interiors", contactPerson: "Noora Abdulla", tel: "39112233", tel2: "", email: "noora@casabella-test.com", vatName: "Casa Bella Interiors", vatNo: "BH-VAT-105129", taxPercent: 10, isCredit: true, creditLimit: 4500, creditDays: 30, address: "Villa 8, Road 2222, Block 222, Saar, Bahrain", crNo: "CR-58891", country: "Bahrain", openingBalance: 0 },
+  { name: "Marina Bay Contracting", contactPerson: "Hamad Al-Dosari", tel: "17887744", tel2: "", email: "hamad@marinabay-test.com", vatName: "Marina Bay Contracting", vatNo: "BH-VAT-106453", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Office 301, Marina Tower, Manama", crNo: "CR-72219", country: "Bahrain", openingBalance: 2000 },
+  { name: "Desert Rose Furniture", contactPerson: "Amina Salman", tel: "33556677", tel2: "", email: "amina@desertrose-test.com", vatName: "Desert Rose Furniture", vatNo: "BH-VAT-107784", taxPercent: 5, isCredit: false, creditLimit: 0, creditDays: 0, address: "Building 6, Road 405, Block 605, Isa Town, Bahrain", crNo: "CR-33456", country: "Bahrain", openingBalance: 0 },
+  { name: "Golden Gate Interiors", contactPerson: "Sara Al-Khalifa", tel: "17221144", tel2: "", email: "sara@goldengate-test.com", vatName: "Golden Gate Interiors", vatNo: "BH-VAT-108990", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0, address: "Villa 100, Road 3020, Block 330, Riffa, Bahrain", crNo: "CR-64410", country: "Bahrain", openingBalance: 0 }
+].forEach(seed => {
+  const c = createCustomer({ ...seed, createdBy: "Demo seed" });
+  addCustomerContactPerson(c.id, seed.contactPerson);
+  approveCustomer(c.id, "Demo seed");
+});
