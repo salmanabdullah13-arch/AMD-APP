@@ -35,6 +35,10 @@ function goTo(p){
   if (estimatorMod) estimatorMod.style.cssText = 'display:none;';
   const approverMod = document.getElementById('approver-module-wrap');
   if (approverMod) approverMod.style.cssText = 'display:none;';
+  const jobsMod = document.getElementById('jobs-module-wrap');
+  if (jobsMod) jobsMod.style.cssText = 'display:none;';
+  const accountsMod = document.getElementById('accounts-module-wrap');
+  if (accountsMod) accountsMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
@@ -60,10 +64,10 @@ const M={
   sales:{icon:'💼',title:'Sales',sub:'Enquiry → Quotation',status:'built',sl:'✓ Built · Enquiry + Quotation',features:['Enquiry dashboard with filters (Un Assigned/Un Attended/Un Quoted)','Create Enquiry + inline New Customer','Enquiry Basic/Follow-up tabs, salesman-locked','Convert Quotation — only once linked to a real Customer','3-step Quotation wizard: Client & Project, Product & Services, Finalise','With Estimation locks pricing, routes to Estimator stage'],note:'Quotations can ONLY be created by converting an Enquiry linked to a real Customer — no standalone Create button, matching live Q-Pro. Estimator is its own standalone module (see the Estimator hub node) — Approver is tracked but not yet built as a screen.',btn:'Open Sales →'},
   estimation:{icon:'📐',title:'Estimator',sub:'Pick → BOM → Selling Price',status:'built',sl:'✓ Built · standalone module',features:['Dashboard: Pending to Pick, My Actions, With Approver, Confirmed, PR','Pick a quotation off the Estimator stage','Manage Quote hub (Estimator view) with ESTIMATION tile','Estimation index — per-item Add/Update/Clear BOM','6-tab Job Estimation: Materials, Labour, Sub Contract, Hiring, Others, Summary','Cost-plus waterfall: overhead % per category → profit % → Selling Price, with manual override'],note:'Split out as its own module with its own simulated user identity (Salman\'s call, 25 Jul 2026) — Estimator is a distinct role in Q-Pro, not a Sales tab. Shares quotations[] with Sales via data.js.',btn:'Open Estimator →'},
   owner:{icon:'👑',title:'Owner Dashboard',sub:'Daily business health view',status:'soon',sl:'Planned',features:[],soon:['Revenue vs costs','Division performance','Cash position','Escalations only','Job profitability ranking'],note:'Daily view for Salman — answers 3 questions in 3 seconds. No noise.'},
-  accounts:{icon:'💰',title:'Accounts',sub:'Tally bridge',status:'soon',sl:'Planned',features:[],soon:['Invoice sync to Tally','Payment reconciliation','P&L per division','Supplier payments'],note:'Tally stays for accounting. Bridge removes double entry.'},
-  delivery:{icon:'🚚',title:'Delivery',sub:'Scheduling + sign-off',status:'soon',sl:'Partially built in Operations',features:['Pre-delivery checklist (in Operations)','Dispatch → invoice trigger','Delivery schedule'],soon:['Standalone driver view','Photo proof of delivery'],note:'Basic delivery is inside Operations already.'},
+  accounts:{icon:'💰',title:'Accounts',sub:'Revenue · Receivables · Payables',status:'built',sl:'✓ Built · reporting dashboard',features:['Dashboard: Revenue, Receivables, Payables, PO value awaiting delivery, cash position proxy','Revenue by division, traced Invoice → Job → Quotation → Enquiry','Sales Invoices list','Purchase Invoices list'],note:'Not mapped from a live Q-Pro reference — built as a read-only reporting layer over data this app already has. No payment/receipt ledger exists yet, so Receivables/Payables are full invoiced amounts, not true outstanding balances. Tally bridge sync is still planned, not built.',btn:'Open Accounts →'},
+  delivery:{icon:'🗂️',title:'Jobs',sub:'Job Card — post-Approval production',status:'built',sl:'✓ Built · standalone module',features:['Job Card List — Open/Completed/Cancelled legend + filters','Job Card Management hub — Print/Edit/Proforma/Delivery/Material Issue/Return tiles','Edit Job — BOM carried from Quotation, Update BOM re-sync','Create Delivery Note — partial delivery by line','Materials Issue / Return — location-tracked stock movement','Update Job Status — per-line, per-department','Labour Cost — actual entry vs. Estimator\'s earlier estimate','Purchase Request (Job) — its own lavender accent, ties into the existing PR chain'],note:'Created via Sales\' "Confirm Quote" action once a Quotation is Open. Deliberately kept separate from the pre-existing Curtain workshop tracker (curtainJobs[]) — unifying the two is a bigger architectural call for a dedicated session.',btn:'Open Jobs →'},
   hr:{icon:'👥',title:'HR & Payroll',sub:'Staff, attendance, payroll',status:'soon',sl:'Planned',features:[],soon:['Employee profiles','Attendance','Payroll','Leave management','Visa expiry alerts'],note:'Q-Pro already has HR. Decide whether to extend or build separately.'},
-  approvals:{icon:'✅',title:'Approver',sub:'Pick → Review → Approve',status:'built',sl:'✓ Built · standalone module',features:['Dashboard: Pending to Pick, For Approval, Quotations (Total), PR, PO Approval, New Customers','Pick a quotation off the Approver stage','Review Screen — Common Comments + per-line Comments, Cost/Profit/Profit% columns','Approve Quote (Draft → Open, back to Sales) or Back to Estimator','New Customers approval queue','Full audit trail on every Manage Quote hub page'],note:'Split out as its own module with its own simulated user identity (defaults to Salman Abdullah). Approve Quote is the only action that flips a quotation from Draft to Open — "Confirm Quote" (Open → Confirmed, the bridge into Jobs/Invoicing) is out of scope for now.',btn:'Open Approver →'},
+  approvals:{icon:'✅',title:'Approver',sub:'Pick → Review → Approve',status:'built',sl:'✓ Built · standalone module',features:['Dashboard: Pending to Pick, For Approval, Quotations (Total), PR, PO Approval, New Customers','Pick a quotation off the Approver stage','Review Screen — Common Comments + per-line Comments, Cost/Profit/Profit% columns','Approve Quote (Draft → Open, back to Sales) or Back to Estimator','New Customers approval queue','Full audit trail on every Manage Quote hub page'],note:'Split out as its own module with its own simulated user identity (defaults to Salman Abdullah). Approve Quote flips a quotation from Draft to Open — Sales\' "Confirm Quote" then creates the Job Card (see the Jobs module).',btn:'Open Approver →'},
   tally:{icon:'🔗',title:'Tally Bridge',sub:'Sync with Tally',status:'soon',sl:'Planned',features:[],soon:['Auto-push invoices','Payment sync','No manual re-entry'],note:'Removes duplicate data entry between this system and Tally.'},
 };
 
@@ -113,6 +117,14 @@ function showPanel(id){
     btnAction="closePanel();setTimeout(()=>launchApproverModule(),300)";
     btnLabel='Open Approver →';
     btnDim=false;
+  } else if(id==='delivery'){
+    btnAction="closePanel();setTimeout(()=>launchJobsModule(),300)";
+    btnLabel='Open Jobs →';
+    btnDim=false;
+  } else if(id==='accounts'){
+    btnAction="closePanel();setTimeout(()=>launchAccountsModule(),300)";
+    btnLabel='Open Accounts →';
+    btnDim=false;
   }
 
   b+=`<button class="panel-btn${btnDim?' dim':''}" ${btnDim?'':'onclick="'+btnAction+'"'}>${btnLabel}</button>`;
@@ -153,7 +165,21 @@ function updCP(){
 // Reads live item-card state from curtain.js/data.js and reflects it as
 // small numbered badges on the three Curtain sub-nodes (Tracks/QC/Install)
 // on the ecosystem hub. Safe no-op if curtain.js hasn't loaded/hydrated yet.
+// Was hardcoded HTML ("1 Built / 1 Building / 11 Planned") left over from
+// early in the project — badly stale once modules kept getting built.
+// Computed live off M so it can never drift out of sync again.
+function updateEcosystemStats(){
+  const entries = Object.entries(M).filter(([key]) => key !== 'center');
+  const counts = { built: 0, building: 0, soon: 0 };
+  entries.forEach(([, m]) => { counts[m.status] = (counts[m.status] || 0) + 1; });
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText('qs-built-count', counts.built);
+  setText('qs-building-count', counts.building);
+  setText('qs-planned-count', counts.soon);
+}
+
 function updateHubBadges(){
+  updateEcosystemStats();
   if (typeof curtainJobs === 'undefined' || !Array.isArray(curtainJobs)) return;
 
   let reworkCount = 0, qcNewCount = 0, readyToInstallCount = 0;

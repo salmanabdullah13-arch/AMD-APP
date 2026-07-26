@@ -9,14 +9,14 @@
 const purchStyleTag = document.createElement('style');
 purchStyleTag.textContent = `
 #purch-module-wrap { font-family: inherit; }
-#purch-module-wrap .ops-header{background:#8a6d00;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#purch-module-wrap .ops-header{background:#6B3F7A;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #purch-module-wrap .nav{background:#fff;border-bottom:1px solid #e2e8f0;overflow-x:auto;display:flex;padding:0 16px;flex:none;}
 #purch-module-wrap .ntab{background:none;border:0;border-bottom:2.5px solid transparent;color:#64748b;padding:10px 11px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;position:relative;}
-#purch-module-wrap .ntab.active{color:#8a6d00;border-bottom-color:#d4a017;font-weight:700;}
+#purch-module-wrap .ntab.active{color:#6B3F7A;border-bottom-color:#9B5FB0;font-weight:700;}
 #purch-module-wrap .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px;}
 #purch-module-wrap .page{display:none;padding:16px 18px;max-width:980px;margin:0 auto;}
 #purch-module-wrap .page.active{display:block;}
-#purch-module-wrap button.primary{background:#d4a017;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+#purch-module-wrap button.primary{background:#9B5FB0;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
 #purch-module-wrap .p-card {
   background:#fff; border:1px solid #e2e8f0; border-radius:12px;
   padding:14px; margin-bottom:12px;
@@ -28,7 +28,7 @@ purchStyleTag.textContent = `
   background:#fff; border:1px solid #e2e8f0; border-radius:12px;
   padding:12px; text-align:center;
 }
-#purch-module-wrap .p-kpi-tile .num { font-size:22px; font-weight:800; color:#d4a017; }
+#purch-module-wrap .p-kpi-tile .num { font-size:22px; font-weight:800; color:#9B5FB0; }
 #purch-module-wrap .p-kpi-tile .lbl { font-size:11px; color:#64748b; margin-top:2px; }
 #purch-module-wrap .p-pill {
   display:inline-block; font-size:10.5px; font-weight:600; padding:3px 9px;
@@ -47,7 +47,7 @@ purchStyleTag.textContent = `
   background:#fff; color:#475569; cursor:pointer;
 }
 #purch-module-wrap .p-dept-filter button.active {
-  background:#d4a017; border-color:#d4a017; color:#fff;
+  background:#9B5FB0; border-color:#9B5FB0; color:#fff;
 }
 #purch-module-wrap .p-panel {
   display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:200;
@@ -73,6 +73,11 @@ let invoiceFormDraft   = null;            // { poId, items:[...], supplierRef, t
 let prFormDraft        = null;            // { department, linkedJobId, destinationType, items:[{name,qty,unit,itemRef}] }
 let poDirectFormDraft  = null;            // same shape as prFormDraft + supplier fields, no prId
 let invDirectFormDraft = null;            // same shape + rateBD/discBD/vatPercent per item, no poId
+let poRegisterFilters  = { client: '', supplier: '', item: '', jobNo: '', from: '', to: '' };
+let invoiceDraftActiveId = null;          // invoice id currently shown in the Submit→draft→Confirm panel
+let supplierFormReturnSelectId = null;    // select element id to refresh after "+ New Supplier…"
+let paymentFormDraft = null;              // { supplierId, division, methods, allocations, ledgerSplits }
+let debitNoteFormDraft = null;            // { supplierId, division }
 
 // ── Job / item picker helpers (shared by PR, direct-PO, direct-Invoice forms) ──
 // Combines projects[] (Carpentry/Painting/Upholstery/Metal Works — dept-% only,
@@ -117,6 +122,19 @@ function purchDeptOptionsHtml(selected) {
   return DEPTS.map(d => `<option value="${d.k}" ${d.k === selected ? 'selected' : ''}>${d.n}</option>`).join('');
 }
 
+// ── Supplier Master picker (shared by PO/Invoice/Payment/Debit Note forms) ──
+// One canonical supplier list (Masters → Accounts → Vendor) — no duplicate
+// "Inventory → Vendor" list built, per the Batch 1: Purchases spec.
+function purchSupplierOptionsHtml(selectedId) {
+  return `<option value="" ${!selectedId ? 'selected' : ''}>-Select-</option>` +
+    suppliers.map(s => `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${s.name} — ${s.telephone}</option>`).join('') +
+    `<option value="__new__">+ New Supplier…</option>`;
+}
+function purchCashLedgerOptionsHtml(selected) {
+  return `<option value="" ${!selected ? 'selected' : ''}>-Select-</option>` +
+    CASH_LEDGERS.map(l => `<option value="${l}" ${l === selected ? 'selected' : ''}>${l}</option>`).join('');
+}
+
 function purchJobOptionsHtml(selected) {
   const jobs = purchGetAllJobs();
   return `<option value="" ${!selected ? 'selected' : ''}>No specific job / stock</option>` +
@@ -147,6 +165,10 @@ function openPurchasingModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
+  ['sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
   const mod = document.getElementById('purch-module-wrap');
   mod.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
@@ -167,6 +189,10 @@ function purchGoTo(pageId) {
   if (pageId === 'purch-requests')  renderPurchRequests();
   if (pageId === 'purch-approvals') renderPurchApprovals();
   if (pageId === 'purch-orders')    renderPurchOrders();
+  if (pageId === 'purch-register')  renderPORegister();
+  if (pageId === 'purch-suppliers') renderSuppliers();
+  if (pageId === 'purch-payments')  renderSupplierPayments();
+  if (pageId === 'purch-debitnotes') renderDebitNotes();
 }
 
 // ── Alert toast (mirrors curtAlert's fallback pattern) ──
@@ -262,12 +288,12 @@ function renderPurchRequests() {
               <p style="font-weight:700;font-size:13px;">${pr.id} · ${dc(pr.department).n}</p>
               <p style="font-size:11px;color:#64748b;">Raised by ${pr.raisedBy || '—'} · ${pr.dateRaised}${pr.linkedJobId ? ' · ' + pr.linkedJobId : ''}</p>
             </div>
-            <span class="p-pill">${pr.destinationType === 'job-direct' ? 'Job-direct' : 'Stock'}</span>
+            <span class="p-pill">${pr.destinationType === 'job-direct' ? 'Job-direct' : pr.destinationType === 'others' ? 'Others' : 'Stock'}</span>
           </div>
           <p style="font-size:11.5px;color:#334155;margin:8px 0;">
             ${pr.items.map(it => `${it.name} (${it.qty} ${it.unit})${purchRefLabel(it.itemRef)}`).join(', ')}
           </p>
-          <button class="primary" style="font-size:12px;background:#d4a017;border-color:#d4a017;" onclick="openPOForm('${pr.id}')">Convert to PO →</button>
+          <button class="primary" style="font-size:12px;background:#9B5FB0;border-color:#9B5FB0;" onclick="openPOForm('${pr.id}')">Convert to PO →</button>
         </div>`;
     });
   }
@@ -318,7 +344,7 @@ function renderPRFormItems() {
       </div>
       ${prFormDraft.items.length > 1 ? `<button style="margin-top:8px;background:none;border:0;color:#dc2626;font-size:11.5px;cursor:pointer;padding:0;" onclick="prFormRemoveItem(${i})">Remove item</button>` : ''}
     </div>`).join('') +
-    `<button style="background:none;border:1px dashed #d4a017;color:#8a6d00;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="prFormAddItem()">+ Add item</button>`;
+    `<button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="prFormAddItem()">+ Add item</button>`;
 }
 
 function prFormUpdateItem(idx, field, value) {
@@ -395,8 +421,10 @@ function openPOForm(prId) {
   poFormDraft = {
     prId: pr.id,
     paymentMode: 'Cash',
+    supplierId: null,
     supplierNameTel: '',
     supplierRef: '',
+    cashLedger: '',
     deliveryTerms: '',
     supplyAddress: '',
     exRate: 1,
@@ -406,7 +434,8 @@ function openPOForm(prId) {
   document.getElementById('po-form-pr-id').textContent = pr.id;
   document.getElementById('po-form-dept').textContent = dc(pr.department).n;
   document.getElementById('po-payment-mode').value = 'Cash';
-  document.getElementById('po-supplier-name-tel').value = '';
+  document.getElementById('po-supplier-select').innerHTML = purchSupplierOptionsHtml(null);
+  document.getElementById('po-cash-ledger').innerHTML = purchCashLedgerOptionsHtml('');
   document.getElementById('po-supplier-ref').value = '';
   document.getElementById('po-delivery-terms').value = '';
   document.getElementById('po-supply-address').value = '';
@@ -448,22 +477,32 @@ function poFormUpdateItem(idx, field, value) {
 function savePOForm() {
   if (!poFormDraft) return;
 
+  const pr = purchaseRequests.find(p => p.id === poFormDraft.prId);
+
   poFormDraft.paymentMode     = document.getElementById('po-payment-mode').value;
-  poFormDraft.supplierNameTel = document.getElementById('po-supplier-name-tel').value.trim();
+  poFormDraft.supplierId      = document.getElementById('po-supplier-select').value || null;
+  poFormDraft.cashLedger      = document.getElementById('po-cash-ledger').value;
   poFormDraft.supplierRef     = document.getElementById('po-supplier-ref').value.trim();
   poFormDraft.deliveryTerms   = document.getElementById('po-delivery-terms').value.trim();
   poFormDraft.supplyAddress   = document.getElementById('po-supply-address').value.trim();
   poFormDraft.exRate          = Number(document.getElementById('po-ex-rate').value) || 1;
 
-  if (!poFormDraft.supplierNameTel) { purchAlert('Enter supplier name / tel.'); return; }
+  if (!poFormDraft.supplierId) { purchAlert('Select a vendor.'); return; }
+  if (!poFormDraft.cashLedger) { purchAlert('Please select a Cash ledger'); return; }
+  if (pr && pr.destinationType === 'job-direct' && !pr.linkedJobId) { purchAlert('Job No is required'); return; }
+
+  const supplier = suppliers.find(s => s.id === poFormDraft.supplierId);
+  poFormDraft.supplierNameTel = supplier ? `${supplier.name} — ${supplier.telephone}` : '';
 
   const preparedBy = (window.prompt("Your name (prepared by):", "") || "").trim();
   if (!preparedBy) { purchAlert('Preparer name is required.'); return; }
 
   const po = convertPRtoPO(poFormDraft.prId, {
     paymentMode:     poFormDraft.paymentMode,
+    supplierId:      poFormDraft.supplierId,
     supplierNameTel: poFormDraft.supplierNameTel,
     supplierRef:     poFormDraft.supplierRef,
+    cashLedger:      poFormDraft.cashLedger,
     preparedBy
   });
 
@@ -503,8 +542,10 @@ function openPODirectForm() {
     linkedJobId: '',
     destinationType: 'inventory',
     paymentMode: 'Cash',
+    supplierId: null,
     supplierNameTel: '',
     supplierRef: '',
+    cashLedger: '',
     deliveryTerms: '',
     supplyAddress: '',
     exRate: 1,
@@ -513,9 +554,10 @@ function openPODirectForm() {
 
   document.getElementById('pod-form-dept').innerHTML = purchDeptOptionsHtml(poDirectFormDraft.department);
   document.getElementById('pod-form-job').innerHTML = purchJobOptionsHtml(poDirectFormDraft.linkedJobId);
+  document.getElementById('pod-supplier-select').innerHTML = purchSupplierOptionsHtml(null);
+  document.getElementById('pod-cash-ledger').innerHTML = purchCashLedgerOptionsHtml('');
   document.getElementById('pod-form-dest').value = poDirectFormDraft.destinationType;
   document.getElementById('pod-payment-mode').value = 'Cash';
-  document.getElementById('pod-supplier-name-tel').value = '';
   document.getElementById('pod-supplier-ref').value = '';
   document.getElementById('pod-delivery-terms').value = '';
   document.getElementById('pod-supply-address').value = '';
@@ -565,7 +607,7 @@ function renderPODirectFormItems() {
       </div>
       ${poDirectFormDraft.items.length > 1 ? `<button style="margin-top:8px;background:none;border:0;color:#dc2626;font-size:11.5px;cursor:pointer;padding:0;" onclick="poDirectFormRemoveItem(${i})">Remove item</button>` : ''}
     </div>`).join('') +
-    `<button style="background:none;border:1px dashed #d4a017;color:#8a6d00;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="poDirectFormAddItem()">+ Add item</button>`;
+    `<button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="poDirectFormAddItem()">+ Add item</button>`;
 }
 
 function poDirectFormUpdateItem(idx, field, value) {
@@ -611,13 +653,19 @@ function savePODirectForm() {
   if (!poDirectFormDraft) return;
 
   poDirectFormDraft.paymentMode     = document.getElementById('pod-payment-mode').value;
-  poDirectFormDraft.supplierNameTel = document.getElementById('pod-supplier-name-tel').value.trim();
+  poDirectFormDraft.supplierId      = document.getElementById('pod-supplier-select').value || null;
+  poDirectFormDraft.cashLedger      = document.getElementById('pod-cash-ledger').value;
   poDirectFormDraft.supplierRef     = document.getElementById('pod-supplier-ref').value.trim();
   poDirectFormDraft.deliveryTerms   = document.getElementById('pod-delivery-terms').value.trim();
   poDirectFormDraft.supplyAddress   = document.getElementById('pod-supply-address').value.trim();
   poDirectFormDraft.exRate          = Number(document.getElementById('pod-ex-rate').value) || 1;
 
-  if (!poDirectFormDraft.supplierNameTel) { purchAlert('Enter supplier name / tel.'); return; }
+  if (!poDirectFormDraft.supplierId) { purchAlert('Select a vendor.'); return; }
+  if (!poDirectFormDraft.cashLedger) { purchAlert('Please select a Cash ledger'); return; }
+  if (poDirectFormDraft.destinationType === 'job-direct' && !poDirectFormDraft.linkedJobId) { purchAlert('Job No is required'); return; }
+
+  const podSupplier = suppliers.find(s => s.id === poDirectFormDraft.supplierId);
+  poDirectFormDraft.supplierNameTel = podSupplier ? `${podSupplier.name} — ${podSupplier.telephone}` : '';
 
   const items = poDirectFormDraft.items.filter(it => it.name.trim() && it.qty > 0);
   if (items.length === 0) { purchAlert('Add at least one item with a name and quantity.'); return; }
@@ -631,8 +679,10 @@ function savePODirectForm() {
     destinationType: poDirectFormDraft.destinationType,
     supplierDetails: {
       paymentMode: poDirectFormDraft.paymentMode,
+      supplierId: poDirectFormDraft.supplierId,
       supplierNameTel: poDirectFormDraft.supplierNameTel,
       supplierRef: poDirectFormDraft.supplierRef,
+      cashLedger: poDirectFormDraft.cashLedger,
       deliveryTerms: poDirectFormDraft.deliveryTerms,
       supplyAddress: poDirectFormDraft.supplyAddress,
       exRate: poDirectFormDraft.exRate,
@@ -768,7 +818,7 @@ function renderPurchOrders() {
   let html = `
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button class="primary" style="flex:1;" onclick="openPODirectForm()">+ New PO</button>
-      <button class="primary" style="flex:1;background:#8a6d00;border-color:#8a6d00;" onclick="openInvDirectForm()">+ New Invoice</button>
+      <button class="primary" style="flex:1;background:#6B3F7A;border-color:#6B3F7A;" onclick="openInvDirectForm()">+ New Invoice</button>
     </div>`;
 
   html += `<p style="font-weight:700;font-size:13px;margin:4px 0 8px;">Awaiting Delivery (${issued.length})</p>`;
@@ -786,7 +836,7 @@ function renderPurchOrders() {
             </div>
             <span class="p-pill issued">Issued</span>
           </div>
-          <button class="primary" style="font-size:12px;background:#d4a017;border-color:#d4a017;margin-top:8px;" onclick="openInvoiceForm('${po.id}')">Receive & Convert to Invoice →</button>
+          <button class="primary" style="font-size:12px;background:#9B5FB0;border-color:#9B5FB0;margin-top:8px;" onclick="openInvoiceForm('${po.id}')">Receive & Convert to Invoice →</button>
         </div>`;
     });
   }
@@ -814,18 +864,99 @@ function renderPurchOrders() {
     html += `<div class="p-card"><p style="font-size:12.5px;color:#64748b;">No direct invoices yet.</p></div>`;
   } else {
     directInvoices.forEach(inv => {
-      const pillClass = inv.approvalStatus === 'approved' ? 'invoiced' : inv.approvalStatus === 'rejected' ? 'rejected' : 'pending';
-      const pillLabel = inv.approvalStatus === 'approved' ? 'Received' : inv.approvalStatus === 'rejected' ? 'Rejected' : 'Pending approval';
+      let pillClass = 'pending', pillLabel = 'Pending approval';
+      if (inv.status === 'draft') { pillClass = 'pending'; pillLabel = 'Draft'; }
+      else if (inv.approvalStatus === 'approved') { pillClass = 'invoiced'; pillLabel = 'Received'; }
+      else if (inv.approvalStatus === 'rejected') { pillClass = 'rejected'; pillLabel = 'Rejected'; }
       html += `
         <div class="p-card">
           <p style="font-weight:700;font-size:13px;">${inv.id} ${inv.department ? '· ' + dc(inv.department).n : ''}</p>
           <p style="font-size:11px;color:#64748b;">${inv.supplierNameTel || '—'} · ${inv.dateReceived}${inv.linkedJobId ? ' · ' + inv.linkedJobId : ''}</p>
           <span class="p-pill ${pillClass}">${pillLabel}</span>
+          ${inv.status === 'draft' ? `<button class="primary" style="font-size:12px;background:#be185d;border-color:#be185d;margin-top:8px;" onclick="openInvoiceDraftPanel('${inv.id}')">Continue draft →</button>` : ''}
         </div>`;
     });
   }
 
   document.getElementById('purch-orders-body').innerHTML = html;
+}
+
+// ── PO REGISTER (report) ──────────────────
+// Cross-links a PO back to the originating customer Job, same as Q-Pro's
+// own Reports → PO Register. linkedJobId can point at either the old
+// curtainJobs/projects id (has a `client` string directly) or a new
+// jobCards[] Job Card id (has customerId -> customers[].name) — both job
+// models are checked since POs can be raised against either.
+function poRegisterCustomerForJob(linkedJobId) {
+  if (!linkedJobId) return '—';
+  const oldJob = purchGetAllJobs().find(j => j.id === linkedJobId);
+  if (oldJob) return oldJob.client || '—';
+  if (typeof jobCards !== 'undefined') {
+    const jc = jobCards.find(j => j.id === linkedJobId);
+    if (jc) {
+      const c = typeof customers !== 'undefined' ? customers.find(x => x.id === jc.customerId) : null;
+      return c ? c.name : '—';
+    }
+  }
+  return '—';
+}
+
+function poRegisterFilterChanged(key, val) { poRegisterFilters[key] = val; renderPORegister(); }
+
+function renderPORegister() {
+  const f = poRegisterFilters;
+  // Flattened one row per PO line item, matching Q-Pro's own report grain
+  // (filterable by Item Name, not just by PO).
+  const rows = [];
+  purchaseOrders.forEach(po => {
+    const customer = poRegisterCustomerForJob(po.linkedJobId);
+    (po.items || []).forEach(it => {
+      rows.push({ po, item: it, customer });
+    });
+  });
+
+  const filtered = rows.filter(r => {
+    if (f.client && !r.customer.toLowerCase().includes(f.client.toLowerCase())) return false;
+    if (f.supplier && !(r.po.supplierNameTel || '').toLowerCase().includes(f.supplier.toLowerCase())) return false;
+    if (f.item && !(r.item.productService || '').toLowerCase().includes(f.item.toLowerCase())) return false;
+    if (f.jobNo && !(r.po.linkedJobId || '').toLowerCase().includes(f.jobNo.toLowerCase())) return false;
+    if (f.from && r.po.date < f.from) return false;
+    if (f.to && r.po.date > f.to) return false;
+    return true;
+  });
+
+  const filterHtml = `
+    <div class="p-card">
+      <div class="p-field"><label>Client Name</label><input type="text" value="${f.client}" oninput="poRegisterFilterChanged('client',this.value)"></div>
+      <div class="p-field"><label>Supplier</label><input type="text" value="${f.supplier}" oninput="poRegisterFilterChanged('supplier',this.value)"></div>
+      <div class="p-field"><label>Item Name</label><input type="text" value="${f.item}" oninput="poRegisterFilterChanged('item',this.value)"></div>
+      <div class="p-field"><label>Job Number</label><input type="text" value="${f.jobNo}" oninput="poRegisterFilterChanged('jobNo',this.value)"></div>
+      <div style="display:flex;gap:8px;">
+        <div class="p-field" style="flex:1;"><label>From Date</label><input type="date" value="${f.from}" onchange="poRegisterFilterChanged('from',this.value)"></div>
+        <div class="p-field" style="flex:1;"><label>To Date</label><input type="date" value="${f.to}" onchange="poRegisterFilterChanged('to',this.value)"></div>
+      </div>
+    </div>`;
+
+  const tableHtml = filtered.length === 0
+    ? `<div class="p-card"><p style="font-size:12.5px;color:#64748b;">No PO lines match these filters.</p></div>`
+    : `<div class="p-card" style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+          <tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;">
+            <th style="padding:6px;">#</th><th style="padding:6px;">Date</th><th style="padding:6px;">PO</th>
+            <th style="padding:6px;">Customer</th><th style="padding:6px;">Supplier</th><th style="padding:6px;">Job</th>
+            <th style="padding:6px;">Item</th><th style="padding:6px;">Qty</th><th style="padding:6px;">BHD</th><th style="padding:6px;">Ordered By</th>
+          </tr>
+          ${filtered.map((r, i) => `
+          <tr style="border-top:1px solid #f1f5f9;">
+            <td style="padding:6px;">${i + 1}</td><td style="padding:6px;">${r.po.date}</td><td style="padding:6px;">${r.po.id}</td>
+            <td style="padding:6px;">${r.customer}</td><td style="padding:6px;">${r.po.supplierNameTel || '—'}</td><td style="padding:6px;">${r.po.linkedJobId || '—'}</td>
+            <td style="padding:6px;">${r.item.productService}</td><td style="padding:6px;">${r.item.qty}</td>
+            <td style="padding:6px;">${(r.item.netAmountBD || 0).toFixed(3)}</td><td style="padding:6px;">${r.po.preparedBy || '—'}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`;
+
+  document.getElementById('purch-register-body').innerHTML = filterHtml + tableHtml;
 }
 
 function openInvoiceForm(poId) {
@@ -916,20 +1047,47 @@ function openInvDirectForm() {
     department: 'carp',
     linkedJobId: '',
     destinationType: 'inventory',
+    supplierId: null,
     supplierNameTel: '',
     supplierRef: '',
+    sourcePOSearch: null,
     items: [{ name: '', qty: 1, unit: '', itemRef: null, rateBD: 0, discBD: 0, vatPercent: 10 }]
   };
 
   document.getElementById('invd-form-dept').innerHTML = purchDeptOptionsHtml(invDirectFormDraft.department);
   document.getElementById('invd-form-job').innerHTML = purchJobOptionsHtml(invDirectFormDraft.linkedJobId);
   document.getElementById('invd-form-dest').value = invDirectFormDraft.destinationType;
-  document.getElementById('invd-supplier-name-tel').value = '';
+  document.getElementById('invd-supplier-select').innerHTML = purchSupplierOptionsHtml(null);
+  document.getElementById('invd-po-search').value = '';
   document.getElementById('invd-supplier-ref').value = '';
   renderInvDirectFormItems();
 
   const panel = document.getElementById('purch-invoice-form-direct');
   if (panel) { panel.style.display = 'flex'; panel.scrollTop = 0; }
+}
+
+// "Search PO Number" + "Locate" — pulls supplier + items forward from an
+// issued PO into this invoice draft (Others/Inventory variant behavior).
+function invDirectLocatePO() {
+  const poId = document.getElementById('invd-po-search').value.trim();
+  if (!poId) { purchAlert('Enter a PO number to locate.'); return; }
+  const po = purchaseOrders.find(p => p.id.toLowerCase() === poId.toLowerCase());
+  if (!po) { purchAlert(`PO ${poId} not found.`); return; }
+
+  invDirectFormDraft.sourcePOSearch = po.id;
+  invDirectFormDraft.supplierId = po.supplierId || null;
+  invDirectFormDraft.linkedJobId = po.linkedJobId || '';
+  invDirectFormDraft.destinationType = po.type === 'Job' ? 'job-direct' : po.type === 'Others' ? 'others' : 'inventory';
+  invDirectFormDraft.items = po.items.map(it => ({
+    name: it.productService, qty: it.qty, unit: it.unit, itemRef: it.itemRef || null,
+    rateBD: it.fxRateBD || 0, discBD: it.discountBD || 0, vatPercent: it.vatPercent || 10
+  }));
+
+  document.getElementById('invd-form-job').innerHTML = purchJobOptionsHtml(invDirectFormDraft.linkedJobId);
+  document.getElementById('invd-form-dest').value = invDirectFormDraft.destinationType;
+  document.getElementById('invd-supplier-select').innerHTML = purchSupplierOptionsHtml(invDirectFormDraft.supplierId);
+  renderInvDirectFormItems();
+  purchAlert(`✓ Located ${po.id} — supplier and items carried forward`);
 }
 
 function renderInvDirectFormItems() {
@@ -954,6 +1112,7 @@ function renderInvDirectFormItems() {
       <div class="p-field" style="margin-bottom:6px;">
         <label>Allocation (job item, optional)</label>
         ${purchItemRefControl(invDirectFormDraft.linkedJobId, it.itemRef, `invDirectFormUpdateItemRef(${i}, this.value)`)}
+        <p style="font-size:10.5px;color:${it.itemRef ? '#166534' : '#94a3b8'};margin-top:4px;">📎 ${it.itemRef ? purchRefLabel(it.itemRef).replace(' — ', '') : 'Not allocated'}</p>
       </div>
       <div style="display:flex;gap:6px;">
         <div class="p-field" style="flex:1;margin-bottom:0;">
@@ -971,7 +1130,7 @@ function renderInvDirectFormItems() {
       </div>
       ${invDirectFormDraft.items.length > 1 ? `<button style="margin-top:8px;background:none;border:0;color:#dc2626;font-size:11.5px;cursor:pointer;padding:0;" onclick="invDirectFormRemoveItem(${i})">Remove item</button>` : ''}
     </div>`).join('') +
-    `<button style="background:none;border:1px dashed #d4a017;color:#8a6d00;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="invDirectFormAddItem()">+ Add item</button>`;
+    `<button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="invDirectFormAddItem()">+ Add item</button>`;
 }
 
 function invDirectFormUpdateItem(idx, field, value) {
@@ -1016,10 +1175,14 @@ function invDirectFormDestChanged(value) {
 function saveInvDirectForm() {
   if (!invDirectFormDraft) return;
 
-  invDirectFormDraft.supplierNameTel = document.getElementById('invd-supplier-name-tel').value.trim();
-  invDirectFormDraft.supplierRef     = document.getElementById('invd-supplier-ref').value.trim();
+  invDirectFormDraft.supplierId  = document.getElementById('invd-supplier-select').value || null;
+  invDirectFormDraft.supplierRef = document.getElementById('invd-supplier-ref').value.trim();
 
-  if (!invDirectFormDraft.supplierNameTel) { purchAlert('Enter supplier name / tel.'); return; }
+  if (!invDirectFormDraft.supplierId) { purchAlert('Select a vendor.'); return; }
+  if (invDirectFormDraft.destinationType === 'job-direct' && !invDirectFormDraft.linkedJobId) { purchAlert('Job No is required'); return; }
+
+  const invdSupplier = suppliers.find(s => s.id === invDirectFormDraft.supplierId);
+  invDirectFormDraft.supplierNameTel = invdSupplier ? `${invdSupplier.name} — ${invdSupplier.telephone}` : '';
 
   const rawItems = invDirectFormDraft.items.filter(it => it.name.trim() && it.qty > 0);
   if (rawItems.length === 0) { purchAlert('Add at least one item with a name and quantity.'); return; }
@@ -1040,22 +1203,438 @@ function saveInvDirectForm() {
     linkedJobId: invDirectFormDraft.linkedJobId || null,
     destinationType: invDirectFormDraft.destinationType,
     supplierDetails: {
+      supplierId: invDirectFormDraft.supplierId,
       supplierNameTel: invDirectFormDraft.supplierNameTel,
       supplierRef: invDirectFormDraft.supplierRef,
       totals: { total, vat: vatTotal, roundOff: 0, netAmount: total }
     },
     items,
-    preparedBy
+    preparedBy,
+    sourcePOSearch: invDirectFormDraft.sourcePOSearch
   });
 
-  purchAlert(`✓ ${inv.id} created — awaiting approval`);
   closeInvDirectForm();
-  renderPurchOrders();
+  openInvoiceDraftPanel(inv.id);
 }
 
 function closeInvDirectForm() {
   invDirectFormDraft = null;
   const panel = document.getElementById('purch-invoice-form-direct');
+  if (panel) panel.style.display = 'none';
+}
+
+// ── Two-stage flow, stage 2: draft/edit view with Other Expenses, then
+// Confirm — matches the real Purchase Invoice screen (Submit → draft →
+// Confirm finalizes) without its data-loss bug.
+function openInvoiceDraftPanel(invId) {
+  const inv = purchaseInvoices.find(i => i.id === invId);
+  if (!inv) return;
+  invoiceDraftActiveId = invId;
+  renderInvoiceDraftPanel();
+  const panel = document.getElementById('purch-invoice-draft');
+  if (panel) { panel.style.display = 'flex'; panel.scrollTop = 0; }
+}
+
+function renderInvoiceDraftPanel() {
+  const inv = purchaseInvoices.find(i => i.id === invoiceDraftActiveId);
+  const body = document.getElementById('invd-draft-body');
+  if (!inv || !body) return;
+
+  const base = inv.totals.total || 0;
+  const otherExp = inv.otherExpenseAmount || 0;
+  const grand = base + otherExp;
+
+  body.innerHTML = `
+    <p style="font-size:12px;color:#64748b;margin-bottom:8px;">${inv.id} · ${inv.supplierNameTel || '—'}${inv.linkedJobId ? ' · ' + inv.linkedJobId : ''}</p>
+    <div class="p-card">
+      ${inv.items.map(it => `
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f1f5f9;">
+          <span>${it.itemName} (${it.qty}) ${it.itemRef ? '📎' : '<span style="color:#94a3b8;">📎 Not allocated</span>'}</span>
+          <span>BD ${(it.amtBD || 0).toFixed(3)}</span>
+        </div>`).join('')}
+    </div>
+    <div class="p-field">
+      <label>Other Expense Amount</label>
+      <input type="number" step="0.001" id="invd-draft-other-expense" value="${otherExp}" onchange="invDraftOtherExpenseChanged(this.value)">
+    </div>
+    <button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:7px;width:100%;font-size:12px;cursor:pointer;margin-bottom:10px;" onclick="invDraftOtherExpenseChanged(document.getElementById('invd-draft-other-expense').value)">+ Add Other Expenses</button>
+    <div class="p-card" style="background:#f8fafc;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span>Invoice Total</span><span>BD ${base.toFixed(3)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span>Other Expenses</span><span>BD ${otherExp.toFixed(3)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:4px 0 0;border-top:1px solid #e2e8f0;margin-top:4px;"><span>Grand Total</span><span id="invd-draft-grand">BD ${grand.toFixed(3)}</span></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button style="flex:1;background:#be185d;color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="confirmInvoiceDraftAction()">Confirm</button>
+      <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closeInvoiceDraftPanel()">Save as Draft</button>
+    </div>`;
+}
+
+function invDraftOtherExpenseChanged(value) {
+  const inv = purchaseInvoices.find(i => i.id === invoiceDraftActiveId);
+  if (!inv) return;
+  inv.otherExpenseAmount = Number(value) || 0;
+  renderInvoiceDraftPanel();
+}
+
+function confirmInvoiceDraftAction() {
+  const otherExpenseAmount = Number(document.getElementById('invd-draft-other-expense').value) || 0;
+  const result = confirmPurchaseInvoiceDraft(invoiceDraftActiveId, { otherExpenseAmount });
+  if (result && result.error) { purchAlert(result.error); return; }
+  purchAlert(`✓ ${result.id} confirmed — awaiting approval`);
+  closeInvoiceDraftPanel();
+  renderPurchOrders();
+}
+
+function closeInvoiceDraftPanel() {
+  invoiceDraftActiveId = null;
+  const panel = document.getElementById('purch-invoice-draft');
+  if (panel) panel.style.display = 'none';
+  renderPurchOrders();
+}
+
+// ═══════════════════════════════════════
+// SUPPLIER MASTER (Masters → Accounts → Vendor)
+// The one canonical supplier list — no duplicate "Inventory → Vendor" list.
+// ═══════════════════════════════════════
+function renderSuppliers() {
+  let html = `<button class="primary" style="width:100%;margin-bottom:12px;" onclick="openSupplierForm()">+ New Supplier</button>`;
+
+  if (suppliers.length === 0) {
+    html += `<div class="p-card"><p style="font-size:12.5px;color:#64748b;">No suppliers yet.</p></div>`;
+  } else {
+    html += `<div class="p-card" style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+        <tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;">
+          <th style="padding:6px;">Vendor Name</th><th style="padding:6px;">Telephone</th>
+          <th style="padding:6px;">Contact Person</th><th style="padding:6px;">Address</th><th style="padding:6px;">Action</th>
+        </tr>
+        ${suppliers.map(s => `
+        <tr style="border-top:1px solid #f1f5f9;">
+          <td style="padding:6px;font-weight:600;">${s.name}</td>
+          <td style="padding:6px;">${s.telephone}</td>
+          <td style="padding:6px;">${s.contactPerson}</td>
+          <td style="padding:6px;">${s.address}</td>
+          <td style="padding:6px;"><button style="font-size:11px;background:none;border:1px solid #9B5FB0;color:#6B3F7A;border-radius:6px;padding:3px 8px;cursor:pointer;" onclick="viewSupplierDetail('${s.id}')">View</button></td>
+        </tr>`).join('')}
+      </table>
+    </div>`;
+  }
+
+  document.getElementById('purch-suppliers-body').innerHTML = html;
+}
+
+function viewSupplierDetail(id) {
+  const s = suppliers.find(x => x.id === id);
+  if (!s) return;
+  purchAlert(`${s.name} · ${s.telephone} · ${s.contactPerson} · ${s.address} · Tax ${s.taxPercent}% · ${s.country}`);
+}
+
+// selectId is passed when the supplier form was opened from a "+ New
+// Supplier…" option inside another form's picker — on save, that select
+// gets repopulated with the new supplier chosen, and the caller's onchange
+// handler fires so the rest of that form reveals as normal.
+function openSupplierForm(selectId = null) {
+  supplierFormReturnSelectId = selectId;
+  const ids = ['sup-name','sup-contact','sup-tel','sup-tel2','sup-email','sup-fax','sup-vat-name','sup-vat-no',
+    'sup-credit-limit','sup-credit-days','sup-bank-acc-no','sup-bank-holder','sup-iban','sup-swift',
+    'sup-bank-name','sup-bank-branch','sup-address','sup-cr-no'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('sup-tax-percent').innerHTML = SUPPLIER_TAX_PERCENTS.map(t => `<option value="${t}" ${t === 10 ? 'selected' : ''}>${t}%</option>`).join('');
+  document.getElementById('sup-country').innerHTML = SUPPLIER_COUNTRIES.map(c => `<option value="${c}" ${c === 'Bahrain' ? 'selected' : ''}>${c}</option>`).join('');
+  document.getElementById('sup-is-credit').checked = false;
+  document.getElementById('sup-credit-limit').value = 0;
+  document.getElementById('sup-credit-days').value = 0;
+  document.getElementById('sup-opening-balance').value = 0;
+
+  const panel = document.getElementById('purch-supplier-form');
+  if (panel) { panel.style.display = 'flex'; panel.scrollTop = 0; }
+}
+
+function saveSupplierForm() {
+  const get = id => document.getElementById(id).value.trim();
+  const result = createSupplier({
+    name: get('sup-name'), contactPerson: get('sup-contact'), telephone: get('sup-tel'),
+    telephone2: get('sup-tel2'), email: get('sup-email'), fax: get('sup-fax'),
+    vatName: get('sup-vat-name'), vatNo: get('sup-vat-no'),
+    taxPercent: document.getElementById('sup-tax-percent').value,
+    isCredit: document.getElementById('sup-is-credit').checked,
+    creditLimit: get('sup-credit-limit'), creditDays: get('sup-credit-days'),
+    bankAccountNumber: get('sup-bank-acc-no'), bankAccountHolderName: get('sup-bank-holder'),
+    ibanNumber: get('sup-iban'), bankSwift: get('sup-swift'), bankName: get('sup-bank-name'),
+    bankBranch: get('sup-bank-branch'), address: get('sup-address'), crNo: get('sup-cr-no'),
+    country: document.getElementById('sup-country').value, openingBalance: get('sup-opening-balance')
+  });
+
+  if (result && result.error) { purchAlert(result.error); return; }
+
+  purchAlert(`✓ ${result.id} — ${result.name} created`);
+  const returnSelectId = supplierFormReturnSelectId;
+  closeSupplierForm();
+
+  if (returnSelectId) {
+    const sel = document.getElementById(returnSelectId);
+    if (sel) {
+      sel.innerHTML = purchSupplierOptionsHtml(result.id);
+      sel.dispatchEvent(new Event('change'));
+    }
+  } else {
+    renderSuppliers();
+  }
+}
+
+function closeSupplierForm() {
+  supplierFormReturnSelectId = null;
+  const panel = document.getElementById('purch-supplier-form');
+  if (panel) panel.style.display = 'none';
+}
+
+// Onchange handler shared by every supplier <select> — intercepts the
+// "+ New Supplier…" option before it reaches the form-specific handler.
+function purchSupplierSelectNewCheck(selectId) {
+  const sel = document.getElementById(selectId);
+  if (sel.value === '__new__') {
+    sel.value = '';
+    openSupplierForm(selectId);
+    return true;
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════
+// SUPPLIER PAYMENT
+// Real Q-Pro bugs fixed here, not replicated: the invoice-allocation table
+// below actually looks the vendor's open invoices up (getVendorOpenInvoices
+// in data.js), the method checkboxes are plain toggles, and Create Payment
+// actually persists — the record shows up in the list immediately.
+// ═══════════════════════════════════════
+function renderSupplierPayments() {
+  let html = `<button class="primary" style="width:100%;margin-bottom:12px;" onclick="openPaymentForm()">+ New Payment</button>`;
+
+  if (payments.length === 0) {
+    html += `<div class="p-card"><p style="font-size:12.5px;color:#64748b;">No payments yet.</p></div>`;
+  } else {
+    html += `<div class="p-card" style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+        <tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;">
+          <th style="padding:6px;">Payment Number</th><th style="padding:6px;">Vendor</th>
+          <th style="padding:6px;">Payment Date</th><th style="padding:6px;">Payment Amount</th><th style="padding:6px;">Action</th>
+        </tr>
+        ${payments.slice().reverse().map(p => {
+          const s = suppliers.find(x => x.id === p.supplierId);
+          return `
+        <tr style="border-top:1px solid #f1f5f9;">
+          <td style="padding:6px;font-weight:600;">${p.id}</td>
+          <td style="padding:6px;">${s ? s.name : '—'}</td>
+          <td style="padding:6px;">${p.paymentDate}</td>
+          <td style="padding:6px;">BD ${p.amount.toFixed(3)}</td>
+          <td style="padding:6px;"><span class="p-pill approved">Confirmed</span></td>
+        </tr>`;}).join('')}
+      </table>
+    </div>`;
+  }
+
+  document.getElementById('purch-payments-body').innerHTML = html;
+}
+
+function openPaymentForm() {
+  paymentFormDraft = {
+    supplierId: null, division: 'Al Maraya Decor',
+    methods: {
+      cash:   { enabled: false, amount: 0 },
+      cCard:  { enabled: false, amount: 0, type: '', authorized: '' },
+      wallet: { enabled: false, amount: 0, type: '', authorized: '' },
+      cheque: { enabled: false, amount: 0, number: '', bank: '' }
+    },
+    referenceNumber: '', allocations: [], advanceAmount: 0, ledgerSplits: [], remarks: ''
+  };
+  document.getElementById('pay-supplier-select').innerHTML = purchSupplierOptionsHtml(null);
+  document.getElementById('pay-reveal').style.display = 'none';
+
+  const panel = document.getElementById('purch-payment-form');
+  if (panel) { panel.style.display = 'flex'; panel.scrollTop = 0; }
+}
+
+function paymentVendorChanged(value) {
+  if (purchSupplierSelectNewCheck('pay-supplier-select')) return;
+  if (!paymentFormDraft) return;
+  paymentFormDraft.supplierId = value || null;
+  const reveal = document.getElementById('pay-reveal');
+  if (!value) { reveal.style.display = 'none'; return; }
+  reveal.style.display = 'block';
+  paymentFormDraft.allocations = getVendorOpenInvoices(value).map(row => ({ ...row, payingAmount: 0, discountAmount: 0 }));
+  renderPaymentAllocationTable();
+  renderPaymentLedgerSplits();
+}
+
+function renderPaymentAllocationTable() {
+  const wrap = document.getElementById('pay-allocation-table');
+  if (!wrap || !paymentFormDraft) return;
+  if (paymentFormDraft.allocations.length === 0) {
+    wrap.innerHTML = `<p style="font-size:12px;color:#64748b;padding:8px 0;">No open invoices for this vendor.</p>`;
+    return;
+  }
+  wrap.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <tr style="text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;">
+      <th style="padding:4px;">Invoice #</th><th style="padding:4px;">Date</th><th style="padding:4px;">Inv. Amt</th>
+      <th style="padding:4px;">Paid</th><th style="padding:4px;">Paying Amt</th><th style="padding:4px;">Disc</th><th style="padding:4px;">Balance</th>
+    </tr>
+    ${paymentFormDraft.allocations.map((a, i) => `
+    <tr style="border-top:1px solid #f1f5f9;">
+      <td style="padding:4px;">${a.invoiceId}</td><td style="padding:4px;">${a.invoiceDate}</td>
+      <td style="padding:4px;">${a.invoiceAmount.toFixed(3)}</td><td style="padding:4px;">${a.paidAmount.toFixed(3)}</td>
+      <td style="padding:4px;"><input type="number" step="0.001" style="width:70px;padding:3px;" value="${a.payingAmount}" onchange="paymentAllocationChanged(${i}, 'payingAmount', this.value)"></td>
+      <td style="padding:4px;"><input type="number" step="0.001" style="width:60px;padding:3px;" value="${a.discountAmount}" onchange="paymentAllocationChanged(${i}, 'discountAmount', this.value)"></td>
+      <td style="padding:4px;">${a.balanceAmount.toFixed(3)}</td>
+    </tr>`).join('')}
+  </table></div>`;
+}
+function paymentAllocationChanged(idx, field, value) {
+  if (!paymentFormDraft) return;
+  paymentFormDraft.allocations[idx][field] = Number(value) || 0;
+}
+
+function paymentMethodToggle(method, checked) {
+  if (!paymentFormDraft) return;
+  paymentFormDraft.methods[method].enabled = checked;
+  document.getElementById(`pay-${method}-fields`).style.display = checked ? 'block' : 'none';
+}
+function paymentMethodField(method, field, value) {
+  if (!paymentFormDraft) return;
+  paymentFormDraft.methods[method][field] = (field === 'amount') ? Number(value) || 0 : value;
+}
+
+function renderPaymentLedgerSplits() {
+  const wrap = document.getElementById('pay-ledger-splits');
+  if (!wrap || !paymentFormDraft) return;
+  wrap.innerHTML = paymentFormDraft.ledgerSplits.map((l, i) => `
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input type="text" placeholder="Ledger" style="flex:1;padding:6px;border:1px solid #e2e8f0;border-radius:6px;" value="${l.ledger}" onchange="paymentLedgerSplitChanged(${i},'ledger',this.value)">
+      <input type="number" step="0.001" placeholder="Amount" style="width:80px;padding:6px;border:1px solid #e2e8f0;border-radius:6px;" value="${l.amount}" onchange="paymentLedgerSplitChanged(${i},'amount',this.value)">
+      <input type="text" placeholder="Remarks" style="flex:1;padding:6px;border:1px solid #e2e8f0;border-radius:6px;" value="${l.remarks}" onchange="paymentLedgerSplitChanged(${i},'remarks',this.value)">
+    </div>`).join('') +
+    `<button style="background:none;border:1px dashed #16a34a;color:#16a34a;border-radius:8px;padding:6px;width:100%;font-size:12px;cursor:pointer;" onclick="paymentAddLedgerSplit()">+ Add ledger split</button>`;
+}
+function paymentAddLedgerSplit() {
+  if (!paymentFormDraft) return;
+  paymentFormDraft.ledgerSplits.push({ ledger: '', amount: 0, remarks: '' });
+  renderPaymentLedgerSplits();
+}
+function paymentLedgerSplitChanged(idx, field, value) {
+  if (!paymentFormDraft) return;
+  paymentFormDraft.ledgerSplits[idx][field] = (field === 'amount') ? Number(value) || 0 : value;
+}
+
+function savePaymentForm() {
+  if (!paymentFormDraft) return;
+  const amount = Number(document.getElementById('pay-amount').value) || 0;
+  const referenceNumber = document.getElementById('pay-reference').value.trim();
+  const advanceAmount = Number(document.getElementById('pay-advance').value) || 0;
+  const remarks = document.getElementById('pay-remarks').value.trim();
+
+  if (!paymentFormDraft.supplierId) { purchAlert('Please select a vendor.'); return; }
+  if (!amount) { purchAlert('Amount is required.'); return; }
+
+  const result = createPayment({
+    supplierId: paymentFormDraft.supplierId,
+    division: paymentFormDraft.division,
+    methods: paymentFormDraft.methods,
+    amount, referenceNumber,
+    allocations: paymentFormDraft.allocations.filter(a => a.payingAmount > 0),
+    advanceAmount, ledgerSplits: paymentFormDraft.ledgerSplits, remarks
+  });
+
+  if (result && result.error) { purchAlert(result.error); return; }
+
+  purchAlert(`✓ ${result.id} created`);
+  closePaymentForm();
+  renderSupplierPayments();
+}
+
+function closePaymentForm() {
+  paymentFormDraft = null;
+  const panel = document.getElementById('purch-payment-form');
+  if (panel) panel.style.display = 'none';
+}
+
+// ═══════════════════════════════════════
+// DEBIT NOTE
+// Same real-system freeze/non-persistence bug fixed here, not replicated.
+// ═══════════════════════════════════════
+function renderDebitNotes() {
+  let html = `<button class="primary" style="width:100%;margin-bottom:12px;" onclick="openDebitNoteForm()">+ New Debit Note</button>`;
+
+  if (debitNotes.length === 0) {
+    html += `<div class="p-card"><p style="font-size:12.5px;color:#64748b;">No debit notes yet.</p></div>`;
+  } else {
+    html += `<div class="p-card" style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+        <tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;">
+          <th style="padding:6px;">Debit Note No</th><th style="padding:6px;">Client</th>
+          <th style="padding:6px;">Date</th><th style="padding:6px;">Amount</th><th style="padding:6px;">Action</th>
+        </tr>
+        ${debitNotes.slice().reverse().map(dn => {
+          const s = suppliers.find(x => x.id === dn.supplierId);
+          return `
+        <tr style="border-top:1px solid #f1f5f9;">
+          <td style="padding:6px;font-weight:600;">${dn.id}</td>
+          <td style="padding:6px;">${s ? s.name : '—'}</td>
+          <td style="padding:6px;">${dn.debitNoteDate}</td>
+          <td style="padding:6px;">BD ${dn.amount.toFixed(3)}</td>
+          <td style="padding:6px;"><span class="p-pill approved">Confirmed</span></td>
+        </tr>`;}).join('')}
+      </table>
+    </div>`;
+  }
+
+  document.getElementById('purch-debitnotes-body').innerHTML = html;
+}
+
+function openDebitNoteForm() {
+  debitNoteFormDraft = { supplierId: null, division: 'Al Maraya Decor' };
+  document.getElementById('dn-supplier-select').innerHTML = purchSupplierOptionsHtml(null);
+  document.getElementById('dn-reveal').style.display = 'none';
+  document.getElementById('dn-taxable-type').innerHTML = DEBIT_NOTE_TAXABLE_TYPES.map(t => `<option>${t}</option>`).join('');
+  document.getElementById('dn-ledger').value = '';
+  document.getElementById('dn-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('dn-amount').value = '';
+  document.getElementById('dn-reason').value = '';
+
+  const panel = document.getElementById('purch-debitnote-form');
+  if (panel) { panel.style.display = 'flex'; panel.scrollTop = 0; }
+}
+
+function debitNoteVendorChanged(value) {
+  if (purchSupplierSelectNewCheck('dn-supplier-select')) return;
+  if (!debitNoteFormDraft) return;
+  debitNoteFormDraft.supplierId = value || null;
+  document.getElementById('dn-reveal').style.display = value ? 'block' : 'none';
+}
+
+function saveDebitNoteForm() {
+  if (!debitNoteFormDraft) return;
+  const ledger = document.getElementById('dn-ledger').value.trim();
+  const debitNoteDate = document.getElementById('dn-date').value;
+  const taxableType = document.getElementById('dn-taxable-type').value;
+  const amount = Number(document.getElementById('dn-amount').value) || 0;
+  const reason = document.getElementById('dn-reason').value.trim();
+
+  if (!debitNoteFormDraft.supplierId) { purchAlert('Please select a vendor.'); return; }
+
+  const result = createDebitNote({
+    supplierId: debitNoteFormDraft.supplierId, division: debitNoteFormDraft.division,
+    ledger, debitNoteDate, taxableType, amount, reason
+  });
+
+  if (result && result.error) { purchAlert(result.error); return; }
+
+  purchAlert(`✓ ${result.id} created`);
+  closeDebitNoteForm();
+  renderDebitNotes();
+}
+
+function closeDebitNoteForm() {
+  debitNoteFormDraft = null;
+  const panel = document.getElementById('purch-debitnote-form');
   if (panel) panel.style.display = 'none';
 }
 

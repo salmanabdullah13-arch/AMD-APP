@@ -16,26 +16,28 @@
 
 const skStyleTag = document.createElement('style');
 skStyleTag.textContent = `
-#sk-module-wrap { font-family: inherit; }
-#sk-module-wrap .ops-header{background:#0f766e;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#sk-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
+#sk-module-wrap .ops-header{background:var(--biz-teal);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #sk-module-wrap .sk-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
 #sk-module-wrap .sk-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
-#sk-module-wrap .sk-kpi-tile{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center;}
-#sk-module-wrap .sk-kpi-tile .num{font-size:20px;font-weight:800;color:#0f766e;}
-#sk-module-wrap .sk-kpi-tile .lbl{font-size:10.5px;color:#64748b;margin-top:2px;}
-#sk-module-wrap .sk-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:10px;}
-#sk-module-wrap .sk-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:#f1f5f9;color:#64748b;}
-#sk-module-wrap .sk-pill.released{background:#dcfce7;color:#166534;}
-#sk-module-wrap .sk-search{width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:12px;box-sizing:border-box;}
-#sk-module-wrap button.primary{background:#0f766e;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+#sk-module-wrap .sk-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
+#sk-module-wrap .sk-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-teal);}
+#sk-module-wrap .sk-kpi-tile .lbl{font-size:10.5px;color:var(--biz-text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px;}
+#sk-module-wrap .sk-card{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px;margin-bottom:10px;box-shadow:var(--biz-shadow);}
+#sk-module-wrap .sk-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#sk-module-wrap .sk-pill.released{background:var(--biz-confirmed-bg);color:var(--biz-confirmed-text);}
+#sk-module-wrap .sk-search{width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;margin-bottom:12px;box-sizing:border-box;background:var(--biz-input-bg);font-family:inherit;}
+#sk-module-wrap button.primary{background:var(--biz-teal);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s;}
+#sk-module-wrap button.primary:hover{background:#0d5f58;}
 #sk-module-wrap .sk-tabs{display:flex;gap:6px;margin-bottom:12px;}
-#sk-module-wrap .sk-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid #e2e8f0;background:#fff;color:#475569;cursor:pointer;font-family:inherit;}
-#sk-module-wrap .sk-tabbtn.active{background:#0f766e;border-color:#0f766e;color:#fff;}
+#sk-module-wrap .sk-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:var(--biz-card-bg);color:var(--biz-text-muted);cursor:pointer;font-family:inherit;}
+#sk-module-wrap .sk-tabbtn.active{background:var(--biz-teal);border-color:var(--biz-teal);color:#fff;}
 #sk-module-wrap .sk-panel{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:rgba(15,23,42,.55);flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:20px 12px;}
-#sk-module-wrap .sk-panel-inner{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:480px;margin-top:20px;box-sizing:border-box;}
+#sk-module-wrap .sk-panel-inner{background:var(--biz-card-bg);border-radius:14px;padding:18px;width:100%;max-width:480px;margin-top:20px;box-sizing:border-box;}
 #sk-module-wrap .sk-field{margin-bottom:10px;}
-#sk-module-wrap .sk-field label{font-size:11px;color:#64748b;display:block;margin-bottom:3px;}
-#sk-module-wrap .sk-field input, #sk-module-wrap .sk-field select{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;}
+#sk-module-wrap .sk-field label{font-size:10.5px;font-weight:700;color:var(--biz-text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
+#sk-module-wrap .sk-field input, #sk-module-wrap .sk-field select{width:100%;padding:9px 11px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;box-sizing:border-box;background:var(--biz-input-bg);font-family:inherit;}
+#sk-module-wrap .sk-field input:focus, #sk-module-wrap .sk-field select:focus{outline:none;border-color:var(--biz-teal);background:var(--biz-card-bg);}
 `;
 document.head.appendChild(skStyleTag);
 
@@ -97,6 +99,10 @@ function openStorekeeperModule() {
   if (purchMod) purchMod.style.display = 'none';
   const curtMod = document.getElementById('curt-module-wrap');
   if (curtMod) curtMod.style.display = 'none';
+  ['sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
   skModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
   renderStorekeeperDashboard();
@@ -131,7 +137,9 @@ function renderStorekeeperDashboard() {
     <div class="sk-kpi-grid">
       <div class="sk-kpi-tile"><div class="num">${summary.inPoolCount}</div><div class="lbl">Entries In-Pool</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.inPoolQty}</div><div class="lbl">Total Qty In-Pool</div></div>
+      <div class="sk-kpi-tile"><div class="num">${summary.distinctItemsInPool}</div><div class="lbl">Distinct Items</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.releasedTodayCount}</div><div class="lbl">Released Today</div></div>
+      <div class="sk-kpi-tile"><div class="num">${summary.releasedTotalCount}</div><div class="lbl">Released (Total)</div></div>
     </div>`;
 
   const tabsHtml = `

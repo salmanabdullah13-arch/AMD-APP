@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-title" content="AMD Dev">
 <meta name="theme-color" content="#0a0a0f">
 <title>Al Maraya — Developer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="styles.css">
 
 <style>/* ── Gantt chart ─────────────────── */
@@ -56,9 +59,21 @@
     .eco-svg { animation: eco-breathe 4s ease-in-out infinite; }
 
     /* Node dim-at-rest / glow-on-touch transitions */
-    .eco-node { transition: opacity .25s ease, filter .25s ease; }
+    .eco-node { transition: opacity .25s ease, filter .25s ease, transform .15s ease; transform-box: fill-box; transform-origin: center; }
     .eco-node.eco-lit { opacity:1 !important; filter: drop-shadow(0 0 8px rgba(52,211,153,.7)); }
     .eco-node.eco-soon-lit { opacity:.85 !important; filter: drop-shadow(0 0 6px rgba(251,191,36,.6)); }
+    /* Mouse/trackpad users get hover feedback too — touch-glide (above) already
+       covers touch devices. Was previously silent on click for desktop use. */
+    .eco-node:hover { filter: drop-shadow(0 0 10px rgba(255,255,255,.55)); transform: scale(1.06); }
+    .eco-node:active { transform: scale(0.96); }
+    /* Gentle at-rest pulse on every BUILT node, so the hub reads as "alive"
+       rather than a static diagram — soon/planned nodes stay still. */
+    @keyframes eco-built-pulse {
+      0%,100% { filter: drop-shadow(0 0 3px rgba(52,211,153,.35)); }
+      50%      { filter: drop-shadow(0 0 8px rgba(52,211,153,.7)); }
+    }
+    .eco-node-built { animation: eco-built-pulse 3.2s ease-in-out infinite; }
+    .eco-node-built:hover { animation-play-state: paused; }
 
     /* Connector line electricity flash */
     .eco-line { transition: stroke .2s, stroke-opacity .2s, stroke-width .2s; }
@@ -237,8 +252,8 @@
           <line id="line-estimation" class="eco-line" x1="190" y1="225" x2="64"  y2="168" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
           <!-- lines to ring3 -->
           <line id="line-owner"      class="eco-line" x1="190" y1="225" x2="190" y2="32"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-accounts"   class="eco-line" x1="190" y1="225" x2="354" y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-delivery"   class="eco-line" x1="190" y1="225" x2="364" y2="385" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-accounts"   class="eco-line" x1="190" y1="225" x2="354" y2="85"  stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-delivery"   class="eco-line" x1="190" y1="225" x2="364" y2="385" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-hr"         class="eco-line" x1="190" y1="225" x2="190" y2="464" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-approvals"  class="eco-line" x1="190" y1="225" x2="16"  y2="385" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-tally"      class="eco-line" x1="190" y1="225" x2="26"  y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
@@ -259,7 +274,7 @@
           </g>
 
           <!-- RING 1 — OPERATIONS (built) -->
-          <g id="node-operations" class="eco-node" onclick="showPanel('operations')" style="cursor:pointer;">
+          <g id="node-operations" class="eco-node eco-node-built" onclick="showPanel('operations')" style="cursor:pointer;">
             <circle cx="190" cy="123" r="34" fill="rgba(15,157,88,.07)"/>
             <circle cx="190" cy="123" r="28" fill="url(#OKG)" filter="url(#glow-ok)"/>
             <circle cx="190" cy="123" r="28" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
@@ -270,7 +285,7 @@
           </g>
 
           <!-- RING 2 CURTAIN (built) -->
-          <g id="node-curtain" class="eco-node" onclick="showPanel('curtain')" style="cursor:pointer;">
+          <g id="node-curtain" class="eco-node eco-node-built" onclick="showPanel('curtain')" style="cursor:pointer;">
             <circle cx="316" cy="168" r="28" fill="rgba(15,157,88,.07)"/>
             <circle cx="316" cy="168" r="23" fill="url(#OKG)" filter="url(#glow-ok)"/>
             <circle cx="316" cy="168" r="23" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
@@ -281,7 +296,7 @@
           </g>
 
           <!-- RING 2 PURCHASER (built) -->
-          <g id="node-purchasing" class="eco-node" onclick="showPanel('purchasing')" style="cursor:pointer;">
+          <g id="node-purchasing" class="eco-node eco-node-built" onclick="showPanel('purchasing')" style="cursor:pointer;">
             <circle cx="270" cy="60" r="26" fill="rgba(212,160,23,.08)"/>
             <circle cx="270" cy="60" r="21" fill="url(#PUG)" filter="url(#glow-ok)"/>
             <circle cx="270" cy="60" r="21" fill="none" stroke="rgba(212,160,23,.6)" stroke-width="1.5"/>
@@ -292,7 +307,7 @@
           </g>
 
           <!-- RING 2 STOREKEEPER (built) -->
-          <g id="node-storekeeper" class="eco-node" onclick="showPanel('storekeeper')" style="cursor:pointer;">
+          <g id="node-storekeeper" class="eco-node eco-node-built" onclick="showPanel('storekeeper')" style="cursor:pointer;">
             <circle cx="245" cy="25" r="24" fill="rgba(15,157,88,.07)"/>
             <circle cx="245" cy="25" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
             <circle cx="245" cy="25" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
@@ -393,7 +408,7 @@
           </g>
 
           <!-- RING 2 SALES (built) -->
-          <g id="node-sales" class="eco-node" onclick="showPanel('sales')" style="cursor:pointer;">
+          <g id="node-sales" class="eco-node eco-node-built" onclick="showPanel('sales')" style="cursor:pointer;">
             <circle cx="46" cy="268" r="24" fill="rgba(15,157,88,.07)"/>
             <circle cx="46" cy="268" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
             <circle cx="46" cy="268" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
@@ -401,10 +416,12 @@
             <text x="46" y="276" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.85)" font-weight="700">SALES</text>
             <circle cx="59" cy="254" r="7" fill="#0f9d58"/>
             <text x="59" y="258" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
+            <circle cx="33" cy="282" r="7" fill="#0774F8"/>
+            <text x="33" y="286" text-anchor="middle" font-size="8.5" fill="white" font-weight="800">1</text>
           </g>
 
           <!-- RING 2 ESTIMATOR (built) -->
-          <g id="node-estimation" class="eco-node" onclick="showPanel('estimation')" style="cursor:pointer;">
+          <g id="node-estimation" class="eco-node eco-node-built" onclick="showPanel('estimation')" style="cursor:pointer;">
             <circle cx="64" cy="168" r="24" fill="rgba(15,157,88,.07)"/>
             <circle cx="64" cy="168" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
             <circle cx="64" cy="168" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
@@ -412,6 +429,8 @@
             <text x="64" y="176" text-anchor="middle" font-size="5.2" fill="rgba(255,255,255,.85)" font-weight="700">ESTIMATOR</text>
             <circle cx="77" cy="154" r="7" fill="#0f9d58"/>
             <text x="77" y="158" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
+            <circle cx="51" cy="182" r="7" fill="#0774F8"/>
+            <text x="51" y="186" text-anchor="middle" font-size="8.5" fill="white" font-weight="800">2</text>
           </g>
 
           <!-- RING 3 (outer, all soon) -->
@@ -421,17 +440,23 @@
             <text x="190" y="28" text-anchor="middle" font-size="9">👑</text>
             <text x="190" y="38" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">OWNER</text>
           </g>
-          <g id="node-accounts" class="eco-node" onclick="showPanel('accounts')" style="cursor:pointer;opacity:.22;">
-            <circle cx="354" cy="85" r="16" fill="rgba(255,255,255,.04)"/>
-            <circle cx="354" cy="85" r="12" fill="rgba(255,255,255,.04)"/>
+          <g id="node-accounts" class="eco-node eco-node-built" onclick="showPanel('accounts')" style="cursor:pointer;">
+            <circle cx="354" cy="85" r="17" fill="rgba(15,157,88,.07)"/>
+            <circle cx="354" cy="85" r="12" fill="url(#OKG)" filter="url(#glow-ok)"/>
+            <circle cx="354" cy="85" r="12" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
             <text x="354" y="81" text-anchor="middle" font-size="9">💰</text>
-            <text x="354" y="91" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">ACCOUNTS</text>
+            <text x="354" y="91" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.85)" font-weight="700">ACCOUNTS</text>
+            <circle cx="364" cy="75" r="6.5" fill="#0774F8"/>
+            <text x="364" y="78.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">5</text>
           </g>
-          <g id="node-delivery" class="eco-node" onclick="showPanel('delivery')" style="cursor:pointer;opacity:.22;">
-            <circle cx="364" cy="385" r="16" fill="rgba(255,255,255,.04)"/>
-            <circle cx="364" cy="385" r="12" fill="rgba(255,255,255,.04)"/>
-            <text x="364" y="381" text-anchor="middle" font-size="9">🚚</text>
-            <text x="364" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">DELIVERY</text>
+          <g id="node-delivery" class="eco-node eco-node-built" onclick="showPanel('delivery')" style="cursor:pointer;">
+            <circle cx="364" cy="385" r="17" fill="rgba(15,157,88,.07)"/>
+            <circle cx="364" cy="385" r="12" fill="url(#OKG)" filter="url(#glow-ok)"/>
+            <circle cx="364" cy="385" r="12" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
+            <text x="364" y="381" text-anchor="middle" font-size="9">🗂️</text>
+            <text x="364" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.85)" font-weight="700">JOBS</text>
+            <circle cx="374" cy="375" r="6.5" fill="#0774F8"/>
+            <text x="374" y="378.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">4</text>
           </g>
           <g id="node-hr" class="eco-node" onclick="showPanel('hr')" style="cursor:pointer;opacity:.22;">
             <circle cx="190" cy="464" r="16" fill="rgba(255,255,255,.04)"/>
@@ -439,12 +464,14 @@
             <text x="190" y="460" text-anchor="middle" font-size="9">👥</text>
             <text x="190" y="470" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">HR</text>
           </g>
-          <g id="node-approvals" class="eco-node" onclick="showPanel('approvals')" style="cursor:pointer;">
+          <g id="node-approvals" class="eco-node eco-node-built" onclick="showPanel('approvals')" style="cursor:pointer;">
             <circle cx="16" cy="385" r="17" fill="rgba(15,157,88,.07)"/>
             <circle cx="16" cy="385" r="12" fill="url(#OKG)" filter="url(#glow-ok)"/>
             <circle cx="16" cy="385" r="12" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
             <text x="16" y="381" text-anchor="middle" font-size="9">✅</text>
             <text x="16" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.85)" font-weight="700">APPROVER</text>
+            <circle cx="6" cy="395" r="6.5" fill="#0774F8"/>
+            <text x="6" y="398.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">3</text>
           </g>
           <g id="node-tally" class="eco-node" onclick="showPanel('tally')" style="cursor:pointer;opacity:.22;">
             <circle cx="26" cy="85" r="16" fill="rgba(255,255,255,.04)"/>
@@ -464,17 +491,22 @@
 
       <div class="quick-stats">
         <div class="qs" style="background:rgba(15,157,88,.08);border:1px solid rgba(15,157,88,.15);">
-          <div class="qs-v" style="color:#34d399;">1</div>
+          <div class="qs-v" id="qs-built-count" style="color:#34d399;">–</div>
           <div class="qs-l" style="color:rgba(52,211,153,.6);">Built</div>
         </div>
         <div class="qs" style="background:rgba(196,125,0,.08);border:1px solid rgba(196,125,0,.15);">
-          <div class="qs-v" style="color:#fbbf24;">1</div>
+          <div class="qs-v" id="qs-building-count" style="color:#fbbf24;">–</div>
           <div class="qs-l" style="color:rgba(251,191,36,.6);">Building</div>
         </div>
         <div class="qs" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);">
-          <div class="qs-v" style="color:rgba(255,255,255,.25);">11</div>
+          <div class="qs-v" id="qs-planned-count" style="color:rgba(255,255,255,.25);">–</div>
           <div class="qs-l" style="color:rgba(255,255,255,.2);">Planned</div>
         </div>
+      </div>
+
+      <div style="margin:4px 16px 16px;padding:11px 13px;background:rgba(7,116,248,.08);border:1px solid rgba(7,116,248,.2);border-radius:12px;font-size:11px;color:rgba(255,255,255,.55);line-height:1.7;">
+        <span style="color:rgba(255,255,255,.7);font-weight:700;">① – ⑤ Core revenue pipeline:</span>
+        Sales <span style="color:#45AAF2;">→</span> Estimator <span style="color:#45AAF2;">→</span> Approver <span style="color:#45AAF2;">→</span> Jobs <span style="color:#45AAF2;">→</span> Accounts — the blue-numbered badges above trace one quotation all the way from enquiry to invoice.
       </div>
     </div>
 
@@ -1189,6 +1221,10 @@
       <button class="ntab" data-p="purch-requests" onclick="purchGoTo('purch-requests')">Requests</button>
       <button class="ntab" data-p="purch-approvals" onclick="purchGoTo('purch-approvals')">Approvals</button>
       <button class="ntab" data-p="purch-orders" onclick="purchGoTo('purch-orders')">Orders</button>
+      <button class="ntab" data-p="purch-register" onclick="purchGoTo('purch-register')">PO Register</button>
+      <button class="ntab" data-p="purch-suppliers" onclick="purchGoTo('purch-suppliers')">Suppliers</button>
+      <button class="ntab" data-p="purch-payments" onclick="purchGoTo('purch-payments')">Payment</button>
+      <button class="ntab" data-p="purch-debitnotes" onclick="purchGoTo('purch-debitnotes')">Debit Note</button>
     </div>
 
     <div class="scroll" id="purch-scroll">
@@ -1213,6 +1249,26 @@
         <div id="purch-orders-body"></div>
       </div>
 
+      <!-- ══ PO REGISTER (report) ══ -->
+      <div class="page" id="p-purch-register">
+        <div id="purch-register-body"></div>
+      </div>
+
+      <!-- ══ SUPPLIER MASTER ══ -->
+      <div class="page" id="p-purch-suppliers">
+        <div id="purch-suppliers-body"></div>
+      </div>
+
+      <!-- ══ SUPPLIER PAYMENT ══ -->
+      <div class="page" id="p-purch-payments">
+        <div id="purch-payments-body"></div>
+      </div>
+
+      <!-- ══ DEBIT NOTE ══ -->
+      <div class="page" id="p-purch-debitnotes">
+        <div id="purch-debitnotes-body"></div>
+      </div>
+
       <p class="foot">Purchaser module · Upholstery, Joinery (incl. Painting) &amp; Metal Works purchasing. Curtain's fabric/rail requests are tracked in its own module — shown here read-only.</p>
     </div>
 
@@ -1232,8 +1288,12 @@
           </select>
         </div>
         <div class="p-field">
-          <label>Supplier name / tel</label>
-          <input id="po-supplier-name-tel" type="text" placeholder="e.g. Gulf Glass Trading — 1723 4455">
+          <label>Supplier Name</label>
+          <select id="po-supplier-select" onchange="purchSupplierSelectNewCheck('po-supplier-select')"></select>
+        </div>
+        <div class="p-field">
+          <label>Cash/Ledger</label>
+          <select id="po-cash-ledger"></select>
         </div>
         <div class="p-field">
           <label>Supplier ref</label>
@@ -1302,6 +1362,7 @@
           <select id="pr-form-dest" onchange="prFormDestChanged(this.value)">
             <option value="inventory">Stock (shared pool)</option>
             <option value="job-direct">Job-direct</option>
+            <option value="others">Others</option>
           </select>
         </div>
 
@@ -1334,6 +1395,7 @@
           <select id="pod-form-dest" onchange="poDirectFormDestChanged(this.value)">
             <option value="inventory">Stock (shared pool)</option>
             <option value="job-direct">Job-direct</option>
+            <option value="others">Others</option>
           </select>
         </div>
         <div class="p-field">
@@ -1346,8 +1408,12 @@
           </select>
         </div>
         <div class="p-field">
-          <label>Supplier name / tel</label>
-          <input id="pod-supplier-name-tel" type="text" placeholder="e.g. Gulf Glass Trading — 1723 4455">
+          <label>Supplier Name</label>
+          <select id="pod-supplier-select" onchange="purchSupplierSelectNewCheck('pod-supplier-select')"></select>
+        </div>
+        <div class="p-field">
+          <label>Cash/Ledger</label>
+          <select id="pod-cash-ledger"></select>
         </div>
         <div class="p-field">
           <label>Supplier ref</label>
@@ -1395,23 +1461,168 @@
           <select id="invd-form-dest" onchange="invDirectFormDestChanged(this.value)">
             <option value="inventory">Stock (shared pool)</option>
             <option value="job-direct">Job-direct</option>
+            <option value="others">Others</option>
           </select>
         </div>
         <div class="p-field">
-          <label>Supplier name / tel</label>
-          <input id="invd-supplier-name-tel" type="text" placeholder="e.g. Gulf Glass Trading — 1723 4455">
+          <label>Supplier Name</label>
+          <select id="invd-supplier-select" onchange="purchSupplierSelectNewCheck('invd-supplier-select')"></select>
         </div>
         <div class="p-field">
           <label>Supplier ref (vendor's invoice number)</label>
           <input id="invd-supplier-ref" type="text" placeholder="Optional">
         </div>
+        <div class="p-field">
+          <label>Search PO Number</label>
+          <div style="display:flex;gap:6px;">
+            <input id="invd-po-search" type="text" placeholder="e.g. PO-0001-AMD" style="flex:1;">
+            <button style="background:#9B5FB0;color:#fff;border:0;border-radius:8px;padding:0 14px;font-size:12.5px;cursor:pointer;" onclick="invDirectLocatePO()">Locate</button>
+          </div>
+        </div>
 
-        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Line items</p>
+        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Line items · Job Item</p>
         <div id="invd-form-items"></div>
 
         <div style="display:flex;gap:8px;margin-top:14px;">
-          <button class="primary" style="flex:1;" onclick="saveInvDirectForm()">Save Invoice →</button>
+          <button class="primary" style="flex:1;" onclick="saveInvDirectForm()">Submit →</button>
           <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closeInvDirectForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVOICE DRAFT / CONFIRM (two-stage: Submit → draft → Confirm) -->
+    <div class="p-panel" id="purch-invoice-draft">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">Purchase Invoice — Draft</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Add Other Expenses if needed, then Confirm to send for approval.</p>
+        <div id="invd-draft-body"></div>
+      </div>
+    </div>
+
+    <!-- SUPPLIER MASTER FORM -->
+    <div class="p-panel" id="purch-supplier-form">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">New Supplier</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Masters → Accounts → Vendor — the one canonical supplier list.</p>
+
+        <div class="p-field"><label>Name*</label><input id="sup-name" type="text"></div>
+        <div class="p-field"><label>Contact Person*</label><input id="sup-contact" type="text"></div>
+        <div class="p-field"><label>Telephone*</label><input id="sup-tel" type="text"></div>
+        <div class="p-field"><label>Telephone 2</label><input id="sup-tel2" type="text"></div>
+        <div class="p-field"><label>Email</label><input id="sup-email" type="email"></div>
+        <div class="p-field"><label>Fax</label><input id="sup-fax" type="text"></div>
+        <div class="p-field"><label>Vat Name</label><input id="sup-vat-name" type="text"></div>
+        <div class="p-field"><label>Vat No</label><input id="sup-vat-no" type="text"></div>
+        <div class="p-field"><label>Tax %</label><select id="sup-tax-percent"></select></div>
+        <div class="p-field"><label><input id="sup-is-credit" type="checkbox" style="width:auto;display:inline;margin-right:6px;">Is Credit</label></div>
+        <div class="p-field"><label>Credit Limit</label><input id="sup-credit-limit" type="number" step="0.001"></div>
+        <div class="p-field"><label>Credit Days</label><input id="sup-credit-days" type="number" step="1"></div>
+        <div class="p-field"><label>Bank Account Number</label><input id="sup-bank-acc-no" type="text"></div>
+        <div class="p-field"><label>Bank Account Holder Name</label><input id="sup-bank-holder" type="text"></div>
+        <div class="p-field"><label>IBAN Number</label><input id="sup-iban" type="text"></div>
+        <div class="p-field"><label>Bank Swift</label><input id="sup-swift" type="text"></div>
+        <div class="p-field"><label>Bank Name</label><input id="sup-bank-name" type="text"></div>
+        <div class="p-field"><label>Bank Branch</label><input id="sup-bank-branch" type="text"></div>
+        <div class="p-field"><label>Address*</label><input id="sup-address" type="text"></div>
+        <div class="p-field"><label>CR No</label><input id="sup-cr-no" type="text"></div>
+        <div class="p-field"><label>Country</label><select id="sup-country"></select></div>
+        <div class="p-field"><label>Opening Balance</label><input id="sup-opening-balance" type="number" step="0.001"></div>
+
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="primary" style="flex:1;" onclick="saveSupplierForm()">Save Supplier →</button>
+          <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closeSupplierForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUPPLIER PAYMENT FORM -->
+    <div class="p-panel" id="purch-payment-form">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">New Payment</p>
+
+        <div class="p-field"><label>Division</label><input type="text" value="Al Maraya Decor" disabled></div>
+        <div class="p-field"><label>Name</label><select id="pay-supplier-select" onchange="paymentVendorChanged(this.value)"></select></div>
+
+        <div id="pay-reveal" style="display:none;">
+          <div class="p-card">
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+              <input type="checkbox" style="width:auto;" onchange="paymentMethodToggle('cash', this.checked)"> <label style="margin:0;">Cash</label>
+            </div>
+            <div id="pay-cash-fields" style="display:none;">
+              <div class="p-field"><label>Amount</label><input type="number" step="0.001" onchange="paymentMethodField('cash','amount',this.value)"></div>
+            </div>
+          </div>
+          <div class="p-card">
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+              <input type="checkbox" style="width:auto;" onchange="paymentMethodToggle('cCard', this.checked)"> <label style="margin:0;">C Card</label>
+            </div>
+            <div id="pay-cCard-fields" style="display:none;">
+              <div class="p-field"><label>Amount</label><input type="number" step="0.001" onchange="paymentMethodField('cCard','amount',this.value)"></div>
+              <div class="p-field"><label>Type</label><input type="text" onchange="paymentMethodField('cCard','type',this.value)"></div>
+              <div class="p-field"><label>Authorized</label><input type="text" onchange="paymentMethodField('cCard','authorized',this.value)"></div>
+            </div>
+          </div>
+          <div class="p-card">
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+              <input type="checkbox" style="width:auto;" onchange="paymentMethodToggle('wallet', this.checked)"> <label style="margin:0;">Wallet</label>
+            </div>
+            <div id="pay-wallet-fields" style="display:none;">
+              <div class="p-field"><label>Amount</label><input type="number" step="0.001" onchange="paymentMethodField('wallet','amount',this.value)"></div>
+              <div class="p-field"><label>Type</label><input type="text" onchange="paymentMethodField('wallet','type',this.value)"></div>
+              <div class="p-field"><label>Authorized</label><input type="text" onchange="paymentMethodField('wallet','authorized',this.value)"></div>
+            </div>
+          </div>
+          <div class="p-card">
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+              <input type="checkbox" style="width:auto;" onchange="paymentMethodToggle('cheque', this.checked)"> <label style="margin:0;">Cheque</label>
+            </div>
+            <div id="pay-cheque-fields" style="display:none;">
+              <div class="p-field"><label>Amount</label><input type="number" step="0.001" onchange="paymentMethodField('cheque','amount',this.value)"></div>
+              <div class="p-field"><label>Number</label><input type="text" onchange="paymentMethodField('cheque','number',this.value)"></div>
+              <div class="p-field"><label>Bank</label><input type="text" onchange="paymentMethodField('cheque','bank',this.value)"></div>
+            </div>
+          </div>
+
+          <div class="p-field"><label>Amount*</label><input id="pay-amount" type="number" step="0.001" style="background:#dcfce7;"></div>
+          <div class="p-field"><label>Reference Number</label><input id="pay-reference" type="text"></div>
+
+          <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px;">Invoice Allocation</p>
+          <div id="pay-allocation-table"></div>
+
+          <div class="p-field" style="margin-top:10px;"><label>Advance Payment (Paying Amount)</label><input id="pay-advance" type="number" step="0.001" value="0"></div>
+
+          <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px;">Ledger Splits</p>
+          <div id="pay-ledger-splits"></div>
+
+          <div class="p-field" style="margin-top:10px;"><label>Remarks</label><textarea id="pay-remarks" rows="3"></textarea></div>
+
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button style="flex:1;background:#0774F8;color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="savePaymentForm()">Create Payment</button>
+            <button style="flex:1;background:#dc2626;color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="closePaymentForm()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEBIT NOTE FORM -->
+    <div class="p-panel" id="purch-debitnote-form">
+      <div class="p-panel-inner">
+        <p style="font-weight:700;font-size:15px;margin-bottom:2px;">New Debit Note</p>
+
+        <div class="p-field"><label>Division</label><input type="text" value="Al Maraya Decor" disabled></div>
+        <div class="p-field"><label>Name</label><select id="dn-supplier-select" onchange="debitNoteVendorChanged(this.value)"></select></div>
+
+        <div id="dn-reveal" style="display:none;">
+          <div class="p-field"><label>Select Ledger*</label><input id="dn-ledger" type="text" placeholder="e.g. Purchase"></div>
+          <div class="p-field"><label>Debit Note Date*</label><input id="dn-date" type="date"></div>
+          <div class="p-field"><label>Taxable Type*</label><select id="dn-taxable-type"></select></div>
+          <div class="p-field"><label>Amount*</label><input id="dn-amount" type="number" step="0.001"></div>
+          <div class="p-field"><label>Reason / Remarks</label><textarea id="dn-reason" rows="3"></textarea></div>
+
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="primary" style="flex:1;" onclick="saveDebitNoteForm()">Create Debit Note →</button>
+            <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closeDebitNoteForm()">Cancel</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1454,6 +1665,8 @@
 <script src="sales.js"></script>
 <script src="estimator.js"></script>
 <script src="approver.js"></script>
+<script src="jobs.js"></script>
+<script src="accounts.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1515,8 +1728,8 @@ function subNodeTouch(id, active) {
     { id:'estimation', cx:64,  cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
     // Ring 3 soon
     { id:'owner',      cx:190, cy:32,  built:false },
-    { id:'accounts',   cx:354, cy:85,  built:false },
-    { id:'delivery',   cx:364, cy:385, built:false },
+    { id:'accounts',   cx:354, cy:85,  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAccountsModule(),150); } },
+    { id:'delivery',   cx:364, cy:385, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJobsModule(),150); } },
     { id:'hr',         cx:190, cy:464, built:false },
     { id:'approvals',  cx:16,  cy:385, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
     { id:'tally',      cx:26,  cy:85,  built:false },

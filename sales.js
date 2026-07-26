@@ -17,50 +17,74 @@
 
 const salesStyleTag = document.createElement('style');
 salesStyleTag.textContent = `
-#sales-module-wrap { font-family: inherit; }
-#sales-module-wrap .ops-header{background:#7c3aed;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#sales-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
+#sales-module-wrap .ops-header{background:var(--biz-purple);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #sales-module-wrap .sales-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
 #sales-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
-#sales-module-wrap .sales-kpi-tile{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center;}
-#sales-module-wrap .sales-kpi-tile .num{font-size:20px;font-weight:800;color:#7c3aed;}
-#sales-module-wrap .sales-kpi-tile .lbl{font-size:10.5px;color:#64748b;margin-top:2px;}
-#sales-module-wrap .sales-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:10px;}
-#sales-module-wrap .sales-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:#f1f5f9;color:#64748b;}
-#sales-module-wrap .sales-pill.draft{background:#f1f5f9;color:#64748b;}
-#sales-module-wrap .sales-pill.open{background:#dbeafe;color:#1e40af;}
-#sales-module-wrap .sales-pill.confirmed{background:#dcfce7;color:#166534;}
-#sales-module-wrap .sales-pill.closed{background:#e2e8f0;color:#475569;}
+#sales-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
+#sales-module-wrap .sales-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-purple);}
+#sales-module-wrap .sales-kpi-tile .lbl{font-size:10.5px;color:var(--biz-text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px;}
+#sales-module-wrap .sales-card{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px;margin-bottom:10px;box-shadow:var(--biz-shadow);}
+#sales-module-wrap .sales-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#sales-module-wrap .sales-pill.draft{background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#sales-module-wrap .sales-pill.open{background:var(--biz-open-bg);color:var(--biz-open-text);}
+#sales-module-wrap .sales-pill.confirmed{background:var(--biz-confirmed-bg);color:var(--biz-confirmed-text);}
+#sales-module-wrap .sales-pill.closed{background:var(--biz-closed-bg);color:var(--biz-closed-text);}
 #sales-module-wrap .sales-pill.stage-sales{background:#ede9fe;color:#5b21b6;}
 #sales-module-wrap .sales-pill.stage-estimator{background:#fef3c7;color:#92400e;}
 #sales-module-wrap .sales-pill.stage-approver{background:#fee2e2;color:#991b1b;}
-#sales-module-wrap .sales-search{width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:12px;box-sizing:border-box;}
-#sales-module-wrap button.primary{background:#7c3aed;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
-#sales-module-wrap button.secondary{background:none;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
+#sales-module-wrap .sales-search{width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;margin-bottom:12px;box-sizing:border-box;background:var(--biz-input-bg);font-family:inherit;}
+#sales-module-wrap button.primary{background:var(--biz-primary);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s;}
+#sales-module-wrap button.primary:hover{background:var(--biz-primary-dark);}
+#sales-module-wrap button.secondary{background:var(--biz-card-bg);border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);color:var(--biz-text-muted);font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
 #sales-module-wrap .sales-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
-#sales-module-wrap .sales-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid #e2e8f0;background:#fff;color:#475569;cursor:pointer;font-family:inherit;}
-#sales-module-wrap .sales-tabbtn.active{background:#7c3aed;border-color:#7c3aed;color:#fff;}
-#sales-module-wrap .sales-toptabs{display:flex;gap:0;margin:-16px -18px 16px;background:#fff;border-bottom:1px solid #e2e8f0;}
-#sales-module-wrap .sales-toptab{flex:1;text-align:center;padding:12px 8px;font-size:13px;font-weight:700;color:#94a3b8;cursor:pointer;border-bottom:2px solid transparent;}
-#sales-module-wrap .sales-toptab.active{color:#7c3aed;border-bottom-color:#7c3aed;}
+#sales-module-wrap .sales-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:var(--biz-card-bg);color:var(--biz-text-muted);cursor:pointer;font-family:inherit;}
+#sales-module-wrap .sales-tabbtn.active{background:var(--biz-purple);border-color:var(--biz-purple);color:#fff;}
+/* Segmented status tabs — Quotation List's Draft/Open/Confirmed/Closed/All,
+   pale-fill-per-status like the live Q-Pro segmented control (kept as
+   compact pills rather than full-width bars — modernized proportions) */
+#sales-module-wrap .sales-status-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+#sales-module-wrap .sales-status-tab{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;border:0;cursor:pointer;font-family:inherit;background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#sales-module-wrap .sales-status-tab.st-draft.active{background:var(--biz-draft-text);color:#fff;}
+#sales-module-wrap .sales-status-tab.st-open{background:var(--biz-open-bg);color:var(--biz-open-text);}
+#sales-module-wrap .sales-status-tab.st-open.active{background:var(--biz-open-text);color:#fff;}
+#sales-module-wrap .sales-status-tab.st-confirmed{background:var(--biz-confirmed-bg);color:var(--biz-confirmed-text);}
+#sales-module-wrap .sales-status-tab.st-confirmed.active{background:var(--biz-confirmed-text);color:#fff;}
+#sales-module-wrap .sales-status-tab.st-closed{background:var(--biz-closed-bg);color:var(--biz-closed-text);}
+#sales-module-wrap .sales-status-tab.st-closed.active{background:var(--biz-closed-text);color:#fff;}
+#sales-module-wrap .sales-status-tab.st-all.active{background:#8a93a6;color:#fff;}
+#sales-module-wrap .sales-toptabs{display:flex;gap:0;margin:-16px -18px 16px;background:var(--biz-card-bg);border-bottom:1px solid var(--biz-border-light);}
+#sales-module-wrap .sales-toptab{flex:1;text-align:center;padding:12px 8px;font-size:13px;font-weight:600;color:var(--biz-text-faint);cursor:pointer;border-bottom:2px solid transparent;}
+#sales-module-wrap .sales-toptab.active{color:var(--biz-purple);border-bottom-color:var(--biz-purple);font-weight:700;}
 #sales-module-wrap .sales-field{margin-bottom:10px;}
-#sales-module-wrap .sales-field label{font-size:11px;color:#64748b;display:block;margin-bottom:3px;}
-#sales-module-wrap .sales-field input, #sales-module-wrap .sales-field select, #sales-module-wrap .sales-field textarea{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;}
+#sales-module-wrap .sales-field label{font-size:10.5px;font-weight:700;color:var(--biz-text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
+#sales-module-wrap .sales-field input, #sales-module-wrap .sales-field select, #sales-module-wrap .sales-field textarea{width:100%;padding:9px 11px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;box-sizing:border-box;font-family:inherit;background:var(--biz-input-bg);color:var(--biz-text);transition:border-color .12s;}
+#sales-module-wrap .sales-field input:focus, #sales-module-wrap .sales-field select:focus, #sales-module-wrap .sales-field textarea:focus{outline:none;border-color:var(--biz-primary);background:var(--biz-card-bg);}
 #sales-module-wrap .sales-field textarea{min-height:70px;resize:vertical;}
-#sales-module-wrap .sales-banner{background:#fef3c7;color:#92400e;font-size:12px;padding:9px 12px;border-radius:8px;margin-bottom:12px;font-weight:600;}
-#sales-module-wrap .sales-preview{background:#faf5ff;border:1px solid #e9d5ff;border-radius:12px;padding:12px;margin-bottom:14px;}
-#sales-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:#475569;}
-#sales-module-wrap .sales-preview b{color:#1a1f2e;}
+#sales-module-wrap .sales-banner{background:#fff6e3;color:#92400e;font-size:12px;padding:9px 12px;border-radius:var(--biz-r-sm);margin-bottom:12px;font-weight:600;}
+#sales-module-wrap .sales-preview{background:#F5F0FE;border:1px solid #E3D5FC;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
+#sales-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:var(--biz-text-muted);}
+#sales-module-wrap .sales-preview b{color:var(--biz-text);}
 #sales-module-wrap .sales-wizard-steps{display:flex;gap:4px;margin-bottom:16px;}
-#sales-module-wrap .sales-wizard-step{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:8px 4px;border-radius:8px;background:#f1f5f9;color:#94a3b8;}
-#sales-module-wrap .sales-wizard-step.active{background:#7c3aed;color:#fff;}
+#sales-module-wrap .sales-wizard-step{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:8px 4px;border-radius:var(--biz-r-sm);background:var(--biz-input-bg);color:var(--biz-text-faint);}
+#sales-module-wrap .sales-wizard-step.active{background:var(--biz-purple);color:#fff;}
 #sales-module-wrap .sales-wizard-step.done{background:#ede9fe;color:#5b21b6;}
-#sales-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px;}
-#sales-module-wrap table.sales-items th{text-align:left;padding:6px;background:#f8fafc;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0;}
-#sales-module-wrap table.sales-items td{padding:6px;border-bottom:1px solid #f1f5f9;}
-#sales-module-wrap .sales-locked{background:#f8fafc !important;color:#94a3b8 !important;}
-#sales-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
-#sales-module-wrap .sales-tile{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;font-size:12px;font-weight:700;color:#475569;cursor:pointer;}
-#sales-module-wrap .sales-back{font-size:12px;color:#7c3aed;font-weight:700;cursor:pointer;margin-bottom:10px;display:inline-block;}
+#sales-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;}
+#sales-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
+#sales-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);}
+#sales-module-wrap table.sales-items tr:hover td{background:#FAFBFD;}
+#sales-module-wrap .sales-locked{background:var(--biz-border-light) !important;color:var(--biz-text-faint) !important;}
+#sales-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+#sales-module-wrap .sales-tile{border:0;border-radius:var(--biz-r);padding:14px 10px;text-align:center;font-size:11.5px;font-weight:700;color:#fff;cursor:pointer;box-shadow:var(--biz-shadow);transition:transform .12s,box-shadow .12s;text-transform:uppercase;letter-spacing:.2px;}
+#sales-module-wrap .sales-tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px 0 rgba(37,37,42,.14);}
+#sales-module-wrap .sales-tile .sales-tile-icon{font-size:18px;display:block;margin-bottom:6px;}
+#sales-module-wrap .sales-tile.t-blue{background:linear-gradient(135deg,var(--biz-primary),var(--biz-primary2));}
+#sales-module-wrap .sales-tile.t-purple{background:linear-gradient(135deg,var(--biz-purple),#8B5FE8);}
+#sales-module-wrap .sales-tile.t-teal{background:linear-gradient(135deg,var(--biz-teal),#3FCBB5);}
+#sales-module-wrap .sales-tile.t-magenta{background:linear-gradient(135deg,var(--biz-magenta),#E876B0);}
+#sales-module-wrap .sales-tile.t-amber{background:linear-gradient(135deg,#c47d00,#e0a530);}
+#sales-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),#3FB4D8);}
+#sales-module-wrap .sales-back{font-size:12px;color:var(--biz-primary);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
 `;
 document.head.appendChild(salesStyleTag);
 
@@ -121,13 +145,13 @@ function openSalesModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap', 'approver-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
   salesModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
-  salesTopView = 'enquiries';
-  salesView = 'enq-list';
+  salesTopView = 'dashboard';
+  salesView = 'dashboard';
   renderSalesBody();
 }
 function closeSalesModule() {
@@ -140,7 +164,7 @@ function launchSalesModule() { openSalesModule(); }
 
 function salesSetTopView(v) {
   salesTopView = v;
-  salesView = v === 'enquiries' ? 'enq-list' : 'qtn-list';
+  salesView = v === 'dashboard' ? 'dashboard' : v === 'enquiries' ? 'enq-list' : 'qtn-list';
   renderSalesBody();
 }
 
@@ -149,12 +173,14 @@ function renderSalesBody() {
   if (!body) return;
   const topTabs = `
     <div class="sales-toptabs">
+      <div class="sales-toptab ${salesTopView === 'dashboard' ? 'active' : ''}" onclick="salesSetTopView('dashboard')">Dashboard</div>
       <div class="sales-toptab ${salesTopView === 'enquiries' ? 'active' : ''}" onclick="salesSetTopView('enquiries')">Enquiry</div>
       <div class="sales-toptab ${salesTopView === 'quotations' ? 'active' : ''}" onclick="salesSetTopView('quotations')">Quotation</div>
     </div>`;
 
   let content = '';
   switch (salesView) {
+    case 'dashboard': content = renderSalesDashboard(); break;
     case 'enq-list': content = renderEnquiryList(); break;
     case 'enq-create': content = renderEnquiryCreate(); break;
     case 'cust-create': content = renderCustomerCreate(); break;
@@ -522,7 +548,7 @@ function renderQuotationList() {
     .filter(q => salesQtnListTab === 'all' || q.lifecycleStatus === salesQtnListTab)
     .slice().sort((a, b) => b.date.localeCompare(a.date));
 
-  const tabsHtml = `<div class="sales-tabs">${tabs.map(t => `<button class="sales-tabbtn ${salesQtnListTab === t ? 'active' : ''}" onclick="salesSetQtnListTab('${t}')">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`;
+  const tabsHtml = `<div class="sales-status-tabs">${tabs.map(t => `<button class="sales-status-tab st-${t} ${salesQtnListTab === t ? 'active' : ''}" onclick="salesSetQtnListTab('${t}')">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`;
 
   const filterHtml = `
     <div class="sales-card">
@@ -589,18 +615,25 @@ function renderQuotationHub() {
       <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${esc(q.enquiryId)} · Salesman: ${esc(enq ? enq.salesPerson : '—')}</p>
     </div>
     <div class="sales-tile-row">
-      <div class="sales-tile" onclick="openQuotationWizard('${q.id}',1)">Edit Quote</div>
-      <div class="sales-tile" onclick="salesAlert('Print Quote — not wired to a document generator yet.')">Print Quote</div>
-      <div class="sales-tile" onclick="salesAlert('Duplicate — not implemented yet.')">Duplicate</div>
-      <div class="sales-tile" onclick="salesAlert('Discount — apply from the Product & Services step.')">Discount</div>
+      <div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>
+      <div class="sales-tile t-purple" onclick="salesAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>
+      <div class="sales-tile t-teal" onclick="salesAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
+      <div class="sales-tile t-magenta" onclick="salesAlert('Discount — apply from the Product & Services step.')"><span class="sales-tile-icon">%</span>Discount</div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
-      ${q.stage === 'sales'
-        ? `<button class="primary" style="width:100%;" onclick="salesTransferToEstimator('${q.id}')">Transfer to Estimator</button>`
-        : `<p style="font-size:11.5px;color:#64748b;">This quotation is with ${q.stage === 'estimator' ? 'the Estimator' : 'the Approver'} — Sales has no action here until it's sent back.</p>`}
+      ${q.stage === 'sales' && q.lifecycleStatus === 'draft'
+        ? `<button class="primary" style="width:100%;" onclick="salesTransferToEstimator('${q.id}')">Transfer to Estimator</button>` : ''}
+      ${q.stage === 'sales' && q.lifecycleStatus === 'open'
+        ? `<button class="primary" style="width:100%;" onclick="salesConfirmQuote('${q.id}')">Confirm Quote</button>` : ''}
+      ${q.stage !== 'sales'
+        ? `<p style="font-size:11.5px;color:#64748b;">This quotation is with ${q.stage === 'estimator' ? 'the Estimator' : 'the Approver'} — Sales has no action here until it's sent back.</p>` : ''}
       ${q.stage === 'estimator' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.estimatorPickedBy ? 'Picked by ' + esc(q.estimatorPickedBy) : 'Not yet picked'} — see the Estimator module.</p>` : ''}
       ${q.stage === 'approver' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.approverPickedBy ? 'Picked by ' + esc(q.approverPickedBy) : 'Not yet picked'} — see the Approver module.</p>` : ''}
+      ${q.lifecycleStatus === 'confirmed' ? (() => {
+        const job = jobCards.find(j => j.quotationId === q.id);
+        return job ? `<p style="font-size:11.5px;color:#166534;margin-top:8px;">✓ Confirmed — Job Card <b>${esc(job.id)}</b> created.</p><button class="secondary" style="width:100%;margin-top:6px;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule('${job.id}'),150);">Open Job Card →</button>` : '';
+      })() : ''}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Approver Comments</p>
@@ -643,6 +676,16 @@ function salesTransferToEstimator(qtnId) {
   if (!window.confirm('Do you Want to Change Status?')) return;
   transferQuotationStage(qtnId, 'estimator', salesCurrentUser);
   salesAlert('✓ Transferred to Estimator.');
+  renderSalesBody();
+}
+
+// Creates the Job Card — the bridge into Module 5 (Jobs). Matches the live
+// confirmation copy used for every other status change in this loop.
+function salesConfirmQuote(qtnId) {
+  if (!window.confirm('Do you Want to Change Status?')) return;
+  const result = confirmQuotationToJobCard(qtnId, salesCurrentUser);
+  if (result.error) { salesAlert(result.error); return; }
+  salesAlert(`✓ Quotation confirmed — Job Card ${result.id} created.`);
   renderSalesBody();
 }
 
@@ -845,14 +888,82 @@ function saveWizardStep3() {
 }
 
 // ══════════════════════════════════════════
-// DASHBOARD KPIs — used by shell.js hub panel if needed later
+// SALES DASHBOARD — the module's landing tab
 // ══════════════════════════════════════════
+function renderSalesDashboard() {
+  const k = getSalesKPIs();
+  return `
+    <div class="sales-kpi-grid">
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('enquiries');salesEnqFilterChanged('unassigned',true);"><div class="num">${k.unallocated}</div><div class="lbl">Un-allocated</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.inProgress}</div><div class="lbl">In-Progress</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('quotations');"><div class="num">${k.openQuotations}</div><div class="lbl">Open Quotations</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.withEstimator}</div><div class="lbl">With Estimator</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.withApprover}</div><div class="lbl">With Approver</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.jobsPending}</div><div class="lbl">Jobs Pending</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.jobsOngoing}</div><div class="lbl">Jobs On-going</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule(),150);"><div class="num">${k.toInvoice}</div><div class="lbl">To Invoice</div></div>
+      <div class="sales-kpi-tile"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
+      <div class="sales-kpi-tile"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>
+      <div style="display:flex;gap:16px;font-size:12.5px;color:#334155;">
+        <span>Curtain: <b>${k.categoryBreakdown.curtain}</b></span>
+        <span>Upholstery: <b>${k.categoryBreakdown.upholstery}</b></span>
+        <span>Joinery: <b>${k.categoryBreakdown.joinery}</b></span>
+      </div>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Quick Actions</p>
+      <div style="display:flex;gap:8px;">
+        <button class="primary" style="flex:1;" onclick="salesSetTopView('enquiries');openEnquiryCreate();">+ Create Enquiry</button>
+        <button class="secondary" style="flex:1;" onclick="salesSetTopView('quotations');">View Quotations</button>
+      </div>
+    </div>`;
+}
+
+// Was written but never actually wired into any dashboard UI — the Sales
+// module opened straight to the Enquiry List with no landing KPI view.
+// Expanded to match the KPI list from Salman's design notes (Enquiries Un-
+// allocated/In-Progress, Quotations pipeline stage, Jobs, To Invoice,
+// Receivables, PR) and now rendered by renderSalesDashboard() above.
 function getSalesKPIs() {
+  const unallocated = enquiries.filter(e => !e.salesPerson).length;
+  const inProgress = enquiries.filter(e => e.salesPerson && !e.linkedQuotationId).length;
+  const openQuotations = quotations.filter(q => q.lifecycleStatus !== 'closed').length;
+  const withEstimator = quotations.filter(q => q.stage === 'estimator').length;
+  const withApprover = quotations.filter(q => q.stage === 'approver').length;
+
+  // Job Card only tracks whole-item deliveredQty, not a distinct "ongoing"
+  // flag — Pending = nothing delivered yet, On-going = partially delivered.
+  // Not confirmed against Q-Pro's own exact Pending/On-going definition.
+  const openJobs = typeof jobCards !== 'undefined' ? jobCards.filter(j => j.status === 'open') : [];
+  const jobsPending = openJobs.filter(j => j.items.every(it => it.deliveredQty === 0)).length;
+  const jobsOngoing = openJobs.length - jobsPending;
+
+  // "To Invoice" = an open/completed job with no Tax Invoice generated yet.
+  const toInvoice = typeof jobCards !== 'undefined' && typeof getInvoicesForJob === 'function'
+    ? jobCards.filter(j => j.status !== 'cancelled' && getInvoicesForJob(j.id).length === 0).length : 0;
+  // Receivables — sum of every generated invoice's Net Total. This app has
+  // no payment/receipt tracking yet, so every invoice is treated as fully
+  // outstanding (an overstatement once payments exist — flagged assumption).
+  const receivables = typeof taxInvoices !== 'undefined' ? taxInvoices.reduce((s, inv) => s + inv.totals.netTotal, 0) : 0;
+
+  const prPending = typeof purchaseRequests !== 'undefined' ? purchaseRequests.filter(pr => pr.status === 'open').length : 0;
+  const prNotReceived = typeof purchaseOrders !== 'undefined' ? purchaseOrders.filter(po => po.status === 'issued').length : 0;
+
+  function divisionCategory(div) {
+    if (div === 'Curtain & Blinds') return 'curtain';
+    if (div === 'Upholstery') return 'upholstery';
+    return 'joinery';
+  }
+  const categoryBreakdown = { curtain: 0, upholstery: 0, joinery: 0 };
+  enquiries.forEach(e => categoryBreakdown[divisionCategory(e.division)]++);
+
   return {
-    openEnquiries: enquiries.filter(e => !e.linkedQuotationId).length,
-    unassigned: enquiries.filter(e => !e.salesPerson).length,
-    unattended: enquiries.filter(e => e.followUps.length === 0).length,
-    quotationsDraft: quotations.filter(q => q.lifecycleStatus === 'draft').length,
-    quotationsOpen: quotations.filter(q => q.lifecycleStatus === 'open').length
+    unallocated, inProgress, openQuotations, withEstimator, withApprover,
+    jobsPending, jobsOngoing, toInvoice, receivables, prPending, prNotReceived,
+    categoryBreakdown
   };
 }

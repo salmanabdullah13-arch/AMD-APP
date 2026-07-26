@@ -15,41 +15,46 @@
 
 const estimatorStyleTag = document.createElement('style');
 estimatorStyleTag.textContent = `
-#estimator-module-wrap { font-family: inherit; }
-#estimator-module-wrap .ops-header{background:#b45309;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#estimator-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
+#estimator-module-wrap .ops-header{background:var(--biz-amber);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #estimator-module-wrap .estimator-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
 #estimator-module-wrap .estimator-userbar{background:#fffbeb;border-bottom:1px solid #fde68a;padding:8px 18px;font-size:11.5px;color:#92400e;display:flex;align-items:center;gap:8px;flex:none;}
 #estimator-module-wrap .estimator-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #fde68a;background:#fff;}
 #estimator-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
-#estimator-module-wrap .sales-kpi-tile{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center;}
-#estimator-module-wrap .sales-kpi-tile .num{font-size:20px;font-weight:800;color:#b45309;}
-#estimator-module-wrap .sales-kpi-tile .lbl{font-size:10.5px;color:#64748b;margin-top:2px;}
-#estimator-module-wrap .sales-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:10px;}
-#estimator-module-wrap .sales-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:#f1f5f9;color:#64748b;}
-#estimator-module-wrap .sales-pill.draft{background:#f1f5f9;color:#64748b;}
-#estimator-module-wrap .sales-pill.open{background:#dbeafe;color:#1e40af;}
-#estimator-module-wrap .sales-pill.confirmed{background:#dcfce7;color:#166534;}
-#estimator-module-wrap .sales-pill.closed{background:#e2e8f0;color:#475569;}
+#estimator-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
+#estimator-module-wrap .sales-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-amber);}
+#estimator-module-wrap .sales-kpi-tile .lbl{font-size:10.5px;color:var(--biz-text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px;}
+#estimator-module-wrap .sales-card{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px;margin-bottom:10px;box-shadow:var(--biz-shadow);}
+#estimator-module-wrap .sales-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#estimator-module-wrap .sales-pill.draft{background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#estimator-module-wrap .sales-pill.open{background:var(--biz-open-bg);color:var(--biz-open-text);}
+#estimator-module-wrap .sales-pill.confirmed{background:var(--biz-confirmed-bg);color:var(--biz-confirmed-text);}
+#estimator-module-wrap .sales-pill.closed{background:var(--biz-closed-bg);color:var(--biz-closed-text);}
 #estimator-module-wrap .sales-pill.stage-sales{background:#ede9fe;color:#5b21b6;}
 #estimator-module-wrap .sales-pill.stage-estimator{background:#fef3c7;color:#92400e;}
 #estimator-module-wrap .sales-pill.stage-approver{background:#fee2e2;color:#991b1b;}
-#estimator-module-wrap button.primary{background:#b45309;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
-#estimator-module-wrap button.secondary{background:none;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
+#estimator-module-wrap button.primary{background:var(--biz-amber);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s;}
+#estimator-module-wrap button.primary:hover{background:#92400e;}
+#estimator-module-wrap button.secondary{background:var(--biz-card-bg);border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);color:var(--biz-text-muted);font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
 #estimator-module-wrap .sales-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
-#estimator-module-wrap .sales-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid #e2e8f0;background:#fff;color:#475569;cursor:pointer;font-family:inherit;}
-#estimator-module-wrap .sales-tabbtn.active{background:#b45309;border-color:#b45309;color:#fff;}
+#estimator-module-wrap .sales-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:var(--biz-card-bg);color:var(--biz-text-muted);cursor:pointer;font-family:inherit;}
+#estimator-module-wrap .sales-tabbtn.active{background:var(--biz-amber);border-color:var(--biz-amber);color:#fff;}
 #estimator-module-wrap .sales-field{margin-bottom:10px;}
-#estimator-module-wrap .sales-field label{font-size:11px;color:#64748b;display:block;margin-bottom:3px;}
-#estimator-module-wrap .sales-field input, #estimator-module-wrap .sales-field select, #estimator-module-wrap .sales-field textarea{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;}
-#estimator-module-wrap .sales-preview{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px;margin-bottom:14px;}
-#estimator-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:#475569;}
-#estimator-module-wrap .sales-preview b{color:#1a1f2e;}
-#estimator-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px;}
-#estimator-module-wrap table.sales-items th{text-align:left;padding:6px;background:#f8fafc;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0;}
-#estimator-module-wrap table.sales-items td{padding:6px;border-bottom:1px solid #f1f5f9;}
-#estimator-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
-#estimator-module-wrap .sales-tile{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;font-size:12px;font-weight:700;color:#475569;cursor:pointer;}
-#estimator-module-wrap .sales-back{font-size:12px;color:#b45309;font-weight:700;cursor:pointer;margin-bottom:10px;display:inline-block;}
+#estimator-module-wrap .sales-field label{font-size:10.5px;font-weight:700;color:var(--biz-text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
+#estimator-module-wrap .sales-field input, #estimator-module-wrap .sales-field select, #estimator-module-wrap .sales-field textarea{width:100%;padding:9px 11px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;box-sizing:border-box;font-family:inherit;background:var(--biz-input-bg);color:var(--biz-text);transition:border-color .12s;}
+#estimator-module-wrap .sales-field input:focus, #estimator-module-wrap .sales-field select:focus, #estimator-module-wrap .sales-field textarea:focus{outline:none;border-color:var(--biz-amber);background:var(--biz-card-bg);}
+#estimator-module-wrap .sales-preview{background:#fffbeb;border:1px solid #fde68a;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
+#estimator-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:var(--biz-text-muted);}
+#estimator-module-wrap .sales-preview b{color:var(--biz-text);}
+#estimator-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;}
+#estimator-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
+#estimator-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);}
+#estimator-module-wrap table.sales-items tr:hover td{background:#FFFBF5;}
+#estimator-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+#estimator-module-wrap .sales-tile{border:0;border-radius:var(--biz-r);padding:14px 10px;text-align:center;font-size:11.5px;font-weight:700;color:#fff;cursor:pointer;box-shadow:var(--biz-shadow);transition:transform .12s,box-shadow .12s;text-transform:uppercase;letter-spacing:.2px;background:linear-gradient(135deg,var(--biz-amber),var(--biz-amber2));}
+#estimator-module-wrap .sales-tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px 0 rgba(37,37,42,.14);}
+#estimator-module-wrap .sales-tile .sales-tile-icon{font-size:18px;display:block;margin-bottom:6px;}
+#estimator-module-wrap .sales-back{font-size:12px;color:var(--biz-amber);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
 `;
 document.head.appendChild(estimatorStyleTag);
 
@@ -112,7 +117,7 @@ function openEstimatorModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'approver-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -246,10 +251,10 @@ function renderEstimatorQuoteHub() {
     </div>
     ${q.headerComment ? `<div class="sales-preview"><p style="font-weight:700;color:#1a1f2e;margin-bottom:4px;">Approver Comments</p><p>${eEsc(q.headerComment)}</p></div>` : ''}
     <div class="sales-tile-row">
-      <div class="sales-tile" onclick="estimatorAlert('Print Quote — not wired to a document generator yet.')">Print Quote</div>
-      <div class="sales-tile" onclick="estimatorAlert('Duplicate — not implemented yet.')">Duplicate</div>
-      <div class="sales-tile" onclick="openEstimationIndex('${q.id}')">ESTIMATION</div>
-      <div class="sales-tile" onclick="estimatorAlert('Short List for Estimation — consolidated print view not implemented yet; use the Estimation index below.')">Short List for Estimation</div>
+      <div class="sales-tile" onclick="estimatorAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>
+      <div class="sales-tile" onclick="estimatorAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
+      <div class="sales-tile" onclick="openEstimationIndex('${q.id}')"><span class="sales-tile-icon">📐</span>ESTIMATION</div>
+      <div class="sales-tile" onclick="estimatorAlert('Short List for Estimation — consolidated print view not implemented yet; use the Estimation index below.')"><span class="sales-tile-icon">📋</span>Short List</div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>

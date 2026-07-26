@@ -1493,21 +1493,85 @@ const purchaseRequests = [];
 function nextPRId() {
   return "PR-" + String(purchaseRequests.length + 1).padStart(4, "0") + "-AMD";
 }
-// destinationType: "inventory" (goes into shared stock pool) | "job-direct" (issued straight to a job)
-function raisePurchaseRequest({ department, raisedBy, linkedJobId = null, destinationType, items }) {
+
+// Matches Q-Pro's own three-way split (Inventory / Job / Others) across
+// Purchase Request, Purchase Order, and Purchase Invoice alike — kept as one
+// generic form with a Destination selector rather than 9 separate menu
+// entries (Q-Pro's literal structure), since the fields are identical either
+// way; a deliberate simplification, not a missed detail.
+// destinationType: "inventory" (shared stock pool) | "job-direct" (issued
+// straight to a job) | "others" (misc, non-stock non-job — e.g. office
+// supplies). Internal `type` values stay "Stock"/"Job"/"Others" — only
+// "Stock" ever triggers the stockEntries pool logic below.
+function destinationTypeToType(destinationType) {
+  if (destinationType === "job-direct") return "Job";
+  if (destinationType === "others") return "Others";
+  return "Stock";
+}
+
+function raisePurchaseRequest({ department, raisedBy, linkedJobId = null, destinationType, items, division = null }) {
   const pr = {
     id: nextPRId(),
+    division,              // Q-Pro's own "Division" field on Purchase Request (Job) — optional, display-only here
     department,            // one of DEPTS keys: carp, paint, uph, curt, metal
     raisedBy,
     dateRaised: new Date().toISOString().slice(0, 10),
     linkedJobId,           // AMD-XXXXX or null
     destinationType,       // "inventory" | "job-direct"
-    items,                 // [{ name, qty, unit, itemRef }] — itemRef is optional: { id, label } for a
+    items,                 // [{ name, qty, unit, itemRef, remarks }] — itemRef is optional: { id, label } for a
                             // Curtain window/opening, or a free-text string for other divisions
     status: "open"         // open | converted | cancelled — PRs never require approval
   };
   purchaseRequests.push(pr);
   return pr;
+}
+
+// ═══════════════════════════════════════
+// SUPPLIER MASTER (Masters → Accounts → Vendor / Supplier_master)
+// The ONE canonical supplier list — every PO / Purchase Invoice / Payment /
+// Debit Note lookup reads from here. The real Q-Pro system also has a
+// second, vestigial "Inventory → Vendor" list (internally "Stock Group",
+// just Name+Status) that no transaction actually reads from — that
+// duplication is deliberately NOT replicated; this is the only master.
+// ═══════════════════════════════════════
+const suppliers = [];
+const SUPPLIER_COUNTRIES = ["Bahrain", "Saudi Arabia", "UAE", "Kuwait", "Qatar", "Oman", "Other"];
+const SUPPLIER_TAX_PERCENTS = [0, 5, 10];
+const CASH_LEDGERS = ["Cash", "Bank - BBK Current", "Bank - NBB Current", "Petty Cash"];
+
+function nextSupplierId() {
+  return "SUP-" + String(suppliers.length + 1).padStart(4, "0");
+}
+
+function createSupplier({
+  name, contactPerson, telephone, telephone2 = "", email = "", fax = "",
+  vatName = "", vatNo = "", taxPercent = 10, isCredit = false, creditLimit = 0,
+  creditDays = 0, bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "",
+  bankSwift = "", bankName = "", bankBranch = "", address, crNo = "",
+  country = "Bahrain", openingBalance = 0
+} = {}) {
+  if (!name || !name.trim()) return { error: "Name is required." };
+  if (!contactPerson || !contactPerson.trim()) return { error: "Contact Person is required." };
+  if (!telephone || !telephone.trim()) return { error: "Telephone is required." };
+  if (!address || !address.trim()) return { error: "Address is required." };
+  const supplier = {
+    id: nextSupplierId(),
+    name: name.trim(), contactPerson: contactPerson.trim(), telephone: telephone.trim(),
+    telephone2, email, fax, vatName, vatNo, taxPercent: Number(taxPercent) || 0,
+    isCredit: !!isCredit, creditLimit: Number(creditLimit) || 0, creditDays: Number(creditDays) || 0,
+    bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch,
+    address: address.trim(), crNo, country, openingBalance: Number(openingBalance) || 0,
+    dateCreated: new Date().toISOString().slice(0, 10)
+  };
+  suppliers.push(supplier);
+  return supplier;
+}
+
+function updateSupplier(supplierId, patch) {
+  const s = suppliers.find(x => x.id === supplierId);
+  if (!s) return null;
+  Object.assign(s, patch);
+  return s;
 }
 
 const purchaseOrders = [];
@@ -1529,10 +1593,12 @@ function convertPRtoPO(prId, supplierDetails = {}) {
     date: new Date().toISOString().slice(0, 10),
     company: "Al Maraya Decor",
     paymentMode: supplierDetails.paymentMode || "Cash",
+    supplierId: supplierDetails.supplierId || null,
     supplierNameTel: supplierDetails.supplierNameTel || "",
     supplierRef: supplierDetails.supplierRef || "",
+    cashLedger: supplierDetails.cashLedger || null,
     purchaseRequest: pr.id,
-    type: pr.destinationType === "job-direct" ? "Job" : "Stock",
+    type: destinationTypeToType(pr.destinationType),
     linkedJobId: pr.linkedJobId,
     qproJobRef: null,
     currency: "Bahraini Dinar",
@@ -1576,10 +1642,12 @@ function createPurchaseOrderDirect({ department, linkedJobId = null, destination
     date: new Date().toISOString().slice(0, 10),
     company: "Al Maraya Decor",
     paymentMode: supplierDetails.paymentMode || "Cash",
+    supplierId: supplierDetails.supplierId || null,
     supplierNameTel: supplierDetails.supplierNameTel || "",
     supplierRef: supplierDetails.supplierRef || "",
+    cashLedger: supplierDetails.cashLedger || null,
     purchaseRequest: null,
-    type: destinationType === "job-direct" ? "Job" : "Stock",
+    type: destinationTypeToType(destinationType),
     linkedJobId,
     qproJobRef: null,
     currency: "Bahraini Dinar",
@@ -1656,6 +1724,7 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
     department: po.department,
     type: po.type,
     dateReceived: new Date().toISOString().slice(0, 10),
+    supplierId: po.supplierId || null,
     supplierNameTel: po.supplierNameTel,
     supplierRef: receiptDetails.supplierRef || "",   // vendor's own invoice number
     linkedJobId: po.linkedJobId,
@@ -1670,6 +1739,8 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
       amtBD: it.amtBD || 0
     })),
     totals: receiptDetails.totals || { total: 0, vat: 0, roundOff: 0, netAmount: 0 },
+    otherExpenseAmount: 0,
+    paidAmount: 0,
     preparedBy: receiptDetails.preparedBy || null,
     // A PO-converted invoice is already gated — its PO went through approval
     // before it could reach "issued". Auto-approved here so it never shows
@@ -1707,13 +1778,20 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
 // through approval), a direct invoice has never been gated by anything —
 // so per Salman's call (5 Jul 2026) it needs its own approval before the
 // items are treated as received / released to the stock pool.
-function createPurchaseInvoiceDirect({ department, linkedJobId = null, destinationType = "inventory", supplierDetails = {}, items, preparedBy }) {
+//
+// Two-stage flow (matches the real Q-Pro Purchase Invoice screen, minus its
+// bugs): Submit lands here in "draft" — an edit view with an Other Expenses
+// field. Confirm (confirmPurchaseInvoiceDraft below) moves it to
+// "pending_approval" so it actually enters the Owner/Ops approval queue.
+function createPurchaseInvoiceDirect({ department, linkedJobId = null, destinationType = "inventory", supplierDetails = {}, items, preparedBy, sourcePOSearch = null }) {
   const inv = {
     id: nextInvoiceId(),
     sourcePO: null,
+    sourcePOSearch,               // PO id entered via "Search PO Number" + Locate, informational only
     department,
-    type: destinationType === "job-direct" ? "Job" : "Stock",
+    type: destinationTypeToType(destinationType),
     dateReceived: new Date().toISOString().slice(0, 10),
+    supplierId: supplierDetails.supplierId || null,
     supplierNameTel: supplierDetails.supplierNameTel || "",
     supplierRef: supplierDetails.supplierRef || "",
     linkedJobId,
@@ -1728,14 +1806,31 @@ function createPurchaseInvoiceDirect({ department, linkedJobId = null, destinati
       amtBD: it.amtBD || 0
     })),
     totals: supplierDetails.totals || { total: 0, vat: 0, roundOff: 0, netAmount: 0 },
+    otherExpenseAmount: 0,
+    paidAmount: 0,
     preparedBy: preparedBy || null,
     approvalStatus: "pending",   // pending | approved | rejected
     approvedBy: null,
     approvalDate: null,
     rejectionComment: null,
-    status: "pending_approval"   // pending_approval | received
+    status: "draft"   // draft (post-Submit, pre-Confirm) | pending_approval | received
   };
   purchaseInvoices.push(inv);
+  return inv;
+}
+
+// Stage 2 of the Purchase Invoice flow — clicking "Confirm" on the draft
+// view. Adds Other Expenses into the total and pushes the invoice into the
+// real approval queue. Before this, the invoice sits in "draft" and does
+// NOT show up in Approvals — matching the real form's draft/edit step.
+function confirmPurchaseInvoiceDraft(invId, { otherExpenseAmount = 0 } = {}) {
+  const inv = purchaseInvoices.find(i => i.id === invId);
+  if (!inv) return null;
+  if (inv.status !== "draft") return { error: "Only a draft invoice can be confirmed." };
+  inv.otherExpenseAmount = Number(otherExpenseAmount) || 0;
+  const base = inv.totals.netAmount || inv.totals.total || 0;
+  inv.totals.netAmount = base + inv.otherExpenseAmount;
+  inv.status = "pending_approval";
   return inv;
 }
 
@@ -1775,7 +1870,110 @@ function rejectInvoice(invId, rejectedBy, comment) {
   return inv;
 }
 function getPendingInvoiceApprovals() {
-  return purchaseInvoices.filter(inv => inv.approvalStatus === "pending");
+  // A "draft" invoice hasn't been Confirmed yet — it doesn't enter the
+  // approval queue until confirmPurchaseInvoiceDraft() flips it to
+  // "pending_approval".
+  return purchaseInvoices.filter(inv => inv.approvalStatus === "pending" && inv.status === "pending_approval");
+}
+function getDraftInvoices() {
+  return purchaseInvoices.filter(inv => inv.status === "draft");
+}
+
+// ═══════════════════════════════════════
+// SUPPLIER PAYMENT
+// The real Q-Pro Payment screen has three confirmed, reproducible bugs:
+// (1) the invoice-allocation table always shows "No Invoice List
+//     Available..!" even for a vendor with a confirmed open invoice,
+// (2) the Cash method's "Select" checkbox freezes the tab 30+ seconds,
+// (3) "Create Payment" freezes the tab and the payment is never actually
+//     created (never appears in the list afterwards).
+// Per Salman's instruction these are genuine client-side defects to be
+// FIXED here, not reproduced — getVendorOpenInvoices() below actually looks
+// the invoices up, and createPayment() actually persists the record.
+// ═══════════════════════════════════════
+const payments = [];
+
+function nextPaymentId() {
+  return "PAY-" + String(payments.length + 1).padStart(4, "0") + "-AMD";
+}
+
+// Returns { invoiceId, invoiceDate, invoiceAmount, paidAmount, balanceAmount }
+// rows for every received invoice of this vendor that still has a balance —
+// this is the exact table the real system fails to populate.
+function getVendorOpenInvoices(supplierId) {
+  return purchaseInvoices
+    .filter(inv => inv.supplierId === supplierId && inv.status === "received")
+    .map(inv => {
+      const invoiceAmount = (inv.totals && inv.totals.netAmount) || 0;
+      const paidAmount = inv.paidAmount || 0;
+      const balanceAmount = Math.round((invoiceAmount - paidAmount) * 1000) / 1000;
+      return { invoiceId: inv.id, invoiceDate: inv.dateReceived, invoiceAmount, paidAmount, balanceAmount };
+    })
+    .filter(row => row.balanceAmount > 0.0001);
+}
+
+function createPayment({
+  supplierId, division = null, paymentDate = null, methods = {}, amount,
+  referenceNumber = "", allocations = [], advanceAmount = 0, ledgerSplits = [], remarks = ""
+}) {
+  const supplier = suppliers.find(s => s.id === supplierId);
+  if (!supplier) return { error: "Please select a vendor." };
+  if (!amount || Number(amount) <= 0) return { error: "Amount is required." };
+  const payment = {
+    id: nextPaymentId(),
+    supplierId,
+    division,
+    paymentDate: paymentDate || new Date().toISOString().slice(0, 10),
+    methods,        // { cash:{enabled,amount}, cCard:{enabled,amount,type,authorized}, wallet:{enabled,amount,type,authorized}, cheque:{enabled,amount,number,bank} }
+    amount: Number(amount),
+    referenceNumber,
+    allocations,    // [{ invoiceId, payingAmount, discountAmount }]
+    advanceAmount: Number(advanceAmount) || 0,
+    ledgerSplits,   // [{ ledger, amount, remarks }]
+    remarks,
+    status: "confirmed"
+  };
+  payments.push(payment);
+  allocations.forEach(a => {
+    const inv = purchaseInvoices.find(i => i.id === a.invoiceId);
+    if (inv) inv.paidAmount = (inv.paidAmount || 0) + (Number(a.payingAmount) || 0);
+  });
+  return payment;
+}
+
+// ═══════════════════════════════════════
+// DEBIT NOTE
+// Real system reproduces the same freeze/non-persistence bug as Payment on
+// submit (list stayed "No data available in table" afterward). Fixed here.
+// ═══════════════════════════════════════
+const debitNotes = [];
+const DEBIT_NOTE_TAXABLE_TYPES = ["Taxable", "Non-Taxable", "Zero-Rated"];
+
+function nextDebitNoteId() {
+  return "DN-" + String(debitNotes.length + 1).padStart(4, "0") + "-AMD";
+}
+
+function createDebitNote({
+  supplierId, division = null, ledger, debitNoteDate = null,
+  taxableType = "Taxable", amount, reason = ""
+}) {
+  const supplier = suppliers.find(s => s.id === supplierId);
+  if (!supplier) return { error: "Please select a vendor." };
+  if (!ledger || !ledger.trim()) return { error: "Select Ledger is required." };
+  if (!amount || Number(amount) <= 0) return { error: "Amount is required." };
+  const dn = {
+    id: nextDebitNoteId(),
+    supplierId,
+    division,
+    ledger: ledger.trim(),
+    debitNoteDate: debitNoteDate || new Date().toISOString().slice(0, 10),
+    taxableType,
+    amount: Number(amount),
+    reason,
+    status: "confirmed"
+  };
+  debitNotes.push(dn);
+  return dn;
 }
 
 // ── INVENTORY STOCK POOL ──
@@ -1879,10 +2077,13 @@ function getStockPoolSummary() {
   const inPool = stockEntries.filter(s => s.status === "in-pool");
   const today = new Date().toISOString().slice(0, 10);
   const releasedToday = stockEntries.filter(s => s.status === "released" && s.dateReleased === today);
+  const releasedTotal = stockEntries.filter(s => s.status === "released");
   return {
     inPoolCount: inPool.length,
     inPoolQty: inPool.reduce((sum, s) => sum + s.qty, 0),
-    releasedTodayCount: releasedToday.length
+    distinctItemsInPool: new Set(inPool.map(s => s.itemName)).size,
+    releasedTodayCount: releasedToday.length,
+    releasedTotalCount: releasedTotal.length
   };
 }
 
@@ -2602,3 +2803,211 @@ quotations.push({
     { seq: 1, action: "Create", user: "Salman Abdullah", date: "2026-07-24", userType: "SALES", status: "Draft" }
   ]
 });
+
+// ═══════════════════════════════════════
+// MODULE 5 — JOB CARD (post-Approval production/commercial tracking)
+// Rebuilt 25 Jul 2026 from Salman's live Q-Pro trace (read-only exploration,
+// no real production data touched). A Job Card is created from a Quotation
+// once Sales clicks "Confirm Quote" (Open -> Confirmed) — the bridge this
+// app's Approver module deliberately left unbuilt until now.
+//
+// DELIBERATELY KEPT SEPARATE from curtainJobs[]/projects[] — the pre-
+// existing Curtain workshop production tracker (window groups, fabric BOM,
+// installation crew scheduling) built in an earlier session on its own id
+// scheme. Unifying the two is a real architectural question (which "job" is
+// the source of truth?) that deserves its own dedicated session, not a side
+// effect of this build. jobCards[] here is Q-Pro's own commercial wrapper —
+// Job No, linked Quotation, delivery/materials/labour tracking — modeled
+// generically across all divisions, not just Curtain.
+// ═══════════════════════════════════════
+
+// Not confirmed against Q-Pro's actual per-division department list — a
+// placeholder subset good enough to exercise per-line-per-department status.
+const JOB_DEPARTMENTS = ["Cutting", "Stitching", "Installation"];
+// Only "Pending" and "Delivered" were directly observed; "In Progress" is a
+// reasonable middle state added so the per-department status isn't a binary flag.
+const JOB_LINE_STATUSES = ["Pending", "In Progress", "Delivered"];
+
+const jobCards = [];
+// Shape roughly matches the real qproJobCardNo values already seeded on
+// curtainJobs[] (e.g. "JB26AMD01863") — not the real sequence, just the format.
+function nextJobCardNo() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "JB" + yy + "AMD" + String(1000 + jobCards.length).padStart(5, "0");
+}
+
+function getJobCard(jobId) { return jobCards.find(j => j.id === jobId); }
+
+// "Confirm Quote" — the action that actually creates the Job Card. Only
+// available once Approver has moved a quotation to "Open" (see
+// approveQuotation() in the APPROVER section above).
+function confirmQuotationToJobCard(qtnId, confirmedBy) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  if (qtn.lifecycleStatus !== "open") return { error: "Quotation must be Open before it can be confirmed." };
+  const totals = computeQuotationTotals(qtn);
+  const job = {
+    id: nextJobCardNo(), quotationId: qtn.id, customerId: qtn.customerId, projectName: qtn.projectName,
+    date: new Date().toISOString().slice(0, 10), amount: totals.netTotal,
+    status: "open", // open | completed | cancelled — the whole-job status shown on the Job Card List legend
+    confirmDate: new Date().toISOString().slice(0, 10),
+    items: qtn.items.map(it => ({
+      lineId: it.lineId, product: it.product, qty: it.qty, unit: it.unit, rate: it.rate,
+      discPercent: it.discPercent, amount: it.amount, vatPercent: it.vatPercent, netAmount: it.netAmount,
+      deliveredQty: 0, departmentStatuses: [] // [{department, status}] — per-line-per-department, see updateJobLineStatus()
+    })),
+    poNo: null, poDate: null, vendor: null,
+    deliveryNotes: [], materialsIssues: [], materialsReturns: [], labourCostEntries: [],
+    linkedInvoiceIds: []
+  };
+  jobCards.push(job);
+  qtn.lifecycleStatus = "confirmed";
+  qtn.confirmDate = job.confirmDate;
+  logQuotationAudit(qtn, { action: "Transfer", user: confirmedBy, userType: "SALES", status: "Confirmed" });
+  return job;
+}
+
+// "Update BOM" on Edit Job — re-syncs Qty/Rate/Amount from the linked
+// Quotation's current items (Estimation may have re-run since confirm),
+// matched by lineId. Preserves deliveredQty/departmentStatuses on each job
+// item since those belong to the Job, not the Quotation.
+function refreshJobFromQuotation(jobId) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const qtn = quotations.find(q => q.id === job.quotationId);
+  if (!qtn) return { error: "Linked Quotation not found." };
+  job.items.forEach(item => {
+    const src = qtn.items.find(it => it.lineId === item.lineId);
+    if (src) {
+      item.qty = src.qty; item.rate = src.rate; item.discPercent = src.discPercent;
+      item.amount = src.amount; item.vatPercent = src.vatPercent; item.netAmount = src.netAmount;
+    }
+  });
+  return job;
+}
+
+function nextDeliveryNoteId(job) { return "DN-" + job.id + "-" + (job.deliveryNotes.length + 1); }
+// entries: [{ lineId, requiredQty }] — increments deliveredQty on each line,
+// capped at the line's own Qty (can't over-deliver).
+function addDeliveryNote(jobId, entries) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const lines = entries.map(e => {
+    const item = job.items.find(it => it.lineId === e.lineId);
+    if (!item) return null;
+    const requiredQty = Math.min(e.requiredQty || 0, item.qty - item.deliveredQty);
+    item.deliveredQty += requiredQty;
+    return { lineId: e.lineId, requiredQty };
+  }).filter(Boolean);
+  const note = { id: nextDeliveryNoteId(job), date: new Date().toISOString().slice(0, 10), lines };
+  job.deliveryNotes.push(note);
+  return note;
+}
+
+function nextMaterialsMoveId(job, kind) { return kind + "-" + job.id + "-" + (job[kind === "MI" ? "materialsIssues" : "materialsReturns"].length + 1); }
+// items: [{ jobItemLineId, stockItemName, unit, qty }] — Location is required
+// (Q-Pro supports multi-warehouse stock; this app has one implicit location
+// today, so it's captured but not yet validated against a location master).
+function addMaterialsIssue(jobId, { location, items }) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  if (!location) return { error: "Location is required." };
+  const move = { id: nextMaterialsMoveId(job, "MI"), date: new Date().toISOString().slice(0, 10), location, items };
+  job.materialsIssues.push(move);
+  return move;
+}
+// Mirrors addMaterialsIssue() exactly — a reversal of stock issued to a job.
+function addMaterialsReturn(jobId, { location, items }) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  if (!location) return { error: "Location is required." };
+  const move = { id: nextMaterialsMoveId(job, "MR"), date: new Date().toISOString().slice(0, 10), location, items };
+  job.materialsReturns.push(move);
+  return move;
+}
+
+// Per-line-per-department status — upserts (replaces the existing entry for
+// that department on that line, or adds a new one).
+function updateJobLineStatus(jobId, lineId, department, status) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  if (!item) return { error: "Line item not found." };
+  const existing = item.departmentStatuses.find(d => d.department === department);
+  if (existing) existing.status = status;
+  else item.departmentStatuses.push({ department, status });
+  return item;
+}
+
+// Actual labour cost entry — pairs with the Estimator's earlier Labour Cost
+// TAB estimate (estimate-vs-actual). OT multiplier of 1.5x is a standard
+// assumption, not confirmed against Q-Pro's own calculation.
+function addLabourCostEntry(jobId, { employee, jobItemLineId, normalHrs = 0, otHrs = 0, normalRate = 0, otRate = 0 }) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const amount = normalHrs * normalRate + otHrs * otRate * 1.5;
+  const entry = { id: job.labourCostEntries.length + 1, employee, jobItemLineId, normalHrs, otHrs, normalRate, otRate, amount, date: new Date().toISOString().slice(0, 10) };
+  job.labourCostEntries.push(entry);
+  return entry;
+}
+
+function setJobStatus(jobId, status) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  job.status = status;
+  return job;
+}
+
+function getJobCardKPIs() {
+  return {
+    open: jobCards.filter(j => j.status === "open").length,
+    completed: jobCards.filter(j => j.status === "completed").length,
+    cancelled: jobCards.filter(j => j.status === "cancelled").length
+  };
+}
+
+// ═══════════════════════════════════════
+// MODULE 6 — TAX INVOICE
+// From Salman's live Q-Pro trace: a Tax Invoice is a system-generated PDF
+// tied 1:1 to a Job Card — there's no standalone "Create Invoice" form for
+// a Sales-role user. Generation is modeled here as a manual action from the
+// Job Card hub (rather than auto-firing on Confirm Quote) since the live
+// trace only says "likely" for that second trigger — safer to make it an
+// explicit action than to silently double-generate invoices later if that
+// assumption turns out wrong.
+//
+// No real customer/bank/IBAN details were captured (Salman deliberately
+// didn't reproduce them) — this app has none to seed with, so payment
+// details on the rendered document are placeholders, not real data.
+// ═══════════════════════════════════════
+
+const taxInvoices = [];
+// Shape mirrors qproJobCardNo's "JB26AMD01863" convention: IN + YY + division
+// code + sequence. Division code defaults to "AMD" (the company code seen
+// elsewhere) since the real per-division code list hasn't been captured.
+function nextInvoiceNo() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "IN" + yy + "AMD" + String(1000 + taxInvoices.length).padStart(5, "0");
+}
+
+function getInvoicesForJob(jobId) { return taxInvoices.filter(inv => inv.jobId === jobId); }
+
+// invoicedPercent defaults to 100 (full invoice) — Q-Pro's own partial-
+// invoicing rules (e.g. milestone billing) weren't captured in this trace.
+function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } = {}) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const total = job.items.reduce((s, it) => s + it.amount, 0);
+  const vat = job.items.reduce((s, it) => s + (it.amount * (it.vatPercent || 0) / 100), 0) * (invoicedPercent / 100);
+  const invoicedTotal = total * (invoicedPercent / 100);
+  const netTotal = invoicedTotal + vat;
+  const inv = {
+    id: nextInvoiceNo(), jobId, quotationId: job.quotationId, customerId: job.customerId,
+    date: new Date().toISOString().slice(0, 10), lpoNo,
+    items: job.items.map(it => ({ description: it.product, qty: it.qty, unit: it.unit, rate: it.rate, amount: it.amount })),
+    totals: { total, invoicedPercent, vat, netTotal }
+  };
+  taxInvoices.push(inv);
+  job.linkedInvoiceIds.push(inv.id);
+  return inv;
+}

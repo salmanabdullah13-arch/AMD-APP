@@ -47,6 +47,26 @@ let QC_TEAM = [];
 // cross-department staff roster exists.
 const LABOUR_ROLES = ['Cutting', 'Stitching', 'Heming', 'Tape Header Fixing', 'Ironing', 'Other'];
 
+// ── Worker pay rates — REAL fully-loaded BD/hr rates now live in
+// EMPLOYEE_RATES (data.js), full-name keyed, covering all 70 employees
+// company-wide (built 6 Jul 2026 from actual payroll files). The old
+// placeholder WORKER_RATES table is gone.
+//
+// timeLogs[] and the rosters below (STITCH_TEAM/TRACK_TEAM/INSTALL_CREW)
+// stay on first names for the UI — that's not changing. This map bridges
+// the 7 Curtain-side first names to their EMPLOYEE_RATES full-name key,
+// used only inside getJobLoggedHours()'s cost lookup below. Never
+// rendered anywhere in Curtain UI — hours only, per the cost-free rule.
+const CURTAIN_NAME_MAP = {
+  'Waseem':   'Mohammed Waseem Rahmani',
+  'Aslam':    'Muhammad Aslam',
+  'Rijwan':   'Rijwan Alam',
+  'Ibrahim':  'Ibrahim Khurshid',
+  'Silva':    'Murugaiya Pillai Selvaraj',
+  'Abdullah': 'Mohammad Abdullah',
+  'Prince':   'Prince Kaler',
+};
+
 // ── State ──────────────────────────────
 let curtCurrentJob   = null;
 let curtCurrentPage  = 'curt-dashboard';
@@ -58,11 +78,19 @@ let copyCalcSourceId = null;
 let wipProjectPanelOpen = false;
 let wipProjectDraft = { team: [], startDate: '', endDate: '' };
 
+// ── Daily Time Log state ───────────────
+let timeLogWeekStart  = null;              // ISO date (Monday) of the displayed week; set on first render
+let timeLogActiveCell = null;              // { worker, date } while the entry panel is open
+
 // ── Module entry ───────────────────────
 function openCurtainModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
+  ['sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
   const mod = document.getElementById('curt-module-wrap');
   mod.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
@@ -88,6 +116,7 @@ function curtGoTo(pageId) {
   if (pageId === 'curt-workshop')  showWipPicker();
   if (pageId === 'curt-fabric')    renderCurtFabric();
   if (pageId === 'curt-install')   renderCurtInstall();
+  if (pageId === 'curt-timelog')   renderTimeLog();
 }
 
 // ── Helpers ────────────────────────────
@@ -436,15 +465,148 @@ function renderGanttMini(containerId) {
 
 
 // ══════════════════════════════════════════
+// DASHBOARD — INFOGRAPHIC HELPERS
+// Ring gauges + mini bar charts. Everything below reads data that is
+// ALREADY recorded elsewhere (QC history, stage timestamps, KPI calc) —
+// no new fields added to data.js. Per-session rule: schema changes are
+// a separate, deliberate task, not bundled into a visual restyle.
+// ══════════════════════════════════════════
+
+// SVG ring gauge — single stroke-dasharray ring, percent-based.
+// Caller decides color so it can carry status meaning (ok/warn/bad/purple).
+function svgRingGauge(pct, color, size = 84, strokeWidth = 9) {
+  const p = Math.max(0, Math.min(100, pct || 0));
+  const r = (size - strokeWidth) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (p / 100) * c;
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="transform:rotate(-90deg);">
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${strokeWidth}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
+        stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+    </svg>`;
+}
+
+function ringStatCard(pct, valueLabel, title, sub, color) {
+  return `
+    <div class="ring-card">
+      <div class="ring-wrap">
+        ${svgRingGauge(pct, color)}
+        <div class="ring-center"><p class="ring-value" style="color:${color}">${valueLabel}</p></div>
+      </div>
+      <p class="ring-title">${title}</p>
+      <p class="ring-sub">${sub}</p>
+    </div>`;
+}
+
+// Mini vertical bar chart. items: [{label, value, color}]
+function svgMiniBars(items) {
+  const max = Math.max(1, ...items.map(i => i.value));
+  return `<div class="mini-bars">
+    ${items.map(i => `
+      <div class="mini-bar-col">
+        <div class="mini-bar-track">
+          <div class="mini-bar-fill" style="height:${Math.max(3, Math.round((i.value/max)*100))}%;background:${i.color || 'var(--purple)'};"></div>
+        </div>
+        <p class="mini-bar-val">${i.value}</p>
+        <p class="mini-bar-label">${i.label}</p>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ── QC quality stats — pure aggregation of collectAllQCHistory(), which
+// already exists for the QC Performance tab. Adds a reject-reason
+// breakdown by reading the checklist[] each fail attempt already saves.
+function getCurtainQCStats() {
+  const rows = collectAllQCHistory();
+  if (rows.length === 0) {
+    return { pct: null, passCount: 0, total: 0, avgTurnaroundLabel: '—', reject: [] };
+  }
+  const passCount = rows.filter(r => r.h.result === 'pass').length;
+  const pct = Math.round((passCount / rows.length) * 100);
+
+  const turnarounds = rows.map(r => qcTurnaroundMs(r.h)).filter(ms => ms != null);
+  const avgMs = turnarounds.length ? turnarounds.reduce((a,b) => a+b, 0) / turnarounds.length : null;
+
+  const counts = {};
+  rows.forEach(r => {
+    if (r.h.result !== 'fail') return;
+    (r.h.checklist || []).forEach(c => { if (!c.ok) counts[c.label] = (counts[c.label] || 0) + 1; });
+  });
+  const reject = Object.entries(counts)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return { pct, passCount, total: rows.length, avgTurnaroundLabel: avgMs != null ? qcTurnaroundLabel(avgMs) : '—', reject };
+}
+
+// ── Windows reaching QC per day, last N days — built purely from
+// qcHistory timestamps that already get written by recordQCResult().
+function getWindowsToQCPerDay(days = 7) {
+  const counts = {}, order = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0,10);
+    counts[key] = 0; order.push(key);
+  }
+  curtainJobs.forEach(job => {
+    ensureItemCards(job);
+    job.windows.forEach(w => {
+      if (!w.calcDone) return;
+      const card = job.itemCards[w.id];
+      if (!card) return;
+      (card.qcHistory || []).forEach(h => {
+        const key = (h.timestamp || '').slice(0,10);
+        if (key in counts) counts[key]++;
+      });
+    });
+  });
+  return order.map(key => ({ label: new Date(key).toLocaleDateString('en-BH', { weekday: 'short' }), value: counts[key] }));
+}
+
+// ══════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════
 
 function renderCurtDashboard() {
   const kpis = getCurtainKPIs();
-  const finishedTotals = getAllJobsFinishedWindowCount();
+  const finishedTotals = getAllJobsStitchingFinishedCount();
+  const qc = getCurtainQCStats();
+  const qcColor = qc.pct == null ? 'var(--ink3)' : qc.pct >= 90 ? 'var(--ok)' : qc.pct >= 75 ? 'var(--warn)' : 'var(--bad)';
+  const stitchPct = finishedTotals.total > 0 ? Math.round((finishedTotals.finished / finishedTotals.total) * 100) : 0;
+  const qcVolume = getWindowsToQCPerDay(7);
 
   document.getElementById('curt-kpis').innerHTML = `
-    <p class="kpi-row-label">BOM &amp; materials</p>
+  <div class="dash-body">
+    <div class="dash-rings">
+      ${ringStatCard(stitchPct, `${stitchPct}%`, 'Stitching Finished', `${finishedTotals.finished} of ${finishedTotals.total} windows`, 'var(--purple)')}
+      ${ringStatCard(qc.pct ?? 0, qc.pct == null ? '—' : `${qc.pct}%`, 'QC Pass Rate', qc.total ? `${qc.passCount} of ${qc.total} attempts` : 'No inspections yet', qcColor)}
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat-tile">
+        <p class="st-v">${qc.avgTurnaroundLabel}</p>
+        <p class="st-l">Avg QC turnaround</p>
+      </div>
+      <div class="stat-tile">
+        <p class="st-v" style="color:var(--purple);">${kpis.totalRunningJobs}</p>
+        <p class="st-l">Running jobs</p>
+      </div>
+      <div class="stat-tile">
+        <p class="st-v" style="color:${kpis.windowsBehindSchedule>0?'var(--bad)':'var(--ink)'};">${kpis.windowsBehindSchedule}</p>
+        <p class="st-l">Behind schedule</p>
+      </div>
+    </div>
+
+    <p class="dash-section-title">Windows reaching QC — last 7 days</p>
+    ${svgMiniBars(qcVolume.map(d => ({ label: d.label, value: d.value, color: 'var(--purple)' })))}
+
+    <p class="dash-section-title">Reject reasons (all-time)</p>
+    ${qc.reject.length > 0
+      ? svgMiniBars(qc.reject.map(r => ({ label: r.label.length > 12 ? r.label.slice(0,11)+'…' : r.label, value: r.count, color: 'var(--bad)' })))
+      : '<p style="font-size:12px;color:var(--ink3);padding:6px 0 4px;">No QC fails recorded yet.</p>'}
+
+    <p class="dash-section-title">BOM &amp; materials</p>
     <div class="kpis">
       <div class="kpi ${kpis.awaitingBOM>0?'warn':''}">
         <p class="kl">Awaiting BOM</p>
@@ -473,21 +635,7 @@ function renderCurtDashboard() {
       </div>
     </div>
 
-    <p class="kpi-row-label">Jobs &amp; items</p>
-    <div class="kpis">
-      <div class="kpi">
-        <p class="kl">Running jobs</p>
-        <p class="kv" style="color:var(--purple)">${kpis.totalRunningJobs}</p>
-        <p class="ks">active this period</p>
-      </div>
-      <div class="kpi">
-        <p class="kl">Items to produce</p>
-        <p class="kv" style="color:var(--purple)">${kpis.totalItemsToProduce}</p>
-        <p class="ks">windows across all jobs</p>
-      </div>
-    </div>
-
-    <p class="kpi-row-label">Work in progress</p>
+    <p class="dash-section-title">Work in progress</p>
     <div class="kpis">
       <div class="kpi">
         <p class="kl">In production</p>
@@ -499,21 +647,13 @@ function renderCurtDashboard() {
         <p class="kv" style="color:${kpis.installationPending>0?'var(--warn)':'var(--ink)'}">${kpis.installationPending}</p>
         <p class="ks">pending scheduling</p>
       </div>
-      <div class="kpi ${kpis.windowsBehindSchedule>0?'bad':''}">
-        <p class="kl">Behind schedule</p>
-        <p class="kv" style="color:${kpis.windowsBehindSchedule>0?'var(--bad)':'var(--ink)'}">${kpis.windowsBehindSchedule}</p>
-        <p class="ks">windows past planned end date</p>
+      <div class="kpi">
+        <p class="kl">Items to produce</p>
+        <p class="kv" style="color:var(--purple)">${kpis.totalItemsToProduce}</p>
+        <p class="ks">windows across all jobs</p>
       </div>
     </div>
-
-    <p class="kpi-row-label">Finished</p>
-    <div class="kpis">
-      <div class="kpi ok">
-        <p class="kl">Windows finished</p>
-        <p class="kv" style="color:var(--ok)">${finishedTotals.finished} / ${finishedTotals.total}</p>
-        <p class="ks">sent to Hoist QC or beyond</p>
-      </div>
-    </div>`;
+  </div>`;
 
   let alertsHtml = '';
   curtainJobs.forEach(job => {
@@ -1594,13 +1734,13 @@ function showWipPicker() {
     listEl.innerHTML = curtainJobs.map(job => {
       const approved = job.budgetStatus === 'approved';
       const behindCount = approved ? getBehindScheduleWindows(job).length : 0;
-      const finishedCount = approved ? getJobFinishedWindowCount(job) : null;
+      const finishedCount = approved ? getJobStitchingFinishedCount(job) : null;
       return `
       <div class="job-pick" ${approved ? `onclick="openWipDetail('${job.id}')"` : ''} style="${approved ? '' : 'opacity:.5;'}">
         <div>
           <p class="jp-name">${job.name}</p>
           <p class="jp-meta">${job.id} · ${job.client} · ${totalWindowQty(job)} windows</p>
-          ${finishedCount && finishedCount.total > 0 ? `<p class="jp-meta" style="color:var(--ok);margin-top:3px;font-weight:600;">✓ ${finishedCount.finished} of ${finishedCount.total} windows finished</p>` : ''}
+          ${finishedCount && finishedCount.total > 0 ? `<p class="jp-meta" style="color:var(--ok);margin-top:3px;font-weight:600;">✓ ${finishedCount.finished} of ${finishedCount.total} stitching finished</p>` : ''}
           ${behindCount > 0 ? `<p class="jp-meta" style="color:var(--bad);margin-top:3px;">⚠ ${behindCount} window${behindCount>1?'s':''} behind schedule</p>` : ''}
         </div>
         ${approved ? statusPill(job.status) : '<span class="pill warn" style="font-size:10px;">🔒 Awaiting budget approval</span>'}
@@ -1811,13 +1951,13 @@ function renderWipWindows() {
 
   const windows = job.windows.filter(w => w.calcDone);
 
-  const finishedCount = getJobFinishedWindowCount(job);
+  const finishedCount = getJobStitchingFinishedCount(job);
   const trackerHtml = finishedCount.total > 0 ? `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 12px;background:${finishedCount.finished === finishedCount.total ? 'var(--ok-bg,#d1fae5)' : 'var(--card2,#f7f9fc)'};border-radius:8px;">
       <div style="flex:1;background:var(--line);border-radius:4px;height:6px;">
         <div style="width:${Math.round((finishedCount.finished/finishedCount.total)*100)}%;background:var(--ok,#10b981);height:6px;border-radius:4px;transition:width .3s;"></div>
       </div>
-      <span style="font-size:12px;font-weight:700;color:var(--ok,#10b981);white-space:nowrap;">${finishedCount.finished} of ${finishedCount.total} windows finished</span>
+      <span style="font-size:12px;font-weight:700;color:var(--ok,#10b981);white-space:nowrap;">${finishedCount.finished} of ${finishedCount.total} stitching finished</span>
     </div>` : '';
 
   let html = lockMsg + trackerHtml + `<div style="${!approved ? 'opacity:.45;pointer-events:none;' : ''}">`;
@@ -2051,7 +2191,7 @@ function renderInquiryStageBar(inquiry) {
 }
 
 function renderCurtFabric() {
-  let html = '';
+  let html = '<button class="primary" style="width:100%;margin-bottom:14px;" onclick="openRaiseInquirySheet()">+ Raise Purchase Request</button>';
 
   curtainJobs.forEach(job => {
     const inquiries = getInquiriesForJob(job.id);
@@ -2120,6 +2260,131 @@ function markInquiryReceived(inquiryId) {
   pi.stage = 'received_by_curtain';
   pi.stageDates['received_by_curtain'] = todayStr();
   curtAlert(`✓ ${pi.fabricCode || 'Stock item'} marked as received by Curtain department`);
+  renderCurtFabric();
+}
+
+// ══════════════════════════════════════════
+// RAISE PURCHASE REQUEST (Fabric tab)
+// Lets Silva raise a fabric/rail purchase inquiry directly from the Fabric
+// tab. Pushes into the EXISTING purchaseInquiries[] system via raiseInquiry()
+// (data.js) — deliberately does NOT touch the new purchaseRequests/
+// purchaseOrders chain (see architecture note in data.js: Curtain keeps its
+// own tracker). Built as a body-injected full-screen sheet, same visual
+// pattern as the calc sheet, so no index.html changes are needed for it.
+// ══════════════════════════════════════════
+
+function ensureRaiseInquirySheet() {
+  if (document.getElementById('curt-raise-inquiry-sheet')) return;
+  const el = document.createElement('div');
+  el.id = 'curt-raise-inquiry-sheet';
+  el.style.cssText = 'display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:#fff;overflow-y:auto;';
+  el.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <p style="color:#fff;font-weight:700;font-size:15px;">Raise Purchase Request</p>
+      <button onclick="closeRaiseInquirySheet()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">✕ Close</button>
+    </div>
+    <div style="padding:16px;flex:1;">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Job</label>
+        <select id="ri-job" onchange="riJobChanged()"></select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Vendor / Source</label>
+        <select id="ri-vendor" onchange="riVendorChanged()"></select>
+        <p id="ri-vendor-region" style="font-size:11px;color:var(--ink2);margin-top:4px;"></p>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Windows covered by this order</label>
+        <div id="ri-windows" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div style="margin-bottom:12px;" id="ri-fabriccode-row">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Fabric code</label>
+        <input id="ri-fabriccode" type="text" placeholder="e.g. Gulf Sheer Voile">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Quantity ordered (m)</label>
+        <input id="ri-qty" type="number" min="0" step="0.5">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;color:var(--ink2);display:block;margin-bottom:4px;">Notes</label>
+        <textarea id="ri-notes" rows="3" placeholder="Optional"></textarea>
+      </div>
+      <button class="primary" style="width:100%;" onclick="saveRaiseInquiry()">Raise Purchase Request →</button>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function openRaiseInquirySheet(presetJobId) {
+  ensureRaiseInquirySheet();
+
+  const jobSel = document.getElementById('ri-job');
+  jobSel.innerHTML = curtainJobs.map(j => `<option value="${j.id}">${j.name} (${j.id})</option>`).join('');
+  if (presetJobId) jobSel.value = presetJobId;
+
+  const vendorSel = document.getElementById('ri-vendor');
+  vendorSel.innerHTML = VENDORS.map(v => `<option value="${v.name}">${v.name} — ${v.region}</option>`).join('');
+
+  document.getElementById('ri-fabriccode').value = '';
+  document.getElementById('ri-qty').value = '';
+  document.getElementById('ri-notes').value = '';
+
+  riJobChanged();
+  riVendorChanged();
+
+  const panel = document.getElementById('curt-raise-inquiry-sheet');
+  panel.style.display = 'flex';
+  panel.scrollTop = 0;
+}
+
+function riJobChanged() {
+  const jobId = document.getElementById('ri-job').value;
+  const job = curtainJobs.find(j => j.id === jobId);
+  const wrap = document.getElementById('ri-windows');
+  if (!job) { wrap.innerHTML = ''; return; }
+  const calcDone = job.windows.filter(w => w.calcDone);
+  wrap.innerHTML = calcDone.length ? calcDone.map(w => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;">
+      <input type="checkbox" value="${w.id}" class="ri-window-cb">
+      ${w.label} (${w.room})
+    </label>`).join('') :
+    '<p style="font-size:12px;color:var(--ink2);">No completed calc sheets for this job yet.</p>';
+}
+
+function riVendorChanged() {
+  const name = document.getElementById('ri-vendor').value;
+  const v = VENDORS.find(x => x.name === name);
+  document.getElementById('ri-vendor-region').textContent = v ? v.region : '';
+  const isStock = name === 'AMD';
+  document.getElementById('ri-fabriccode-row').style.display = isStock ? 'none' : '';
+}
+
+function closeRaiseInquirySheet() {
+  const panel = document.getElementById('curt-raise-inquiry-sheet');
+  if (panel) panel.style.display = 'none';
+}
+
+function saveRaiseInquiry() {
+  const jobId = document.getElementById('ri-job').value;
+  const job = curtainJobs.find(j => j.id === jobId);
+  if (!job) { curtAlert('Select a job.'); return; }
+
+  const vendorName = document.getElementById('ri-vendor').value;
+  const v = VENDORS.find(x => x.name === vendorName);
+  if (!v) { curtAlert('Select a vendor.'); return; }
+
+  const windowIds = Array.from(document.querySelectorAll('.ri-window-cb:checked')).map(cb => cb.value);
+  if (windowIds.length === 0) { curtAlert('Select at least one window.'); return; }
+
+  const source = v.name === 'AMD' ? 'stock' : 'vendor';
+  const fabricCode = source === 'stock' ? null : (document.getElementById('ri-fabriccode').value.trim() || null);
+  const qtyRaw = document.getElementById('ri-qty').value;
+  const quantityOrdered = qtyRaw ? Number(qtyRaw) : null;
+  const notes = document.getElementById('ri-notes').value.trim();
+
+  raiseInquiry({ jobId, windowIds, vendor: v.name, vendorRegion: v.region, source, fabricCode, quantityOrdered, notes });
+
+  curtAlert(`✓ Purchase request raised for ${windowIds.length} window${windowIds.length > 1 ? 's' : ''}`);
+  closeRaiseInquirySheet();
   renderCurtFabric();
 }
 
@@ -2694,20 +2959,28 @@ function itemCardStagePill(card, treatment) {
 // ── Finished-windows tracker — "finished" means the window has left
 // Production (fabric+rail converged) and is at Hoist QC or beyond. Used
 // by both the per-job WIP tab counter and the module-wide Dashboard KPI.
-function getJobFinishedWindowCount(job) {
+// ── Stitching-finished tracker — this counts fabric work Silva has
+// actually finished (card.fabricTrack.done), NOT full window convergence
+// to Hoist QC. Those are two different milestones: this one moves the
+// moment Silva marks fabric complete; the per-window "Sent to QC" badge
+// (rendered elsewhere in renderWinStageAction) still only shows once BOTH
+// fabric and rail are done. Only counts windows that actually have a
+// fabric track — rail-only treatments (roller, motorized, etc.) don't
+// belong in this denominator since Silva's team never touches them.
+function getJobStitchingFinishedCount(job) {
   ensureItemCards(job);
-  const items = job.windows.filter(w => w.calcDone);
+  const items = job.windows.filter(w => w.calcDone && getProdTracks(w.treatment).fabric);
   const finished = items.filter(w => {
     const card = job.itemCards[w.id];
-    return card && ['Hoist QC', 'Ready', 'Installed'].includes(card.stage);
+    return card && card.fabricTrack && card.fabricTrack.done;
   });
   return { finished: finished.length, total: items.length };
 }
 
-function getAllJobsFinishedWindowCount() {
+function getAllJobsStitchingFinishedCount() {
   let finished = 0, total = 0;
   curtainJobs.forEach(job => {
-    const c = getJobFinishedWindowCount(job);
+    const c = getJobStitchingFinishedCount(job);
     finished += c.finished;
     total += c.total;
   });
@@ -4245,7 +4518,15 @@ function closeQCPanel() {
   const panel = document.getElementById('qc-panel');
   if (panel) panel.style.display = 'none';
   qcActiveItem = null;
-  renderQCDashboard();
+  // If this inspection was launched from the Pipeline board, drop back
+  // there instead of surfacing the full QC Dashboard queue view.
+  if (qcOpenedFromPipeline) {
+    qcOpenedFromPipeline = false;
+    closeQCDashboard();
+    renderPipelineBoard();
+  } else {
+    renderQCDashboard();
+  }
 }
 
 // Read-only view shown when another QC person already has this item open.
@@ -4454,6 +4735,220 @@ function submitQCResult() {
   }
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// DAILY TIME LOG  (costing — actual hours per worker, per job)
+// Writes to the top-level `timeLogs[]` array in data.js. This is a
+// separate, additive ledger — it does NOT touch or overwrite
+// job.bom.labour (Operations' task-based budget/actual view). Cost
+// (hours × WORKER_RATES) is computed only in getJobLoggedHours(), for
+// Operations' future use — Curtain UI itself only ever shows hours.
+// ══════════════════════════════════════════════════════════════
+
+const TIMELOG_WORKERS = [...new Set([...STITCH_TEAM, ...TRACK_TEAM])];
+
+function tlMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay(); // 0=Sun..6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // shift back to Monday
+  date.setDate(date.getDate() + diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function tlISO(d) { return d.toISOString().slice(0,10); }
+
+function getTimeLogWeekDates() {
+  if (!timeLogWeekStart) timeLogWeekStart = tlISO(tlMonday(new Date()));
+  const start = new Date(timeLogWeekStart);
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(start); d.setDate(d.getDate()+i);
+    return tlISO(d);
+  });
+}
+function tlPrevWeek() {
+  const d = new Date(timeLogWeekStart); d.setDate(d.getDate()-7);
+  timeLogWeekStart = tlISO(d);
+  renderTimeLog();
+}
+function tlNextWeek() {
+  const d = new Date(timeLogWeekStart); d.setDate(d.getDate()+7);
+  timeLogWeekStart = tlISO(d);
+  renderTimeLog();
+}
+
+function getTimeLogRowsFor(worker, date) {
+  return timeLogs.filter(t => t.worker === worker && t.date === date);
+}
+function getTimeLogCellTotal(worker, date) {
+  return getTimeLogRowsFor(worker, date).reduce((a,r) => a + r.hours, 0);
+}
+
+// ── Job rollup — for Operations' future cross-check against bom.labour.
+// Not called from any UI yet this session; exposed ready to use.
+// Rate lookup: first-name worker -> CURTAIN_NAME_MAP -> full-name key
+// into EMPLOYEE_RATES (data.js). Falls back to 0 (never throws) if a
+// worker isn't in the map or has no rate on file, so a missing mapping
+// shows up as an obviously-wrong 0-cost row rather than crashing.
+function getJobLoggedHours(jobId) {
+  const rows = timeLogs.filter(t => t.jobId === jobId);
+  const byRole = {};
+  let totalHours = 0, totalCost = 0;
+  rows.forEach(r => {
+    byRole[r.role] = (byRole[r.role] || 0) + r.hours;
+    totalHours += r.hours;
+    const fullName = CURTAIN_NAME_MAP[r.worker];
+    const rate = (fullName && EMPLOYEE_RATES[fullName]) ? EMPLOYEE_RATES[fullName].rate : 0;
+    totalCost += r.hours * rate;
+  });
+  return { totalHours, totalCost, byRole };
+}
+
+// ── Main grid ───────────────────────────
+function renderTimeLog() {
+  const wrap = document.getElementById('curt-timelog-wrap');
+  if (!wrap) return;
+  const dates = getTimeLogWeekDates();
+  const weekLabel = `${new Date(dates[0]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})} – ${new Date(dates[6]).toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}`;
+
+  const headCells = dates.map(d => {
+    const dd = new Date(d);
+    const isToday = tlISO(new Date()) === d;
+    return `<div class="tl-cell tl-head ${isToday?'today':''}">${dd.toLocaleDateString('en-BH',{weekday:'short'})}<br>${dd.getDate()}</div>`;
+  }).join('');
+
+  const bodyRows = TIMELOG_WORKERS.map(worker => {
+    const dayCells = dates.map(d => {
+      const total = getTimeLogCellTotal(worker, d);
+      return `<div class="tl-cell tl-day ${total>0?'filled':''}" onclick="openTimeLogCell('${worker}','${d}')">${total>0 ? total+'h' : '–'}</div>`;
+    }).join('');
+    return `<div class="tl-cell tl-worker">${worker}</div>${dayCells}`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="tl-toolbar">
+      <button class="sm" onclick="tlPrevWeek()">‹ Prev</button>
+      <span class="tl-week-label">${weekLabel}</span>
+      <button class="sm" onclick="tlNextWeek()">Next ›</button>
+    </div>
+    <div class="tl-scroll">
+      <div class="tl-grid">
+        <div class="tl-cell tl-head"></div>
+        ${headCells}
+        ${bodyRows}
+      </div>
+    </div>
+    <p class="foot">Tap any cell to log hours. A worker can log against more than one job on the same day — each entry is added separately and the cell shows the total.</p>
+    <div id="curt-timelog-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+}
+
+// ── Cell entry panel ────────────────────
+function openTimeLogCell(worker, date) {
+  timeLogActiveCell = { worker, date };
+  renderTimeLogPanel();
+  document.getElementById('curt-timelog-panel').style.display = 'block';
+}
+function closeTimeLogPanel() {
+  timeLogActiveCell = null;
+  document.getElementById('curt-timelog-panel').style.display = 'none';
+}
+
+function tlPopulateWindowOptions() {
+  const jobSel = document.getElementById('tl-job-select');
+  const winSel = document.getElementById('tl-window-select');
+  if (!jobSel || !winSel) return;
+  const job = curtainJobs.find(j => j.id === jobSel.value);
+  const windows = job ? job.windows.filter(w => w.calcDone) : [];
+  winSel.innerHTML = windows.map(w => `<option value="${w.id}">${w.room} — ${w.label}</option>`).join('')
+    || '<option value="">No calc-done windows on this job</option>';
+}
+
+function renderTimeLogPanel() {
+  const panel = document.getElementById('curt-timelog-panel');
+  if (!panel || !timeLogActiveCell) return;
+  const { worker, date } = timeLogActiveCell;
+  const rows = getTimeLogRowsFor(worker, date);
+  const total = rows.reduce((a,r) => a+r.hours, 0);
+  const dateLabel = new Date(date).toLocaleDateString('en-BH',{weekday:'long',day:'numeric',month:'short'});
+
+  const rowsHtml = rows.map(r => {
+    const job = curtainJobs.find(j => j.id === r.jobId);
+    const win = job ? job.windows.find(w => w.id === r.windowId) : null;
+    return `
+      <div class="proc-row">
+        <div class="pr-top">
+          <div>
+            <p class="pr-name">${job ? job.name : r.jobId} · ${r.role}</p>
+            <p class="pr-meta">${win ? win.room+' — '+win.label : ''} · ${r.hours}h</p>
+          </div>
+          <button class="sm bad" onclick="tlDeleteEntry('${r.id}')">Remove</button>
+        </div>
+      </div>`;
+  }).join('') || '<p style="font-size:13px;color:var(--ink2);margin-bottom:10px;">No hours logged yet for this day.</p>';
+
+  panel.innerHTML = `
+    <div style="padding:14px 18px;">
+      <button class="back" onclick="closeTimeLogPanel()">‹ Back to grid</button>
+      <p style="font-size:15px;font-weight:700;">${worker} — ${dateLabel}</p>
+      <p style="font-size:12px;color:var(--ink2);margin:2px 0 14px;">${total}h logged so far</p>
+
+      ${rowsHtml}
+
+      <div class="card" style="margin-top:6px;">
+        <p class="card-title">Add entry</p>
+        <div class="field">
+          <label>Job</label>
+          <select id="tl-job-select" onchange="tlPopulateWindowOptions()">
+            ${curtainJobs.map(j => `<option value="${j.id}">${j.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Window</label>
+          <select id="tl-window-select"></select>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Role</label>
+            <select id="tl-role-select">
+              ${LABOUR_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Hours</label>
+            <input id="tl-hours-input" type="number" min="0.5" step="0.5" placeholder="e.g. 4">
+          </div>
+        </div>
+        <button class="primary" style="width:100%;" onclick="tlAddEntry()">+ Add entry</button>
+      </div>
+    </div>`;
+
+  tlPopulateWindowOptions();
+}
+
+function tlAddEntry() {
+  const { worker, date } = timeLogActiveCell;
+  const jobId    = document.getElementById('tl-job-select').value;
+  const windowId = document.getElementById('tl-window-select').value;
+  const role     = document.getElementById('tl-role-select').value;
+  const hours    = parseFloat(document.getElementById('tl-hours-input').value);
+
+  if (!jobId)    { curtAlert('Please select a job.'); return; }
+  if (!windowId) { curtAlert('Please select a window.'); return; }
+  if (!hours || hours <= 0) { curtAlert('Please enter hours greater than 0.'); return; }
+
+  timeLogs.push({
+    id: 'tl_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    date, worker, jobId, windowId, role, hours
+  });
+  renderTimeLogPanel();
+  renderTimeLog();
+}
+
+function tlDeleteEntry(id) {
+  const idx = timeLogs.findIndex(t => t.id === id);
+  if (idx > -1) timeLogs.splice(idx, 1);
+  renderTimeLogPanel();
+  renderTimeLog();
+}
 
 // ══════════════════════════════════════════════════════════════
 // INSTALLATION CREW DASHBOARD  (Shibu's crew — separate screen)
@@ -5092,6 +5587,272 @@ function markItemInstalled(jobId, windowId) {
   card.stage = 'Installed';
   card.stageDates['Installed'] = new Date().toISOString();
   curtAlert(`✓ ${win.label} marked as installed`);
+}
+
+// ══════════════════════════════════════════════════════════════
+// PIPELINE BOARD — bird's-eye Kanban across all active jobs
+// Job → Window → Stitching / Track / QC / Ready for Delivery.
+// This is a pure aggregate VIEW over existing item-card data — no new
+// tracking fields, no new source of truth. Every action here calls the
+// SAME functions the Tracks / QC / Install dashboards already use
+// (finishFabricWork, finishFabricRework, tracksMarkStageComplete,
+// openQCPanel, markItemInstalled), so stage-advance logic only ever
+// lives in one place; this is just another door into it.
+// ══════════════════════════════════════════════════════════════
+
+// True while a QC inspection was launched FROM this board — tells
+// closeQCPanel() (edited below) to drop back here instead of surfacing
+// the full QC Dashboard queue view.
+let qcOpenedFromPipeline = false;
+
+// ── Collect every in-flight window across all active jobs ─────
+// A window can appear as a card in more than one column at once — e.g.
+// still open on both fabric AND rail. That's correct: it's genuinely
+// queued in both places simultaneously, matching the parallel-track model.
+function getPipelineItems() {
+  const items = { stitching: [], track: [], qc: [], ready: [] };
+  curtainJobs.forEach(job => {
+    if (job.status === 'complete') return;
+    ensureItemCards(job);
+    const days = daysUntilInstall(job);
+    job.windows.forEach(w => {
+      if (!w.calcDone) return;
+      const card = job.itemCards[w.id];
+      if (!card) return;
+      const entry = { job, w, card, days };
+
+      if (card.stage === 'Production') {
+        const fabricInfo = getFabricDisplay(card);
+        const railInfo   = getRailDisplay(card);
+        if (fabricInfo.actionable) items.stitching.push({ ...entry, fabricInfo });
+        if (railInfo.actionable)   items.track.push({ ...entry, railInfo });
+      } else if (card.stage === 'Hoist QC') {
+        items.qc.push(entry);
+      } else if (card.stage === 'Ready' || card.stage === 'Installed') {
+        items.ready.push(entry);
+      }
+    });
+  });
+
+  function byUrgency(a, b) {
+    if (a.days === null && b.days === null) return 0;
+    if (a.days === null) return 1;
+    if (b.days === null) return -1;
+    return a.days - b.days;
+  }
+  items.stitching.sort(byUrgency);
+  items.track.sort(byUrgency);
+  items.qc.sort(byUrgency);
+  items.ready.sort((a, b) => {
+    const aInst = a.card.stage === 'Installed' ? 1 : 0; // Installed sinks to the bottom
+    const bInst = b.card.stage === 'Installed' ? 1 : 0;
+    if (aInst !== bInst) return aInst - bInst;
+    return byUrgency(a, b);
+  });
+  return items;
+}
+
+// ── Open / close the board ─────────────────────
+function openPipelineBoard() {
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = 'none';
+  document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
+
+  let wrap = document.getElementById('pipeline-board-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'pipeline-board-wrap';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:#111827;overflow:hidden;font-family:inherit;';
+    document.body.appendChild(wrap);
+  }
+  wrap.style.display = 'flex';
+  renderPipelineBoard();
+}
+
+function closePipelineBoard() {
+  const wrap = document.getElementById('pipeline-board-wrap');
+  if (wrap) wrap.style.display = 'none';
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = '';
+  document.querySelectorAll('.module').forEach(m => m.style.display = '');
+}
+
+// ── Card renderer — same card shape, per-column stage label ────
+function pipelineCard(entry, colType) {
+  const { job, w, days } = entry;
+  const card = entry.card;
+  const daysColor = urgencyColor(days);
+  const daysText  = urgencyLabel(days);
+  const isRework  = (colType === 'stitching' && entry.fabricInfo && entry.fabricInfo.isRework)
+                  || (colType === 'track' && entry.railInfo && entry.railInfo.isRework);
+
+  let stageLabel = '';
+  if (colType === 'stitching') stageLabel = entry.fabricInfo.stage;
+  else if (colType === 'track') stageLabel = entry.railInfo.stage;
+  else if (colType === 'qc') stageLabel = 'Awaiting inspection';
+  else if (colType === 'ready') stageLabel = card.stage === 'Installed' ? '✓ Installed' : 'Ready — awaiting install';
+
+  return `
+    <div onclick="openPipelineDetail('${job.id}','${w.id}','${colType}')"
+      style="background:${isRework ? '#450a0a' : '#1a2332'};border:1px solid ${isRework ? '#7f1d1d' : '#2d3748'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+      <p style="font-size:13px;font-weight:700;color:#e2e8f0;">${w.label}</p>
+      <p style="font-size:11px;color:#9ca3af;margin-top:1px;">${job.name} · ${w.room}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <span style="font-size:11px;font-weight:600;color:${isRework ? '#f87171' : '#a78bfa'};">${isRework ? 'Rework → ' : ''}${stageLabel}</span>
+        <span style="font-size:10px;font-weight:600;color:${daysColor};">${daysText}</span>
+      </div>
+    </div>`;
+}
+
+// ── Column renderer ─────────────────────────────
+function pipelineColumn(title, icon, entries, colType) {
+  return `
+    <div style="flex:none;width:78vw;max-width:320px;background:#0d1420;border-radius:14px;margin-right:12px;display:flex;flex-direction:column;max-height:100%;overflow:hidden;">
+      <div style="padding:12px 14px;border-bottom:1px solid #1f2937;flex:none;">
+        <p style="font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#e2e8f0;">${icon} ${title} <span style="color:#6b7280;">(${entries.length})</span></p>
+      </div>
+      <div style="padding:12px;overflow-y:auto;flex:1;">
+        ${entries.length ? entries.map(e => pipelineCard(e, colType)).join('') : `<p style="font-size:12px;color:#4b5563;text-align:center;padding:20px 0;">Nothing here</p>`}
+      </div>
+    </div>`;
+}
+
+// ── Main render ─────────────────────────────────
+function renderPipelineBoard() {
+  const wrap = document.getElementById('pipeline-board-wrap');
+  if (!wrap) return;
+  const items = getPipelineItems();
+
+  wrap.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:16px;">🧵 Pipeline Board</p>
+        <p style="color:#94a3b8;font-size:12px;margin-top:2px;">All active jobs · ${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+      </div>
+      <button onclick="closePipelineBoard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
+    </div>
+    <div style="display:flex;overflow-x:auto;overflow-y:hidden;flex:1;padding:14px;-webkit-overflow-scrolling:touch;">
+      ${pipelineColumn('Stitching', '✂️', items.stitching, 'stitching')}
+      ${pipelineColumn('Track', '🔩', items.track, 'track')}
+      ${pipelineColumn('QC', '🔍', items.qc, 'qc')}
+      ${pipelineColumn('Ready for Delivery', '📦', items.ready, 'ready')}
+    </div>
+    <!-- Detail panel overlay (hidden by default) -->
+    <div id="pipeline-detail-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+}
+
+// ── Detail panel — routes to the right EXISTING action per column ──
+function openPipelineDetail(jobId, windowId, colType) {
+  // QC column: full reuse of the existing QC inspection panel. It lives
+  // inside qc-dash-wrap, so we open that (it layers on top of the board)
+  // then jump straight into the item — no new QC code at all.
+  if (colType === 'qc') {
+    qcOpenedFromPipeline = true;
+    openQCDashboard();
+    openQCPanel(jobId, windowId);
+    return;
+  }
+
+  const job  = curtainJobs.find(j => j.id === jobId);
+  const w    = job && job.windows.find(x => x.id === windowId);
+  const card = getItemCard(jobId, windowId);
+  if (!job || !w || !card) return;
+
+  const panel = document.getElementById('pipeline-detail-panel');
+  if (!panel) return;
+
+  let body = '';
+  if (colType === 'stitching') {
+    const info = getFabricDisplay(card);
+    body = `
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Fabric / stitching</p>
+        <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.fabricCode || '—'}</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : '#1e2a3b'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+        ${info.isRework ? `
+          <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
+          <button onclick="finishFabricRework('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#dc2626;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            Rework complete — send to QC again →
+          </button>` : `
+          <button onclick="finishFabricWork('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#1e2a3b;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            Mark Fabric Complete →
+          </button>`}
+      </div>`;
+  } else if (colType === 'track') {
+    const info = getRailDisplay(card);
+    const railStages = getProdTracks(w.treatment).rail || [];
+    const idx = railStages.indexOf(info.stage);
+    const isLast = idx >= railStages.length - 1;
+    body = `
+      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Rail / track</p>
+        <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.railType || '—'}</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : '#1e2a3b'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+        ${info.isRework ? `
+          <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
+          <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#dc2626;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            Rework complete — send to QC again →
+          </button>` : `
+          <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#7c3aed;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            ${isLast ? 'Send to hoist QC →' : `Mark ${info.stage} complete →`}
+          </button>`}
+      </div>`;
+  } else if (colType === 'ready') {
+    ensureInstallDefaults(job);
+    const qc = getJobQCStatus(job);
+    const released = qc.allPassed || job.installation.partialRelease === true;
+    if (card.stage === 'Installed') {
+      body = `
+        <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;text-align:center;">
+          <p style="font-size:32px;margin-bottom:8px;">✅</p>
+          <p style="font-size:14px;font-weight:700;color:#10b981;">${w.label} is installed</p>
+          <p style="font-size:12px;color:#64748b;margin-top:4px;">${job.name}${job.client ? ' · ' + job.client : ''}</p>
+        </div>`;
+    } else if (!released) {
+      body = `
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px;">
+          <p style="font-size:13px;font-weight:700;color:#b45309;">⚠ Held</p>
+          <p style="font-size:12px;color:#92400e;margin-top:6px;">${job.name} hasn't fully cleared QC yet (${qc.done}/${qc.total} passed). This item is released once the whole job clears, or Ops enables partial release for this job from the Install dashboard.</p>
+        </div>`;
+    } else {
+      body = `
+        <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Ready for delivery</p>
+          <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${w.label}</b> — ${job.name}</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:12px 0 16px;">
+            <div><span style="color:#94a3b8;">Install date:</span> <b>${job.installation.scheduledDate ? fmtDate(job.installation.scheduledDate) : '—'}</b></div>
+            <div><span style="color:#94a3b8;">Site contact:</span> <b>${job.installation.siteContact || '—'}</b></div>
+            <div style="grid-column:1/-1;"><span style="color:#94a3b8;">Crew:</span> <b>${job.installation.team && job.installation.team.length ? job.installation.team.join(', ') : '—'}</b></div>
+          </div>
+          <button onclick="markItemInstalled('${job.id}','${w.id}');closePipelineDetail();"
+            style="width:100%;padding:13px;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            ✓ Mark Installed
+          </button>
+        </div>`;
+    }
+  }
+
+  panel.innerHTML = `
+    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
+      <div>
+        <p style="color:#fff;font-weight:700;font-size:15px;">${w.label}</p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${w.room}</p>
+      </div>
+      <button onclick="closePipelineDetail()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Board</button>
+    </div>
+    <div style="padding:16px;">${body}</div>`;
+  panel.style.display = 'block';
+  panel.scrollTop = 0;
+}
+
+function closePipelineDetail() {
+  const panel = document.getElementById('pipeline-detail-panel');
+  if (panel) panel.style.display = 'none';
+  renderPipelineBoard();
 }
 
 // ══════════════════════════════════════════════════════════════

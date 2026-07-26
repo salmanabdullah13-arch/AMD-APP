@@ -14,37 +14,42 @@ approverStyleTag.textContent = `
 #approver-module-wrap { font-family: inherit; }
 #approver-module-wrap .ops-header{background:#9f1239;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #approver-module-wrap .approver-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
-#approver-module-wrap .approver-userbar{background:#fff1f2;border-bottom:1px solid #fecdd3;padding:8px 18px;font-size:11.5px;color:#9f1239;display:flex;align-items:center;gap:8px;flex:none;}
+#approver-module-wrap .approver-userbar{background:#fff1f2;border-bottom:1px solid #fecdd3;padding:8px 18px;font-size:11.5px;color:var(--biz-crimson);display:flex;align-items:center;gap:8px;flex:none;}
 #approver-module-wrap .approver-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #fecdd3;background:#fff;}
 #approver-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
-#approver-module-wrap .sales-kpi-tile{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center;}
-#approver-module-wrap .sales-kpi-tile .num{font-size:20px;font-weight:800;color:#9f1239;}
-#approver-module-wrap .sales-kpi-tile .lbl{font-size:10.5px;color:#64748b;margin-top:2px;}
-#approver-module-wrap .sales-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:10px;}
-#approver-module-wrap .sales-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:#f1f5f9;color:#64748b;}
-#approver-module-wrap .sales-pill.draft{background:#f1f5f9;color:#64748b;}
-#approver-module-wrap .sales-pill.open{background:#dbeafe;color:#1e40af;}
-#approver-module-wrap .sales-pill.confirmed{background:#dcfce7;color:#166534;}
-#approver-module-wrap .sales-pill.closed{background:#e2e8f0;color:#475569;}
+#approver-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
+#approver-module-wrap .sales-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-crimson);}
+#approver-module-wrap .sales-kpi-tile .lbl{font-size:10.5px;color:var(--biz-text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px;}
+#approver-module-wrap .sales-card{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px;margin-bottom:10px;box-shadow:var(--biz-shadow);}
+#approver-module-wrap .sales-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#approver-module-wrap .sales-pill.draft{background:var(--biz-draft-bg);color:var(--biz-draft-text);}
+#approver-module-wrap .sales-pill.open{background:var(--biz-open-bg);color:var(--biz-open-text);}
+#approver-module-wrap .sales-pill.confirmed{background:var(--biz-confirmed-bg);color:var(--biz-confirmed-text);}
+#approver-module-wrap .sales-pill.closed{background:var(--biz-closed-bg);color:var(--biz-closed-text);}
 #approver-module-wrap .sales-pill.stage-sales{background:#ede9fe;color:#5b21b6;}
 #approver-module-wrap .sales-pill.stage-estimator{background:#fef3c7;color:#92400e;}
 #approver-module-wrap .sales-pill.stage-approver{background:#fee2e2;color:#991b1b;}
-#approver-module-wrap button.primary{background:#9f1239;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
-#approver-module-wrap button.secondary{background:none;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
+#approver-module-wrap button.primary{background:var(--biz-crimson);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s;}
+#approver-module-wrap button.primary:hover{background:#881337;}
+#approver-module-wrap button.secondary{background:var(--biz-card-bg);border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);color:var(--biz-text-muted);font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
 #approver-module-wrap .sales-field{margin-bottom:10px;}
-#approver-module-wrap .sales-field label{font-size:11px;color:#64748b;display:block;margin-bottom:3px;}
-#approver-module-wrap .sales-field input, #approver-module-wrap .sales-field select, #approver-module-wrap .sales-field textarea{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;}
-#approver-module-wrap .sales-preview{background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:12px;margin-bottom:14px;}
-#approver-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:#475569;}
-#approver-module-wrap .sales-preview b{color:#1a1f2e;}
-#approver-module-wrap .sales-back{font-size:12px;color:#9f1239;font-weight:700;cursor:pointer;margin-bottom:10px;display:inline-block;}
-#approver-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px;}
-#approver-module-wrap table.sales-items th{text-align:left;padding:6px;background:#f8fafc;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0;}
-#approver-module-wrap table.sales-items td{padding:6px;border-bottom:1px solid #f1f5f9;vertical-align:top;}
-#approver-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
-#approver-module-wrap .sales-tile{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;font-size:12px;font-weight:700;color:#475569;cursor:pointer;}
+#approver-module-wrap .sales-field label{font-size:10.5px;font-weight:700;color:var(--biz-text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
+#approver-module-wrap .sales-field input, #approver-module-wrap .sales-field select, #approver-module-wrap .sales-field textarea{width:100%;padding:9px 11px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;box-sizing:border-box;font-family:inherit;background:var(--biz-input-bg);color:var(--biz-text);transition:border-color .12s;}
+#approver-module-wrap .sales-field input:focus, #approver-module-wrap .sales-field select:focus, #approver-module-wrap .sales-field textarea:focus{outline:none;border-color:var(--biz-crimson);background:var(--biz-card-bg);}
+#approver-module-wrap .sales-preview{background:#fff1f2;border:1px solid #fecdd3;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
+#approver-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:var(--biz-text-muted);}
+#approver-module-wrap .sales-preview b{color:var(--biz-text);}
+#approver-module-wrap .sales-back{font-size:12px;color:var(--biz-crimson);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
+#approver-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;}
+#approver-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
+#approver-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);vertical-align:top;}
+#approver-module-wrap table.sales-items tr:hover td{background:#FFF5F7;}
+#approver-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+#approver-module-wrap .sales-tile{border:0;border-radius:var(--biz-r);padding:14px 10px;text-align:center;font-size:11.5px;font-weight:700;color:#fff;cursor:pointer;box-shadow:var(--biz-shadow);transition:transform .12s,box-shadow .12s;text-transform:uppercase;letter-spacing:.2px;background:linear-gradient(135deg,var(--biz-crimson),var(--biz-crimson2));}
+#approver-module-wrap .sales-tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px 0 rgba(37,37,42,.14);}
+#approver-module-wrap .sales-tile .sales-tile-icon{font-size:18px;display:block;margin-bottom:6px;}
 #approver-module-wrap .apr-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:20px;}
-#approver-module-wrap .apr-modal-inner{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:420px;box-sizing:border-box;}
+#approver-module-wrap .apr-modal-inner{background:var(--biz-card-bg);border-radius:14px;padding:18px;width:100%;max-width:420px;box-sizing:border-box;}
 `;
 document.head.appendChild(approverStyleTag);
 
@@ -108,7 +113,7 @@ function openApproverModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -289,8 +294,8 @@ function renderApproverQuoteHub() {
       <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${aEsc(q.enquiryId)} · Salesman: ${aEsc(enq ? enq.salesPerson : '—')} · Picked by: ${aEsc(q.approverPickedBy) || '—'}</p>
     </div>
     <div class="sales-tile-row">
-      <div class="sales-tile" onclick="openApproverReview('${q.id}')">Review Quote</div>
-      <div class="sales-tile" onclick="approverAlert('Print Quote — not wired to a document generator yet.')">Print Quote</div>
+      <div class="sales-tile" onclick="openApproverReview('${q.id}')"><span class="sales-tile-icon">🔍</span>Review Quote</div>
+      <div class="sales-tile" onclick="approverAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
