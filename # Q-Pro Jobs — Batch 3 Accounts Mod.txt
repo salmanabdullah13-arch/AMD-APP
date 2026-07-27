@@ -1,0 +1,198 @@
+# Q-Pro Jobs — Batch 3: Accounts Module (Functional Spec)
+
+## Scope covered
+Transactions → Accounts (General Receipt, General Payment, Journal) and their supporting
+Masters → Accounts (Accounts Group, Ledger, Customer accounting fields, Vendor — already
+covered in Batch 1). This batch defines the general-ledger / bookkeeping layer that sits
+underneath Sales and Purchases.
+
+---
+
+## 1. Chart of Accounts structure (Masters → Accounts → Accounts Group)
+
+Classic two-level Tally-style chart of accounts.
+
+**15 system "Primary" groups** (root-level, not editable, no parent):
+Branch/Divisions, Capital Account, Current Assets, Current Liabilities, Direct Expenses,
+Direct Incomes, Fixed Assets, Indirect Expenses, Indirect Incomes, Investments,
+Loans (Liability), Misc. Expenses (Asset), Purchase Accounts, Sales Accounts, Suspense A/c.
+
+**11 nested/custom sub-groups**, each assigned to one of the primaries, e.g.:
+Customers → Current Assets, Suppliers → Current Liabilities, Sales → Current Assets,
+Duties & Taxes → Current Liabilities, Purchases → Direct Expenses, Cash Accounts →
+Current Assets, Bank Accounts → Current Assets, Salary & Staff Costs / Staff Salaries /
+Machinery Repair & Maintenance / Tools & Equipment → Indirect Expenses.
+
+Only the 11 custom sub-groups have an **Edit** action; the 15 system primaries are locked.
+
+**Add Accounts Group form fields:**
+- Group Name*
+- Under* — dropdown of all 15 primary groups (or "Primary" itself, to create a new
+  top-level group)
+- Primary Group* — fundamental classification: **Asset / Liability / Income / Expense**
+  (drives which financial statement — Balance Sheet vs P&L — the group lands on)
+- Sort Option (numeric, controls display order in reports)
+
+## 2. Ledger master (Masters → Accounts → Ledger)
+
+This is the actual Chart-of-Accounts ledger list — the same data source used by every
+autocomplete "Ledger" field across General Receipt, General Payment, and Journal.
+
+List columns: Ledger Code (auto, `LED00xx`), Ledger Name, Accounts Group, Edit.
+
+Notable structural finding: **individual fixed assets are tracked as their own ledger
+accounts.** E.g. specific machines/tools appear as named ledgers (with model/serial info
+embedded in the name) grouped under "Machinery Repair & Maintenance" or "Tools &
+Equipment" — the Ledger master doubles as a light asset register rather than having a
+separate Fixed Asset module.
+
+**Add Ledger form fields:**
+- Ledger Code (auto-numbered, locked)
+- Ledger Name*
+- Under (Group)* — autocomplete against Accounts Group master (shows Group Name / Primary
+  parent / Asset-Liability-Income-Expense classification in the suggestion dropdown)
+- Taxability* — dropdown: Taxable (10%), Taxable (5%), Taxable (0%), Exempt (0%),
+  Out of scope (0%) (Bahrain VAT categories)
+- Bank Account Number, Bank Account Holder Name, IBAN Number, Bank Swift, Bank Name,
+  Bank Branch — present on every ledger (used when the ledger represents a bank account,
+  e.g. under "Bank Accounts" group; left blank for non-bank ledgers)
+- Opening Balance
+- Is Payroll (checkbox — flags ledgers used in payroll postings)
+
+There is **no separate "Bank" master** — bank accounts are simply Ledger records under the
+"Bank Accounts" group with the banking fields populated.
+
+## 3. Customer master — accounting-side fields (Masters → Accounts → Customer)
+
+Same underlying customer record as the one created/edited from the Enquiry flow (confirmed
+by opening our ZZTEST customer here), but this view surfaces full accounting fields not
+shown on the Enquiry-side quick-create form:
+- Name*, Contact Person*, Telephone*, Telephone 2, Email, Fax
+- Vat Name, Vat No, Tax % (dropdown, defaults 10%)
+- Is Credit (checkbox — toggles credit-sale eligibility)
+- Credit Limit, Credit Days
+- Bank Account Number, Bank Account Holder Name, IBAN, Swift, Bank Name, Bank Branch
+  (customer's own bank details, e.g. for refunds)
+- Address*, Country (dropdown, default Bahrain), Sales Man (dropdown)
+- Opening Balance (read-only display, e.g. "0.000 DR")
+- Status (dropdown: Approve / …)
+- CR No (Commercial Registration number)
+- **Openings sub-table**: Bill No / Bill Date / Bill Amount / O/S Amount / Bill Type
+  (dropdown, "Invoice") / S.Man / + row — lets you load a customer's pre-existing
+  outstanding invoices when onboarding them mid-cycle, so their opening receivable balance
+  is correct from day one.
+
+Vendor master fields already documented in Batch 1 (mirrors this closely on the payables side).
+
+## 4. General Receipt (Transactions → Accounts → General Receipt)
+
+**Purpose:** records money received from any source and codes it straight to one or more
+General Ledger accounts. Confirmed this is **not** tied to a specific customer or invoice —
+the ledger autocomplete only matches Chart-of-Accounts entries (Sales, Sales Return,
+Discount (Sales/Purchase), VAT, Printing & Stationery, Freight & Courier Charges, Salary,
+Air Ticket/Air Ticket Payable, Purchase, etc.) and returns "No Results Found" for a
+customer/supplier name — confirmed by testing "ZZTEST" (no match).
+
+List columns: Receipt Number, Receipt Date, Receipt Amount, Action. (List was empty —
+no General Receipts exist yet in this company's data.)
+
+**Create form fields:**
+- Date (auto, editable)
+- Five parallel payment-mode blocks, each with an amount field and a checkbox
+  (checkbox likely toggles a hidden ledger-mapping selector for that mode):
+  - **Cash** — Amt (maps to a "Cash" ledger)
+  - **Bank** — Amt + Bank (free-text bank name); ledger options: Bank Transfer, BBK Bank,
+    Benefit Pay, Cheque, Credit Card
+  - **C Card** — Amt + Type (Visa Card / Master Card / Others) + Authorized
+  - **Wallet** — Amt + Type (B wallet / IBAN / Benefit) + Authorized
+  - **Cheque** — Amt + Number + Bank
+- **Amount** (required, green highlight) — **auto-calculated as the sum of all five
+  payment-mode amounts**; confirmed live (entering 50 in Cash auto-populated Amount as
+  50.000)
+- Line-item allocation table: **# / Ledger (autocomplete, GL accounts only) / Amount /
+  Narration** + row add button, with a Total row
+- Remarks (free text)
+- Create Receipt / Cancel
+
+Validation confirmed live: submitting with Amount unset/mismatched triggers "Please check
+entered Amount."
+
+## 5. General Payment (Transactions → Accounts → General Payment)
+
+**Purpose:** structurally identical header (same 5 payment-mode blocks, same auto-summed
+Amount field) to General Receipt, but its **line-item table is richer and can be tied to a
+specific Job** — a genuine functional difference from General Receipt.
+
+List columns: Payment Number (`GPyy0000n` format, e.g. `GP2500001` — no `-AMD` suffix
+unlike Sales/Purchases documents), Payment Date, Payment Amount, Action. Cancelled records
+are highlighted in red/pink and their **Edit action is disabled** (confirmed: clicking Edit
+on a cancelled row is a no-op).
+
+**Line-item table columns:** # / Ledger (GL autocomplete) / Amount / Narration /
+**Job No** / **Job Item** (with a 🔗 link icon) / row delete.
+
+Clicking the 🔗 icon opens a **"Search Job Item"** modal: Group (dropdown) / Sub Group
+(dropdown) / Item Name (search box) / Cancel / Search — lets you tie the payment line to a
+specific line-item within a specific job.
+
+**Real example found (GP2500001, cancelled):** used to refund a customer's advance payment,
+ledger "Sales Return", amount 684.000, linked to a real Job No and a job item ("Fabrication
+of Button" type item), with a Remarks note explaining the job was cancelled due to a
+material/fabric change requested by the client. This confirms General Payment's primary
+real-world use case is refunding customer advances / miscellaneous outgoing payments tied
+back to a job, as opposed to Journal (pure GL) or the Purchases-module Payment screen
+(supplier-invoice settlement, documented in Batch 1).
+
+## 6. Journal (Transactions → Accounts → Journal)
+
+**Purpose:** free-form double-entry voucher — the most flexible of the three Accounts
+transaction types, supporting multiple debit and credit lines in a single entry.
+
+List columns: JL Number (`JLyy0000n`, e.g. `JL2600100`), Date, Debit Amount, Credit Amount,
+Action (Print / Edit / Cancel). Every entry's Debit Amount total equals its Credit Amount
+total (enforced double-entry balance) — confirmed across ~100 real entries in the list.
+
+**Create/Edit form:**
+- J No (auto), Date (auto, editable)
+- Line table, minimum 2 rows by default (row 1 = Debit-side, row 2 = Credit-side, indicated
+  by a small DR/CR toggle icon in the leftmost column), extendable via an **"+ Add a new
+  Row"** button (visible on Edit view; each row independently togglable as DR or CR)
+- Columns per row: **Ledger** (GL autocomplete) / **DR** / **CR** / **Rev Ledger**
+  (reversal/contra ledger — likely used for automated reversing entries) / Narration /
+  **Job No** (searchable by job number or client name) / **Job Item** (with the same 🔗
+  Search Job Item modal as General Payment)
+- Total row (Dr total / Cr total, must balance)
+- Remarks
+- Create Journal / Update Journal / Cancel
+
+**Real example found (JL2600100):** a 3-line journal recording a sales commission payment —
+two debit lines to a "Project Cost - Commission" ledger (100.560 + 100.000) each tied to the
+same real Job No with narration "Commission 10%," offset by one credit line of 200.560 to
+"BBK Bank," with a Remarks note that the commission was paid to a staff member/agent by EFT
+(individual's name withheld from this spec per PII policy). This is a clean real-world
+illustration of how Job-level cost allocation flows through the general ledger.
+
+## 7. Cross-module design pattern confirmed this batch
+
+- **General Receipt** = pure GL-coded receipt, no Job/Customer linkage.
+- **General Payment** = GL-coded payment, optional Job No + Job Item linkage (for
+  job-related refunds/adjustments).
+- **Journal** = fully flexible multi-line double entry, optional Job No + Job Item linkage
+  on every line, supports N debit/credit lines rather than a fixed single total.
+- All three share the identical 5-mode payment breakdown header (Cash/Bank/C Card/
+  Wallet/Cheque) with an auto-summed Amount, and all three draw their "Ledger" autocomplete
+  from the same Masters → Accounts → Ledger chart of accounts.
+- Numbering convention differs from Sales/Purchases documents: Accounts vouchers use
+  `XXyy00000n` (e.g. `GP2500001`, `JL2600100`) with no `-AMD` company suffix, whereas
+  Sales/Purchases documents use `XX-nnnn-AMD`.
+
+---
+
+### Still open / not yet tested
+- Did not force-create a live General Receipt/Payment/Journal (all real records already
+  existed in numbering sequence; creating a test one would consume a real sequential
+  number in production data, so this batch stuck to read-only exploration of real
+  cancelled/existing records plus the blank create forms). Flag if you'd like me to
+  actually create one live test entry against ZZTEST for completeness.
+- Did not open the Bank/Cash reconciliation or Trial Balance/P&L/Balance Sheet reports yet
+  — these are scheduled for Batch 5 (Reports sweep).
