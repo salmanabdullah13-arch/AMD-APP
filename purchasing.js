@@ -135,6 +135,20 @@ function purchCashLedgerOptionsHtml(selected) {
     CASH_LEDGERS.map(l => `<option value="${l}" ${l === selected ? 'selected' : ''}>${l}</option>`).join('');
 }
 
+// ── Item Master picker for line items (only Inventory-type transactions
+// reference a real item — Job/Others stay free text, matching the exact
+// distinction the Batch 2 spec calls out for the Stock Report). ──
+function purchItemFieldControl(destinationType, currentItemId, currentName, onSelectExpr, onTextExpr) {
+  if (destinationType !== 'inventory') {
+    return `<input type="text" value="${currentName}" onchange="${onTextExpr}">`;
+  }
+  return `<select onchange="${onSelectExpr}">
+    <option value="">-Select item / new-</option>
+    ${itemMaster.map(it => `<option value="${it.id}" ${it.id === currentItemId ? 'selected' : ''}>${it.name} (${it.id})</option>`).join('')}
+  </select>
+  <p style="font-size:10px;color:#94a3b8;margin-top:3px;">Not listed? Add it in Storekeeper → Item Master first.</p>`;
+}
+
 function purchJobOptionsHtml(selected) {
   const jobs = purchGetAllJobs();
   return `<option value="" ${!selected ? 'selected' : ''}>No specific job / stock</option>` +
@@ -165,7 +179,7 @@ function openPurchasingModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
+  ['sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -304,19 +318,37 @@ function renderPurchRequests() {
 // ── PR creation form (new, direct — no conversion involved) ───────
 function openPRForm() {
   prFormDraft = {
+    division: SALES_DIVISIONS[0],
     department: 'carp',
     linkedJobId: '',
     destinationType: 'inventory',
     items: [{ name: '', qty: 1, unit: '', itemRef: null }]
   };
 
+  document.getElementById('pr-form-division').innerHTML = SALES_DIVISIONS.map(d => `<option ${d === prFormDraft.division ? 'selected' : ''}>${d}</option>`).join('');
   document.getElementById('pr-form-dept').innerHTML = purchDeptOptionsHtml(prFormDraft.department);
   document.getElementById('pr-form-job').innerHTML = purchJobOptionsHtml(prFormDraft.linkedJobId);
   document.getElementById('pr-form-dest').value = prFormDraft.destinationType;
+  renderPRFormProjectDetails();
   renderPRFormItems();
 
   const panel = document.getElementById('purch-pr-form');
   if (panel) { panel.style.display = 'flex'; panel.scrollTop = 0; }
+}
+
+// "Project Details" panel — read-only, only populated once a Job No is
+// attached (matches the real PR (Others) form exactly).
+function renderPRFormProjectDetails() {
+  const wrap = document.getElementById('pr-form-project-details');
+  if (!wrap || !prFormDraft) return;
+  const job = prFormDraft.linkedJobId ? purchGetAllJobs().find(j => j.id === prFormDraft.linkedJobId) : null;
+  wrap.innerHTML = job
+    ? `<p style="font-size:11.5px;color:#334155;">Client: <b>${job.client || '—'}</b> · Project: <b>${job.name || '—'}</b></p>`
+    : `<p style="font-size:11px;color:#94a3b8;">Attach a Job No to see Client/Project details.</p>`;
+}
+function prFormDivisionChanged(value) {
+  if (!prFormDraft) return;
+  prFormDraft.division = value;
 }
 
 function renderPRFormItems() {
@@ -379,6 +411,7 @@ function prFormJobChanged(value) {
   if (!prFormDraft) return;
   prFormDraft.linkedJobId = value || null;
   prFormDraft.items.forEach(it => it.itemRef = null); // job changed — old refs no longer valid
+  renderPRFormProjectDetails();
   renderPRFormItems();
 }
 function prFormDestChanged(value) {
@@ -399,7 +432,8 @@ function savePRForm() {
     raisedBy,
     linkedJobId: prFormDraft.linkedJobId || null,
     destinationType: prFormDraft.destinationType,
-    items
+    items,
+    division: prFormDraft.division
   });
 
   purchAlert(`✓ ${pr.id} raised`);
@@ -549,7 +583,7 @@ function openPODirectForm() {
     deliveryTerms: '',
     supplyAddress: '',
     exRate: 1,
-    items: [{ name: '', qty: 1, unit: '', itemRef: null, fxRateBD: 0, discountBD: 0, vatPercent: 10 }]
+    items: [{ name: '', qty: 1, unit: '', itemRef: null, itemId: null, fxRateBD: 0, discountBD: 0, vatPercent: 10 }]
   };
 
   document.getElementById('pod-form-dept').innerHTML = purchDeptOptionsHtml(poDirectFormDraft.department);
@@ -576,7 +610,7 @@ function renderPODirectFormItems() {
       <div style="display:flex;gap:6px;">
         <div class="p-field" style="flex:2;margin-bottom:6px;">
           <label>Item / material</label>
-          <input type="text" value="${it.name}" onchange="poDirectFormUpdateItem(${i}, 'name', this.value)">
+          ${purchItemFieldControl(poDirectFormDraft.destinationType, it.itemId, it.name, `poDirectFormUpdateItemMaster(${i}, this.value)`, `poDirectFormUpdateItem(${i}, 'name', this.value)`)}
         </div>
         <div class="p-field" style="flex:1;margin-bottom:6px;">
           <label>Qty</label>
@@ -614,6 +648,14 @@ function poDirectFormUpdateItem(idx, field, value) {
   if (!poDirectFormDraft) return;
   poDirectFormDraft.items[idx][field] = (field === 'name' || field === 'unit') ? value : Number(value);
 }
+function poDirectFormUpdateItemMaster(idx, itemId) {
+  if (!poDirectFormDraft) return;
+  const it = poDirectFormDraft.items[idx];
+  const master = itemMaster.find(m => m.id === itemId);
+  it.itemId = master ? master.id : null;
+  it.name = master ? master.name : '';
+  it.unit = master ? master.unit : it.unit;
+}
 function poDirectFormUpdateItemRef(idx, value) {
   if (!poDirectFormDraft) return;
   const opts = poDirectFormDraft.linkedJobId ? purchGetJobItemOptions(poDirectFormDraft.linkedJobId) : null;
@@ -626,7 +668,7 @@ function poDirectFormUpdateItemRef(idx, value) {
 }
 function poDirectFormAddItem() {
   if (!poDirectFormDraft) return;
-  poDirectFormDraft.items.push({ name: '', qty: 1, unit: '', itemRef: null, fxRateBD: 0, discountBD: 0, vatPercent: 10 });
+  poDirectFormDraft.items.push({ name: '', qty: 1, unit: '', itemRef: null, itemId: null, fxRateBD: 0, discountBD: 0, vatPercent: 10 });
   renderPODirectFormItems();
 }
 function poDirectFormRemoveItem(idx) {
@@ -647,6 +689,8 @@ function poDirectFormJobChanged(value) {
 function poDirectFormDestChanged(value) {
   if (!poDirectFormDraft) return;
   poDirectFormDraft.destinationType = value;
+  poDirectFormDraft.items.forEach(it => it.itemId = null);
+  renderPODirectFormItems();
 }
 
 function savePODirectForm() {
@@ -966,7 +1010,7 @@ function openInvoiceForm(poId) {
   invoiceFormDraft = {
     poId: po.id,
     supplierRef: '',
-    items: po.items.map(it => ({ itemName: it.productService, qty: it.qty, rateBD: it.fxRateBD || 0, discBD: it.discountBD || 0, vatPercent: it.vatPercent || 10 }))
+    items: po.items.map(it => ({ itemName: it.productService, qty: it.qty, itemId: it.itemId || null, rateBD: it.fxRateBD || 0, discBD: it.discountBD || 0, vatPercent: it.vatPercent || 10 }))
   };
 
   document.getElementById('inv-form-po-id').textContent = po.id;
@@ -1051,7 +1095,7 @@ function openInvDirectForm() {
     supplierNameTel: '',
     supplierRef: '',
     sourcePOSearch: null,
-    items: [{ name: '', qty: 1, unit: '', itemRef: null, rateBD: 0, discBD: 0, vatPercent: 10 }]
+    items: [{ name: '', qty: 1, unit: '', itemRef: null, itemId: null, rateBD: 0, discBD: 0, vatPercent: 10 }]
   };
 
   document.getElementById('invd-form-dept').innerHTML = purchDeptOptionsHtml(invDirectFormDraft.department);
@@ -1079,7 +1123,7 @@ function invDirectLocatePO() {
   invDirectFormDraft.linkedJobId = po.linkedJobId || '';
   invDirectFormDraft.destinationType = po.type === 'Job' ? 'job-direct' : po.type === 'Others' ? 'others' : 'inventory';
   invDirectFormDraft.items = po.items.map(it => ({
-    name: it.productService, qty: it.qty, unit: it.unit, itemRef: it.itemRef || null,
+    name: it.productService, qty: it.qty, unit: it.unit, itemRef: it.itemRef || null, itemId: it.itemId || null,
     rateBD: it.fxRateBD || 0, discBD: it.discountBD || 0, vatPercent: it.vatPercent || 10
   }));
 
@@ -1098,7 +1142,7 @@ function renderInvDirectFormItems() {
       <div style="display:flex;gap:6px;">
         <div class="p-field" style="flex:2;margin-bottom:6px;">
           <label>Item / material</label>
-          <input type="text" value="${it.name}" onchange="invDirectFormUpdateItem(${i}, 'name', this.value)">
+          ${purchItemFieldControl(invDirectFormDraft.destinationType, it.itemId, it.name, `invDirectFormUpdateItemMaster(${i}, this.value)`, `invDirectFormUpdateItem(${i}, 'name', this.value)`)}
         </div>
         <div class="p-field" style="flex:1;margin-bottom:6px;">
           <label>Qty</label>
@@ -1137,6 +1181,15 @@ function invDirectFormUpdateItem(idx, field, value) {
   if (!invDirectFormDraft) return;
   invDirectFormDraft.items[idx][field] = (field === 'name' || field === 'unit') ? value : Number(value);
 }
+function invDirectFormUpdateItemMaster(idx, itemId) {
+  if (!invDirectFormDraft) return;
+  const it = invDirectFormDraft.items[idx];
+  const master = itemMaster.find(m => m.id === itemId);
+  it.itemId = master ? master.id : null;
+  it.name = master ? master.name : '';
+  it.unit = master ? master.unit : it.unit;
+  if (master) it.rateBD = master.cost || it.rateBD;
+}
 function invDirectFormUpdateItemRef(idx, value) {
   if (!invDirectFormDraft) return;
   const opts = invDirectFormDraft.linkedJobId ? purchGetJobItemOptions(invDirectFormDraft.linkedJobId) : null;
@@ -1149,7 +1202,7 @@ function invDirectFormUpdateItemRef(idx, value) {
 }
 function invDirectFormAddItem() {
   if (!invDirectFormDraft) return;
-  invDirectFormDraft.items.push({ name: '', qty: 1, unit: '', itemRef: null, rateBD: 0, discBD: 0, vatPercent: 10 });
+  invDirectFormDraft.items.push({ name: '', qty: 1, unit: '', itemRef: null, itemId: null, rateBD: 0, discBD: 0, vatPercent: 10 });
   renderInvDirectFormItems();
 }
 function invDirectFormRemoveItem(idx) {
@@ -1170,6 +1223,8 @@ function invDirectFormJobChanged(value) {
 function invDirectFormDestChanged(value) {
   if (!invDirectFormDraft) return;
   invDirectFormDraft.destinationType = value;
+  invDirectFormDraft.items.forEach(it => it.itemId = null);
+  renderInvDirectFormItems();
 }
 
 function saveInvDirectForm() {

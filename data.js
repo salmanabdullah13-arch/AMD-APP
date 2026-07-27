@@ -1610,6 +1610,7 @@ function convertPRtoPO(prId, supplierDetails = {}) {
       qty: it.qty,
       unit: it.unit,
       itemRef: it.itemRef || null,   // optional { id, label } window/item allocation tag, or free text
+      itemId: it.itemId || null,     // real Item Master reference (Inventory-type only) — feeds Stock Report/Job Material Requirement
       fxRateBD: 0,
       amountBD: 0,
       discountBD: 0,
@@ -1659,6 +1660,7 @@ function createPurchaseOrderDirect({ department, linkedJobId = null, destination
       qty: it.qty,
       unit: it.unit,
       itemRef: it.itemRef || null,
+      itemId: it.itemId || null,
       fxRateBD: it.fxRateBD || 0,
       amountBD: 0,
       discountBD: it.discountBD || 0,
@@ -1733,6 +1735,7 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
       itemName: it.productService || it.itemName,
       qty: it.qty,
       itemRef: it.itemRef || null,
+      itemId: it.itemId || null,
       rateBD: it.rateBD || 0,
       discBD: it.discBD || 0,
       vatPercent: it.vatPercent || 10,
@@ -1768,6 +1771,17 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
         releasedTo: null,
         dateReceived: inv.dateReceived
       });
+      // Item Master items (as opposed to free-text stock names) also move
+      // the real Item Master ledger — matches the Batch 2 note that only
+      // "Inventory type" transactions referencing a real item affect the
+      // Stock Report/Job Material Requirement.
+      if (it.itemId) {
+        const master = itemMaster.find(i => i.id === it.itemId);
+        if (master) {
+          master.closingStock = (master.closingStock || 0) + it.qty;
+          master.lastPurchaseRate = it.rateBD || master.lastPurchaseRate;
+        }
+      }
     });
   }
   return inv;
@@ -1800,6 +1814,7 @@ function createPurchaseInvoiceDirect({ department, linkedJobId = null, destinati
       itemName: it.name,
       qty: it.qty,
       itemRef: it.itemRef || null,
+      itemId: it.itemId || null,
       rateBD: it.rateBD || 0,
       discBD: it.discBD || 0,
       vatPercent: it.vatPercent || 10,
@@ -1856,6 +1871,13 @@ function approveInvoice(invId, approvedBy) {
         releasedTo: null,
         dateReceived: inv.dateReceived
       });
+      if (it.itemId) {
+        const master = itemMaster.find(i => i.id === it.itemId);
+        if (master) {
+          master.closingStock = (master.closingStock || 0) + it.qty;
+          master.lastPurchaseRate = it.rateBD || master.lastPurchaseRate;
+        }
+      }
     });
   }
   return inv;
@@ -2085,6 +2107,170 @@ function getStockPoolSummary() {
     releasedTodayCount: releasedToday.length,
     releasedTotalCount: releasedTotal.length
   };
+}
+
+// ═══════════════════════════════════════
+// STOCK ADJUSTMENT (Transactions → Inventory → Stock Adjustment)
+// Only one Type ("Stock Adjustment") and one Location ("Location 1") exist
+// in the real system — it is single-location/single-warehouse throughout,
+// captured here as-is rather than building unused multi-location plumbing.
+// Adjustment Reason is informational only (Q-Pro's own dropdown offers
+// "Not Applicable"/"Issue"); qty is a signed delta the user enters directly
+// (negative to reduce stock) rather than the Reason forcing a sign — kept
+// simple and honest rather than guessing an unconfirmed business rule.
+// ═══════════════════════════════════════
+const stockAdjustments = [];
+const STOCK_ADJUSTMENT_REASONS = ["Not Applicable", "Issue"];
+
+function nextSANumber() {
+  return "SA-" + String(stockAdjustments.length + 1).padStart(4, "0") + "-AMD";
+}
+
+function createStockAdjustment({ date = null, reason = "Not Applicable", items = [] } = {}) {
+  if (!items.length) return { error: "Add at least one item." };
+  const sa = {
+    id: nextSANumber(),
+    date: date || new Date().toISOString().slice(0, 10),
+    type: "Stock Adjustment",
+    location: "Location 1",
+    reason,
+    items: items.map(it => ({ itemId: it.itemId, itemName: it.itemName, unit: it.unit, qty: Number(it.qty) || 0 })),
+    status: "confirmed"
+  };
+  stockAdjustments.push(sa);
+  sa.items.forEach(it => {
+    const item = itemMaster.find(i => i.id === it.itemId);
+    if (item) item.closingStock = (item.closingStock || 0) + it.qty;
+  });
+  return sa;
+}
+
+// ═══════════════════════════════════════
+// STOCK REPORTS (Reports → Stock Ledger)
+// Only "Inventory type" transactions that reference a real Item Master
+// entry (itemId set) ever appear here — a PO/Invoice line entered as free
+// text under the "Others" type never touches these reports, matching the
+// real system's behavior exactly (Batch 2 spec, section 6).
+// ═══════════════════════════════════════
+
+// The true item-level transaction ledger. Replays every voucher affecting
+// this item in chronological order from its opening balance so each row's
+// "closing stock" is an honest running total, not just today's snapshot.
+function getStockReport({ itemId, voucherType = "All", from = "", to = "" } = {}) {
+  const item = itemMaster.find(i => i.id === itemId);
+  if (!item) return [];
+  const vouchers = [];
+
+  purchaseInvoices.forEach(inv => {
+    if (inv.status !== "received") return;
+    inv.items.forEach(it => {
+      if (it.itemId !== itemId) return;
+      const supplier = suppliers.find(s => s.id === inv.supplierId);
+      vouchers.push({
+        voucherType: "Purchase Invoice", voucherNo: inv.id, date: inv.dateReceived,
+        vendor: supplier ? supplier.name : (inv.supplierNameTel || "—"),
+        qty: it.qty, rate: it.rateBD || 0, amount: it.amtBD || 0, delta: it.qty
+      });
+    });
+  });
+  stockAdjustments.forEach(sa => {
+    sa.items.forEach(it => {
+      if (it.itemId !== itemId) return;
+      vouchers.push({
+        voucherType: "Stock Adjustment", voucherNo: sa.id, date: sa.date,
+        vendor: "—", qty: Math.abs(it.qty), rate: 0, amount: 0, delta: it.qty
+      });
+    });
+  });
+  jobCards.forEach(job => {
+    (job.materialsIssues || []).forEach(move => {
+      if (move.status === "cancelled") return;
+      move.items.forEach(it => {
+        if (it.itemId !== itemId) return;
+        vouchers.push({
+          voucherType: "Material Issue", voucherNo: move.id, date: move.date,
+          vendor: job.id, qty: it.qty, rate: 0, amount: 0, delta: -(Number(it.qty) || 0)
+        });
+      });
+    });
+    (job.materialsReturns || []).forEach(move => {
+      if (move.status === "cancelled") return;
+      move.items.forEach(it => {
+        if (it.itemId !== itemId) return;
+        vouchers.push({
+          voucherType: "Material Return", voucherNo: move.id, date: move.date,
+          vendor: job.id, qty: it.qty, rate: 0, amount: 0, delta: Number(it.qty) || 0
+        });
+      });
+    });
+  });
+
+  vouchers.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  let running = item.openingStock || 0;
+  const withRunning = vouchers.map(v => { running += v.delta; return { ...v, closingStock: running }; });
+
+  return withRunning.filter(v =>
+    (voucherType === "All" || v.voucherType === voucherType) &&
+    (!from || v.date >= from) && (!to || v.date <= to)
+  );
+}
+
+// Flatter current-snapshot view vs. the transactional Stock Report above.
+function getItemSummaryReport({ category = "", itemName = "", includeZero = true } = {}) {
+  return itemMaster
+    .filter(it => !category || it.stockCategory === category)
+    .filter(it => !itemName || it.name.toLowerCase().includes(itemName.trim().toLowerCase()))
+    .filter(it => includeZero || (it.closingStock || 0) !== 0)
+    .map(it => ({ itemId: it.id, itemName: it.name, closingStock: it.closingStock || 0, purchaseRate: it.lastPurchaseRate || 0 }));
+}
+
+// The MRP-style reorder report. ORDERS is demand traced from Estimator BOM
+// materials (only lines picked from the real Item Master via the Materials
+// typeahead carry an itemId — see addBOMMaterial) on quotations behind
+// still-open Job Cards; a job item whose material was typed as free text
+// won't show demand here, same real-world distinction the spec calls out.
+function getJobMaterialRequirement() {
+  return itemMaster.map(item => {
+    let orders = 0;
+    jobCards.filter(j => j.status === "open").forEach(job => {
+      const qtn = quotations.find(q => q.id === job.quotationId);
+      if (!qtn) return;
+      qtn.items.forEach(it => {
+        if (!it.bom) return;
+        it.bom.materials.forEach(m => { if (m.itemId === item.id) orders += m.qty; });
+      });
+    });
+
+    let matIssued = 0;
+    jobCards.forEach(job => {
+      (job.materialsIssues || []).forEach(move => {
+        if (move.status === "cancelled") return;
+        move.items.forEach(it => { if (it.itemId === item.id) matIssued += Number(it.qty) || 0; });
+      });
+      (job.materialsReturns || []).forEach(move => {
+        if (move.status === "cancelled") return;
+        move.items.forEach(it => { if (it.itemId === item.id) matIssued -= Number(it.qty) || 0; });
+      });
+    });
+
+    let poQty = 0;
+    purchaseOrders.filter(po => po.type === "Stock" && po.status === "issued").forEach(po => {
+      po.items.forEach(it => { if (it.itemId === item.id) poQty += Number(it.qty) || 0; });
+    });
+
+    const reqQty = Math.max(0, orders - matIssued - poQty - (item.closingStock || 0));
+    return { itemId: item.id, itemName: item.name, unit: item.unit, closingStock: item.closingStock || 0, orders, matIssued, poQty, reqQty };
+  });
+}
+
+// The "Create Purchase Request" button on Job Material Requirement — takes
+// the checked shortfall rows and raises one Inventory-type PR covering all
+// of them, same chain as any other PR (Purchases module Requests tab).
+function createPurchaseRequestFromShortfall(itemIds, raisedBy, department = "carp", division = null) {
+  const rows = getJobMaterialRequirement().filter(r => itemIds.includes(r.itemId) && r.reqQty > 0);
+  if (!rows.length) return { error: "No shortfall items selected." };
+  const items = rows.map(r => ({ name: r.itemName, qty: r.reqQty, unit: r.unit, itemId: r.itemId }));
+  return raisePurchaseRequest({ department, raisedBy, destinationType: "inventory", items, division });
 }
 
 // ── PURCHASER DASHBOARD KPIs ──
@@ -2461,21 +2647,105 @@ function transferQuotationStage(qtnId, newStage, actorName) {
 // writes the calculated Selling Price back onto the quotation item.
 // ═══════════════════════════════════════
 
-// Placeholder item/inventory master for the Materials tab's typeahead — Q-Pro's
-// real item master (with live cost/stock columns) hasn't been captured yet, so
-// this is a small seed list only, enough to exercise the BOM entry screen.
-const ITEM_MASTER = [
-  { code: "IT001886", name: "Aluminium U-Shape Head Rail — Ningbo CH016", cost: 4.2, stock: 120, unit: "Meters" },
-  { code: "IT002395", name: "Cord Rail — Heavy Duty White (COR001)", cost: 3.6, stock: 85, unit: "Meters" },
-  { code: "IT450", name: "Somfy Glydea Track — raw rail", cost: 28.5, stock: 14, unit: "Meters" },
-  { code: "IT330", name: "Unisoiel Cord Track — DC01 Heavy", cost: 5.1, stock: 60, unit: "Meters" },
-  { code: "IT362", name: "Roman Blind Headrail — Unisoiel RAE01", cost: 6.8, stock: 22, unit: "Nos" },
-  { code: "GEN-FAB", name: "Test Curtain Fabric - Mapping Exercise", cost: 2.0, stock: 500, unit: "Meters" }
-];
+// ═══════════════════════════════════════
+// INVENTORY MASTERS (Masters → Inventory → ..., Batch 2 reverse-engineering)
+// Unit / Stock Category / Catelog are simple flat lists. Masters → Inventory
+// → Vendor (internal route "Group"/"Stock Group") is the vestigial
+// duplicate already confirmed in Batch 1 (Purchases) as unused by any real
+// transaction — not replicated here, same call as before.
+// ═══════════════════════════════════════
+const units = ["Box", "Btl", "CBM", "CFT", "Ctn", "Drm", "Gal", "Kg", "LM", "Ltr", "Meters", "Nos", "Pairs", "Pkt", "Roll", "Sets", "Sheet", "Sqmtr", "Yard"]
+  .map(name => ({ name, status: "Enabled" }));
+
+const stockCategories = [
+  "Balance Fabrics (Curtain/Upholstery)", "Chemical Items", "Disposable Items", "Workshop Tools & Accessories",
+  "Others", "Joinery Consumables", "Packaging Materials", "Printing & Stationary", "Non Stock Fabrics",
+  "Carpets & Floorings", "Roller Blind & Accessories", "Curtain Tracks & Accessories", "Sample Books",
+  "Stock Furniture", "Upholstery Consumables"
+].map(name => ({ name }));
+
+function addUnit(name) {
+  if (!name || !name.trim()) return { error: "Name is required." };
+  const u = { name: name.trim(), status: "Enabled" };
+  units.push(u);
+  return u;
+}
+function addStockCategory(name) {
+  if (!name || !name.trim()) return { error: "Name is required." };
+  const c = { name: name.trim() };
+  stockCategories.push(c);
+  return c;
+}
+
+// Catelog ("Brand") — a product line/collection tagged to a specific
+// supplier, e.g. a manufacturer's fabric collection. Empty seed; grows as
+// items get catalogued through the Inventory module.
+const catelogs = [];
+function nextCatelogId() { return "CAT-" + String(catelogs.length + 1).padStart(3, "0"); }
+function createCatelog({ name, vendorId = null } = {}) {
+  if (!name || !name.trim()) return { error: "Name is required." };
+  const cat = { id: nextCatelogId(), name: name.trim(), vendorId };
+  catelogs.push(cat);
+  return cat;
+}
+
+// ── ITEM MASTER (Masters → Inventory → Item) ──
+// The real item catalogue, superseding the small placeholder seed that used
+// to stand in for it (Estimator's BOM Materials-tab typeahead now reads
+// from this real master via searchItemMaster()/ITEM_MASTER below).
+const itemMaster = [];
+function nextItemStockCode() {
+  return "IT" + String(3500 + itemMaster.length).padStart(6, "0");
+}
+function createItemMasterEntry({
+  stockCategory, vendorId = null, catelogId = null, vatPercent = 10, name,
+  rollWidth = null, packing = "", unit, cost = 0, sellingPrice = 0, reorderLevel = 0,
+  description = "", purchaseAllowed = true, salesAllowed = true, rawMaterial = false,
+  openingStock = 0
+} = {}) {
+  if (!stockCategory) return { error: "Stock Category is required." };
+  if (!name || !name.trim()) return { error: "Stock Name is required." };
+  if (!unit) return { error: "Units is required." };
+  const item = {
+    id: nextItemStockCode(), stockCategory, vendorId, catelogId, vatPercent: Number(vatPercent) || 0,
+    name: name.trim(), rollWidth: rollWidth ? Number(rollWidth) : null, packing, unit,
+    cost: Number(cost) || 0, avgCost: Number(cost) || 0, sellingPrice: Number(sellingPrice) || 0,
+    reorderLevel: Number(reorderLevel) || 0, description,
+    purchaseAllowed: !!purchaseAllowed, salesAllowed: !!salesAllowed, rawMaterial: !!rawMaterial,
+    openingStock: Number(openingStock) || 0, closingStock: Number(openingStock) || 0, lastPurchaseRate: 0
+  };
+  itemMaster.push(item);
+  return item;
+}
+function updateItemMasterEntry(itemId, patch) {
+  const it = itemMaster.find(i => i.id === itemId);
+  if (!it) return null;
+  Object.assign(it, patch);
+  return it;
+}
+
+// Small starter catalogue — same items the old placeholder seed carried —
+// so the Estimator typeahead and the Reports below have something to work
+// with immediately.
+[
+  { name: "Aluminium U-Shape Head Rail — Ningbo CH016", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 4.2, openingStock: 120 },
+  { name: "Cord Rail — Heavy Duty White (COR001)", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 3.6, openingStock: 85 },
+  { name: "Somfy Glydea Track — raw rail", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 28.5, openingStock: 14 },
+  { name: "Unisoiel Cord Track — DC01 Heavy", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 5.1, openingStock: 60 },
+  { name: "Roman Blind Headrail — Unisoiel RAE01", stockCategory: "Roller Blind & Accessories", unit: "Nos", cost: 6.8, openingStock: 22 },
+  { name: "Test Curtain Fabric - Mapping Exercise", stockCategory: "Non Stock Fabrics", unit: "Meters", cost: 2.0, openingStock: 500 }
+].forEach(seed => createItemMasterEntry(seed));
+
+// Estimator's Materials tab was built against a flat `ITEM_MASTER` array
+// with `.name`/`.cost`/`.unit` fields — kept as a live alias (not a copy) so
+// it automatically reflects every item created through the real Inventory
+// module from here on.
+const ITEM_MASTER = itemMaster;
+
 function searchItemMaster(query) {
   const q = (query || "").trim().toLowerCase();
-  if (!q) return ITEM_MASTER;
-  return ITEM_MASTER.filter(it => it.name.toLowerCase().includes(q) || it.code.toLowerCase().includes(q));
+  if (!q) return itemMaster;
+  return itemMaster.filter(it => it.name.toLowerCase().includes(q) || it.id.toLowerCase().includes(q));
 }
 // Emp Category list — not captured from Q-Pro's own dropdown yet, seeded from
 // common production role tiers used elsewhere in this app (EMPLOYEE_RATES 'category').
@@ -2522,7 +2792,12 @@ function addBOMMaterial(qtnId, lineId, { name, description = "", qty, unit, rate
   if (!item) return { error: "Item not found." };
   const bom = ensureItemBOM(item);
   const amount = (qty || 0) * (rate || 0);
-  bom.materials.push({ id: bom.materials.length + 1, name, description, qty: qty || 0, unit, rate: rate || 0, amount });
+  // If the name exactly matches a real Item Master entry (as it will when
+  // picked from the Materials-tab typeahead, which is sourced from
+  // itemMaster), tag the BOM line with itemId — this is what lets Job
+  // Material Requirement (Inventory report) see real demand for the item.
+  const master = itemMaster.find(it => it.name === name);
+  bom.materials.push({ id: bom.materials.length + 1, itemId: master ? master.id : null, name, description, qty: qty || 0, unit, rate: rate || 0, amount });
   return bom;
 }
 function addBOMLabour(qtnId, lineId, { department, empCategory, noOfPpl, hrs, rate }) {
@@ -2905,15 +3180,24 @@ function addDeliveryNote(jobId, entries) {
 }
 
 function nextMaterialsMoveId(job, kind) { return kind + "-" + job.id + "-" + (job[kind === "MI" ? "materialsIssues" : "materialsReturns"].length + 1); }
-// items: [{ jobItemLineId, stockItemName, unit, qty }] — Location is required
-// (Q-Pro supports multi-warehouse stock; this app has one implicit location
-// today, so it's captured but not yet validated against a location master).
+// items: [{ jobItemLineId, itemId, stockItemName, unit, qty }] — Location is
+// required (Q-Pro supports multi-warehouse stock; this app has one implicit
+// location today, so it's captured but not yet validated against a location
+// master). itemId is optional — only lines actually picked from the real
+// Item Master (as opposed to free-text stock item names) move the needle on
+// itemMaster[].closingStock, matching the real system's own distinction
+// between Inventory-tracked items and free-text/job-direct material names.
 function addMaterialsIssue(jobId, { location, items }) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   if (!location) return { error: "Location is required." };
-  const move = { id: nextMaterialsMoveId(job, "MI"), date: new Date().toISOString().slice(0, 10), location, items };
+  const move = { id: nextMaterialsMoveId(job, "MI"), date: new Date().toISOString().slice(0, 10), location, items, status: "confirmed" };
   job.materialsIssues.push(move);
+  items.forEach(it => {
+    if (!it.itemId) return;
+    const item = itemMaster.find(i => i.id === it.itemId);
+    if (item) item.closingStock = (item.closingStock || 0) - (Number(it.qty) || 0);
+  });
   return move;
 }
 // Mirrors addMaterialsIssue() exactly — a reversal of stock issued to a job.
@@ -2921,8 +3205,50 @@ function addMaterialsReturn(jobId, { location, items }) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   if (!location) return { error: "Location is required." };
-  const move = { id: nextMaterialsMoveId(job, "MR"), date: new Date().toISOString().slice(0, 10), location, items };
+  const move = { id: nextMaterialsMoveId(job, "MR"), date: new Date().toISOString().slice(0, 10), location, items, status: "confirmed" };
   job.materialsReturns.push(move);
+  items.forEach(it => {
+    if (!it.itemId) return;
+    const item = itemMaster.find(i => i.id === it.itemId);
+    if (item) item.closingStock = (item.closingStock || 0) + (Number(it.qty) || 0);
+  });
+  return move;
+}
+
+// Cross-job flattened list for the Inventory module's Material Issue /
+// Material Return screens (Transactions → Inventory → ...) — Q-Pro shows
+// these as their own top-level document lists (MI/MR NUMBER, CLIENT, DATE,
+// JOB NUMBER, ACTION) rather than nested under each Job Card, so this reads
+// across every jobCards[] entry instead of duplicating the storage.
+function getAllMaterialsMoves(kind) {
+  const field = kind === "MI" ? "materialsIssues" : "materialsReturns";
+  const rows = [];
+  jobCards.forEach(job => {
+    const c = customers.find(x => x.id === job.customerId);
+    (job[field] || []).forEach(move => {
+      rows.push({ move, jobId: job.id, client: c ? c.name : "—" });
+    });
+  });
+  return rows.sort((a, b) => (b.move.date || "").localeCompare(a.move.date || ""));
+}
+
+// Cancelling reverses the stock effect (mirror-image of the original move)
+// and flags the move itself — matches the "cancelled" red/pink visual state
+// observed in the real Material Return list.
+function cancelMaterialsMove(jobId, kind, moveId) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const field = kind === "MI" ? "materialsIssues" : "materialsReturns";
+  const move = job[field].find(m => m.id === moveId);
+  if (!move) return { error: "Move not found." };
+  if (move.status === "cancelled") return { error: "Already cancelled." };
+  const sign = kind === "MI" ? 1 : -1; // reverse: MI cancel gives stock back, MR cancel takes it back out
+  move.items.forEach(it => {
+    if (!it.itemId) return;
+    const item = itemMaster.find(i => i.id === it.itemId);
+    if (item) item.closingStock = (item.closingStock || 0) + sign * (Number(it.qty) || 0);
+  });
+  move.status = "cancelled";
   return move;
 }
 

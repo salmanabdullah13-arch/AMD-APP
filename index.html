@@ -1350,6 +1350,10 @@
         <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Requests don't require approval — the Purchaser converts to a PO when ready.</p>
 
         <div class="p-field">
+          <label>Division</label>
+          <select id="pr-form-division" onchange="prFormDivisionChanged(this.value)"></select>
+        </div>
+        <div class="p-field">
           <label>Department</label>
           <select id="pr-form-dept" onchange="prFormDeptChanged(this.value)"></select>
         </div>
@@ -1357,6 +1361,7 @@
           <label>Job</label>
           <select id="pr-form-job" onchange="prFormJobChanged(this.value)"></select>
         </div>
+        <div id="pr-form-project-details" style="margin-bottom:10px;"></div>
         <div class="p-field">
           <label>Destination</label>
           <select id="pr-form-dest" onchange="prFormDestChanged(this.value)">
