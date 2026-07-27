@@ -430,3 +430,80 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   3. Small fix: net Batch 1's real `paidAmount` off Accounts' Receivables/Payables KPIs.
   4. Small fix: refresh `shell.js`'s `M` object descriptions for Purchaser/Storekeeper.
   5. Decide fate of sw.js / Operations wiring / EOSB tenure TODO — still wanted or fully superseded by the Q-Pro batch work.
+
+### 27 Jul 2026 (later same day) — Archived batch specs, built Batch 3 (Accounts GL layer)
+- Found the 6 Q-Pro batch mapping `.txt` files loose at the repo root (Batches
+  1–6, including 4 — Sales & Job Operations, 5 — Administration/Payroll/HR,
+  and 6 — Reports — that this file's §3 didn't know about yet, since they'd
+  never been read). Reviewed all 6 in full.
+- Moved them into `docs/qpro-mapping/` with clean filenames
+  (`batch-1-purchases.txt` … `batch-6-reports.txt`) and committed — closes
+  the "no QPro mapping spec file is committed" gap flagged in §3/§5.
+- **Built Batch 3: Accounts — General Ledger layer**, traced from
+  `docs/qpro-mapping/batch-3-accounts.txt`. This is new — the pre-existing
+  Accounts module (`accounts.js`) was a read-only KPI dashboard only; it now
+  also has a real bookkeeping layer underneath it, added as new tabs in the
+  same module (no new floating module, so no hide-list/`goTo()` changes
+  needed):
+  - **Chart of Accounts** (`accountsGroups[]` in data.js) — the 15 real
+    system Primary groups (locked/non-editable, matches live) + the 11 real
+    custom sub-groups from the trace (Customers, Suppliers, Sales, Duties &
+    Taxes, Purchases, Cash Accounts, Bank Accounts, Salary & Staff Costs,
+    Staff Salaries, Machinery Repair & Maintenance, Tools & Equipment), each
+    tagged with an Asset/Liability/Income/Expense classification. New
+    custom groups can be added under any Primary; Primary groups can't be
+    edited, matching the live system's own Edit-action restriction.
+  - **Ledger master** (`ledgers[]`) — seeded with every ledger name already
+    referenced elsewhere in this app (Purchase, the CASH_LEDGERS list) plus
+    the real GL account names named in the trace (Sales, Sales Return, VAT,
+    Printing & Stationery, Project Cost - Commission, etc.). No separate
+    "Bank" master, on purpose — a bank account is just a Ledger under "Bank
+    Accounts" with the banking fields filled in, matching Q-Pro exactly.
+  - **General Receipt** — pure GL-coded receipt, no Customer/Invoice link
+    (confirmed live: the Ledger autocomplete rejects a customer name).
+  - **General Payment** — same 5-mode payment header (Cash/Bank/C
+    Card/Wallet/Cheque, auto-summed Amount) as Receipt, but each allocation
+    line can optionally carry a Job No — matches the live system's real
+    use case (refunding a customer advance tied to a job). Has a Cancel
+    action (red/pink row highlighting, matches the live convention).
+  - **Journal** — free-form multi-line double entry, minimum 2 rows,
+    extendable via "+ Add a new Row." Debit total must equal Credit total
+    or `createJournal()` refuses to save — enforced in code, not just the
+    UI, mirroring the same "gate it for real" pattern used for PO/Invoice
+    approvals in Batch 1.
+  - All three (Receipt/Payment/Journal) validate that ledger-allocation
+    lines sum to the header Amount before saving ("Please check entered
+    Amount." — the exact live validation copy) — data.js functions
+    `createGeneralReceipt`/`createGeneralPayment`/`createJournal`.
+  - UI: line-item forms use a fixed-row-count-with-progressive-reveal
+    pattern (`acAddLineRow`, up to 6 rows) rather than full re-render on
+    "+ Add Row," specifically to avoid wiping already-entered input values
+    — a re-render-based add-row would have silently lost data entered in
+    earlier rows.
+- **Verification run:** `node --check` on every modified file individually
+  and on the full 11-file concatenation in load order; duplicate top-level
+  declaration scan (none found); every `onclick`/`onchange`/`oninput` in
+  accounts.js cross-referenced against defined functions (all resolve);
+  closure-variable-in-inline-handler scan (none found); data-layer logic
+  smoke-tested standalone via `vm.runInContext` (group/ledger creation,
+  balanced + intentionally-unbalanced Receipt/Journal, payment cancel);
+  full Playwright pass against `python3 -m http.server` — Journal, General
+  Receipt, and Chart of Accounts all confirmed working end-to-end in an
+  actual browser, screenshots read back. Only pre-existing, unrelated
+  console errors observed (`sw.js` 404 — already a known pending item;
+  `favicon.ico` 404).
+- **Environment note confirmed still current:** `git push` to this branch
+  returned 403, same as documented in §0. Committed locally as `Claude
+  <noreply@anthropic.com>`; Salman needs to pull these commits from his own
+  clone and push.
+- **Not done this session, still open:** Batch 4 (Sales & Job Operations
+  detail), Batch 5 (Administration/Payroll/HR — the real HR & Payroll
+  module), and Batch 6 (Reports) remain spec-only, now safely archived in
+  `docs/qpro-mapping/` but not yet built. §3 of this file should get a
+  proper writeup of Batch 3's coverage (and Batches 4–6's scope) next time
+  there's room — this log entry is the only record of it for now. Voucher
+  Ledger Mapping (Batch 5) — the config step that's supposed to resolve
+  each payment method to a real ledger — was not built; Receipt/Payment
+  line ledgers are picked directly instead, which is a fine simplification
+  for now but worth flagging if Reports/Trial Balance ever get built on top
+  of this and need that mapping to post correctly.

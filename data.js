@@ -3337,3 +3337,256 @@ function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } =
   job.linkedInvoiceIds.push(inv.id);
   return inv;
 }
+
+// ═══════════════════════════════════════
+// ACCOUNTS — GENERAL LEDGER (Batch 3: Chart of Accounts, Ledger, General
+// Receipt, General Payment, Journal)
+// Traced from a live Q-Pro spec (docs/qpro-mapping/batch-3-accounts.txt).
+// This is the real bookkeeping layer underneath Sales/Purchases — separate
+// from accounts.js's pre-existing read-only KPI dashboard (revenue/
+// receivables/payables), which stays untouched. Every payment-method field
+// on Receipt/Credit Note/Payment (Batch 1/4) is supposed to resolve to one
+// of these ledgers via a Voucher Ledger Mapping (Batch 5) — that mapping
+// step itself is out of scope for this pass; ledgers are picked directly.
+//
+// 15 system Primary groups are locked/non-editable in the live system (no
+// parent, can't be renamed) — modeled the same way here. The 11 custom
+// sub-groups and their Primary Group classification (Asset/Liability/
+// Income/Expense) are the real values from the live trace.
+// ═══════════════════════════════════════
+
+const ACCOUNTS_PRIMARY_GROUPS = [
+  { name: "Branch/Divisions", classification: "Asset" },
+  { name: "Capital Account", classification: "Liability" },
+  { name: "Current Assets", classification: "Asset" },
+  { name: "Current Liabilities", classification: "Liability" },
+  { name: "Direct Expenses", classification: "Expense" },
+  { name: "Direct Incomes", classification: "Income" },
+  { name: "Fixed Assets", classification: "Asset" },
+  { name: "Indirect Expenses", classification: "Expense" },
+  { name: "Indirect Incomes", classification: "Income" },
+  { name: "Investments", classification: "Asset" },
+  { name: "Loans (Liability)", classification: "Liability" },
+  { name: "Misc. Expenses (Asset)", classification: "Asset" },
+  { name: "Purchase Accounts", classification: "Expense" },
+  { name: "Sales Accounts", classification: "Income" },
+  { name: "Suspense A/c", classification: "Asset" }
+];
+const ACCOUNTS_CLASSIFICATIONS = ["Asset", "Liability", "Income", "Expense"];
+
+// The 11 real custom sub-groups from the live trace, each Under one Primary.
+const ACCOUNTS_CUSTOM_GROUPS = [
+  { name: "Customers", under: "Current Assets" },
+  { name: "Suppliers", under: "Current Liabilities" },
+  { name: "Sales", under: "Current Assets" },
+  { name: "Duties & Taxes", under: "Current Liabilities" },
+  { name: "Purchases", under: "Direct Expenses" },
+  { name: "Cash Accounts", under: "Current Assets" },
+  { name: "Bank Accounts", under: "Current Assets" },
+  { name: "Salary & Staff Costs", under: "Indirect Expenses" },
+  { name: "Staff Salaries", under: "Indirect Expenses" },
+  { name: "Machinery Repair & Maintenance", under: "Indirect Expenses" },
+  { name: "Tools & Equipment", under: "Indirect Expenses" }
+];
+
+const accountsGroups = [
+  ...ACCOUNTS_PRIMARY_GROUPS.map((g, i) => ({
+    id: "AG-" + String(i + 1).padStart(3, "0"),
+    name: g.name, under: "Primary", isPrimary: true, editable: false,
+    classification: g.classification, sortOption: i + 1
+  })),
+  ...ACCOUNTS_CUSTOM_GROUPS.map((g, i) => ({
+    id: "AG-" + String(ACCOUNTS_PRIMARY_GROUPS.length + i + 1).padStart(3, "0"),
+    name: g.name, under: g.under, isPrimary: false, editable: true,
+    classification: ACCOUNTS_PRIMARY_GROUPS.find(p => p.name === g.under).classification,
+    sortOption: ACCOUNTS_PRIMARY_GROUPS.length + i + 1
+  }))
+];
+
+function nextAccountsGroupId() {
+  return "AG-" + String(accountsGroups.length + 1).padStart(3, "0");
+}
+
+// Only custom sub-groups can be created/edited — the 15 Primary groups are
+// locked, matching the live system exactly (Edit action only shows on the
+// 11 custom rows there).
+function createAccountsGroup({ name, under, sortOption = accountsGroups.length + 1 } = {}) {
+  if (!name || !name.trim()) return { error: "Group Name is required." };
+  const parent = accountsGroups.find(g => g.name === under && g.isPrimary);
+  if (!parent) return { error: "Under (a Primary group) is required." };
+  const group = {
+    id: nextAccountsGroupId(), name: name.trim(), under: parent.name,
+    isPrimary: false, editable: true, classification: parent.classification,
+    sortOption: Number(sortOption) || accountsGroups.length + 1
+  };
+  accountsGroups.push(group);
+  return group;
+}
+
+const ACCOUNTS_TAXABILITY_OPTIONS = ["Taxable (10%)", "Taxable (5%)", "Taxable (0%)", "Exempt (0%)", "Out of scope (0%)"];
+
+// Ledger master — the actual Chart-of-Accounts list every "Ledger"
+// autocomplete across Receipt/Payment/Journal reads from. Seeded with the
+// real ledger names already referenced elsewhere in this app (Purchase —
+// the default PO/PI line ledger; the CASH_LEDGERS list) plus the GL
+// accounts named in the live trace (Sales, Sales Return, VAT, etc.), since
+// those are confirmed real values rather than invented ones. There is
+// deliberately no separate "Bank" master — a bank account is just a Ledger
+// under "Bank Accounts" with the banking fields filled in, matching the
+// live system exactly.
+const ledgers = [
+  { code: "LED0001", name: "Cash", group: "Cash Accounts" },
+  { code: "LED0002", name: "Bank - BBK Current", group: "Bank Accounts" },
+  { code: "LED0003", name: "Bank - NBB Current", group: "Bank Accounts" },
+  { code: "LED0004", name: "Petty Cash", group: "Cash Accounts" },
+  { code: "LED0005", name: "Purchase", group: "Purchases" },
+  { code: "LED0006", name: "Sales", group: "Sales" },
+  { code: "LED0007", name: "Sales Return", group: "Sales" },
+  { code: "LED0008", name: "Discount (Sales/Purchase)", group: "Purchases" },
+  { code: "LED0009", name: "VAT", group: "Duties & Taxes" },
+  { code: "LED0010", name: "Printing & Stationery", group: "Indirect Expenses" },
+  { code: "LED0011", name: "Freight & Courier Charges", group: "Indirect Expenses" },
+  { code: "LED0012", name: "Salary", group: "Staff Salaries" },
+  { code: "LED0013", name: "Air Ticket", group: "Indirect Expenses" },
+  { code: "LED0014", name: "Air Ticket Payable", group: "Current Liabilities" },
+  { code: "LED0015", name: "Round OFF", group: "Suspense A/c" },
+  { code: "LED0016", name: "Project Cost - Commission", group: "Direct Expenses" },
+  { code: "LED0017", name: "Food Expenses", group: "Indirect Expenses" },
+  { code: "LED0018", name: "Repair and Maintenance", group: "Machinery Repair & Maintenance" },
+  { code: "LED0019", name: "Tools and equipments", group: "Tools & Equipment" }
+].map((l, i) => ({
+  id: "LG-" + String(i + 1).padStart(4, "0"),
+  code: l.code, name: l.name, groupName: l.group,
+  taxability: "Out of scope (0%)",
+  bankAccountNumber: "", bankAccountHolderName: "", ibanNumber: "", bankSwift: "", bankName: "", bankBranch: "",
+  openingBalance: 0, isPayroll: false
+}));
+
+function nextLedgerCode() {
+  return "LED" + String(ledgers.length + 1).padStart(4, "0");
+}
+
+function createLedger({
+  name, groupName, taxability = "Out of scope (0%)",
+  bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "", bankSwift = "", bankName = "", bankBranch = "",
+  openingBalance = 0, isPayroll = false
+} = {}) {
+  if (!name || !name.trim()) return { error: "Ledger Name is required." };
+  const group = accountsGroups.find(g => g.name === groupName);
+  if (!group) return { error: "Under (Group) is required." };
+  const ledger = {
+    id: "LG-" + String(ledgers.length + 1).padStart(4, "0"),
+    code: nextLedgerCode(), name: name.trim(), groupName: group.name, taxability,
+    bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch,
+    openingBalance: Number(openingBalance) || 0, isPayroll: !!isPayroll
+  };
+  ledgers.push(ledger);
+  return ledger;
+}
+
+// Shared by General Receipt/Payment/Journal — the five payment-mode blocks
+// (Cash/Bank/C Card/Wallet/Cheque) sum to the header Amount, confirmed live
+// ("entering 50 in Cash auto-populated Amount as 50.000").
+function sumPaymentMethods(methods = {}) {
+  return ["cash", "bank", "cCard", "wallet", "cheque"]
+    .reduce((s, k) => s + (methods[k] && methods[k].enabled ? (Number(methods[k].amount) || 0) : 0), 0);
+}
+
+const generalReceipts = [];
+function nextGeneralReceiptId() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "GR" + yy + String(generalReceipts.length + 1).padStart(5, "0");
+}
+
+// General Receipt — pure GL-coded receipt, no Customer/Invoice linkage
+// (confirmed live: the Ledger autocomplete only matches Chart-of-Accounts
+// entries, returns "No Results Found" for a customer name).
+function createGeneralReceipt({ date = null, methods = {}, amount, lines = [], remarks = "" } = {}) {
+  const computedAmount = sumPaymentMethods(methods);
+  const finalAmount = amount !== undefined && amount !== null && amount !== "" ? Number(amount) : computedAmount;
+  const lineTotal = Math.round(lines.reduce((s, l) => s + (Number(l.amount) || 0), 0) * 1000) / 1000;
+  if (!finalAmount || finalAmount <= 0 || Math.round(finalAmount * 1000) / 1000 !== lineTotal) {
+    return { error: "Please check entered Amount." };
+  }
+  const receipt = {
+    id: nextGeneralReceiptId(), date: date || new Date().toISOString().slice(0, 10),
+    methods, amount: finalAmount,
+    lines: lines.map(l => ({ ledgerId: l.ledgerId, amount: Number(l.amount) || 0, narration: l.narration || "" })),
+    remarks, status: "confirmed"
+  };
+  generalReceipts.push(receipt);
+  return receipt;
+}
+
+const generalPayments = [];
+function nextGeneralPaymentId() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "GP" + yy + String(generalPayments.length + 1).padStart(5, "0");
+}
+
+// General Payment — structurally identical header to General Receipt, but
+// each line can optionally tie to a Job (+ Job Item) — its real-world use
+// confirmed live as refunding customer advances / job-related outgoing
+// payments, distinct from Journal (pure GL) and the Purchasing module's
+// supplier-invoice Payment screen (Batch 1).
+function createGeneralPayment({ date = null, methods = {}, amount, lines = [], remarks = "" } = {}) {
+  const computedAmount = sumPaymentMethods(methods);
+  const finalAmount = amount !== undefined && amount !== null && amount !== "" ? Number(amount) : computedAmount;
+  const lineTotal = Math.round(lines.reduce((s, l) => s + (Number(l.amount) || 0), 0) * 1000) / 1000;
+  if (!finalAmount || finalAmount <= 0 || Math.round(finalAmount * 1000) / 1000 !== lineTotal) {
+    return { error: "Please check entered Amount." };
+  }
+  const payment = {
+    id: nextGeneralPaymentId(), date: date || new Date().toISOString().slice(0, 10),
+    methods, amount: finalAmount,
+    lines: lines.map(l => ({
+      ledgerId: l.ledgerId, amount: Number(l.amount) || 0, narration: l.narration || "",
+      jobId: l.jobId || null, jobItemRef: l.jobItemRef || null
+    })),
+    remarks, status: "confirmed"
+  };
+  generalPayments.push(payment);
+  return payment;
+}
+function cancelGeneralPayment(paymentId) {
+  const p = generalPayments.find(x => x.id === paymentId);
+  if (!p) return null;
+  p.status = "cancelled";
+  return p;
+}
+
+const journals = [];
+function nextJournalId() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "JL" + yy + String(journals.length + 1).padStart(5, "0");
+}
+
+// Journal — free-form multi-line double entry. Confirmed live across ~100
+// real entries: every entry's Debit total must equal its Credit total. That
+// balance is enforced here, not just assumed, so a rebuild can't silently
+// post an unbalanced entry the way a UI-only validation might miss.
+function createJournal({ date = null, lines = [], remarks = "" } = {}) {
+  if (!lines || lines.length < 2) return { error: "A Journal needs at least two lines (one Debit, one Credit)." };
+  const drTotal = Math.round(lines.reduce((s, l) => s + (Number(l.dr) || 0), 0) * 1000) / 1000;
+  const crTotal = Math.round(lines.reduce((s, l) => s + (Number(l.cr) || 0), 0) * 1000) / 1000;
+  if (drTotal !== crTotal || drTotal === 0) {
+    return { error: "Debit total must equal Credit total." };
+  }
+  const journal = {
+    id: nextJournalId(), date: date || new Date().toISOString().slice(0, 10),
+    lines: lines.map(l => ({
+      ledgerId: l.ledgerId, dr: Number(l.dr) || 0, cr: Number(l.cr) || 0,
+      revLedgerId: l.revLedgerId || null, narration: l.narration || "",
+      jobId: l.jobId || null, jobItemRef: l.jobItemRef || null
+    })),
+    drTotal, crTotal, remarks, status: "confirmed"
+  };
+  journals.push(journal);
+  return journal;
+}
+function cancelJournal(journalId) {
+  const j = journals.find(x => x.id === journalId);
+  if (!j) return null;
+  j.status = "cancelled";
+  return j;
+}

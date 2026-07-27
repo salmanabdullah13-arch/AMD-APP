@@ -55,7 +55,8 @@ accountsModuleWrap.innerHTML = `
 `;
 document.body.appendChild(accountsModuleWrap);
 
-let accountsView = 'dashboard'; // dashboard | invoices | purchases
+let accountsView = 'dashboard'; // dashboard | invoices | purchases | coa | ledgers | ledger-new | receipts | receipt-new | payments | payment-new | journals | journal-new
+let acVisibleLineRows = 1; // shared row-count for whichever line-entry form (Receipt/Payment/Journal) is currently open
 
 function acEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function accountsAlert(msg) {
@@ -97,16 +98,31 @@ function accountsSetView(v) { accountsView = v; renderAccountsBody(); }
 function renderAccountsBody() {
   const body = document.getElementById('accounts-body');
   if (!body) return;
+  const tab = (v, label) => `<button class="sales-tabbtn ${accountsView === v || (accountsView === v + '-new' ) ? 'active' : ''}" onclick="accountsSetView('${v}')">${label}</button>`;
   const tabsHtml = `
     <div class="sales-tabs">
-      <button class="sales-tabbtn ${accountsView === 'dashboard' ? 'active' : ''}" onclick="accountsSetView('dashboard')">Dashboard</button>
-      <button class="sales-tabbtn ${accountsView === 'invoices' ? 'active' : ''}" onclick="accountsSetView('invoices')">Sales Invoices</button>
-      <button class="sales-tabbtn ${accountsView === 'purchases' ? 'active' : ''}" onclick="accountsSetView('purchases')">Purchase Invoices</button>
+      ${tab('dashboard', 'Dashboard')}
+      ${tab('invoices', 'Sales Invoices')}
+      ${tab('purchases', 'Purchase Invoices')}
+      ${tab('coa', 'Chart of Accounts')}
+      ${tab('ledgers', 'Ledgers')}
+      ${tab('receipts', 'General Receipt')}
+      ${tab('payments', 'General Payment')}
+      ${tab('journals', 'Journal')}
     </div>`;
   let content = '';
   if (accountsView === 'dashboard') content = renderAccountsDashboard();
   else if (accountsView === 'invoices') content = renderAccountsSalesInvoices();
-  else content = renderAccountsPurchaseInvoices();
+  else if (accountsView === 'purchases') content = renderAccountsPurchaseInvoices();
+  else if (accountsView === 'coa') content = renderAccountsGroups();
+  else if (accountsView === 'ledgers') content = renderLedgers();
+  else if (accountsView === 'ledger-new') content = renderLedgerForm();
+  else if (accountsView === 'receipts') content = renderGeneralReceipts();
+  else if (accountsView === 'receipt-new') content = renderGeneralReceiptForm();
+  else if (accountsView === 'payments') content = renderGeneralPayments();
+  else if (accountsView === 'payment-new') content = renderGeneralPaymentForm();
+  else if (accountsView === 'journals') content = renderJournals();
+  else if (accountsView === 'journal-new') content = renderJournalForm();
   body.innerHTML = tabsHtml + content;
 }
 
@@ -184,4 +200,317 @@ function renderAccountsPurchaseInvoices() {
         ${rows.map(inv => `<tr><td>${acEsc(inv.id)}</td><td>${inv.dateReceived}</td><td>${acEsc(inv.supplierNameTel) || '—'}</td><td>${acEsc(inv.status)}</td><td>BD ${(inv.totals ? inv.totals.netAmount : 0).toFixed(3)}</td></tr>`).join('')}
         </table>`}
     </div>`;
+}
+
+// ══════════════════════════════════════════
+// BATCH 3 — GENERAL LEDGER (Chart of Accounts, Ledger, General Receipt,
+// General Payment, Journal). Data model + validation lives in data.js
+// (createAccountsGroup / createLedger / createGeneralReceipt /
+// createGeneralPayment / createJournal) — this section is UI only.
+// ══════════════════════════════════════════
+
+function renderAccountsGroups() {
+  const rows = accountsGroups.slice().sort((a, b) => a.sortOption - b.sortOption);
+  return `
+    <div class="sales-card">
+      <p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">The 15 system Primary groups are locked (no parent, not editable) — matches the live system exactly. Only the 11 custom sub-groups can be added to.</p>
+      <button class="primary" style="width:100%;margin-bottom:10px;" onclick="acNewCustomGroup()">+ New Custom Group</button>
+      <table class="sales-items"><tr><th>Group Name</th><th>Under</th><th>Classification</th></tr>
+      ${rows.map(g => `<tr><td>${acEsc(g.name)}${g.isPrimary ? ' <span style="color:#94a3b8;font-size:10px;">(Primary)</span>' : ''}</td><td>${acEsc(g.under)}</td><td>${acEsc(g.classification)}</td></tr>`).join('')}
+      </table>
+    </div>`;
+}
+
+function acNewCustomGroup() {
+  const name = prompt('New Group Name:');
+  if (!name) return;
+  const under = prompt('Under which Primary group?\n' + ACCOUNTS_PRIMARY_GROUPS.map(g => g.name).join(', '));
+  if (!under) return;
+  const result = createAccountsGroup({ name, under });
+  if (result && result.error) { accountsAlert(result.error); return; }
+  accountsAlert(`✓ ${result.name} added under ${result.under}`);
+  renderAccountsBody();
+}
+
+function acLedgerOptionsHtml(selectedId = '') {
+  return `<option value="">-Select-</option>` + ledgers.map(l =>
+    `<option value="${l.id}" ${l.id === selectedId ? 'selected' : ''}>${acEsc(l.name)} (${l.code})</option>`).join('');
+}
+
+function renderLedgers() {
+  const rows = ledgers.slice().sort((a, b) => a.code.localeCompare(b.code));
+  return `
+    <div class="sales-card">
+      <button class="primary" style="width:100%;margin-bottom:10px;" onclick="accountsSetView('ledger-new')">+ New Ledger</button>
+      <table class="sales-items"><tr><th>Ledger Code</th><th>Ledger Name</th><th>Accounts Group</th></tr>
+      ${rows.map(l => `<tr><td>${l.code}</td><td>${acEsc(l.name)}</td><td>${acEsc(l.groupName)}</td></tr>`).join('')}
+      </table>
+    </div>`;
+}
+
+function renderLedgerForm() {
+  const groupOptions = accountsGroups.slice().sort((a, b) => a.sortOption - b.sortOption)
+    .map(g => `<option value="${acEsc(g.name)}">${acEsc(g.name)}${g.isPrimary ? ' (Primary)' : ''}</option>`).join('');
+  return `
+    <div class="sales-card">
+      <p class="sales-back" onclick="accountsSetView('ledgers')">‹ Back to Ledgers</p>
+      <p style="font-weight:700;font-size:13px;margin-bottom:10px;">New Ledger</p>
+      <label style="font-size:11px;color:#64748b;">Ledger Name*</label>
+      <input id="ac-lg-name" type="text" style="width:100%;padding:8px;margin:4px 0 10px;border:1px solid #e2e8f0;border-radius:6px;">
+      <label style="font-size:11px;color:#64748b;">Under (Group)*</label>
+      <select id="ac-lg-group" style="width:100%;padding:8px;margin:4px 0 10px;border:1px solid #e2e8f0;border-radius:6px;"><option value="">-Select-</option>${groupOptions}</select>
+      <label style="font-size:11px;color:#64748b;">Taxability</label>
+      <select id="ac-lg-tax" style="width:100%;padding:8px;margin:4px 0 10px;border:1px solid #e2e8f0;border-radius:6px;">${ACCOUNTS_TAXABILITY_OPTIONS.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
+      <label style="font-size:11px;color:#64748b;">Opening Balance</label>
+      <input id="ac-lg-opening" type="number" step="0.001" value="0" style="width:100%;padding:8px;margin:4px 0 10px;border:1px solid #e2e8f0;border-radius:6px;">
+      <label style="font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input id="ac-lg-payroll" type="checkbox"> Is Payroll</label>
+      <button class="primary" style="width:100%;" onclick="acSaveLedgerForm()">Save Ledger</button>
+    </div>`;
+}
+
+function acSaveLedgerForm() {
+  const result = createLedger({
+    name: document.getElementById('ac-lg-name').value.trim(),
+    groupName: document.getElementById('ac-lg-group').value,
+    taxability: document.getElementById('ac-lg-tax').value,
+    openingBalance: document.getElementById('ac-lg-opening').value,
+    isPayroll: document.getElementById('ac-lg-payroll').checked
+  });
+  if (result && result.error) { accountsAlert(result.error); return; }
+  accountsAlert(`✓ ${result.code} — ${result.name} created`);
+  accountsSetView('ledgers');
+}
+
+// ── Shared 5-mode payment header (Cash/Bank/C Card/Wallet/Cheque) — used
+// identically by General Receipt and General Payment, per the live trace.
+function acMethodsBlockHtml(prefix) {
+  const row = (key, label, extra = '') => `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+      <input type="checkbox" id="${prefix}-m-${key}-en" onchange="acRecalcAmount('${prefix}')">
+      <span style="font-size:11.5px;width:52px;">${label}</span>
+      <input type="number" step="0.001" id="${prefix}-m-${key}-amt" placeholder="Amt" oninput="acRecalcAmount('${prefix}')" style="width:90px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
+      ${extra}
+    </div>`;
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:8px;">Payment Mode</p>
+      ${row('cash', 'Cash')}
+      ${row('bank', 'Bank')}
+      ${row('cCard', 'C Card')}
+      ${row('wallet', 'Wallet')}
+      ${row('cheque', 'Cheque')}
+      <label style="font-size:11px;color:#64748b;">Amount (auto-summed)*</label>
+      <input id="${prefix}-amount" type="number" step="0.001" readonly style="width:100%;padding:8px;margin:4px 0;border:1px solid #10b981;background:#F4FBF8;border-radius:6px;font-weight:700;">
+    </div>`;
+}
+function acRecalcAmount(prefix) {
+  const total = ['cash', 'bank', 'cCard', 'wallet', 'cheque'].reduce((s, k) => {
+    const en = document.getElementById(`${prefix}-m-${k}-en`);
+    const amt = document.getElementById(`${prefix}-m-${k}-amt`);
+    return s + (en && en.checked ? (Number(amt.value) || 0) : 0);
+  }, 0);
+  const amountEl = document.getElementById(`${prefix}-amount`);
+  if (amountEl) amountEl.value = total.toFixed(3);
+}
+function acReadMethods(prefix) {
+  const methods = {};
+  ['cash', 'bank', 'cCard', 'wallet', 'cheque'].forEach(k => {
+    const en = document.getElementById(`${prefix}-m-${k}-en`);
+    const amt = document.getElementById(`${prefix}-m-${k}-amt`);
+    methods[k] = { enabled: !!(en && en.checked), amount: Number(amt && amt.value) || 0 };
+  });
+  return methods;
+}
+
+const AC_MAX_LINE_ROWS = 6;
+function acAddLineRow(formType) {
+  if (acVisibleLineRows >= AC_MAX_LINE_ROWS) return;
+  const row = document.getElementById(`ac-row-${formType}-${acVisibleLineRows}`);
+  if (row) row.style.display = '';
+  acVisibleLineRows++;
+}
+
+// ── General Receipt ──
+function renderGeneralReceipts() {
+  const rows = generalReceipts.slice().sort((a, b) => b.id.localeCompare(a.id));
+  return `
+    <div class="sales-card">
+      <button class="primary" style="width:100%;margin-bottom:10px;" onclick="accountsSetView('receipt-new')">+ New General Receipt</button>
+      ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No General Receipts yet.</p>` :
+        `<table class="sales-items"><tr><th>Receipt No</th><th>Date</th><th>Amount</th></tr>
+        ${rows.map(r => `<tr><td>${r.id}</td><td>${r.date}</td><td>BD ${r.amount.toFixed(3)}</td></tr>`).join('')}
+        </table>`}
+    </div>`;
+}
+
+function acLineRowHtml(formType, i, withJob) {
+  return `
+    <tr id="ac-row-${formType}-${i}" style="display:${i === 0 ? '' : 'none'};">
+      <td style="padding:4px;"><select id="ac-${formType}-ledger-${i}" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;">${acLedgerOptionsHtml()}</select></td>
+      <td style="padding:4px;"><input id="ac-${formType}-amt-${i}" type="number" step="0.001" style="width:80px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      <td style="padding:4px;"><input id="ac-${formType}-narr-${i}" type="text" placeholder="Narration" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      ${withJob ? `<td style="padding:4px;"><input id="ac-${formType}-job-${i}" type="text" placeholder="Job No" style="width:90px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>` : ''}
+    </tr>`;
+}
+
+function renderGeneralReceiptForm() {
+  acVisibleLineRows = 1;
+  const rowsHtml = Array.from({ length: AC_MAX_LINE_ROWS }, (_, i) => acLineRowHtml('gr', i, false)).join('');
+  return `
+    <div class="sales-card">
+      <p class="sales-back" onclick="accountsSetView('receipts')">‹ Back to General Receipts</p>
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">New General Receipt</p>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Pure GL-coded receipt — no Customer/Invoice linkage. Ledger allocation lines below must total the Amount.</p>
+    </div>
+    ${acMethodsBlockHtml('gr')}
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:8px;">Ledger Allocation</p>
+      <table class="sales-items"><tr><th>Ledger</th><th>Amount</th><th>Narration</th></tr>${rowsHtml}</table>
+      <button style="font-size:11px;background:none;border:1px solid #10b981;color:#10b981;border-radius:6px;padding:4px 10px;cursor:pointer;margin-bottom:10px;" onclick="acAddLineRow('gr')">+ Add Row</button>
+      <label style="font-size:11px;color:#64748b;display:block;margin-top:8px;">Remarks</label>
+      <textarea id="ac-gr-remarks" style="width:100%;padding:8px;margin:4px 0 10px;border:1px solid #e2e8f0;border-radius:6px;min-height:50px;"></textarea>
+      <button class="primary" style="width:100%;" onclick="acSaveGeneralReceipt()">Create Receipt</button>
+    </div>`;
+}
+
+function acCollectLines(formType, withJob) {
+  const lines = [];
+  for (let i = 0; i < acVisibleLineRows; i++) {
+    const ledgerEl = document.getElementById(`ac-${formType}-ledger-${i}`);
+    const amtEl = document.getElementById(`ac-${formType}-amt-${i}`);
+    if (!ledgerEl || !ledgerEl.value || !amtEl || !Number(amtEl.value)) continue;
+    const narrEl = document.getElementById(`ac-${formType}-narr-${i}`);
+    const line = { ledgerId: ledgerEl.value, amount: Number(amtEl.value), narration: narrEl ? narrEl.value : '' };
+    if (withJob) {
+      const jobEl = document.getElementById(`ac-${formType}-job-${i}`);
+      line.jobId = jobEl && jobEl.value ? jobEl.value.trim() : null;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function acSaveGeneralReceipt() {
+  const result = createGeneralReceipt({
+    methods: acReadMethods('gr'),
+    amount: document.getElementById('gr-amount').value,
+    lines: acCollectLines('gr', false),
+    remarks: document.getElementById('ac-gr-remarks').value
+  });
+  if (result && result.error) { accountsAlert(result.error); return; }
+  accountsAlert(`✓ ${result.id} created`);
+  accountsSetView('receipts');
+}
+
+// ── General Payment ──
+function renderGeneralPayments() {
+  const rows = generalPayments.slice().sort((a, b) => b.id.localeCompare(a.id));
+  return `
+    <div class="sales-card">
+      <button class="primary" style="width:100%;margin-bottom:10px;" onclick="accountsSetView('payment-new')">+ New General Payment</button>
+      ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No General Payments yet.</p>` :
+        `<table class="sales-items"><tr><th>Payment No</th><th>Date</th><th>Amount</th><th>Status</th></tr>
+        ${rows.map(p => `<tr style="${p.status === 'cancelled' ? 'background:#FEF2F2;color:#B91C1C;' : ''}"><td>${p.id}</td><td>${p.date}</td><td>BD ${p.amount.toFixed(3)}</td><td>${acEsc(p.status)}${p.status !== 'cancelled' ? ` <button style="font-size:10px;background:none;border:1px solid #B91C1C;color:#B91C1C;border-radius:6px;padding:2px 6px;cursor:pointer;" onclick="acCancelPayment('${p.id}')">Cancel</button>` : ''}</td></tr>`).join('')}
+        </table>`}
+    </div>`;
+}
+
+function renderGeneralPaymentForm() {
+  acVisibleLineRows = 1;
+  const rowsHtml = Array.from({ length: AC_MAX_LINE_ROWS }, (_, i) => acLineRowHtml('gp', i, true)).join('');
+  return `
+    <div class="sales-card">
+      <p class="sales-back" onclick="accountsSetView('payments')">‹ Back to General Payments</p>
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">New General Payment</p>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">GL-coded payment — each line can optionally tie to a Job No (e.g. refunding a customer advance).</p>
+    </div>
+    ${acMethodsBlockHtml('gp')}
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:8px;">Ledger Allocation</p>
+      <table class="sales-items"><tr><th>Ledger</th><th>Amount</th><th>Narration</th><th>Job No</th></tr>${rowsHtml}</table>
+      <button style="font-size:11px;background:none;border:1px solid #10b981;color:#10b981;border-radius:6px;padding:4px 10px;cursor:pointer;margin-bottom:10px;" onclick="acAddLineRow('gp')">+ Add Row</button>
+      <label style="font-size:11px;color:#64748b;display:block;margin-top:8px;">Remarks</label>
+      <textarea id="ac-gp-remarks" style="width:100%;padding:8px;margin:4px 0 10px;border:1px solid #e2e8f0;border-radius:6px;min-height:50px;"></textarea>
+      <button class="primary" style="width:100%;" onclick="acSaveGeneralPayment()">Create Payment</button>
+    </div>`;
+}
+
+function acSaveGeneralPayment() {
+  const result = createGeneralPayment({
+    methods: acReadMethods('gp'),
+    amount: document.getElementById('gp-amount').value,
+    lines: acCollectLines('gp', true),
+    remarks: document.getElementById('ac-gp-remarks').value
+  });
+  if (result && result.error) { accountsAlert(result.error); return; }
+  accountsAlert(`✓ ${result.id} created`);
+  accountsSetView('payments');
+}
+function acCancelPayment(id) {
+  cancelGeneralPayment(id);
+  renderAccountsBody();
+}
+
+// ── Journal ──
+function renderJournals() {
+  const rows = journals.slice().sort((a, b) => b.id.localeCompare(a.id));
+  return `
+    <div class="sales-card">
+      <button class="primary" style="width:100%;margin-bottom:10px;" onclick="accountsSetView('journal-new')">+ New Journal</button>
+      ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No Journal entries yet.</p>` :
+        `<table class="sales-items"><tr><th>JL No</th><th>Date</th><th>Debit</th><th>Credit</th><th>Status</th></tr>
+        ${rows.map(j => `<tr style="${j.status === 'cancelled' ? 'background:#FEF2F2;color:#B91C1C;' : ''}"><td>${j.id}</td><td>${j.date}</td><td>BD ${j.drTotal.toFixed(3)}</td><td>BD ${j.crTotal.toFixed(3)}</td><td>${acEsc(j.status)}${j.status !== 'cancelled' ? ` <button style="font-size:10px;background:none;border:1px solid #B91C1C;color:#B91C1C;border-radius:6px;padding:2px 6px;cursor:pointer;" onclick="acCancelJournal('${j.id}')">Cancel</button>` : ''}</td></tr>`).join('')}
+        </table>`}
+    </div>`;
+}
+
+function acJournalRowHtml(i, visible) {
+  return `
+    <tr id="ac-row-jl-${i}" style="display:${visible ? '' : 'none'};">
+      <td style="padding:4px;"><select id="ac-jl-ledger-${i}" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;">${acLedgerOptionsHtml()}</select></td>
+      <td style="padding:4px;"><input id="ac-jl-dr-${i}" type="number" step="0.001" style="width:70px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      <td style="padding:4px;"><input id="ac-jl-cr-${i}" type="number" step="0.001" style="width:70px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      <td style="padding:4px;"><input id="ac-jl-narr-${i}" type="text" placeholder="Narration" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      <td style="padding:4px;"><input id="ac-jl-job-${i}" type="text" placeholder="Job No" style="width:80px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+    </tr>`;
+}
+
+function renderJournalForm() {
+  acVisibleLineRows = 2; // minimum 2 rows (DR/CR), matches the live system's default
+  const rowsHtml = Array.from({ length: AC_MAX_LINE_ROWS }, (_, i) => acJournalRowHtml(i, i < 2)).join('');
+  return `
+    <div class="sales-card">
+      <p class="sales-back" onclick="accountsSetView('journals')">‹ Back to Journal</p>
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">New Journal</p>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Free-form double entry — Debit total must equal Credit total, enforced on save.</p>
+      <table class="sales-items"><tr><th>Ledger</th><th>DR</th><th>CR</th><th>Narration</th><th>Job No</th></tr>${rowsHtml}</table>
+      <button style="font-size:11px;background:none;border:1px solid #10b981;color:#10b981;border-radius:6px;padding:4px 10px;cursor:pointer;margin-bottom:10px;" onclick="acAddLineRow('jl')">+ Add a new Row</button>
+      <label style="font-size:11px;color:#64748b;display:block;margin-top:8px;">Remarks</label>
+      <textarea id="ac-jl-remarks" style="width:100%;padding:8px;margin:4px 0 10px;border:1px solid #e2e8f0;border-radius:6px;min-height:50px;"></textarea>
+      <button class="primary" style="width:100%;" onclick="acSaveJournal()">Create Journal</button>
+    </div>`;
+}
+
+function acSaveJournal() {
+  const lines = [];
+  for (let i = 0; i < acVisibleLineRows; i++) {
+    const ledgerEl = document.getElementById(`ac-jl-ledger-${i}`);
+    const drEl = document.getElementById(`ac-jl-dr-${i}`);
+    const crEl = document.getElementById(`ac-jl-cr-${i}`);
+    if (!ledgerEl || !ledgerEl.value) continue;
+    const narrEl = document.getElementById(`ac-jl-narr-${i}`);
+    const jobEl = document.getElementById(`ac-jl-job-${i}`);
+    lines.push({
+      ledgerId: ledgerEl.value, dr: Number(drEl.value) || 0, cr: Number(crEl.value) || 0,
+      narration: narrEl ? narrEl.value : '', jobId: jobEl && jobEl.value ? jobEl.value.trim() : null
+    });
+  }
+  const result = createJournal({ lines, remarks: document.getElementById('ac-jl-remarks').value });
+  if (result && result.error) { accountsAlert(result.error); return; }
+  accountsAlert(`✓ ${result.id} created`);
+  accountsSetView('journals');
+}
+function acCancelJournal(id) {
+  cancelJournal(id);
+  renderAccountsBody();
 }

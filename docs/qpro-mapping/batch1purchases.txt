@@ -1,0 +1,124 @@
+# Q-Pro Module Mapping — Batch 1: Purchases
+
+## Live Test Records Created (for reference/testing)
+- **Supplier**: "ZZTEST SUPPLIER" — created in Masters → Accounts → Vendor (Supplier_master)
+  - Contact Person: "ZZTEST Contact", Telephone: "00000000", Address: "ZZTEST Test Address, Manama, Bahrain"
+  - Banking fields left blank (optional)
+- **Purchase Order**: PO-3711-AMD (Type = Others)
+  - Line: Product "ZZTEST Test Item", Qty 1, Unit "Nos", FxRate 10.000 BD, Vat% 10%, Vat 1.000, Net Amount 11.000, Ledger "Purchase"
+- **Purchase Invoice**: PI-3723-AMD (Type = Others), linked to same ZZTEST line, Net 11.000, status Confirmed
+
+⚠️ Note: There is also a stray/unused "ZZTEST SUPPLIER" record (id 126) created accidentally in the WRONG master (Masters → Inventory → Vendor, internally "Stock Group") before discovering the correct master. That one is not used by any transaction — safe to ignore or delete later.
+
+---
+
+## 1. Supplier Masters (two separate, unrelated masters found)
+
+### A. Masters → Inventory → Vendor (`masters/Group`)
+Internally called "Stock Group." Minimal fields only: **Name**, **Status** (Enabled/Disabled). Not used by Purchase Order/Invoice supplier lookup — appears to be a legacy/unused or different-purpose list.
+
+### B. Masters → Accounts → Vendor (`Supplier_master`) — THE REAL supplier master
+Used by all Purchase Order/Invoice/Payment/Debit Note supplier lookups. Fields:
+- Name* (required)
+- Contact Person* (required)
+- Telephone* (required)
+- Telephone 2
+- Email
+- Fax
+- Vat Name
+- Vat No
+- Tax % (dropdown, default 10%)
+- Is Credit (checkbox)
+- Credit Limit
+- Credit Days
+- Bank Account Number
+- Bank Account Holder Name
+- IBAN Number
+- Bank Swift
+- Bank Name
+- Bank Branch
+- Address* (required)
+- CR No
+- Country (dropdown, default Bahrain)
+- Opening Balance
+
+List page columns: Vendor Name, Telephone, Contact Person, Address, Action.
+
+---
+
+## 2. Purchase Order — three type-variants, shared numbering sequence
+
+| Variant | URL | Header color | Notes |
+|---|---|---|---|
+| Job | `furniture/PurchaseOrder/create_purchase_order_job` | Lavender/mauve `#D8BFD8` | Requires a Job No — validation error "Job No is required" if none attached |
+| Others | `furniture/PurchaseOrder/create_purchase_order_others` | Pale yellow | Free-text product line items. This is the variant used for PO-3711-AMD |
+| Inventory | `furniture/PurchaseOrder/create_purchase_order` (Type=Inventory) | Same lavender as Job | Has extra "Create New Product" inline link — ties line items to real stock/inventory master items instead of free text |
+
+Common fields: Supplier Name (autocomplete against Supplier_master), required "-Select-" Cash/Ledger dropdown near top (validation error "Please select a Cash ledger" if skipped), line items table (SL / PRODUCT / QTY / FXRATE / DISC / AMOUNT / VAT% / VAT / NET AMT / LEDGER), totals footer (Total Item, Disc%, Disc(BD), VAT(BD), Round off(BD), Gross Amount(BD)).
+
+Workflow: submitting a PO pushes it into an approval queue — confirmed the Approver Dashboard "PO Approval" KPI incremented after creating PO-3711-AMD.
+
+PO Register report exists at `PO_Register_Details` with filter/column set (documented separately).
+
+---
+
+## 3. Purchase Invoice — three type-variants, shared numbering sequence
+
+| Variant | URL | Notes |
+|---|---|---|
+| Others | `furniture/PurchaseInvoice/create_purchase_invoice_others` | Pale yellow header. Has "Search PO Number" + "Locate" button (autocomplete behaved inconsistently), "Job Item" column per line with paperclip/link icon (shows "Not allocated" if unlinked) |
+| Inventory | `furniture/PurchaseInvoice/create_purchase_invoice` (Type=Inventory) | Same as Others + "Create New Product" inline link |
+| Job | (not live-tested — no ZZTEST job available) | Structure mirrors Others/Inventory, requires Job No |
+
+Two-stage submission flow:
+1. Fill form → click **Submit** → goes to draft/edit view with additional "Other Expenses" button, "Other Expense Amount" field, totals summary row
+2. Click **Confirm** (pink/magenta button) → finalizes the invoice
+
+List page columns: # / PI NUMBER / PI TYPE / CLIENT / PI DATE / JOB NO / AMOUNT / ACTION
+List page filters: From Date, To Date, PI No, Supplier, Job No, --Select-- (type filter)
+
+---
+
+## 4. Supplier Payment (`Payment/list_payment`, create `Payment/create_payment`)
+
+List columns: PAYMENT NUMBER, VENDOR, PAYMENT DATE, PAYMENT AMOUNT, ACTION.
+
+Create form flow: Division (locked to company) + Name (vendor autocomplete) → reveals full payment form:
+- Cash [Amount field + checkbox]
+- C Card [Amount + Type dropdown + Authorized + checkbox]
+- Wallet [Amount + Type dropdown + Authorized + checkbox]
+- Cheque [Amount + Number + Bank + checkbox]
+- Amount* (required — styled with solid green background by default, just a visual style not an error state)
+- Reference Number
+- Invoice-allocation table: VOUCHER/INVOICE NUMBER / INVOICE DATE / INVOICE AMOUNT / PAID AMOUNT / PAYING AMOUNT / DISCOUNT AMOUNT / BALANCE AMOUNT
+- Advance payment row (own Paying Amount input)
+- Select Ledger / Enter Amount / Remarks / green "+" row (for additional ledger splits)
+- Remarks textarea
+- Create Payment (blue) / Cancel (red) buttons
+
+**🐛 BUG (reproducible, confirmed 3x in separate fresh tabs):**
+- The invoice-allocation table shows "No Invoice List Available..!" even when the selected vendor has a confirmed open invoice (tested with PI-3723-AMD) — unclear why invoices aren't surfacing here.
+- Clicking the Cash method's "Select" checkbox freezes the browser tab for 30+ seconds.
+- Clicking "Create Payment" freezes the tab and the payment is **never actually created** (verified via list page after recovery — still only shows the one pre-existing legacy record).
+- This is a genuine client-side JS defect in the Payment module that should be flagged/fixed, not replicated, in the rebuild.
+
+---
+
+## 5. Debit Note (`Debit_note/list_debit_note`, create `Debit_note/create_debit_note`)
+
+List columns: DEBIT NOTE NO, CLIENT, DATE, AMOUNT, ACTION. List was empty throughout testing.
+
+Create form: same Division + Name (vendor search) pattern as Payment. On selecting vendor, reveals:
+- Select Ledger* (autocomplete textbox)
+- Debit Note Date*
+- Taxable Type* (dropdown)
+- (form cuts off here — testing was interrupted by the same freeze bug described below before full field list could be captured)
+
+**🐛 BUG:** Same freeze behavior as Payment module was encountered when attempting to submit — tab hung and no record was created (confirmed via list page still showing "No data available in table" afterward).
+
+---
+
+## Cross-cutting lessons for rebuild
+- PO and PI both split into Job / Others / Inventory variants sharing one numbering sequence per document type, distinguished mainly by header color and whether line items reference a stock master vs. free text.
+- Supplier data lives in one canonical master (Accounts → Vendor); the Inventory → Vendor list is a separate, apparently vestigial list — don't replicate the duplication, just build one clean supplier master.
+- Payment and Debit Note modules both have real front-end reliability bugs (freezing, non-persistence, invoice list not populating) in the current Q-Pro system — the rebuild is an opportunity to fix these rather than copy the bug.
