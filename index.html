@@ -111,7 +111,7 @@
   .cs-row   { display:flex; flex-direction:column; gap:4px; }
   .cs-label { font-size:12px; font-weight:600; color:#64748b; }
   .cs-input { padding:9px 11px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; color:#1e2a3b; background:#fff; width:100%; box-sizing:border-box; }
-  .cs-input:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,.1); }
+  .cs-input:focus { outline:none; border-color:#600131; box-shadow:0 0 0 3px rgba(96,1,49,.1); }
   .calc-result-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .cr-item  { background:#fff; border-radius:8px; padding:10px 12px; border:1px solid #d1fae5; }
   .cr-item.highlight { background:#dcfce7; border-color:#10b981; }
@@ -174,10 +174,10 @@
     <div class="brand">
       <div style="width:32px;height:32px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;">
         <svg width="22" height="22" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4" y="4" width="92" height="92" rx="18" stroke="#5a1733" stroke-width="5" fill="none"/>
-          <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="#5a1733" stroke-width="6" stroke-linejoin="miter" stroke-linecap="square"/>
-          <polygon points="50,64 76,82 76,48" fill="none" stroke="#5a1733" stroke-width="5" stroke-linejoin="miter"/>
-          <line x1="57" y1="74" x2="76" y2="74" stroke="#5a1733" stroke-width="5"/>
+          <rect x="4" y="4" width="92" height="92" rx="18" stroke="#600131" stroke-width="5" fill="none"/>
+          <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="#600131" stroke-width="6" stroke-linejoin="miter" stroke-linecap="square"/>
+          <polygon points="50,64 76,82 76,48" fill="none" stroke="#600131" stroke-width="5" stroke-linejoin="miter"/>
+          <line x1="57" y1="74" x2="76" y2="74" stroke="#600131" stroke-width="5"/>
         </svg>
       </div>
       <div><h1 id="tb-title">Ecosystem</h1><p>Al Maraya Dev · Owner</p></div>
@@ -196,12 +196,12 @@
         <svg class="eco-svg" viewBox="0 0 380 500" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <radialGradient id="BG" cx="50%" cy="42%" r="65%">
-              <stop offset="0%" stop-color="#180810"/>
-              <stop offset="100%" stop-color="#0a0a0f"/>
+              <stop offset="0%" stop-color="#ffffff"/>
+              <stop offset="100%" stop-color="#f5f6f8"/>
             </radialGradient>
             <radialGradient id="CG" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#9a3560"/>
-              <stop offset="100%" stop-color="#5a1733"/>
+              <stop offset="0%" stop-color="#9c3d6c"/>
+              <stop offset="100%" stop-color="#600131"/>
             </radialGradient>
             <radialGradient id="OKG" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stop-color="#1a6040"/>
@@ -235,9 +235,9 @@
 
           <rect width="380" height="500" fill="url(#BG)"/>
           <!-- rings -->
-          <circle cx="190" cy="225" r="82" fill="none" stroke="rgba(255,255,255,.025)" stroke-width="1"/>
-          <circle cx="190" cy="225" r="145" fill="none" stroke="rgba(255,255,255,.018)" stroke-width="1"/>
-          <circle cx="190" cy="225" r="205" fill="none" stroke="rgba(255,255,255,.012)" stroke-width="1"/>
+          <circle cx="190" cy="225" r="82" fill="none" stroke="rgba(16,24,40,.06)" stroke-width="1"/>
+          <circle cx="190" cy="225" r="145" fill="none" stroke="rgba(16,24,40,.045)" stroke-width="1"/>
+          <circle cx="190" cy="225" r="205" fill="none" stroke="rgba(16,24,40,.03)" stroke-width="1"/>
 
           <!-- lines to ring1 -->
           <line id="line-operations" class="eco-line" x1="190" y1="225" x2="190" y2="123" stroke="rgba(15,157,88,.45)" stroke-width="1.5" stroke-dasharray="4,4"/>
@@ -251,12 +251,12 @@
           <line id="line-sales"      class="eco-line" x1="190" y1="225" x2="46"  y2="268" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
           <line id="line-estimation" class="eco-line" x1="190" y1="225" x2="64"  y2="168" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
           <!-- lines to ring3 -->
-          <line id="line-owner"      class="eco-line" x1="190" y1="225" x2="190" y2="32"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-owner"      class="eco-line" x1="190" y1="225" x2="190" y2="32"  stroke="rgba(16,24,40,.12)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-accounts"   class="eco-line" x1="190" y1="225" x2="354" y2="85"  stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-delivery"   class="eco-line" x1="190" y1="225" x2="364" y2="385" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-hr"         class="eco-line" x1="190" y1="225" x2="190" y2="464" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-hr"         class="eco-line" x1="190" y1="225" x2="190" y2="464" stroke="rgba(16,24,40,.12)" stroke-width="1" stroke-dasharray="2,6"/>
           <line id="line-approvals"  class="eco-line" x1="190" y1="225" x2="16"  y2="385" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-tally"      class="eco-line" x1="190" y1="225" x2="26"  y2="85"  stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2,6"/>
+          <line id="line-tally"      class="eco-line" x1="190" y1="225" x2="26"  y2="85"  stroke="rgba(16,24,40,.12)" stroke-width="1" stroke-dasharray="2,6"/>
 
           <!-- ══ CENTER — MARAYA LOGO ══ -->
           <g onclick="showPanel('center')" style="cursor:pointer;">
@@ -335,7 +335,7 @@
             <circle class="sub-glow" cx="355" cy="112" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
             <circle class="sub-bg"   cx="355" cy="112" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
             <text x="355" y="108" text-anchor="middle" font-size="9">🔩</text>
-            <text x="355" y="120" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">TRACKS</text>
+            <text x="355" y="120" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.6)" font-weight="700">TRACKS</text>
             <g id="badge-sub-tracks" style="display:none;">
               <circle cx="364" cy="103" r="7" fill="#ef4444" stroke="#1e2a3b" stroke-width="1.5"/>
               <text x="364" y="106" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
@@ -354,7 +354,7 @@
             <circle class="sub-glow" cx="372" cy="168" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
             <circle class="sub-bg"   cx="372" cy="168" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
             <text x="372" y="164" text-anchor="middle" font-size="9">🔍</text>
-            <text x="372" y="176" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">QC</text>
+            <text x="372" y="176" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.6)" font-weight="700">QC</text>
             <g id="badge-sub-qc" style="display:none;">
               <circle cx="381" cy="159" r="7" fill="#ef4444" stroke="#1e2a3b" stroke-width="1.5"/>
               <text x="381" y="162" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
@@ -373,7 +373,7 @@
             <circle class="sub-glow" cx="355" cy="224" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
             <circle class="sub-bg"   cx="355" cy="224" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
             <text x="355" y="220" text-anchor="middle" font-size="9">🏠</text>
-            <text x="355" y="232" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.65)" font-weight="700">INSTALL</text>
+            <text x="355" y="232" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.6)" font-weight="700">INSTALL</text>
             <g id="badge-sub-install" style="display:none;">
               <circle cx="364" cy="215" r="7" fill="#3b82f6" stroke="#1e2a3b" stroke-width="1.5"/>
               <text x="364" y="218" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
@@ -381,30 +381,30 @@
           </g>
 
           <!-- RING 2 UPHOLSTERY (soon) -->
-          <g id="node-upholstery" class="eco-node" onclick="showPanel('upholstery')" style="cursor:pointer;opacity:.35;">
-            <circle cx="334" cy="268" r="23" fill="rgba(255,255,255,.03)"/>
-            <circle cx="334" cy="268" r="19" fill="rgba(255,255,255,.04)"/>
-            <circle cx="334" cy="268" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+          <g id="node-upholstery" class="eco-node" onclick="showPanel('upholstery')" style="cursor:pointer;opacity:.6;">
+            <circle cx="334" cy="268" r="23" fill="rgba(16,24,40,.03)"/>
+            <circle cx="334" cy="268" r="19" fill="#eef0f3"/>
+            <circle cx="334" cy="268" r="19" fill="none" stroke="rgba(16,24,40,.1)" stroke-width="1"/>
             <text x="334" y="264" text-anchor="middle" font-size="12">🛋️</text>
-            <text x="334" y="276" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">UPHOLSTERY</text>
+            <text x="334" y="276" text-anchor="middle" font-size="6" fill="rgba(16,24,40,.45)" font-weight="700">UPHOLSTERY</text>
           </g>
 
           <!-- RING 2 JOINERY (soon) -->
-          <g id="node-joinery" class="eco-node" onclick="showPanel('joinery')" style="cursor:pointer;opacity:.35;">
-            <circle cx="258" cy="358" r="23" fill="rgba(255,255,255,.03)"/>
-            <circle cx="258" cy="358" r="19" fill="rgba(255,255,255,.04)"/>
-            <circle cx="258" cy="358" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+          <g id="node-joinery" class="eco-node" onclick="showPanel('joinery')" style="cursor:pointer;opacity:.6;">
+            <circle cx="258" cy="358" r="23" fill="rgba(16,24,40,.03)"/>
+            <circle cx="258" cy="358" r="19" fill="#eef0f3"/>
+            <circle cx="258" cy="358" r="19" fill="none" stroke="rgba(16,24,40,.1)" stroke-width="1"/>
             <text x="258" y="354" text-anchor="middle" font-size="12">🪵</text>
-            <text x="258" y="366" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">JOINERY</text>
+            <text x="258" y="366" text-anchor="middle" font-size="6" fill="rgba(16,24,40,.45)" font-weight="700">JOINERY</text>
           </g>
 
           <!-- RING 2 PAINTING (soon) -->
-          <g id="node-painting" class="eco-node" onclick="showPanel('painting')" style="cursor:pointer;opacity:.35;">
-            <circle cx="122" cy="358" r="23" fill="rgba(255,255,255,.03)"/>
-            <circle cx="122" cy="358" r="19" fill="rgba(255,255,255,.04)"/>
-            <circle cx="122" cy="358" r="19" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+          <g id="node-painting" class="eco-node" onclick="showPanel('painting')" style="cursor:pointer;opacity:.6;">
+            <circle cx="122" cy="358" r="23" fill="rgba(16,24,40,.03)"/>
+            <circle cx="122" cy="358" r="19" fill="#eef0f3"/>
+            <circle cx="122" cy="358" r="19" fill="none" stroke="rgba(16,24,40,.1)" stroke-width="1"/>
             <text x="122" y="354" text-anchor="middle" font-size="12">🎨</text>
-            <text x="122" y="366" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.5)" font-weight="700">PAINTING</text>
+            <text x="122" y="366" text-anchor="middle" font-size="6" fill="rgba(16,24,40,.45)" font-weight="700">PAINTING</text>
           </g>
 
           <!-- RING 2 SALES (built) -->
@@ -434,11 +434,11 @@
           </g>
 
           <!-- RING 3 (outer, all soon) -->
-          <g id="node-owner" class="eco-node" onclick="showPanel('owner')" style="cursor:pointer;opacity:.22;">
-            <circle cx="190" cy="32" r="16" fill="rgba(255,255,255,.04)"/>
-            <circle cx="190" cy="32" r="12" fill="rgba(255,255,255,.04)"/>
+          <g id="node-owner" class="eco-node" onclick="showPanel('owner')" style="cursor:pointer;opacity:.55;">
+            <circle cx="190" cy="32" r="16" fill="rgba(16,24,40,.03)"/>
+            <circle cx="190" cy="32" r="12" fill="#eef0f3"/>
             <text x="190" y="28" text-anchor="middle" font-size="9">👑</text>
-            <text x="190" y="38" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">OWNER</text>
+            <text x="190" y="38" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.4)" font-weight="700">OWNER</text>
           </g>
           <g id="node-accounts" class="eco-node eco-node-built" onclick="showPanel('accounts')" style="cursor:pointer;">
             <circle cx="354" cy="85" r="17" fill="rgba(15,157,88,.07)"/>
@@ -458,11 +458,11 @@
             <circle cx="374" cy="375" r="6.5" fill="#0774F8"/>
             <text x="374" y="378.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">4</text>
           </g>
-          <g id="node-hr" class="eco-node" onclick="showPanel('hr')" style="cursor:pointer;opacity:.22;">
-            <circle cx="190" cy="464" r="16" fill="rgba(255,255,255,.04)"/>
-            <circle cx="190" cy="464" r="12" fill="rgba(255,255,255,.04)"/>
+          <g id="node-hr" class="eco-node" onclick="showPanel('hr')" style="cursor:pointer;opacity:.55;">
+            <circle cx="190" cy="464" r="16" fill="rgba(16,24,40,.03)"/>
+            <circle cx="190" cy="464" r="12" fill="#eef0f3"/>
             <text x="190" y="460" text-anchor="middle" font-size="9">👥</text>
-            <text x="190" y="470" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">HR</text>
+            <text x="190" y="470" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.4)" font-weight="700">HR</text>
           </g>
           <g id="node-approvals" class="eco-node eco-node-built" onclick="showPanel('approvals')" style="cursor:pointer;">
             <circle cx="16" cy="385" r="17" fill="rgba(15,157,88,.07)"/>
@@ -473,18 +473,18 @@
             <circle cx="6" cy="395" r="6.5" fill="#0774F8"/>
             <text x="6" y="398.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">3</text>
           </g>
-          <g id="node-tally" class="eco-node" onclick="showPanel('tally')" style="cursor:pointer;opacity:.22;">
-            <circle cx="26" cy="85" r="16" fill="rgba(255,255,255,.04)"/>
-            <circle cx="26" cy="85" r="12" fill="rgba(255,255,255,.04)"/>
+          <g id="node-tally" class="eco-node" onclick="showPanel('tally')" style="cursor:pointer;opacity:.55;">
+            <circle cx="26" cy="85" r="16" fill="rgba(16,24,40,.03)"/>
+            <circle cx="26" cy="85" r="12" fill="#eef0f3"/>
             <text x="26" y="81" text-anchor="middle" font-size="9">🔗</text>
-            <text x="26" y="91" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.4)" font-weight="700">TALLY</text>
+            <text x="26" y="91" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.4)" font-weight="700">TALLY</text>
           </g>
 
           <!-- LEGEND -->
           <g transform="translate(10,482)">
-            <circle cx="7" cy="6" r="5" fill="#0f9d58"/><text x="16" y="10" font-size="8" fill="rgba(255,255,255,.3)">Built</text>
-            <circle cx="54" cy="6" r="5" fill="#c47d00"/><text x="63" y="10" font-size="8" fill="rgba(255,255,255,.3)">Building</text>
-            <circle cx="110" cy="6" r="5" fill="rgba(255,255,255,.12)"/><text x="119" y="10" font-size="8" fill="rgba(255,255,255,.2)">Planned</text>
+            <circle cx="7" cy="6" r="5" fill="#0f9d58"/><text x="16" y="10" font-size="8" fill="rgba(16,24,40,.5)">Built</text>
+            <circle cx="54" cy="6" r="5" fill="#c47d00"/><text x="63" y="10" font-size="8" fill="rgba(16,24,40,.5)">Building</text>
+            <circle cx="110" cy="6" r="5" fill="#d8dbe0"/><text x="119" y="10" font-size="8" fill="rgba(16,24,40,.4)">Planned</text>
           </g>
         </svg>
       </div>
@@ -498,15 +498,15 @@
           <div class="qs-v" id="qs-building-count" style="color:#fbbf24;">–</div>
           <div class="qs-l" style="color:rgba(251,191,36,.6);">Building</div>
         </div>
-        <div class="qs" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);">
-          <div class="qs-v" id="qs-planned-count" style="color:rgba(255,255,255,.25);">–</div>
-          <div class="qs-l" style="color:rgba(255,255,255,.2);">Planned</div>
+        <div class="qs" style="background:#f1f2f4;border:1px solid #e7e9ed;">
+          <div class="qs-v" id="qs-planned-count" style="color:#9ba1aa;">–</div>
+          <div class="qs-l" style="color:#9ba1aa;">Planned</div>
         </div>
       </div>
 
-      <div style="margin:4px 16px 16px;padding:11px 13px;background:rgba(7,116,248,.08);border:1px solid rgba(7,116,248,.2);border-radius:12px;font-size:11px;color:rgba(255,255,255,.55);line-height:1.7;">
-        <span style="color:rgba(255,255,255,.7);font-weight:700;">① – ⑤ Core revenue pipeline:</span>
-        Sales <span style="color:#45AAF2;">→</span> Estimator <span style="color:#45AAF2;">→</span> Approver <span style="color:#45AAF2;">→</span> Jobs <span style="color:#45AAF2;">→</span> Accounts — the blue-numbered badges above trace one quotation all the way from enquiry to invoice.
+      <div style="margin:4px 16px 16px;padding:11px 13px;background:#f4e6ec;border:1px solid #e0c2d0;border-radius:12px;font-size:11px;color:#42011f;line-height:1.7;">
+        <span style="color:#600131;font-weight:700;">① – ⑤ Core revenue pipeline:</span>
+        Sales <span style="color:#600131;font-weight:700;">→</span> Estimator <span style="color:#600131;font-weight:700;">→</span> Approver <span style="color:#600131;font-weight:700;">→</span> Jobs <span style="color:#600131;font-weight:700;">→</span> Accounts — the blue-numbered badges above trace one quotation all the way from enquiry to invoice.
       </div>
     </div>
 
@@ -701,7 +701,7 @@
       <p class="card-title" style="margin-bottom:8px;">Ownership options per department</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:7px;">
         <div style="background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:var(--r3);padding:9px;"><p style="font-size:11px;font-weight:700;color:var(--warn);">⏳ Wait for PM</p><p style="font-size:11px;color:var(--ink2);margin-top:3px;">Default. 48h deadline.</p></div>
-        <div style="background:#faf5ff;border:1px dashed #c4b5fd;border-radius:var(--r3);padding:9px;"><p style="font-size:11px;font-weight:700;color:#7c3aed;">✏️ Fill myself</p><p style="font-size:11px;color:var(--ink2);margin-top:3px;">Operations enters directly.</p></div>
+        <div style="background:#f4e6ec;border:1px dashed #e0c2d0;border-radius:var(--r3);padding:9px;"><p style="font-size:11px;font-weight:700;color:#600131;">✏️ Fill myself</p><p style="font-size:11px;color:var(--ink2);margin-top:3px;">Operations enters directly.</p></div>
         <div style="background:var(--info-bg);border:1px solid var(--info-line);border-radius:var(--r3);padding:9px;"><p style="font-size:11px;font-weight:700;color:var(--info);">👤 Delegate</p><p style="font-size:11px;color:var(--ink2);margin-top:3px;">Assign with deadline + alert.</p></div>
       </div>
     </div>
@@ -947,7 +947,7 @@
           <!-- Window info strip -->
           <div style="background:#f0f4ff;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;gap:16px;flex-wrap:wrap;flex:none;">
             <span style="font-size:12px;color:#64748b;">Size: <strong id="cs-win-size" style="color:#1e2a3b;"></strong></span>
-            <span style="font-size:12px;color:#64748b;">Treatment: <strong id="cs-win-treatment" style="color:#7c3aed;"></strong></span>
+            <span style="font-size:12px;color:#64748b;">Treatment: <strong id="cs-win-treatment" style="color:#600131;"></strong></span>
             <span style="font-size:12px;color:#64748b;">Fabric: <strong id="cs-win-fabric" style="color:#1e2a3b;"></strong></span>
             <span style="font-size:12px;color:#64748b;">Design: <strong id="cs-win-design" style="color:#1e2a3b;"></strong></span>
           </div>
@@ -1052,7 +1052,7 @@
 
             <!-- Save button -->
             <div style="margin-top:16px;padding-bottom:20px;">
-              <button onclick="saveCalcSheet()" style="width:100%;padding:14px;background:#7c3aed;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">
+              <button onclick="saveCalcSheet()" style="width:100%;padding:14px;background:#600131;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">
                 Save calc sheet →
               </button>
             </div>
@@ -1080,7 +1080,7 @@
             <div id="cc-target-list"></div>
 
             <div style="margin-top:16px;padding-bottom:20px;">
-              <button onclick="applyCopyCalc()" style="width:100%;padding:14px;background:#7c3aed;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">
+              <button onclick="applyCopyCalc()" style="width:100%;padding:14px;background:#600131;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">
                 Copy to selected windows →
               </button>
             </div>

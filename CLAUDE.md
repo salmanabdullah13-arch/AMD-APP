@@ -735,3 +735,124 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   (item 2); still open from prior sessions — Accounts/Payables KPI
   netting fix, Batch 5/6 build decision, `shell.js` `M` object staleness
   refresh (§2), `jobCards[]`/`curtainJobs[]` unification.
+
+### 2 Aug 2026 (later same day) — UI redesign, Chunk 1: Shell + Operations + Curtain retoned to a single light system
+
+- **Source of the redesign:** Salman uploaded a design-tool export
+  ("Heartwood Joinery" — a fictional joinery-company PWA mockup, zip
+  contained a `.dc.html` interactive prototype plus an unrelated bundled
+  `_ds/nocturne` dark/blurple design-system export that was **not** what was
+  actually rendered and was correctly ignored). The real reference: light
+  `#f5f6f8` ground, white 14px-radius cards with a soft
+  `0 1px 2px rgba(16,24,40,.04)` shadow, a single wine/maroon `#600131`
+  brand accent (buttons, active states, links — no separate blue "info"
+  color), pill-shaped status tags, system font, sidebar-collapses-to-tabbar
+  responsive nav. Two Artifact mockups were built and approved before any
+  real code changed: a 3-direction comparison, then a Sales-module pilot in
+  the Heartwood palette specifically.
+- **Two explicit decisions Salman made** (asked directly, not assumed):
+  **(1) one brand accent everywhere**, replacing the old per-module color
+  zoning (Curtain=purple, Purchasing=lavender, Estimator=amber, etc. — see
+  §4's now-superseded "Design tokens + per-module accent zoning" note);
+  **(2) unify the whole app to light** — no more dark Shell. This is a
+  bigger visual change than it sounds: the Shell (PIN lock, ecosystem hub,
+  topbar, bottom nav, info-panel, roadmap, notes, checklist) had **zero**
+  token indirection for its dark colors — every `rgba(255,255,255,.X)` was
+  written literally per-rule, so this was a real rewrite, not a token swap.
+- **True scope turned out much bigger than the pilot suggested** — before
+  touching code, grepped for hardcoded hex colors across every module:
+  purchasing.js 87 (zero shared `--biz-*` token usage, contrary to what an
+  earlier session's comment claimed was "modernized" — it wasn't), sales.js
+  76, jobs.js 65, accounts.js 50, estimator.js 41, approver.js 40,
+  storekeeper.js 30 — ~390 hardcoded colors across those 7 files alone,
+  before Operations/Curtain/Shell. **Decision: chunk the rollout, verify +
+  commit each chunk separately** rather than one large unreviewed sweep —
+  Salman chose this explicitly over doing it all in one session.
+- **Chunk 1 (this entry) covers:**
+  - `styles.css` `:root` — `--maraya`/`--maraya2`/`--maraya3` ramp changed
+    from the old `#5a1733`/`#7a2347`/`#9a3560` to `#600131`/`#7c1a4a`/
+    `#9c3d6c`. `--dark`/`--dark2`/`--dark3` **renamed** to `--shell-bg`/
+    `--shell-surface`/`--shell-tint` (now hold light values — keeping the
+    old names would have been actively misleading) plus new `--shell-ink`/
+    `--shell-ink-muted`/`--shell-ink-faint`/`--shell-border`. Radius scale
+    tightened to `14px`/`10px`/`10px` (was `16`/`12`/`8`) to match the
+    reference.
+  - Full Shell component rewrite (`.lock`, `.topbar`, `.bnav`, `.eco-bg`,
+    `.info-panel`, `.roadmap`, `.note-card`, `.check-section`, `.ph`) — dark
+    → light, every literal `rgba(255,255,255,.X)` replaced with the new
+    ink/border tokens.
+  - `#ops-module-wrap` and `#curt-module-wrap` local variable blocks
+    retoned — `--info` (previously blue `#2563eb`, used for sub-tabs/links/
+    back-buttons) and `--curt`/`--purple` (Curtain's own accent) both fold
+    into the shared wine `--maraya`, since neither was a true semantic,
+    both were functioning as a second brand color. **True semantics kept
+    distinct on purpose** — `--ok`/`--warn`/`--bad` (green/amber/red) are
+    unchanged, and Operations' department-legend colors
+    (`--carp`/`--paint`/`--uph`/`--metal`) are unchanged too, since those
+    are genuine categorical/qualitative colors (a heatmap needs multiple
+    distinguishable hues), not brand identity — folding them into one
+    accent would have made that legend unreadable. Added the reference's
+    subtle card shadow to `.card`/`.kpi` in both modules.
+  - **Ecosystem-hub SVG** (`index.html`, the circular module map) — the
+    single largest piece of real visual-design work in this chunk, not a
+    token swap. It was hand-tuned for a black backdrop: radial-gradient
+    background (`#180810`→`#0a0a0f`), `rgba(255,255,255,.0X)` "ghost"
+    rings/lines/text calibrated to be faint-but-visible against black —
+    all of which is **literally invisible** against a light backdrop (near-
+    white on light grey). Rewrote: background gradient to white→`#f5f6f8`;
+    the 3 outer guide-ring strokes and the 3 lines to the "soon" ring-3
+    nodes (Owner/HR/Tally) to dark low-opacity equivalents; all 6 "soon"/
+    planned nodes (Upholstery, Joinery, Painting, Owner, HR, Tally) from
+    near-invisible white ghosts to a visible light-grey `#eef0f3` fill with
+    a soft dark border (iterated on opacity via real screenshots until it
+    read clearly as "planned, not built" without looking like a solid
+    blob); sub-node labels (Tracks/QC/Install) and the legend text to dark
+    ink. **Deliberately left unchanged**, confirmed correct via screenshot:
+    the *built*-node circles (dark-toned `OKG`/`PUG`/`CG` radial gradients)
+    and their white text — these are colored badges, not canvas, and read
+    fine as solid circles on light; the center Maraya logo circle likewise
+    (though its literal hex was updated from the old `#9a3560`/`#5a1733`
+    ramp to the new `#9c3d6c`/`#600131` for exact brand consistency, along
+    with the topbar's small logo mark SVG which had the same old literal
+    values).
+  - Also found and fixed while grepping for leftover old-accent hex values
+    (a real defect-hunt, not just the planned files): 4 instances of
+    literal `#7c3aed` (old Curtain purple) in Curtain's calc-sheet UI
+    embedded directly in `index.html` (input focus ring, a "Fill myself"
+    hint box, a treatment label, two save buttons) — all outside the
+    `#curt-module-wrap`-scoped CSS so the module retoning didn't reach
+    them; and 2 instances in `styles.css` (`#ops-module-wrap`'s
+    `.pill.purple`/`button.sm.purple`, a cross-module reference to Curtain
+    used elsewhere in Operations) — both now point at the shared wine
+    token instead of hardcoded purple.
+  - Also fixed two more Shell-adjacent literal-color bugs found only by
+    looking at the rendered screenshot, not by grep: a "Planned" KPI tile
+    (`qs-planned-count`) and a "Core revenue pipeline" info banner on the
+    Ecosystem page, both inline-styled directly in `index.html` (not part
+    of the Shell CSS rewrite since they're not shared classes) using
+    `rgba(255,255,255,.X)` text on `rgba(255,255,255,.0X)`/light-blue
+    backgrounds — both were reading as blank/washed-out white space until
+    caught in the screenshot and given proper light-theme colors (grey
+    tile, wine-tinted banner).
+- **Verification:** Playwright screenshots (headless Chromium) of PIN
+  unlock, the Ecosystem hub, Operations dashboard, and Curtain & Blinds
+  dashboard — all confirmed rendering correctly: light backgrounds, wine
+  accent on active tabs/buttons/badges, no leftover purple or blue
+  anywhere. Grepped `index.html` and `styles.css` for every old accent hex
+  (`#7c3aed`, `#5a1733`/`#7a2347`/`#9a3560`, `#5b21b6`) after the visual
+  pass — all clear except one intentional doc-comment. Did not re-run the
+  full `node --check`/duplicate-declaration/onclick-cross-reference battery
+  since no JS logic changed this chunk, only CSS values and SVG attributes.
+- **Explicitly NOT touched this chunk** (still on the old hardcoded colors,
+  scheduled as Chunk 2 and Chunk 3): Purchasing, Storekeeper, Sales,
+  Estimator, Approver, Jobs, Accounts. Don't be surprised these still look
+  like the old design — that's expected until their chunks land.
+- **Next steps:** Chunk 2 (Purchasing + Storekeeper) and Chunk 3 (Sales/
+  Estimator/Approver/Jobs/Accounts) — see the color-count breakdown above
+  for scope. Each of the ~390 hardcoded hex values across those 7 files
+  needs the same treatment: fold brand/interactive-accent uses into the
+  wine token, leave true semantics and categorical colors alone. The 6
+  modules that already read from shared `--biz-*` tokens (all but
+  Purchasing) should need central-token updates plus per-file cleanup of
+  whatever wasn't tokenized; Purchasing needs the token migration itself
+  first, not just a recolor.
