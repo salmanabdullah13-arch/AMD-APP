@@ -1,0 +1,110 @@
+# Q-Pro Module Mapping — Batch 4: Sales & Job Operations
+
+Scope: Transactions → Sales (Enquiry, Quotation, Proforma, Invoice, Delivery Note, Receipt, Credit Note), Transactions → Operations (Job Card, Update Job Status, Labour Cost), Masters → Enquiry and Masters → Quotations submasters, and Dashboards → Sales & Estimator.
+
+No new live test records were created in this batch. Exploration reused the existing ZZTEST customer / ENQ04061AMD enquiry created in a prior batch, plus read-only inspection of live production records (e.g. Cubique Design Studio / Delmon Fish quotations, invoices and job cards) for structure only.
+
+## 1. Enquiry
+
+**Create (`furniture/Enquiry/createenquiry`)** — Basic tab only at creation:
+- Enquiry No (auto, e.g. `ENQ04070AMD`) and Enquiry Date (auto, editable-looking but system-set)
+- Select Division (single option: Al Maraya Decor)
+- Select Source Of Enquiry: Architect/Interior Designer, Email, Existing client, Q-pro (Old quotes), Referrals, Social Media, walk inn
+- Sales Person Assigned (dropdown of ~20 staff names)
+- Customer Name, Telephone, Email, Address, Contact Person, VAT Name, VAT No, Sales Man — this second block appears to be a customer-autocomplete section separate from the sales-person dropdown above
+
+**List (`furniture/Enquiry/listEnquiry`)** — this route actually renders the Sales Dashboard's enquiry grid (title "Enquiry List"). Filters: Sales Person dropdown (includes a "Test" role name, plus Un Assigned / Un Attended / Un Quoted quick filters). Columns: # / ENQ NO / DATE / CLIENT / SALESMAN / STATUS / SOURCE / DAYS / ACTION. Status values seen: Quoted, Attended, Open. "DAYS" appears to be a days-since-created/aging counter. ~250 total entries.
+
+**Edit (`furniture/Enquiry/editenquiry/{id}`)** — two tabs:
+- **Basic**: same fields as create, pre-filled (verified against ZZTEST enquiry ENQ04061AMD — Customer Name "ZZTEST", Telephone "00099911", Address "Test Address - Claude Mapping Exercise - Safe to Delete", Contact Person "Test Contact"). Also has a "File Manager" link (per-enquiry attachments).
+- **Follow up**: logs client interactions — Date of Appointment, Meeting Type (dropdown, master-driven), Outcome (dropdown, master-driven), Notes (free text), plus a running history table (DATE / MEETING TYPE / OUTCOME). Confirmed one logged entry: "Jul 25, 2026 — Telephone Call — Required design/proposal".
+
+## 2. Quotation
+
+**List (`furniture/furniture_quotations/quotationList`)** — tabs: Draft / Open / Confirmed / Closed / All, plus Sales Person filter. Columns: # / QTN NO / DATE / CLIENT / PROJECT / SALESMAN / AMT / STATUS / ACTION. Quote numbering format `AMD-{seq}-{version}` (e.g. `AMD-15359-0`, and revisions increment the version suffix, e.g. `AMD-14878-2`). STATUS column shows workflow stage, not just open/closed — observed values: SALES, ESTIMATOR, APPROVER. ~215 total entries.
+
+**Manage Quote hub (`manage_quotation/quotation/{id}/{div}/{qtnSeq}`)** — central record view for a quotation:
+- Header: Client, Project, Qn No., Qn Date, Amount, Confirm Date, Notes (e.g. "Comms TBC")
+- Action buttons: PRINT QUOTE, EDIT QUOTE, DUPLICATE, ACTION, ESTIMATION, Short List for Estimation, Print, Discount, File Manager (Add File)
+- Linked-document tabs: Invoices, Receipts, Credit Notes, Jobs, Proforma, Delivery Notes — each shows a mini-table (e.g. Invoices tab columns: INVOICE NO. / INVOICE DATE / INVOICE AMOUNT / RECEIVED AMOUNT / BALANCE / PO NO., or "No Invoice List Exist..." if none)
+- Workflow audit trail table: # / ACTION / USER / DATE / USER TYPE / STATUS — e.g. row 1 "Create – Salman Abdullah – Sales – Draft", row 2 "Pick – Salman Abdullah – Estimator – Draft"
+
+**3-step creation/edit wizard** (shares nav tabs: Client & Project / Product & Services / Finalise):
+- **Client & Project** (`furniture/furniture_quotation_client_project/index/{id}`): pulls Enquiry Details (Enquiry No, Customer Name, Customer Code, Telephone, Email, Address, Contact Person, VAT Name, VAT No) read-only from the source enquiry; Requirements (free text, defaults to enquiry text); a VAT% field (10%); Contact Person select (with "New" option) plus a read-only Contact Details recap (Name/Tel/Email); Quote Type (e.g. "With Estimation"); Save & Proceed button.
+- **Product & Services** (`furniture/Furnitures/index/{id}`): line-item builder grouped under named Groups (e.g. "Omani Beige Stone"). Item entry fields: Product/Service, Qty, Unit (large dropdown: Box, Btl, CBM, CFT, Ctn, Drm, Gal, Kg, LM, Ltr, Meters, Nos, Pairs, Pkt, Roll, Sets, Sheet, Sqmtr, Yard, Lot, Area, Window, Flat, Room, Strip, Villa, Bundle, Seat, BKT, RM, LS, ml, Panel, BAG, LTH, Gram), Rate, Amount, Vat%, Disc%, Disc.Amt, Net Amount, Description (+ Description Template picker), Internal Comments, Select Image (drag-and-drop). Running totals shown: Item Total, Discount, Gross Amount, % Discount, Total Discount, VAT, Net Amount. Item table columns: SL / PRODUCT / QTY / RATE / DISC. / TOTAL / VAT % / VAT / NET AMT / IMAGE / ORDER / ACTIONS (Optional / Edit / Delete per line). Line items carry free-text internal costing notes (e.g. slab size calc, conversion/bank/customs/transport cost breakdown) — used by estimators to justify pricing. Also: "Filter items without estimation" and a Group filter, "Change Group Order" control, and "View Approver Comments" link.
+- **Finalise** (`furniture/Furniture_payment_terms/index/{id}`): File Manager (Add File); Select Covering Letter Template (master-driven, auto-fills a letter body referencing the quote subject); Select Terms & Conditions (master-driven dropdown, auto-fills a numbered T&C block into an editable Terms and Conditions textarea); "Update Quotation" submit button.
+
+## 3. Proforma
+
+**List only (`furniture/Proforma`)** — no manual create form found; Proforma records are system-generated from a confirmed quotation (via the Manage Quote / Job Card Management "PROFORMA" action). Columns: # / PROFORMA / QTN NO / DATE / CLIENT / PROFORMA AMOUNT / ACTION. Numbering format `P26AMD{seq}` (e.g. `P26AMD02691`). ~250 entries.
+
+## 4. Invoice
+
+**List only (`Invoices`)** — same pattern as Proforma: no manual create, generated from job/quotation flow (confirmed via the print link opening `Manage_quotation/printInvoiceDetails/{id}/pdf` in a new tab, a PDF-style print view). Columns: # / INV NO / QTN NO / DATE / CLIENT / INV AMOUNT / PAID AMOUNT / AMOUNT (balance) / ACTION. Numbering format `IN26AMD{seq}`.
+
+## 5. Delivery Note
+
+**List only (`jobcard/Delivery_note/delivery_note_list`)** — generated from the Job Card Management hub's "DELIVERY NOTE" action, not manually created from this list page. Columns: # / DN NUMBER / CLIENT / DN DATE / ACTION. Numbering format `DN26AMD{seq}`.
+
+## 6. Receipt
+
+**Create (`Receipt/create_receipt`)** — two-stage form:
+- Stage 1: Division (fixed) + Name (customer autocomplete text box — typing shows a live-filtered dropdown, e.g. typing "ZZTEST" surfaces a "ZZTEST" suggestion after a short delay).
+- Stage 2 (after selecting a client): "Client Name: {name}" header + date; payment-method grid with a checkbox per method and matching fields: Cash (Amt), Bank Amount + Bank, C Card (Amt + Type [Visa Card/Master Card/Others] + Authorized), Wallet (Amt + Type [B wallet/IBAN/Benefit] + Authorized), Cheque (Amt + Number + Bank); required Amount field (highlighted), Reference Number, Cheque Date; an invoice-allocation table (VOUCHER / INVOICE NUMBER / INVOICE DATE / INVOICE AMOUNT / PAID AMOUNT / PAYING AMOUNT / DISCOUNT AMOUNT / BALANCE AMOUNT) which for the ZZTEST client displayed 🐛 **"No Invoice List Available..!"** (same bug pattern documented for Payment/Debit Note in Batch 1) — plus an "Advance payment" row that still works even when the invoice list is empty; Remarks textarea; Create Receipt / Exit buttons.
+
+## 7. Credit Note
+
+**List (`Credit_note/list_credit_note`)** — "Add a new Credit Note" button; columns: CREDIT NOTE NO / CLIENT / DATE / AMOUNT / ACTION. Numbering format `CN26AMD{seq}` (yearly-prefixed, e.g. `CN25AMD00099` → `CN26AMD00124`). ~124+ entries visible.
+
+**Create (`Credit_note/create_credit_note`)** — identical two-stage pattern to Receipt: Division + Name autocomplete first, then (per Batch 1 findings, re-confirmed structurally) an invoice-allocation table subject to the same "No Invoice List Available..!" condition. Red/pink row highlighting was previously observed for cancelled credit notes in list view.
+
+## 8. Job Card
+
+**List (`jobcard/Job_card/index`)** — filters: Sales Person, Status dropdown (Open/Completed/Cancelled) with a legend showing live counts (Open 160 / Completed 90 / Cancelled 0 at time of testing). Columns: # / JOB NO / DATE / CLIENT / PROJECT / SALES MAN / QUOTE NO / AMOUNT / STATUS. Status values seen: Pending, Delivered. Numbering format `JB26AMD{seq}`.
+
+**Job Card Management hub (`jobcard/Job_card/managejobcard/{id}/{div}/{jobNo}`)** — mirrors the Manage Quote hub pattern: header (Client, Project, Job No., Job Date, Amount, Confirm Date); action buttons PRINT JOB, EDIT JOB, PROFORMA, DELIVERY NOTE, MATERIAL ISSUE, MATERIAL RETURN; File Manager; linked-document tabs Invoices / Receipts / Credit Notes / Proforma / Delivery Notes (same column layout as the quote hub) plus a PO NO. / PO DATE / VENDOR block (empty unless a purchase order is linked to the job).
+
+**Edit Job / BOM view (`jobcard/Job_card/client/{id}`)** — titled "Job Card"; shows Proforma Date, Client Name, Phone, Job No, Quotation No, Po No (read-only header), then a grouped BOM-style item table (# / NAME / QTY / UNIT PRICE / DISCOUNT / TOTAL / VAT % / VAT AMNT / NET TOTAL) with per-line "Add File" and free-text spec/costing notes (e.g. size, fabric codes, sourcing notes). Submit / Update BOM / Exit actions — "Update BOM" confirms this is where production specs are refined post-quotation.
+
+## 9. Update Job Status
+
+**Create (`jobcard/Update_job_status/create`)** — simple status-update form: Job Number, Customer Name, Project (likely auto-filled once a job is picked), then a line-level table (Job No / Item / Department / Status) with Status options: Started, Completed. Submit button. No list page found linked from this module in the sidebar (status is presumably visible via the Job Card list/hub instead).
+
+## 10. Labour Cost
+
+**Create (`jobcard/Job_update_employeewise/create`)** — titled "Job Update - Employeewise" / "Labour Cost": Date, Ref Number, Customer Name, Project header fields, then a line table: Employee, Job No, Job Item, Normal Hrs, OT, Normal Rate, OT Rate, Amount. Submit / Exit.
+
+**List (`jobcard/Job_update_employeewise/listEmployeewise`)** — "Add a New" button; columns: # / EMP NAME / DATE / JOB NO / PROJECT NAME / NORMAL HOURS / OT / ACTION. Confirms this is a per-employee, per-job timesheet feeding labour cost into job costing (paired with Material Issue/Return from the Job Card hub to build full job cost).
+
+## 11. Masters — Enquiry & Quotations submasters
+
+- **Enquiry Source** (`masters/EnquirySouce`): Existing client, Architect/Interior Designer, Email, Social Media, Referrals, Q-pro (Old quotes), walk inn.
+- **Meeting Type** (`masters/MeetingType`): Telephone Call, Email, Meeting at Client Office, Meeting at Our office, On Site meeting, Sample delivery, Whatsapp Chat.
+- **Outcome** (`masters/Outcome`): On call/whatsapp, Required design/proposal, Client not attended, On site measurments.
+- **Covering Letter Template** (`masters/covering_letter_template`): single template on file — "AL Maraya decor."
+- **Terms and Conditions Template** (`masters/terms_and_conditions`): six templates — Al Maraya Decor Standard, Al Maraya Decor - Advance Payment, Al Maraya for doors, Almaraya General Terms and conditions, Joinery Project, New projects.
+
+All five are simple flat list-and-edit masters (# / Name / Action), consistent with masters seen in earlier batches.
+
+## 12. Dashboards
+
+- **Sales Dashboard** (`dashboard/sales_dashboard`): KPI tiles — Enquiries (Unallocated/Progress split), Quotations, With Estimator, With Approver, Open Quotations, Jobs (Pending/On going split), To Invoice, Receivables (currency total), PR (Pending/Not Received split); plus a category breakdown row: Curtain / Upholstery / Joinery (counts).
+- **Estimator Dashboard** (`dashboard/estimator_dashboard`): KPI tiles — Pending to Pick, My Actions, With Approver, Confirmed, PR (Pending/Not Received); same Curtain/Upholstery/Joinery category breakdown row. Both dashboards share the identical category-breakdown widget, suggesting it's a reusable component rather than role-specific.
+
+## Cross-cutting lessons for rebuild
+
+- **Quotation is the central project-record hub.** Everything downstream (Proforma, Invoice, Delivery Note, Job Card, Receipt, Credit Note) hangs off a confirmed quotation via its `AMD-{seq}-{version}` identifier — a rebuild should treat Quotation as the aggregate root, not Enquiry or Job.
+- **Proforma, Invoice, and Delivery Note are system-generated, print-oriented artifacts**, not independently created records. Their "list" pages are really just registers of documents already emitted by actions taken elsewhere (Manage Quote hub / Job Card Management hub).
+- **Curtain / Upholstery / Joinery is a first-class cross-cutting category dimension** baked into dashboards at the KPI level, independent of the product/unit taxonomy used in quotation line items — a rebuild's reporting layer should treat this as a top-level business-line tag on jobs/quotations.
+- **The "No Invoice List Available..!" bug is systemic**, appearing identically in Receipt, Credit Note (this batch) and Payment/Debit Note (Batch 1) whenever a client has no outstanding invoices — the invoice-lookup query appears to silently fail rather than gracefully showing an empty state; worth root-causing centrally rather than patching per-module.
+- **Job Cost is a two-legged aggregate**: Material Issue/Return (value side, initiated from the Job Card hub) + Labour Cost/timesheets (Employeewise, hours × rate) — a rebuild's job-costing model needs both legs reconciled against the BOM defined in the Edit Job view.
+- **Two hub pages (Manage Quote, Job Card Management) share an identical UI pattern** — header summary + action-button row + File Manager + linked-document tabs + audit trail table. This is a strong signal the rebuild should implement one generic "document hub" component parameterized by document type, rather than bespoke pages per module.
+- **Master-driven templating (Covering Letter, Terms & Conditions) auto-populates free-text fields that are then still editable** before finalising a quote — the rebuild should preserve this "template suggests, human overrides" pattern rather than locking these as immutable text.
+
+## Still open / deferred to Batch 5
+
+- Masters → Administration (Users, User Group, Department, Employee Category, Voucher Ledger Mapping, Customer Update, Quick Menu)
+- Masters → Payroll (Employee)
+- Dashboards → Approver and HR
+- Full Reports sweep: Quotation Register Report, Day Book Report, Project Outstanding, Job report, Ledger report, Trial Balance, Profit & Loss A/c, Balance Sheet, Payroll Report, Project wise Invoice & Receipt, Sales Bill Outstanding (+ 4 sub-reports), Purchase Bill Outstanding (+ sub-reports)
+- Note: PO Register (Batch 1) and Stock Ledger (Batch 2) reports are already covered and should not be re-documented in Batch 5.

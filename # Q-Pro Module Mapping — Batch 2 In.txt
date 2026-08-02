@@ -1,0 +1,62 @@
+# Q-Pro Module Mapping — Batch 2: Inventory (+ Purchase Request addendum)
+
+## 1. Item Master (Masters → Inventory → Item)
+List page filters: Category, Vendor, Catelog, Item Name. Columns: ITEM NAME, ITEM CODE (auto e.g. IT003513), COST PRICE, SELLING PRICE, CLOSING STOCK, LAST PURCHASE RATE, ACTION (Edit).
+
+Create form fields:
+- Stock Category* (lookup/search icon) — tied to Stock Category master
+- Vendor (lookup) — optional, tied to Supplier_master
+- Catelog (lookup) — optional, tied to Catelog/Brand master
+- VAT % * (dropdown, default 10%)
+- Stock Name*
+- Stock Code (auto-generated, sequential IT0035xx)
+- Roll Width (Mtr)
+- Packing
+- Units* (dropdown — tied to Unit master)
+- Cost
+- Avg. Cost (locked/calculated, greyed out)
+- Selling Price
+- Reorder Level
+- Stock Description (rich text editor)
+- Checkboxes: Purchase Allowed, Sales Allowed, Raw Material
+
+## 2. Supporting Inventory Masters
+- **Unit** (Masters → Inventory → Unit): simple flat list — Name + Status. Existing units: Box, Btl, CBM, CFT, Ctn, Drm, Gal, Kg, LM, Ltr, Meters, Nos, Pairs, Pkt, Roll, Sets, Sheet, Sqmtr, Yard.
+- **Stock Category** (Masters → Inventory → Stock Category): simple Name + Action list. Business-specific categories: Balance Fabrics (Curtain/Upholstery), Chemical Items, Disposable Items, Workshop Tools & Accessories, Others, Joinery Consumables, Packaging Materials, Printing & Stationary, Non Stock Fabrics, Carpets & Floorings, Roller Blind & Accessories, Curtain Tracks & Accessories, Sample Books, Stock Furniture, Upholstery Consumables.
+- **Catelog** (Masters → Inventory → Catelog, internal route name "Brand"): filters Vendor + Name. Columns: NAME, VENDOR, ACTION. This is essentially a "product line/collection" tagged to a specific supplier — used for grouping fabric/material collections by manufacturer.
+- **Vendor** (Masters → Inventory → Vendor, internal route "Group"/"Stock Group"): minimal Name + Status list — confirmed in Batch 1 as a separate, largely vestigial list distinct from the real Supplier_master used by Purchases.
+- **Item Excel Import**: a bulk-import entry point exists in the sidebar (not opened/tested — likely a file upload for bulk item creation).
+
+## 3. Stock Adjustment (Transactions → Inventory → Stock Adjustment)
+List columns: SA NUMBER, DATE, TYPE, ACTION. Filters: From Date, To Date, SA No.
+
+Create form: SA No (auto), Date, Type (dropdown — only one option "Stock Adjustment" currently active), Location (dropdown — only one value "Location 1" exists; this system is single-location/single-warehouse), Adjustment Reason (dropdown — options "Not Applicable" / "Issue"). Line items table: ITEM (autocomplete against Item master, live search shows ITEM NAME + current STOCK side by side), UOM (auto-filled from item), QTY, "+" to add rows. Submit/Cancel buttons.
+
+Note: several items in the live system currently show **negative closing stock** (e.g. some yarn/lining SKUs show -0.300, -6.000) — a data-integrity quirk worth being aware of but not something to replicate structurally.
+
+## 4. Material Issue (Transactions → Inventory → Material Issue)
+List columns: MI NUMBER, CLIENT, DATE, JOB NUMBER, ACTION (Print / Edit / Cancel). Filters: From Date, To Date, MI No, Job No, Customer.
+
+Create form: requires selecting an existing Job Card first ("Search Client or Job Card" — no Job Card, no Material Issue, so this can't be tested standalone without a real job). Edit/detail view shows: Client Name, Phone, Job No, Quotation No, Location, then a line-items table: JOB ITEM (link/paperclip icon to associate with a specific job line), STOCK ITEM (autocomplete against Item master), UNIT, QTY, remove/add row controls. This is the mechanism that deducts stock when materials are issued to a job.
+
+## 5. Material Return (Transactions → Inventory → Material Return)
+Mirrors Material Issue exactly in structure (MR NUMBER instead of MI NUMBER, same Client/Phone/Job No/Quotation No/Location header, same JOB ITEM/STOCK ITEM/UNIT/QTY line table) — functions as the reverse operation, adding returned materials back into stock. List page showed one cancelled entry highlighted in red/pink, confirming a "cancelled" visual state exists for these documents.
+
+## 6. Stock Reports (Reports → Stock Ledger submenu)
+Three reports grouped under "Stock Ledger":
+- **Stock Report** — filters: Voucher Type (dropdown "All"), Item Name (required), From Date, To Date. Columns: VOUCHER TYPE, VOUCHER NO, VOUCHER DATE, ITEM, VENDOR, QTY, RATE, AMOUNT, CLOSING STOCK. This is the true item-level transaction ledger (every PO/PI/Stock Adjustment/Material Issue/Return affecting that item). Note: line items entered under Purchase Order/Invoice "Others" type (free-text, not tied to the Item master) do NOT appear here — only "Inventory" type transactions that reference real stock items affect this ledger.
+- **Item Summary Report** — filters: Category, Group, Brand, Item Name, Date, "Include Zero" checkbox. Columns: ITEM NAME, CLOSING STOCK, PURCHASE RATE. A flatter current-snapshot view (vs. the transactional Stock Report).
+- **Job Material Requirement** — the most valuable one: an MRP-style reorder report. Columns: ITEM NAME, CLOSING STOCK, ORDERS (total quantity required across open job orders), MAT ISSUED (already issued), PO (quantity already on order), REQ QTY (calculated shortfall). Each row has a checkbox, and a **"Create Purchase Request"** button at the top lets you select multiple shortfall items and generate a Purchase Request directly from this report — this is the true reorder-planning workflow tying Inventory back into Purchases.
+
+## 7. Purchase Request (Batch 1 addendum — Transactions → Purchases)
+Missed in the original Batch 1 sweep. Same three-variant pattern as Purchase Order/Invoice:
+- Purchase Request Inventory
+- Purchase Request Job
+- Purchase Request Others
+
+Create form (Others variant tested): PR Date (auto), PR No (auto, e.g. PR-2923-AMD), Division (dropdown), a "Project Details" panel (Client / Project Name — populated only if a Job No is attached), Dept (dropdown), Type (dropdown, locked to variant), Job No (searchable, clearable), then line entry: Product/Service, Qty, Unit, Remarks, "Add" button, feeding into a table (SL/Product/Qty/UOM/Remarks/Actions). Submit/Exit buttons. Same pale-yellow header styling as PO/PI Others.
+
+This is the document type that precedes a Purchase Order — the "Search PO Number"/"Purchase Request" field noticed on the PO create form in Batch 1 links back to these.
+
+## Cross-cutting lessons for rebuild
+The Purchases and Inventory modules are more tightly coupled than they first appeared: Job Material Requirement (Inventory reporting) feeds into Purchase Request (Purchases), which feeds into Purchase Order, which feeds into Purchase Invoice — a full requisition-to-payment chain. Only "Inventory type" transactions (as opposed to "Job" or "Others" free-text types) actually move the needle on stock/item ledgers; this distinction should be a deliberate, explicit design decision in the rebuild rather than an implicit quirk. The system currently operates as single-location (only "Location 1" exists) — worth deciding upfront whether the rebuild should support multi-location from day one or intentionally stay single-location like the original.

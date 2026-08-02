@@ -1,0 +1,67 @@
+# Q-Pro Module Mapping — Batch 5: Administration, Payroll & Approver/HR Dashboards
+
+Scope: Masters → Administration (Users, User Group, Department, Employee Category, Voucher Ledger Mapping, Customer Update, Quick Menu), Masters → Payroll (Employee), and Dashboards → Approver & HR.
+
+No live test records were created in this batch — all findings are from read-only inspection of existing configuration and staff/employee data already in the system.
+
+## 1. Masters → Administration
+
+### 1.1 Users (`admin/users`)
+List columns: # / FULL NAME / USER NAME / EMAIL ID / MOBILE NUMBER / DIRECT NUMBER / ACTION. ~31 user accounts, mostly named after real staff plus a handful of generic role accounts (Test, Sales, Estimator, Purchaser) that appear to be shared/functional logins rather than individuals.
+
+**Create (`admin/users/create`)** fields: User Name*, Full Name*, New Password* / Retype New Password*, Mobile Number*, Direct Number*, Email ID*, Status* (Enabled/Disabled), Group Name* (Administrators, Sales, Estimator, Approver, Accounts, Stock Control, Purchaser, Store), Default Controller* (Sales Dashboard, Estimator Dashboard, Approver Dashboard, Purchaser Dashboard, Accountant Dashboard, Stock Controller Dashboard, User Dashboard), and a separate role-flag radio set: Is APPROVER / Is ESTIMATOR / Is SALES / None. This confirms two independent layers of access control: a coarse **Group Name** (drives menu/discount permissions) and a **Default Controller** (drives which dashboard the user lands on after login), plus fine-grained boolean role flags used elsewhere in the quotation workflow (Estimator/Approver/Sales routing seen in Batch 4's quotation audit trail).
+
+### 1.2 User Group (`admin/user_groups`)
+Flat list: # / USER GROUP NAME / DISCOUNT LIMIT / ACTION. Eight groups total: Administrators (30), Sales (0), Estimator (30), Approver (30), Accounts (30), Stock Control (0), Purchaser (0), Store (0). Edit form is minimal — just User Group Name + Discount Limit (no granular permission checkboxes), meaning **Discount Limit is the only configurable authorization boundary per group** — e.g. Sales/Stock Control/Purchaser/Store have zero discount authority, while Administrators/Estimator/Approver/Accounts can apply up to 30%.
+
+### 1.3 Department (`masters/Department`)
+Six departments: Curtain, Upholstery, Painting, Joinery, Administration, Sales. Confirms the Curtain/Upholstery/Joinery categories seen throughout the Sales/Estimator/Approver dashboards (Batch 4) are literally this Department master — though "Painting" and "Administration"/"Sales" departments exist here but are not broken out on those dashboard tiles, meaning the dashboard widget only surfaces the three production departments.
+
+### 1.4 Employee Category (`masters/EmpCategory`)
+Two categories: Skilled, Helper — each with a RATE column (blank on both records inspected). This looks like it's meant to hold a default labour rate per category, feeding the Normal Rate/OT Rate fields on Labour Cost entries (Batch 4) and/or the per-employee Salary Details rates (see 2.5 below), though in practice the per-employee rate seems to be what's actually used.
+
+### 1.5 Voucher Ledger Mapping (`masters/Vocher_ledger/mapping`)
+A single configuration screen mapping each payment instrument used on Receipt/Payment vouchers to a specific GL ledger: Cash → Cash; Wallet → (Bank Transfer/Cheque/Benefit Pay/Credit Card/BBK Bank); Credit/Debit Card → (same ledger list); Cheque → (same list); Bank → (same list); Discount → (Round OFF/Printing & Stationery/Freight & Courier Charges/Project Cost - Commission/OTHER EXPENSES/Food Expenses/Repair and Maintenance/Tools and equipments). This is the missing link between the Receipt/Credit Note payment-method checkboxes documented in Batch 4 (Cash/Bank/C Card/Wallet/Cheque) and the chart of accounts/ledgers documented in Batch 3 — every payment method must resolve to a real ledger account here before it can post correctly.
+
+### 1.6 Customer Update (`admin/CustomerUpdate/update`)
+A single-quotation correction utility, not a customer master editor despite the name. Workflow: pick one quotation via "Select Quotation", then apply any of three independent corrections against it: (a) Update Customer Name — reassign Select Customer + Select Contact Person, (b) Update salesman — reassign Sales Person Assigned from the same staff dropdown seen on Enquiry, (c) Update vat — change the VAT% (10%/5%/0%) applied to that quotation. Exists to fix data-entry mistakes after the fact without re-keying the whole quotation.
+
+### 1.7 Quick Menu (`admin/Quick_menu/create/{userId}/{tab}`)
+Per-user configuration for the "Quick Menu" dropdown that appears in the top header on every page throughout the system. Three tabs (Transactions / Masters / Reports), each showing the full menu tree as checkboxes grouped exactly like the sidebar (Sales/Operations/Purchases/Inventory/Accounts under Transactions; Administration/Inventory/Enquiry/Quotations/Accounts/Payroll under Masters; the full report list under Reports), with a summary line at the bottom showing which items are currently checked for that user (for Salman Abdullah: Enquiry, Quotation, Job card, Delivery note, Labour Cost, Purchase Order Job, Purchase Request Inventory/Job/Others under Transactions; Customer, Customer Update, Vendor, Employee under Masters). 🔎 The Reports tab here also revealed three report sub-items nested under "Stock Ledger" that weren't previously listed in the Batch 6 scope: **Job Material Requirement, Stock Report, Item Summary Report** — these should be added to the Batch 6 (Reports) checklist.
+
+## 2. Masters → Payroll → Employee
+
+**List (`masters/Employee/listEmployee`)** — "Add a New Employee" button; columns # / EMP NUMBER / EMP NAME / DESIGNATION / ACTION. Numbering format `E{seq}` (e.g. `E10091`). ~91 employees, overwhelmingly production trades (Carpenter, Helper, Upholsterer, Tailor, Painter, Curtain Fixer, Store Keeper, Security, Driver) plus a few office roles (Sales Executive, Account Clerk, Data Clerk, Purchasing Clerk, Estimator). Rows render with a green background — the first observed use of full-row highlighting for "Active" status (paralleling the red/pink convention already documented for cancelled Credit Notes in Batch 4).
+
+The Employee record is the richest single record type mapped so far, split across **8 tabs** (edit route pattern `masters/Employee/editEmployee/{id}/{tab}`):
+
+- **General Info** — Employee Primary Details: Employee Number*, Employee Name*, Employee Nick Name, Designation, Department* (Administration/Curtain/Joinery/Painting/Sales/Upholstery), Function, Current Location, Date of Joining*, Group* (Emp Group 1 — only one group exists), Status (Active/Resigned/Terminated/Retired — edit view; create view only offers Active), Date of Termination + Termination Reason (edit only), Machine ID* (biometric/attendance device ID), Working Hours(Per Day)* (half-hour increments 6:00–10:00), Photo upload. Employee Details: Nationality* (full ISO-style country list), Date Of Birth, Gender*, Blood Group. Contact Details: Email, Local Mobile, Local Contact Person, Office Tel., Local Land Line, Contact Person No, Home Contact Person, Contact Person No, Local Address, Home Address, Spouse Name. Bank Details: Bank Name, Bank Branch, Account No, IBAN No.
+- **Statutory Details** — CPR Number*, CPR Expiry*, Driving Licence No., Driving Licence Expiry, File upload. Directly feeds the HR Dashboard's CPR and Driving Licence expiry tiles.
+- **Passport & Visa Details** — Passport Number*, Country of Issue*, Passport Issue Date, Passport Expiry Date*, Visa Number, Visa Expiry Date, File upload. Feeds the HR Dashboard's Passport and Visa expiry tiles.
+- **Contract Details** — Contract Start Date*, Contract Expiry Date*, File upload. Feeds the HR Dashboard's Contract expiry tile.
+- **Salary Details** — Applicable Date*, Normal Rate, OT Rate (the actual source of the rates used on Labour Cost entries in Batch 4, superseding the blank Employee Category rate), plus a repeatable Pay Head table (Pay Head / Amount / Action, "Add a new Row") with a large fixed list of pay components: Basic Salary, Allowance, Overtime, Leave Salary, Indemnity, Gosi Exp, Absent, Indemnity Payable, Gosi Payable, Leave Salary Payable, Salary Payable, HRA, Other Allowances, Over Time 1.5, Air Ticket, Air Ticket Payable, Indemnity3. This pay-head list is almost certainly the direct source for the Payroll Report deferred to Batch 6.
+- **Dependents** — repeatable rows: Dependent Name, Relation (Wife/Husband/Son/Daughter/Father/Mother/Grandfather/Grandmother/Brother/Sister/Cousin/Nephew/Niece/Uncle/Aunt/Other), DOB, Cpr + Cpr Expiry, Passport + Passport Expiry, Visa + Visa Expiry. Feeds the HR Dashboard's Dependent expiry tile.
+- **Assets** — repeatable rows: Asset Name, Asset code, Issue Date, Return Date, Remarks — a simple company-property-in-custody log (e.g. tools, phones, ID cards issued to the employee).
+- **Notes** — three free-text fields, Notes 1* (required), Notes 2, Notes 3.
+
+## 3. Dashboards → Approver
+
+`dashboard/approver_dashboard` — KPI tiles: Pending to Pick, For Approval, Quotations (a large running total — 2316 at time of testing, apparently cumulative rather than open-only), PR (Pending/Not Received split), PO Approval, New Customers; plus the same Curtain/Upholstery/Joinery category breakdown row seen on Sales/Estimator dashboards. Confirms Approver sits downstream of Estimator in the quotation workflow (Create → Pick (Estimator) → For Approval (Approver), matching the audit-trail pattern documented in Batch 4's Manage Quote hub).
+
+## 4. Dashboards → HR
+
+`dashboard/hr_dashboard` — six document-expiry tiles, each split Expiring/Expired: CPR, Passport, Driving Licence, Visa, Contract, Dependent. Every tile maps 1:1 to a field group on the Employee record documented above (Statutory Details → CPR/Driving Licence; Passport & Visa Details → Passport/Visa; Contract Details → Contract; Dependents → Dependent), confirming the HR Dashboard is purely a compliance/expiry-tracking view over the Employee master with no separate transactional data of its own.
+
+## Cross-cutting lessons for rebuild
+
+- **Access control is layered, not单一 (not single-layered):** Group Name (menu/discount permission) + Default Controller (landing dashboard) + boolean role flags (Is APPROVER/ESTIMATOR/SALES) are three independent axes on the User record. A rebuild should model these as separate concerns rather than collapsing them into one "role" enum.
+- **Quick Menu is a per-user personalization layer**, not a permissions layer — it controls what shortcuts a user sees, not what they're allowed to access. Worth keeping these concepts distinct in a rebuild (personalization vs. authorization).
+- **Voucher Ledger Mapping is the missing accounting glue** between the payment-method UI on Receipt/Credit Note (Batch 4) and the ledger/chart-of-accounts structure (Batch 3) — a rebuild's accounting engine should treat this mapping as a required configuration step, not an optional one, since incorrect/missing mappings would silently mispost cash.
+- **The Employee record is the true source of HR compliance and payroll data**, with the HR Dashboard and (presumably) the Payroll Report being pure read-side views over it — no separate "compliance tracking" or "payroll run" entities were found; a rebuild could likely keep this same single-source-of-truth design.
+- **Department (Masters → Administration) doubles as both an HR org-unit AND the production category dimension** used in Sales/Estimator/Approver dashboard tiles — this single master serves two different reporting purposes (staff organization vs. job/quotation categorization), which a rebuild should either keep unified (as here) or deliberately split if the two concerns start to diverge.
+- **Green full-row highlighting = Active status** (Employee list), extending the color-coding vocabulary already seen with red/pink for cancelled Credit Notes (Batch 4) — worth cataloguing all such status-color conventions in one place for the rebuild's design system.
+- **The Customer Update utility demonstrates a "correction tool" pattern** distinct from normal CRUD editing — a narrow, purpose-built screen for fixing specific fields on an already-created transaction without exposing the full edit form. Worth considering whether a rebuild needs similar guarded correction workflows for other transaction types.
+
+## Still open / deferred to Batch 6 (Reports)
+
+Full Reports sweep: Quotation Register Report, Day Book Report, Project Outstanding, Job report (confirmed to exist at a dedicated URL with a Job No lookup + Job No/Date/Client Name/Project Name preview — not yet fully mapped), Ledger report, Trial Balance, Profit & Loss A/c, Balance Sheet, Payroll Report, Project wise Invoice & Receipt, Sales Bill Outstanding (+ By party / All / By party Age-wise / All Age-wise sub-reports), Purchase Bill Outstanding (+ same 4 sub-report variants). Additionally, per the discovery in section 1.7 above, add **Job Material Requirement, Stock Report, and Item Summary Report** (all nested under the "Stock Ledger" group in the Quick Menu Reports tree) to the Batch 6 checklist — these were not visible in the original sidebar-based scope list. Note: PO Register (Batch 1) and Stock Ledger itself (Batch 2) are already covered and should not be re-documented.

@@ -1,0 +1,63 @@
+# Q-Pro Module Mapping — Batch 6: Reports
+
+Scope: the full Reports menu — Quotation Register Report, Day Book Report, Project Outstanding, Job report, Ledger report, Trial Balance, Profit & Loss A/c, Balance Sheet, Payroll Report, Project wise Invoice & Receipt, Sales Bill Outstanding (+ 4 sub-report variants), Purchase Bill Outstanding (+ 4 sub-report variants), and the three Stock Ledger sub-reports discovered in Batch 5 (Job Material Requirement, Stock Report, Item Summary Report). PO Register (Batch 1) and Stock Ledger itself (Batch 2) were already covered and are not repeated here.
+
+No live test records were created in this batch — all findings are from read-only inspection of report filters, columns, and (where data existed) live output.
+
+## 1. Quotation Register Report (`Quotation_register`)
+Filters: Division, From Date, To Date, Select Salesman, Status (All/Draft/Open/Closed/Confirmed). Columns: # / QTN NO / DATE / CONFIRMED DATE / CLIENT / PROJECT / SALESMAN / AMOUNT / STATUS. A color legend accompanies the status filter: Draft (blue), Open (yellow), Confirmed (green), Closed (red/pink) — the same red=closed/cancelled convention seen elsewhere in the system.
+
+## 2. Day Book Report (`DailyReport`)
+A consolidated, cross-module transaction log for a single day (defaults From/To Date to today). Filters: Division, Voucher Type (All/Invoice/Receipt/Purchase Invoice/Supplier Payment/Credit Note/Debit Note/General Receipt/General Payment/Journal), From Date, To Date. Columns: VOUCHER TYPE / VOUCHER NO / VOUCHER DATE / CLIENT / AMOUNT / STATUS / USER / ACTION. This is the one report that spans every voucher type across Sales, Purchases, and Accounts in one feed.
+
+## 3. Project Outstanding (`Billoutsatanding/blist`)
+A job-level receivables reconciliation. Filters: Division, Select Sales Man. Columns: JOB NO / QTN NO / JOB DATE / CLIENT / JOB AMT / INV AMT / PAID AMT / CR AMT / UNINV AMT / BALANCE / SALES MAN — i.e. for every job it reconciles the original job amount against what's been invoiced, paid, credited, still un-invoiced, and the resulting balance outstanding.
+
+## 4. Job report (`Job_reports`)
+A single-job lookup (search by Job No, not a list). Given a Job No, it returns: Date, Client Name, Project Name, Job Amount, Total Purchases, Materials Issued, Materials Returned, PO Pending, Budget (Dry Cost), Budget (with Overhead), Total Cost, Running Profit, Proforma, Invoiced, Received. Verified against JB26AMD02319 (from Batch 4): Job Amount 322.080, Budget (Dry Cost/with Overhead) both 170.800, Total Cost 0.000, Running Profit 322.080, Proforma/Invoiced/Received all 322.080. This is effectively a per-job mini profit-and-loss statement — distinct from Project Outstanding (a collections view) and Job Material Requirement (a procurement view); three different reports slice the same Job entity for finance, collections, and purchasing audiences respectively.
+
+## 5. Ledger report (`Ledger_reports/blist`)
+Standard general-ledger transaction printout. Filters: Division, Ledger Name (autocomplete against the Accounts → Ledger master from Batch 3), From Date, To Date. Columns: # / DATE / VOUCHER / VOUCHER NO / VOUCHER REF / DESCRIPTION / DEBIT / CREDIT / NARRATION.
+
+## 6. Trial Balance (`Trial_balance/test`)
+Filters: Select Division, From Date (defaults 01-01-2023), To Date, a "Ledger wise" toggle. Columns: PARTICULARS / OPENING BALANCE / DEBIT / CREDIT / CLOSING BALANCE. Notably this is the one report where Division isn't pre-selected by default (shows "- Select Division -"), unlike every other report which defaults to "Al Maraya Decor".
+
+## 7. Profit & Loss A/c (`PL_report/test`)
+Filters: From Date (defaults 01-01-2023), To Date. Output is a two-tier statement: a "Trading Account" section culminating in Gross Profit, followed by an "Income Statement" section culminating in Net Profit (both shown as 0.000 with red styling when zero/negative).
+
+## 8. Balance Sheet (`Balance_sheet/test`)
+No visible date filter on this run (report loads directly). Two sections: Assets (with a Total) and Liabilities (with a Total) — a standard two-column balance sheet layout.
+
+## 9. Payroll Report (`transactions/Payroll_report/report`)
+Filters: Select Year (2024–2036), Select Month (January–December). Columns mirror the Employee → Salary Details Pay Head list from Batch 5 almost exactly, rolled up per employee for the selected month: # / NAME / BASIC SALARY / ALLOWANCE / OVERTIME / LEAVE SALARY / INDEMNITY / GOSI EXP / ABSENT / INDEMNITY PAYABLE / GOSI 1% / GOSI PAYABLE / LEAVE SALARY PAYABLE / SALARY PAYABLE / HRA / OTHER ALLOWANCES / OVER TIME 1.5 / AIR TICKET / AIR TICKET PAYABLE / INDEMNITY3 / TOTAL SALARY. The "GOSI 1%" column doesn't appear as a distinct Pay Head option on the Employee master, so it's likely a computed field (Bahrain's General Organisation for Social Insurance contribution, calculated automatically rather than manually entered). Confirms payroll is purely a rollup of employee configuration — no separate "payroll run" transaction entity exists.
+
+## 10. Project wise Invoice & Receipt (`ProjectwiseInvoiceReceipt`)
+A single-job lookup (search by Job No). Columns: # / DOC NO. / INVOICE DATE / DEBIT AMOUNT / CREDIT AMOUNT. Tested against JB26AMD02319, which is known from Batch 4 to have a real linked invoice (IN26AMD02688) — the report nonetheless returned 🐛 **"No Invoice List Exist..."**. This is the same bug pattern already documented for Receipt and Credit Note (Batch 4) and reinforces that it's a systemic backend query issue affecting any screen that looks up a client/job's invoice list, not something isolated to those two transaction forms.
+
+## 11. Sales Bill Outstanding (4 variants, under `SalesBillOutstanding/*`)
+- **By party** (`by_party`): Filters Division, Client Name, Age by Bill Date/Age by Due Date toggle, To Date, Select Salesman. Columns: # / BILL NO / BILL TYPE / DATE / PO NO / SALESMAN / BILLAMT / PAIDAMT / BALAMT / AGE. A second block below shows unbilled quotations (QTN NO / QTN DATE / QTN AMT / DESCRIPTION / SALES MAN / UNINV AMT / BALANCE) with a running "Outstanding Amount" total.
+- **All** (`all_customers`): Client-summarized (no per-bill breakdown). Columns: # / CLIENT / BILLAMT / PAIDAMT / BALAMT. Includes a 5-state color legend: Advance, Unpaid, Partially Paid, Fully Paid, Cancelled — the most granular status-color system found in the whole mapping exercise.
+- **By party Age-wise** (`by_party_age_wise`): Same per-bill columns as "By party" but replaces AGE with aging buckets: <= 30 DAYS / 31 TO 60 DAYS / 61 TO 90 DAYS / > 90 DAYS, plus DUE ON. Adds a Select Salesman filter.
+- **All Age-wise** (`all_customers_age_wise`): Client-summarized with the same aging buckets: # / CLIENT / BAL AMT / <=30 / 31-60 / 61-90 / >90 DAYS.
+
+## 12. Purchase Bill Outstanding (4 variants, under `PurchaseBillOutstanding/*`)
+Structurally identical to the Sales Bill Outstanding set, mirrored for the vendor side (By party, All, By party Age-wise, All Age-wise — same column layouts with SUPPLIER REF / SUP REF replacing PO NO, and the same 5-state Advance/Unpaid/Partially Paid/Fully Paid/Cancelled legend on the "All" variant). 🐛 **Labeling bug**: all four Purchase variants still show a filter box labeled "Client Name" and a result column labeled "CLIENT", even though these are vendor/supplier-side reports — clear leftover from cloning the Sales Bill Outstanding reports without relabeling.
+
+## 13. Stock Ledger sub-reports (discovered via Quick Menu in Batch 5)
+- **Job Material Requirement** (`JobMaterialRequirement`): A materials-shortage/procurement-planning report with a "Create Purchase Request" button built directly into it. Columns: ITEM NAME / CLOSING STOCK / ORDERS / MAT ISSUED / PO REQ QTY. Directly bridges the Inventory (Batch 2) and Purchases (Batch 1) modules — flags items where committed job requirements exceed available stock and lets a user raise a Purchase Request straight from the report.
+- **Stock Report** (`StockReport/list`): A filterable stock-movement transaction log. Filters: Voucher Type (All/Opening/Purchase/Issue/Return/Adjustment), Item Name, From Date, To Date. Columns: VOUCHER TYPE / VOUCHER NO / VOUCHER DATE / ITEM / VENDOR / QTY / RATE / AMOUNT.
+- **Item Summary Report** (`StockReport/itemSummary`): A current-stock snapshot. Toggle: "Include Zero" (include zero-stock items). Columns: # / ITEM NAME / CLOSING STOCK / PURCHASE RATE. 🐛 **Data-quality finding**: multiple items show negative Closing Stock (e.g. -6.000, -333.000, -2.300), confirming the system does not enforce non-negative inventory — issues can be recorded against items with insufficient recorded purchases/receipts, silently producing negative on-hand quantities rather than blocking the transaction.
+
+## Cross-cutting lessons for rebuild
+
+- **Reports are uniformly thin, read-only views over transactional data already mapped in Batches 1–5** — no new business entities or workflows were discovered in this batch, only aggregation, filtering, and presentation logic. A rebuild's reporting layer can safely be built as a query/view layer over the core transactional schema rather than needing its own persisted state.
+- **A near-universal filter pattern recurs across almost every report**: Division selector + date range (defaulting to either "today" or a fixed fiscal-start date of 01-01-2023, inconsistently) + an entity-specific selector (Salesman/Ledger Name/Item Name/Client) + optional type/status dropdown, paired with consistent Search box + Excel/CSV export + Print icons. A rebuild should standardize this as one reusable report-filter component rather than re-implementing it per report.
+- **The status-color palette is now fully catalogued across the whole system**: quotation lifecycle (Draft=blue, Open=yellow, Confirmed=green, Closed=red/pink), bill-outstanding lifecycle (Advance/Unpaid/Partially Paid/Fully Paid/Cancelled), and active-record highlighting (green rows for active employees). A rebuild's design system should centralize these as named semantic colors rather than leaving them hard-coded per screen.
+- **The "No Invoice/Bill List Exist" bug is confirmed systemic**, now observed in three independent contexts across three batches (Receipt and Credit Note UI in Batch 4; Project wise Invoice & Receipt report in Batch 6) — strong evidence this is a single shared backend query defect (likely a join or parameter-binding issue in whatever function looks up "invoices for this client/job") rather than three separate bugs, and should be root-caused once centrally in a rebuild.
+- **Copy-paste-without-relabeling is a recurring implementation smell**: the Purchase Bill Outstanding reports retain "Client Name"/"CLIENT" labeling from their Sales counterpart. A rebuild should parameterize shared report templates by a "party type" (customer vs. vendor) rather than duplicating and relabeling code, which is clearly what happened here and was missed.
+- **Negative stock is permitted by design (or by omission)** — Item Summary Report shows negative closing balances rather than the system blocking over-issuance. A rebuild needs an explicit decision here: either preserve this permissive behavior (common in businesses that issue against expected/incoming stock) or add validation, but it shouldn't be an accidental gap.
+- **Payroll, like HR (Batch 5), has no separate "transaction" entity** — the Payroll Report is purely a monthly rollup of the static Pay Head configuration on each Employee record, with at least one computed field (GOSI 1%) layered on top. A rebuild should keep payroll as a computed/derived view unless multi-month history or run-locking (closing a payroll period so it can't be recalculated) becomes a real requirement.
+
+## Mapping exercise status
+
+This completes the full 6-batch Q-Pro mapping exercise: Batch 1 (Purchases), Batch 2 (Inventory + Purchase Request addendum), Batch 3 (Accounts), Batch 4 (Sales & Job Operations), Batch 5 (Administration, Payroll & Approver/HR Dashboards), and Batch 6 (Reports). Every sidebar section under Dashboards, Transactions, Masters, and Reports has now been covered at least once, and no further scope gaps were identified during this batch.
