@@ -1,0 +1,27 @@
+{
+  "name": "amd-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "accounts.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/salmanabdullah13-arch/AMD-APP.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/salmanabdullah13-arch/AMD-APP/issues"
+  },
+  "homepage": "https://github.com/salmanabdullah13-arch/AMD-APP#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

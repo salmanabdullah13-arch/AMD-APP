@@ -428,15 +428,10 @@ then, this section is the only persistent record of what they said.
   Receivables KPI **was** fixed this session (now nets off Batch 4's Receipt/
   Credit Note activity via `invoiceBalance()`) — this remaining item is
   specifically the Accounts-module/Payables/purchase side, not yet touched.
-- Batch 4's Proforma/Receipt/Credit Note build was verified with `node
-  --check`, a duplicate-declaration scan, and a full `vm.runInContext`
-  data-layer lifecycle smoke test — but **not** in an actual browser.
-  Neither Playwright nor a local Python interpreter were available in that
-  session's environment (earlier sessions had both, per this file's own
-  prior Playwright-tested notes) — a real browser pass on the new Sales
-  tabs (Receipt/Credit Note two-stage forms, Proforma tile, the Related
-  Records tables on both hubs) is still owed before trusting this in
-  production.
+- ~~Batch 4's Proforma/Receipt/Credit Note build was verified with `node
+  --check`... but **not** in an actual browser~~ — **done**, 2 Aug 2026
+  (later session): Playwright installed, full lifecycle browser-tested
+  end-to-end, 28/28 checks passed, zero console errors. See Session Log.
 - Voucher Ledger Mapping (Batch 5) remains unbuilt — Batch 3's GL entries
   and Batch 4's Receipt/Credit Note both pick a ledger/payment-method
   directly rather than through that resolution step. Fine for now; flag if
@@ -667,3 +662,76 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   both remain fully spec-only; consider the still-open Accounts/Payables
   KPI netting fix (small, contained, same shape as the fix just made on
   the Sales side).
+
+### 2 Aug 2026 (later same day) — Playwright installed, full lifecycle browser-tested (closes the Batch 4 testing gap)
+
+- **Installed Playwright** (`@playwright/test` 1.62.1 + Chromium) as a dev
+  dependency in a new `package.json` at the repo root, so future sessions
+  in this environment have real browser automation available instead of
+  falling back to `vm.runInContext` logic-only smoke tests. Added
+  `.gitignore` (`node_modules/`, `*.png`, `*.log`, `test-results/`,
+  `playwright-report/`) since this is the repo's first Node tooling.
+- **Ran a full end-to-end lifecycle test in a real headless Chromium
+  browser** (`e2e-lifecycle.js`, committed, reusable): PIN unlock → Create
+  Customer → Create Enquiry → Convert to Quotation (3-step wizard) →
+  Estimator (pick + transfer) → Approver (pick + approve) → Sales Confirm
+  Quote (creates Job Card) → Tax Invoice → Proforma → Sales Receipt
+  (partial payment) → Sales Credit Note → Related Records tables on both
+  the Quotation Hub and Job Card hub. **28/28 checks passed, zero console
+  or page errors the entire run.** Verified against real in-app state via
+  `page.evaluate()` reads of `quotations`/`jobCards`/`taxInvoices`, not
+  just rendered text — e.g. confirmed `invoiceBalance()` nets correctly:
+  BD 82.500 net − BD 30 paid − BD 10 credited = BD 42.500 balance. The
+  documented "No Invoice List Available" bug-fix (§3) holds for both
+  Sales Receipt and Sales Credit Note in a real browser, not just in the
+  data layer. **This closes the "not yet Playwright-tested" gap flagged
+  in §5 after Batch 4** — Batch 4's Proforma/Receipt/Credit Note UI is now
+  confirmed working end-to-end in an actual browser.
+- **No real app bugs found.** A couple of things that looked broken during
+  scripting turned out to be test-selector scoping issues (see below), not
+  product defects — reproduced clean on a second run after fixing the
+  selectors.
+- **Non-bug findings worth a decision from Salman:**
+  1. Ecosystem hub is confirmed genuinely mobile-only — at a desktop
+     viewport the node icons render off-screen, no desktop fallback exists.
+     Matches the documented iPad/iPhone-only design intent; not a bug.
+  2. `shell.js`'s `showPanel()` info-panel + "Open X Module →" button is
+     now **dead code for every built module** — `index.html`'s newer
+     `handleNodeTap()` intercepts node taps and launches modules directly
+     (`window._ecoDirectLaunch`), so the panel's launch-button path is
+     unreachable. Arguably better UX (one tap instead of two) but worth a
+     cleanup pass to remove the dead path, or confirm it's still needed
+     for some untested case.
+  3. Picking a quotation in Estimator or Approver does not auto-navigate
+     into its review screen — `estimatorPick()`/`approverPick()` just
+     re-render the dashboard; the user then has to separately open "My
+     Actions"/"For Approval" and click the row. Consistent on both
+     modules — confirm whether this is intentional or unwanted friction.
+  4. Generating a Tax Invoice navigates fully away from the Job Card hub
+     (only a "‹ Back to Job Card" link remains), so Proforma/Delivery
+     Note/Material tiles are briefly out of reach. Expected given the
+     invoice's intentionally distinct document styling (§3), just noting
+     for anyone training staff on this flow.
+  5. **The app ships with pre-seeded demo data** (an enquiry, an open
+     quotation, one already "with Estimator") visible immediately on first
+     PIN unlock — not previously documented anywhere in this file. Real
+     open question: is this meant to ship to production/real users, or
+     should it be stripped before go-live? Also caused a genuine test
+     hazard worth noting for future Playwright work: a loosely-scoped
+     `:has-text()` selector matched the seeded quotation's button instead
+     of a freshly-created one, since both were text-match ancestors of the
+     same DOM subtree — broad `:has-text` combinators can cross-match
+     unrelated seeded rows, not just hidden elements from other modules
+     (the existing Playwright-flakiness note in §2 was about `.fill()` on
+     number inputs; this is a second, distinct flakiness class worth
+     knowing).
+- **Artifacts committed:** `package.json`, `package-lock.json`, `.gitignore`,
+  `smoke-test.js` (minimal PIN-unlock-and-screenshot check), `e2e-lifecycle.js`
+  (the full reusable lifecycle test, safe to re-run in future sessions to
+  catch regressions). Screenshots (`e2e-shots/`, `smoke-test.png`) are
+  gitignored — regenerate by running the scripts, not restored from git.
+- **Next steps:** decide on item 5 above (seeded demo data) before any
+  go-live; optionally clean up the dead `showPanel()` launch-button path
+  (item 2); still open from prior sessions — Accounts/Payables KPI
+  netting fix, Batch 5/6 build decision, `shell.js` `M` object staleness
+  refresh (§2), `jobCards[]`/`curtainJobs[]` unification.
