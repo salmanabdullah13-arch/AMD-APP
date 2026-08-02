@@ -20,15 +20,19 @@ limitation below before assuming "commit and push" fully lands.
 
 ## 0. Environment note — push access
 
-This Claude Code environment's git push to `salmanabdullah13-arch/AMD-APP` is
-**persistently 403'd**. The working pattern every session: commit locally
-(with `git config user.email noreply@anthropic.com && git config user.name Claude`
-reset first, since it doesn't persist across sessions), then use
-`SendUserFile` to hand the changed files to Salman, who applies and pushes
-them from his own local clone. Commits made this way are real, correctly
-authored, and sitting on `claude/enquiry-module-build-bm5bna` — GitHub will
-flag them "Unverified" until Salman actually pushes them (expected, not a bug).
-If this changes (push access restored), update this section.
+**Update, 2 Aug 2026: push access confirmed working.** A push from this
+environment directly to `origin/main` on `salmanabdullah13-arch/AMD-APP`
+succeeded this session (merge commit `95f3938`) — no 403. The
+previously-documented 403/`SendUserFile`-handoff workaround below may no
+longer be needed; treat direct commit+push as the default going forward,
+but stay alert for a 403 resurfacing (permissions can be revoked/environment
+can change) and fall back to the old pattern if it does.
+
+*Prior working pattern, kept for reference in case push breaks again:*
+commit locally (with `git config user.email noreply@anthropic.com && git
+config user.name Claude` reset first, since it doesn't persist across
+sessions), then use `SendUserFile` to hand the changed files to Salman, who
+applies and pushes them from his own local clone.
 
 ---
 
@@ -210,6 +214,67 @@ then, this section is the only persistent record of what they said.
   - **Purchase Request addendum** — added the Division field and a
     read-only Project Details (Client/Project) panel to the existing PR
     create form, matching the live "Others" variant.
+- **Accounts — Batch 3: General Ledger layer** (committed `169aa6b`, backfilled
+  here from the session log — see §7, 27 Jul 2026 later entry, for the full
+  build notes): Chart of Accounts (15 locked system Primary groups + 11 real
+  custom sub-groups from the trace), Ledger master, General Receipt, General
+  Payment (with per-line optional Job No), and Journal (balanced-entry-only,
+  enforced in `createJournal()`). Sits underneath the pre-existing read-only
+  KPI dashboard in `accounts.js`, not replacing it. Voucher Ledger Mapping
+  (the Batch 5 config step that should resolve payment methods to real
+  ledgers) was **not** built — Receipt/Payment/Journal lines pick a ledger
+  directly, a fine simplification until Reports/Trial Balance need that
+  mapping to post correctly.
+- **Sales/Jobs — Batch 4: Sales & Job Operations** (traced from
+  `docs/qpro-mapping/batch4salesandoperations.txt`): most of this batch's
+  scope turned out to already be built (Enquiry Source, Meeting Type/Outcome
+  follow-ups, Covering Letter/T&C templates, Job Card, Delivery Note,
+  Materials Issue/Return, Update Job Status, Labour Cost, and the Sales/
+  Estimator dashboard KPIs were all already live from the original Sales/
+  Jobs build) — this pass filled the three genuine gaps the trace surfaced:
+  - **Proforma** — system-generated only (no manual create form in the live
+    trace, confirmed) via a new "Proforma" tile on the Job Card Management
+    hub (`jobsGenerateProforma()`, jobs.js) and a list-only "Proforma" tab
+    in Sales (`renderProformaList()`, sales.js). Numbered `P26AMD{seq}`,
+    matching the live format.
+  - **Sales Receipt** and **Sales Credit Note** — new Sales-module tabs,
+    structurally mirroring Batch 1's Supplier Payment/Debit Note (two-stage:
+    pick client, then a payment-method grid + invoice-allocation table). The
+    live trace reports the identical "No Invoice List Available..!" bug here
+    as Payment/Debit Note — fixed here, not reproduced, same call as Batch 1:
+    `getCustomerOpenInvoices()` (data.js) actually looks the client's real
+    open Tax Invoices up. Receipt allocations increment `paidAmount` on the
+    invoice; Credit Note allocations increment a new `creditedAmount` field;
+    both net off a shared `invoiceBalance()` helper. Credit Note list uses
+    the same red/pink cancelled-row convention as Debit Note.
+  - **Related-records wiring** — the Quotation Hub (sales.js) and Job Card
+    Management hub (jobs.js) previously had a placeholder card reading
+    "Invoices · Receipts · Credit Notes · Proforma · Delivery Notes — not
+    built in this app." Both hubs now render real per-job mini-tables for
+    all five via a shared `renderRelatedRecords()` helper (sales.js, called
+    from both files since sales.js loads first in `index.html`'s script
+    order). The Job hub's own Invoices table was upgraded to show
+    Received/Balance columns now that `paidAmount`/`creditedAmount` exist.
+  - **Sales Dashboard's Receivables KPI corrected** — `getSalesKPIs()`
+    previously summed every invoice's full `netTotal` (flagged at the time
+    as "an overstatement once payments exist"). Now sums `invoiceBalance()`
+    across all Tax Invoices, netting off real Receipt/Credit Note activity.
+    This mirrors, on the Sales/receivables side, the same still-open TODO
+    on the Accounts/payables side noted below (Accounts' own KPIs still
+    don't net off Batch 1's Payment `paidAmount`).
+  - Verification: `node --check` on data.js/sales.js/jobs.js individually
+    and the full 11-file concatenation; duplicate top-level declaration
+    scan (none found); onclick/onchange/oninput cross-reference on both
+    modified files (all resolve); closure-variable-in-inline-handler scan
+    (none introduced); a standalone `vm.runInContext` smoke test drove a
+    full Enquiry → Quotation → Job Card → Invoice → Proforma → partial
+    Receipt → Credit Note → cancel lifecycle end-to-end and confirmed
+    balances net correctly at each step. **Not Playwright-tested** —
+    neither Playwright nor a local Python were available in this session's
+    environment (both were available in earlier sessions per this file's
+    prior notes); browser-level confirmation of the new tabs/forms is
+    still outstanding and should be run for real before trusting this in
+    production, same caveat as the Storekeeper device-test gap in §5.
 
 ### Custom modules NOT mapped from Q-Pro (built to fill gaps, explicitly flagged as this app's own design):
 - **Estimator** and **Approver** as *standalone modules* with their own
@@ -355,6 +420,29 @@ then, this section is the only persistent record of what they said.
   ecosystem `NODES` registry).
 - No QPro mapping spec files are committed to the repo (see §3) — worth
   fixing if Salman wants them preserved.
+
+**New, from Batch 3/4 work (27 Jul – 2 Aug 2026):**
+- Accounts module's own read-only KPI dashboard (`getAccountsKPIs()` in
+  accounts.js — distinct from Sales' `getSalesKPIs()`) still doesn't net
+  Batch 1's Payment `paidAmount` off its Payables figure. Sales' own
+  Receivables KPI **was** fixed this session (now nets off Batch 4's Receipt/
+  Credit Note activity via `invoiceBalance()`) — this remaining item is
+  specifically the Accounts-module/Payables/purchase side, not yet touched.
+- Batch 4's Proforma/Receipt/Credit Note build was verified with `node
+  --check`, a duplicate-declaration scan, and a full `vm.runInContext`
+  data-layer lifecycle smoke test — but **not** in an actual browser.
+  Neither Playwright nor a local Python interpreter were available in that
+  session's environment (earlier sessions had both, per this file's own
+  prior Playwright-tested notes) — a real browser pass on the new Sales
+  tabs (Receipt/Credit Note two-stage forms, Proforma tile, the Related
+  Records tables on both hubs) is still owed before trusting this in
+  production.
+- Voucher Ledger Mapping (Batch 5) remains unbuilt — Batch 3's GL entries
+  and Batch 4's Receipt/Credit Note both pick a ledger/payment-method
+  directly rather than through that resolution step. Fine for now; flag if
+  Reports/Trial Balance get built on top and need it to post correctly.
+- Batches 5 (Administration/Payroll/HR) and 6 (Reports) remain fully
+  spec-only — archived in `docs/qpro-mapping/` but not built.
 
 ---
 
@@ -507,3 +595,75 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   line ledgers are picked directly instead, which is a fine simplification
   for now but worth flagging if Reports/Trial Balance ever get built on top
   of this and need that mapping to post correctly.
+
+### 2 Aug 2026 — Resolved a diverged push, built Batch 4 (Sales & Job Operations)
+
+- **Git housekeeping first:** Salman's prior local Batch 3 commit (`169aa6b`)
+  had been made on top of an older `origin/main`; GitHub had since gained a
+  divergent commit (`7aa00cb`, Salman uploading the 6 raw QPro spec `.txt`
+  files at repo root via the GitHub web UI). Fetched, confirmed the two
+  commits touched entirely disjoint paths (root loose files vs. the cleaned
+  `docs/qpro-mapping/` copies), merged clean (`95f3938`), and pushed straight
+  to `origin/main` from this environment. **Correction to §0: push access
+  is not actually 403'd here** — a direct push succeeded this session. Left
+  §0 updated to say so but kept the old SendUserFile fallback documented in
+  case it regresses.
+- **Built Batch 4: Sales & Job Operations**, traced from
+  `docs/qpro-mapping/batch4salesandoperations.txt` (a copy of this was also
+  independently re-uploaded to Salman's Downloads folder mid-session and
+  diffed byte-identical against the archived copy — no drift, confirmed
+  read-only). Full coverage detail is in §3 (Q-Pro mapping section) rather
+  than repeated here. Short version: most of this batch's nominal scope
+  (Enquiry Source/Meeting Type/Outcome, Job Card, Delivery Note, Materials
+  Issue/Return, Update Job Status, Labour Cost, Sales/Estimator dashboard
+  KPIs) turned out to already exist from the original Sales/Jobs build —
+  reviewed sales.js and jobs.js in full before writing anything, specifically
+  to avoid rebuilding what was already there. The three real gaps the trace
+  surfaced and this session actually built: **Proforma** (system-generated
+  only, wired into both the Job Card hub and a new Sales list tab),
+  **Sales Receipt** and **Sales Credit Note** (new Sales-module tabs,
+  structurally mirroring Batch 1's Supplier Payment/Debit Note — including
+  fixing the same "No Invoice List Available..!" bug the live trace reports
+  here, not reproducing it), and wiring real data into the "Related
+  records" sections of both the Quotation Hub and Job Card Management hub,
+  which had been explicit placeholder text ("not built in this app") since
+  the original build.
+- **Decision: reused the Payment/Debit Note pattern from Batch 1 rather than
+  inventing a new one** for Receipt/Credit Note, since the live trace
+  describes structurally the same two-stage flow (pick client → payment-
+  method grid + invoice-allocation table) just on the customer side. Also
+  reused `getVendorOpenInvoices()`'s exact shape for the new
+  `getCustomerOpenInvoices()` so the allocation-table UI code could be
+  near-identical to Purchasing's existing Payment form.
+- **Correction made along the way:** Sales' `getSalesKPIs()` Receivables
+  figure was previously flagged in its own code comment as "an overstatement
+  once payments exist" (no receipt tracking existed at the time it was
+  written). Now that Receipt/Credit Note are real, corrected it to sum
+  `invoiceBalance()` (Net Total − paidAmount − creditedAmount) across all
+  Tax Invoices instead of raw `netTotal`. The equivalent issue on the
+  Accounts-module/Payables side (from Batch 1) is still open — see §5.
+- **Verification:** `node --check` on data.js/sales.js/jobs.js individually
+  and the full 11-file concatenation in `index.html` load order; duplicate
+  top-level declaration scan across all 11 files (none found); onclick/
+  onchange/oninput cross-reference on both modified files (all resolve);
+  closure-variable-in-inline-handler grep (none introduced — the two
+  pre-existing instances in jobs.js/sales.js are unrelated direct-global
+  assignments, not a new bug). **Playwright was not available in this
+  session's environment** (neither `npx playwright` nor a `python3`/`py`
+  interpreter for a local server were found) — substituted a standalone
+  `vm.runInContext` data-layer smoke test instead: ran a full synthetic
+  Enquiry → Quotation → (manually flipped to Open, bypassing the
+  Estimator/Approver stage since that flow is already covered by prior
+  sessions' tests) → Job Card → Tax Invoice → Proforma → partial Sales
+  Receipt → Sales Credit Note → cancel lifecycle, confirming
+  `invoiceBalance()` nets correctly at every step and error paths
+  (`"Please select a client."` / `"Amount is required."`) fire correctly.
+  **This is a logic-only pass, not a browser confirmation** — flagged in
+  §5 as still owed, same caveat class as the long-standing Storekeeper
+  device-test gap.
+- **Next steps:** run an actual browser/Playwright pass on the new Receipt/
+  Credit Note/Proforma UI once tooling is available; decide whether to
+  build Batch 5 (Administration/Payroll/HR) or Batch 6 (Reports) next —
+  both remain fully spec-only; consider the still-open Accounts/Payables
+  KPI netting fix (small, contained, same shape as the fix just made on
+  the Sales side).

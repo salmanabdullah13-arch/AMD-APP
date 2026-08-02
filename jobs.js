@@ -280,7 +280,7 @@ function renderJobHub() {
     <div class="sales-tile-row">
       <div class="sales-tile t-blue" onclick="jobsAlert('Print Job — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Job</div>
       <div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>
-      <div class="sales-tile t-cyan" onclick="jobsAlert('Proforma — not implemented yet.')"><span class="sales-tile-icon">📄</span>Proforma</div>
+      <div class="sales-tile t-cyan" onclick="jobsGenerateProforma('${job.id}')"><span class="sales-tile-icon">📄</span>Proforma</div>
       <div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>
       <div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>
       <div class="sales-tile t-magenta" onclick="openMaterialsMove('${job.id}','return')"><span class="sales-tile-icon">↩</span>Material Return</div>
@@ -307,13 +307,22 @@ function renderJobHub() {
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Invoices</p>
       ${getInvoicesForJob(job.id).length === 0
         ? `<p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">No invoice generated yet.</p>`
-        : `<table class="sales-items"><tr><th>Invoice No</th><th>Date</th><th>Net Total</th></tr>${getInvoicesForJob(job.id).map(inv => `<tr style="cursor:pointer;" onclick="openInvoicePrint('${inv.id}')"><td>${jEsc(inv.id)}</td><td>${inv.date}</td><td>BD ${inv.totals.netTotal.toFixed(3)}</td></tr>`).join('')}</table>`}
+        : `<table class="sales-items"><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th>Received</th><th>Balance</th></tr>${getInvoicesForJob(job.id).map(inv => `<tr style="cursor:pointer;" onclick="openInvoicePrint('${inv.id}')"><td>${jEsc(inv.id)}</td><td>${inv.date}</td><td>${inv.totals.netTotal.toFixed(3)}</td><td>${(inv.paidAmount || 0).toFixed(3)}</td><td>${invoiceBalance(inv).toFixed(3)}</td></tr>`).join('')}</table>`}
       <button class="secondary" style="width:100%;margin-top:6px;" onclick="jobsGenerateInvoice('${job.id}')">Generate Invoice</button>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Related records</p>
-      <p style="font-size:11.5px;color:#94a3b8;">Receipts · Credit Notes · Proforma — not built. Delivery Notes tracked below.</p>
-      ${job.deliveryNotes.length === 0 ? '' : `<table class="sales-items" style="margin-top:8px;"><tr><th>DN</th><th>Date</th><th>Lines</th></tr>${job.deliveryNotes.map(dn => `<tr><td>${dn.id}</td><td>${dn.date}</td><td>${dn.lines.length}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:12px;margin:6px 0 4px;">Receipts</p>
+      ${getReceiptsForJob(job.id).length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Invoice List Exist...</p>` :
+        `<table class="sales-items"><tr><th>Receipt No.</th><th>Date</th><th>Amount</th></tr>${getReceiptsForJob(job.id).map(r => `<tr><td>${jEsc(r.id)}</td><td>${r.receiptDate}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Credit Notes</p>
+      ${getCreditNotesForJob(job.id).length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Invoice List Exist...</p>` :
+        `<table class="sales-items"><tr><th>Credit Note No.</th><th>Date</th><th>Amount</th><th>Status</th></tr>${getCreditNotesForJob(job.id).map(cn => `<tr style="${cn.status === 'cancelled' ? 'background:#fee2e2;' : ''}"><td>${jEsc(cn.id)}</td><td>${cn.creditNoteDate}</td><td>${cn.amount.toFixed(3)}</td><td>${cn.status}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Proforma</p>
+      ${getProformasForJob(job.id).length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Proforma generated yet.</p>` :
+        `<table class="sales-items"><tr><th>Proforma No.</th><th>Date</th><th>Amount</th></tr>${getProformasForJob(job.id).map(p => `<tr><td>${jEsc(p.id)}</td><td>${p.date}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Delivery Notes</p>
+      ${job.deliveryNotes.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No delivery notes yet.</p>` : `<table class="sales-items"><tr><th>DN</th><th>Date</th><th>Lines</th></tr>${job.deliveryNotes.map(dn => `<tr><td>${dn.id}</td><td>${dn.date}</td><td>${dn.lines.length}</td></tr>`).join('')}</table>`}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">PO / Vendor</p>
@@ -690,6 +699,13 @@ function prJobSubmit() {
 // ══════════════════════════════════════════
 // TAX INVOICE — generated from a Job Card, print/PDF-style view
 // ══════════════════════════════════════════
+
+function jobsGenerateProforma(jobId) {
+  const p = createProformaFromJob(jobId);
+  if (p.error) { jobsAlert(p.error); return; }
+  jobsAlert(`✓ Proforma ${p.id} generated.`);
+  renderJobsBody();
+}
 
 function jobsGenerateInvoice(jobId) {
   const lpoNo = window.prompt("Customer's LPO No (optional — leave blank if none):", '') || null;

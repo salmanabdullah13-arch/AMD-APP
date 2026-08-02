@@ -3331,11 +3331,137 @@ function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } =
     id: nextInvoiceNo(), jobId, quotationId: job.quotationId, customerId: job.customerId,
     date: new Date().toISOString().slice(0, 10), lpoNo,
     items: job.items.map(it => ({ description: it.product, qty: it.qty, unit: it.unit, rate: it.rate, amount: it.amount })),
-    totals: { total, invoicedPercent, vat, netTotal }
+    totals: { total, invoicedPercent, vat, netTotal },
+    paidAmount: 0, creditedAmount: 0
   };
   taxInvoices.push(inv);
   job.linkedInvoiceIds.push(inv.id);
   return inv;
+}
+
+// ═══════════════════════════════════════
+// BATCH 4 — PROFORMA, SALES RECEIPT, SALES CREDIT NOTE
+// Traced from docs/qpro-mapping/batch4salesandoperations.txt. Proforma has
+// no manual create form in the live system — it's generated from the
+// Manage Quote / Job Card Management hub, same "generate from hub" pattern
+// as Tax Invoice above. Receipt and Credit Note mirror Batch 1's Supplier
+// Payment/Debit Note structurally (two-stage: pick client, then a payment-
+// method grid + invoice-allocation table) but on the customer side against
+// taxInvoices[] instead of purchaseInvoices[]. The live trace reports the
+// same "No Invoice List Available..!" bug here as Payment/Debit Note — per
+// the established pattern (Batch 1), fixed here, not reproduced:
+// getCustomerOpenInvoices() actually looks the invoices up.
+// ═══════════════════════════════════════
+
+const proformas = [];
+function nextProformaId() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "P" + yy + "AMD" + String(1000 + proformas.length).padStart(5, "0");
+}
+function getProformasForJob(jobId) { return proformas.filter(p => p.jobId === jobId); }
+function createProformaFromJob(jobId) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const total = job.items.reduce((s, it) => s + it.amount, 0);
+  const vat = job.items.reduce((s, it) => s + (it.amount * (it.vatPercent || 0) / 100), 0);
+  const p = {
+    id: nextProformaId(), jobId, quotationId: job.quotationId, customerId: job.customerId,
+    date: new Date().toISOString().slice(0, 10),
+    items: job.items.map(it => ({ description: it.product, qty: it.qty, unit: it.unit, rate: it.rate, amount: it.amount })),
+    totals: { total, vat, netTotal: total + vat }
+  };
+  proformas.push(p);
+  return p;
+}
+
+// Balance nets off both a Receipt's paidAmount and a Credit Note's
+// creditedAmount — an invoice can be partly settled by either.
+function invoiceBalance(inv) {
+  return Math.round((inv.totals.netTotal - (inv.paidAmount || 0) - (inv.creditedAmount || 0)) * 1000) / 1000;
+}
+
+const salesReceipts = [];
+function nextReceiptId() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "RC" + yy + "AMD" + String(1000 + salesReceipts.length).padStart(5, "0");
+}
+
+// Returns { invoiceId, invoiceDate, invoiceAmount, paidAmount, balanceAmount }
+// rows for every Tax Invoice of this customer that still has a balance.
+function getCustomerOpenInvoices(customerId) {
+  return taxInvoices
+    .filter(inv => inv.customerId === customerId)
+    .map(inv => ({
+      invoiceId: inv.id, invoiceDate: inv.date, invoiceAmount: inv.totals.netTotal,
+      paidAmount: inv.paidAmount || 0, balanceAmount: invoiceBalance(inv)
+    }))
+    .filter(row => row.balanceAmount > 0.0001);
+}
+
+function createSalesReceipt({
+  customerId, division = null, receiptDate = null, methods = {}, amount,
+  referenceNumber = "", allocations = [], advanceAmount = 0, remarks = ""
+}) {
+  const customer = customers.find(c => c.id === customerId);
+  if (!customer) return { error: "Please select a client." };
+  if (!amount || Number(amount) <= 0) return { error: "Amount is required." };
+  const receipt = {
+    id: nextReceiptId(), customerId, division,
+    receiptDate: receiptDate || new Date().toISOString().slice(0, 10),
+    methods,       // same shape as Payment: { cash:{enabled,amount}, bank:{enabled,amount,bank}, cCard:{...}, wallet:{...}, cheque:{...} }
+    amount: Number(amount), referenceNumber,
+    allocations,   // [{ invoiceId, payingAmount, discountAmount }]
+    advanceAmount: Number(advanceAmount) || 0,
+    remarks, status: "confirmed"
+  };
+  salesReceipts.push(receipt);
+  allocations.forEach(a => {
+    const inv = taxInvoices.find(i => i.id === a.invoiceId);
+    if (inv) inv.paidAmount = (inv.paidAmount || 0) + (Number(a.payingAmount) || 0);
+  });
+  return receipt;
+}
+function getReceiptsForJob(jobId) {
+  const invIds = getInvoicesForJob(jobId).map(i => i.id);
+  return salesReceipts.filter(r => r.allocations.some(a => invIds.includes(a.invoiceId)));
+}
+
+const salesCreditNotes = [];
+function nextCreditNoteId() {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  return "CN" + yy + "AMD" + String(1000 + salesCreditNotes.length).padStart(5, "0");
+}
+
+function createSalesCreditNote({ customerId, division = null, creditNoteDate = null, amount, allocations = [], reason = "" }) {
+  const customer = customers.find(c => c.id === customerId);
+  if (!customer) return { error: "Please select a client." };
+  if (!amount || Number(amount) <= 0) return { error: "Amount is required." };
+  const cn = {
+    id: nextCreditNoteId(), customerId, division,
+    creditNoteDate: creditNoteDate || new Date().toISOString().slice(0, 10),
+    amount: Number(amount), allocations, reason, status: "confirmed"
+  };
+  salesCreditNotes.push(cn);
+  allocations.forEach(a => {
+    const inv = taxInvoices.find(i => i.id === a.invoiceId);
+    if (inv) inv.creditedAmount = (inv.creditedAmount || 0) + (Number(a.creditingAmount) || 0);
+  });
+  return cn;
+}
+// Matches the red/pink cancelled-row convention used elsewhere (Debit Note,
+// Materials Issue/Return) — reverses the credited amount off the invoice.
+function cancelSalesCreditNote(id) {
+  const cn = salesCreditNotes.find(x => x.id === id);
+  if (!cn || cn.status === "cancelled") return;
+  cn.allocations.forEach(a => {
+    const inv = taxInvoices.find(i => i.id === a.invoiceId);
+    if (inv) inv.creditedAmount = Math.max(0, (inv.creditedAmount || 0) - (Number(a.creditingAmount) || 0));
+  });
+  cn.status = "cancelled";
+}
+function getCreditNotesForJob(jobId) {
+  const invIds = getInvoicesForJob(jobId).map(i => i.id);
+  return salesCreditNotes.filter(cn => cn.allocations.some(a => invIds.includes(a.invoiceId)));
 }
 
 // ═══════════════════════════════════════

@@ -53,8 +53,8 @@ salesStyleTag.textContent = `
 #sales-module-wrap .sales-status-tab.st-closed{background:var(--biz-closed-bg);color:var(--biz-closed-text);}
 #sales-module-wrap .sales-status-tab.st-closed.active{background:var(--biz-closed-text);color:#fff;}
 #sales-module-wrap .sales-status-tab.st-all.active{background:#8a93a6;color:#fff;}
-#sales-module-wrap .sales-toptabs{display:flex;gap:0;margin:-16px -18px 16px;background:var(--biz-card-bg);border-bottom:1px solid var(--biz-border-light);}
-#sales-module-wrap .sales-toptab{flex:1;text-align:center;padding:12px 8px;font-size:13px;font-weight:600;color:var(--biz-text-faint);cursor:pointer;border-bottom:2px solid transparent;}
+#sales-module-wrap .sales-toptabs{display:flex;gap:0;margin:-16px -18px 16px;background:var(--biz-card-bg);border-bottom:1px solid var(--biz-border-light);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+#sales-module-wrap .sales-toptab{flex:none;white-space:nowrap;text-align:center;padding:12px 12px;font-size:13px;font-weight:600;color:var(--biz-text-faint);cursor:pointer;border-bottom:2px solid transparent;}
 #sales-module-wrap .sales-toptab.active{color:var(--biz-purple);border-bottom-color:var(--biz-purple);font-weight:700;}
 #sales-module-wrap .sales-field{margin-bottom:10px;}
 #sales-module-wrap .sales-field label{font-size:10.5px;font-weight:700;color:var(--biz-text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
@@ -110,10 +110,12 @@ salesModuleWrap.innerHTML = `
 document.body.appendChild(salesModuleWrap);
 
 // ── State ──
-let salesTopView = 'enquiries';        // 'enquiries' | 'quotations'
-let salesView = 'enq-list';            // enq-list | enq-create | enq-detail | cust-create | qtn-list | qtn-hub | qtn-wizard
+let salesTopView = 'enquiries';        // 'enquiries' | 'quotations' | 'proforma' | 'receipts' | 'creditnotes'
+let salesView = 'enq-list';            // enq-list | enq-create | enq-detail | cust-create | qtn-list | qtn-hub | qtn-wizard | proforma-list | receipt-list | receipt-create | creditnote-list | creditnote-create
 let salesActiveEnquiryId = null;
 let salesActiveQtnId = null;
+let salesReceiptDraft = null;
+let salesCreditNoteDraft = null;
 let salesActiveEnqTab = 'basic';       // basic | followup
 let salesWizardStep = 1;
 let salesEnqFilters = { from: '', to: '', customer: '', salesPerson: '', unassigned: false, unattended: false, unquoted: false };
@@ -162,9 +164,13 @@ function closeSalesModule() {
 function launchEnquiryModule() { openSalesModule(); }
 function launchSalesModule() { openSalesModule(); }
 
+const SALES_TOPVIEW_DEFAULTS = {
+  dashboard: 'dashboard', enquiries: 'enq-list', quotations: 'qtn-list',
+  proforma: 'proforma-list', receipts: 'receipt-list', creditnotes: 'creditnote-list'
+};
 function salesSetTopView(v) {
   salesTopView = v;
-  salesView = v === 'dashboard' ? 'dashboard' : v === 'enquiries' ? 'enq-list' : 'qtn-list';
+  salesView = SALES_TOPVIEW_DEFAULTS[v] || 'enq-list';
   renderSalesBody();
 }
 
@@ -176,6 +182,9 @@ function renderSalesBody() {
       <div class="sales-toptab ${salesTopView === 'dashboard' ? 'active' : ''}" onclick="salesSetTopView('dashboard')">Dashboard</div>
       <div class="sales-toptab ${salesTopView === 'enquiries' ? 'active' : ''}" onclick="salesSetTopView('enquiries')">Enquiry</div>
       <div class="sales-toptab ${salesTopView === 'quotations' ? 'active' : ''}" onclick="salesSetTopView('quotations')">Quotation</div>
+      <div class="sales-toptab ${salesTopView === 'proforma' ? 'active' : ''}" onclick="salesSetTopView('proforma')">Proforma</div>
+      <div class="sales-toptab ${salesTopView === 'receipts' ? 'active' : ''}" onclick="salesSetTopView('receipts')">Receipt</div>
+      <div class="sales-toptab ${salesTopView === 'creditnotes' ? 'active' : ''}" onclick="salesSetTopView('creditnotes')">Credit Note</div>
     </div>`;
 
   let content = '';
@@ -188,6 +197,11 @@ function renderSalesBody() {
     case 'qtn-list': content = renderQuotationList(); break;
     case 'qtn-hub': content = renderQuotationHub(); break;
     case 'qtn-wizard': content = renderQuotationWizard(); break;
+    case 'proforma-list': content = renderProformaList(); break;
+    case 'receipt-list': content = renderReceiptList(); break;
+    case 'receipt-create': content = renderReceiptCreate(); break;
+    case 'creditnote-list': content = renderCreditNoteList(); break;
+    case 'creditnote-create': content = renderCreditNoteCreate(); break;
     default: content = renderEnquiryList();
   }
   body.innerHTML = topTabs + content;
@@ -649,11 +663,44 @@ function renderQuotationHub() {
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">File Manager</p>
       <p style="font-size:11.5px;color:#94a3b8;">No upload infrastructure in this app yet — Q-Pro's File Manager is not reproduced here.</p>
     </div>
+    ${renderRelatedRecords(jobCards.find(j => j.quotationId === q.id))}
+    ${renderQuotationAuditTable(q)}`;
+}
+
+// Shared by the Quotation Hub and the Job Card Management hub (jobs.js) —
+// both render the identical set of linked-document mini-tables per the live
+// trace's "hub" pattern. Takes the Job Card (or null if none exists yet,
+// e.g. an unconfirmed quotation) since every one of these documents hangs
+// off the Job Card, not the Quotation, once a job exists.
+function renderRelatedRecords(job) {
+  if (!job) {
+    return `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:4px;">Related records</p><p style="font-size:11.5px;color:#94a3b8;">Invoices · Receipts · Credit Notes · Proforma · Delivery Notes — available once this quotation is confirmed and a Job Card exists.</p></div>`;
+  }
+  const invoices = getInvoicesForJob(job.id);
+  const receipts = getReceiptsForJob(job.id);
+  const creditNotes = getCreditNotesForJob(job.id);
+  const proforma = getProformasForJob(job.id);
+  const dnRows = job.deliveryNotes.length === 0 ? '' :
+    `<p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Delivery Notes</p>
+     <table class="sales-items"><tr><th>DN</th><th>Date</th><th>Lines</th></tr>${job.deliveryNotes.map(dn => `<tr><td>${esc(dn.id)}</td><td>${dn.date}</td><td>${dn.lines.length}</td></tr>`).join('')}</table>`;
+
+  return `
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Related records</p>
-      <p style="font-size:11.5px;color:#94a3b8;">Invoices · Receipts · Credit Notes · Jobs · Proforma · Delivery Notes — not built in this app.</p>
-    </div>
-    ${renderQuotationAuditTable(q)}`;
+      <p style="font-weight:700;font-size:12px;margin:6px 0 4px;">Invoices</p>
+      ${invoices.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Invoice List Exist...</p>` :
+        `<table class="sales-items"><tr><th>Invoice No.</th><th>Date</th><th>Amount</th><th>Received</th><th>Balance</th></tr>${invoices.map(inv => `<tr><td>${esc(inv.id)}</td><td>${inv.date}</td><td>${inv.totals.netTotal.toFixed(3)}</td><td>${(inv.paidAmount || 0).toFixed(3)}</td><td>${invoiceBalance(inv).toFixed(3)}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Receipts</p>
+      ${receipts.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Invoice List Exist...</p>` :
+        `<table class="sales-items"><tr><th>Receipt No.</th><th>Date</th><th>Amount</th></tr>${receipts.map(r => `<tr><td>${esc(r.id)}</td><td>${r.receiptDate}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Credit Notes</p>
+      ${creditNotes.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Invoice List Exist...</p>` :
+        `<table class="sales-items"><tr><th>Credit Note No.</th><th>Date</th><th>Amount</th><th>Status</th></tr>${creditNotes.map(cn => `<tr style="${cn.status === 'cancelled' ? 'background:#fee2e2;' : ''}"><td>${esc(cn.id)}</td><td>${cn.creditNoteDate}</td><td>${cn.amount.toFixed(3)}</td><td>${cn.status}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Proforma</p>
+      ${proforma.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Proforma generated yet.</p>` :
+        `<table class="sales-items"><tr><th>Proforma No.</th><th>Date</th><th>Amount</th></tr>${proforma.map(p => `<tr><td>${esc(p.id)}</td><td>${p.date}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`).join('')}</table>`}
+      ${dnRows}
+    </div>`;
 }
 
 // Shared across every Manage Quote hub view (Sales/Estimator/Approver all
@@ -945,10 +992,11 @@ function getSalesKPIs() {
   // "To Invoice" = an open/completed job with no Tax Invoice generated yet.
   const toInvoice = typeof jobCards !== 'undefined' && typeof getInvoicesForJob === 'function'
     ? jobCards.filter(j => j.status !== 'cancelled' && getInvoicesForJob(j.id).length === 0).length : 0;
-  // Receivables — sum of every generated invoice's Net Total. This app has
-  // no payment/receipt tracking yet, so every invoice is treated as fully
-  // outstanding (an overstatement once payments exist — flagged assumption).
-  const receivables = typeof taxInvoices !== 'undefined' ? taxInvoices.reduce((s, inv) => s + inv.totals.netTotal, 0) : 0;
+  // Receivables — sum of each invoice's real outstanding balance (Net Total
+  // minus Batch 4's Receipt paidAmount and Credit Note creditedAmount).
+  // Previously summed the full netTotal since no payment tracking existed —
+  // corrected now that Sales Receipt/Credit Note actually net things off.
+  const receivables = typeof taxInvoices !== 'undefined' ? taxInvoices.reduce((s, inv) => s + invoiceBalance(inv), 0) : 0;
 
   const prPending = typeof purchaseRequests !== 'undefined' ? purchaseRequests.filter(pr => pr.status === 'open').length : 0;
   const prNotReceived = typeof purchaseOrders !== 'undefined' ? purchaseOrders.filter(po => po.status === 'issued').length : 0;
@@ -966,4 +1014,249 @@ function getSalesKPIs() {
     jobsPending, jobsOngoing, toInvoice, receivables, prPending, prNotReceived,
     categoryBreakdown
   };
+}
+
+// ══════════════════════════════════════════
+// PROFORMA — Batch 4. List-only per the live trace: no manual create form
+// exists there, Proforma is generated from the Quotation Hub above or the
+// Job Card Management hub's "PROFORMA" tile (jobs.js) — see
+// createProformaFromJob() in data.js.
+// ══════════════════════════════════════════
+function renderProformaList() {
+  const rows = proformas.slice().sort((a, b) => b.date.localeCompare(a.date));
+  if (rows.length === 0) {
+    return `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No proforma invoices yet — generate one from a confirmed Quotation's or its Job Card's hub.</p></div>`;
+  }
+  return `<div class="sales-card" style="overflow-x:auto;">
+    <table class="sales-items"><tr><th>Proforma</th><th>Qtn No</th><th>Date</th><th>Client</th><th>Amount</th></tr>
+    ${rows.map(p => {
+      const c = customers.find(x => x.id === p.customerId);
+      return `<tr style="cursor:pointer;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule('${p.jobId}'),150);"><td>${esc(p.id)}</td><td>${esc(p.quotationId)}</td><td>${p.date}</td><td>${esc(c ? c.name : '—')}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`;
+    }).join('')}
+    </table>
+  </div>`;
+}
+
+// ══════════════════════════════════════════
+// SALES RECEIPT — Batch 4. Customer-side, mirrors Purchasing's Supplier
+// Payment (Batch 1) structurally. getCustomerOpenInvoices() (data.js)
+// actually looks the client's open invoices up — the live system's "No
+// Invoice List Available..!" bug is fixed here, not reproduced (same
+// pattern as Batch 1's Payment/Debit Note).
+// ══════════════════════════════════════════
+function renderReceiptList() {
+  let html = `<button class="primary" style="width:100%;margin-bottom:12px;" onclick="openReceiptCreate()">+ New Receipt</button>`;
+  if (salesReceipts.length === 0) {
+    html += `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No receipts yet.</p></div>`;
+  } else {
+    html += `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>Receipt No</th><th>Client</th><th>Date</th><th>Amount</th></tr>
+    ${salesReceipts.slice().reverse().map(r => {
+      const c = customers.find(x => x.id === r.customerId);
+      return `<tr><td>${esc(r.id)}</td><td>${esc(c ? c.name : '—')}</td><td>${r.receiptDate}</td><td>${r.amount.toFixed(3)}</td></tr>`;
+    }).join('')}
+    </table></div>`;
+  }
+  return html;
+}
+
+function openReceiptCreate() {
+  salesReceiptDraft = {
+    customerId: '',
+    methods: {
+      cash: { enabled: false, amount: 0 },
+      bank: { enabled: false, amount: 0, bank: '' },
+      cCard: { enabled: false, amount: 0, type: 'Visa Card', authorized: '' },
+      wallet: { enabled: false, amount: 0, type: 'B wallet', authorized: '' },
+      cheque: { enabled: false, amount: 0, number: '', bank: '' }
+    },
+    referenceNumber: '', allocations: [], advanceAmount: 0, remarks: ''
+  };
+  salesView = 'receipt-create';
+  renderSalesBody();
+}
+
+function receiptCustomerChanged(customerId) {
+  salesReceiptDraft.customerId = customerId;
+  salesReceiptDraft.allocations = customerId
+    ? getCustomerOpenInvoices(customerId).map(row => ({ ...row, payingAmount: 0, discountAmount: 0 }))
+    : [];
+  renderSalesBody();
+}
+function receiptMethodToggle(method, checked) { salesReceiptDraft.methods[method].enabled = checked; renderSalesBody(); }
+function receiptMethodField(method, field, val) { salesReceiptDraft.methods[method][field] = (field === 'amount') ? Number(val) || 0 : val; }
+function receiptAllocationChanged(i, field, val) { salesReceiptDraft.allocations[i][field] = Number(val) || 0; }
+
+function renderReceiptCreate() {
+  const d = salesReceiptDraft;
+  const c = customers.find(x => x.id === d.customerId);
+
+  const methodBlock = (key, label, extraHtml) => `
+    <div class="sales-field">
+      <label><input type="checkbox" ${d.methods[key].enabled ? 'checked' : ''} onchange="receiptMethodToggle('${key}',this.checked)"> ${label}</label>
+      ${d.methods[key].enabled ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+        <input type="number" step="0.001" style="flex:1;" placeholder="Amount" value="${d.methods[key].amount}" onchange="receiptMethodField('${key}','amount',this.value)">
+        ${extraHtml || ''}
+      </div>` : ''}
+    </div>`;
+
+  let reveal = '';
+  if (d.customerId) {
+    const allocHtml = d.allocations.length === 0
+      ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
+      : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Paid</th><th>Paying Amt</th><th>Disc</th><th>Balance</th></tr>
+        ${d.allocations.map((a, i) => `<tr><td>${esc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.paidAmount.toFixed(3)}</td>
+          <td><input type="number" step="0.001" style="width:80px;" value="${a.payingAmount}" onchange="receiptAllocationChanged(${i},'payingAmount',this.value)"></td>
+          <td><input type="number" step="0.001" style="width:70px;" value="${a.discountAmount}" onchange="receiptAllocationChanged(${i},'discountAmount',this.value)"></td>
+          <td>${a.balanceAmount.toFixed(3)}</td></tr>`).join('')}
+        </table></div>`;
+
+    reveal = `
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Client Name: ${esc(c ? c.name : '—')}</p>
+      ${methodBlock('cash', 'Cash')}
+      ${methodBlock('bank', 'Bank', `<input type="text" style="flex:1;" placeholder="Bank" value="${esc(d.methods.bank.bank)}" onchange="receiptMethodField('bank','bank',this.value)">`)}
+      ${methodBlock('cCard', 'C Card', `<select style="flex:1;" onchange="receiptMethodField('cCard','type',this.value)"><option ${d.methods.cCard.type === 'Visa Card' ? 'selected' : ''}>Visa Card</option><option ${d.methods.cCard.type === 'Master Card' ? 'selected' : ''}>Master Card</option><option ${d.methods.cCard.type === 'Others' ? 'selected' : ''}>Others</option></select><input type="text" style="flex:1;" placeholder="Authorized" value="${esc(d.methods.cCard.authorized)}" onchange="receiptMethodField('cCard','authorized',this.value)">`)}
+      ${methodBlock('wallet', 'Wallet', `<select style="flex:1;" onchange="receiptMethodField('wallet','type',this.value)"><option ${d.methods.wallet.type === 'B wallet' ? 'selected' : ''}>B wallet</option><option ${d.methods.wallet.type === 'IBAN' ? 'selected' : ''}>IBAN</option><option ${d.methods.wallet.type === 'Benefit' ? 'selected' : ''}>Benefit</option></select><input type="text" style="flex:1;" placeholder="Authorized" value="${esc(d.methods.wallet.authorized)}" onchange="receiptMethodField('wallet','authorized',this.value)">`)}
+      ${methodBlock('cheque', 'Cheque', `<input type="text" style="flex:1;" placeholder="Number" value="${esc(d.methods.cheque.number)}" onchange="receiptMethodField('cheque','number',this.value)"><input type="text" style="flex:1;" placeholder="Bank" value="${esc(d.methods.cheque.bank)}" onchange="receiptMethodField('cheque','bank',this.value)">`)}
+      <div class="sales-field"><label>Amount *</label><input type="number" step="0.001" id="rc-amount"></div>
+      <div class="sales-field"><label>Reference Number</label><input type="text" id="rc-reference"></div>
+      <div class="sales-field"><label>Advance payment</label><input type="number" step="0.001" id="rc-advance" value="0"></div>
+      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Invoice Allocation</p>
+      ${allocHtml}
+      <div class="sales-field" style="margin-top:10px;"><label>Remarks</label><textarea id="rc-remarks"></textarea></div>
+      <div style="display:flex;gap:8px;">
+        <button class="primary" style="flex:1;" onclick="saveReceipt()">Create Receipt</button>
+        <button class="secondary" style="flex:1;" onclick="salesView='receipt-list';renderSalesBody();">Exit</button>
+      </div>`;
+  }
+
+  return `
+    <span class="sales-back" onclick="salesView='receipt-list';renderSalesBody();">‹ Back to Receipt List</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:14px;margin-bottom:12px;">Create Receipt</p>
+      <div class="sales-field"><label>Name</label>
+        <select onchange="receiptCustomerChanged(this.value)">
+          <option value="">Select client…</option>
+          ${customers.map(x => `<option value="${x.id}" ${d.customerId === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
+        </select>
+      </div>
+      ${reveal}
+    </div>`;
+}
+
+function saveReceipt() {
+  const d = salesReceiptDraft;
+  const amount = Number(document.getElementById('rc-amount').value) || 0;
+  const referenceNumber = document.getElementById('rc-reference').value.trim();
+  const advanceAmount = Number(document.getElementById('rc-advance').value) || 0;
+  const remarks = document.getElementById('rc-remarks').value.trim();
+  if (!d.customerId) { salesAlert('Please select a client.'); return; }
+  if (!amount) { salesAlert('Amount is required.'); return; }
+  const result = createSalesReceipt({
+    customerId: d.customerId, methods: d.methods, amount, referenceNumber,
+    allocations: d.allocations.filter(a => a.payingAmount > 0), advanceAmount, remarks
+  });
+  if (result.error) { salesAlert(result.error); return; }
+  salesAlert(`✓ Receipt ${result.id} created.`);
+  salesReceiptDraft = null;
+  salesView = 'receipt-list';
+  renderSalesBody();
+}
+
+// ══════════════════════════════════════════
+// SALES CREDIT NOTE — Batch 4. Same two-stage pattern as Receipt (client
+// first, then an invoice-allocation table). List view uses the red/pink
+// cancelled-row convention observed live and used elsewhere in this app
+// (Debit Note, Materials Issue/Return).
+// ══════════════════════════════════════════
+function renderCreditNoteList() {
+  let html = `<button class="primary" style="width:100%;margin-bottom:12px;" onclick="openCreditNoteCreate()">+ New Credit Note</button>`;
+  if (salesCreditNotes.length === 0) {
+    html += `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No credit notes yet.</p></div>`;
+  } else {
+    html += `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>Credit Note No</th><th>Client</th><th>Date</th><th>Amount</th><th>Action</th></tr>
+    ${salesCreditNotes.slice().reverse().map(cn => {
+      const c = customers.find(x => x.id === cn.customerId);
+      return `<tr style="${cn.status === 'cancelled' ? 'background:#fee2e2;' : ''}"><td>${esc(cn.id)}</td><td>${esc(c ? c.name : '—')}</td><td>${cn.creditNoteDate}</td><td>${cn.amount.toFixed(3)}</td>
+        <td>${cn.status === 'cancelled' ? 'Cancelled' : `<span style="cursor:pointer;color:#b91c1c;" onclick="salesCancelCreditNote('${cn.id}')">Cancel</span>`}</td></tr>`;
+    }).join('')}
+    </table></div>`;
+  }
+  return html;
+}
+
+function salesCancelCreditNote(id) {
+  if (!window.confirm('Cancel this credit note?')) return;
+  cancelSalesCreditNote(id);
+  salesAlert('✓ Credit Note cancelled.');
+  renderSalesBody();
+}
+
+function openCreditNoteCreate() {
+  salesCreditNoteDraft = { customerId: '', allocations: [], reason: '' };
+  salesView = 'creditnote-create';
+  renderSalesBody();
+}
+function creditNoteCustomerChanged(customerId) {
+  salesCreditNoteDraft.customerId = customerId;
+  salesCreditNoteDraft.allocations = customerId
+    ? getCustomerOpenInvoices(customerId).map(row => ({ ...row, creditingAmount: 0 }))
+    : [];
+  renderSalesBody();
+}
+function creditNoteAllocationChanged(i, val) { salesCreditNoteDraft.allocations[i].creditingAmount = Number(val) || 0; }
+
+function renderCreditNoteCreate() {
+  const d = salesCreditNoteDraft;
+  const c = customers.find(x => x.id === d.customerId);
+
+  let reveal = '';
+  if (d.customerId) {
+    const allocHtml = d.allocations.length === 0
+      ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
+      : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Balance</th><th>Crediting Amt</th></tr>
+        ${d.allocations.map((a, i) => `<tr><td>${esc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.balanceAmount.toFixed(3)}</td>
+          <td><input type="number" step="0.001" style="width:80px;" value="${a.creditingAmount}" onchange="creditNoteAllocationChanged(${i},this.value)"></td></tr>`).join('')}
+        </table></div>`;
+
+    reveal = `
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Client Name: ${esc(c ? c.name : '—')}</p>
+      <p style="font-weight:700;font-size:12px;margin:6px 0 4px;">Invoice Allocation</p>
+      ${allocHtml}
+      <div class="sales-field" style="margin-top:10px;"><label>Amount *</label><input type="number" step="0.001" id="cn-amount"></div>
+      <div class="sales-field"><label>Reason</label><textarea id="cn-reason"></textarea></div>
+      <div style="display:flex;gap:8px;">
+        <button class="primary" style="flex:1;" onclick="saveCreditNote()">Create Credit Note</button>
+        <button class="secondary" style="flex:1;" onclick="salesView='creditnote-list';renderSalesBody();">Exit</button>
+      </div>`;
+  }
+
+  return `
+    <span class="sales-back" onclick="salesView='creditnote-list';renderSalesBody();">‹ Back to Credit Note List</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:14px;margin-bottom:12px;">Create Credit Note</p>
+      <div class="sales-field"><label>Name</label>
+        <select onchange="creditNoteCustomerChanged(this.value)">
+          <option value="">Select client…</option>
+          ${customers.map(x => `<option value="${x.id}" ${d.customerId === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
+        </select>
+      </div>
+      ${reveal}
+    </div>`;
+}
+
+function saveCreditNote() {
+  const d = salesCreditNoteDraft;
+  const amount = Number(document.getElementById('cn-amount').value) || 0;
+  const reason = document.getElementById('cn-reason').value.trim();
+  if (!d.customerId) { salesAlert('Please select a client.'); return; }
+  if (!amount) { salesAlert('Amount is required.'); return; }
+  const result = createSalesCreditNote({
+    customerId: d.customerId, amount,
+    allocations: d.allocations.filter(a => a.creditingAmount > 0), reason
+  });
+  if (result.error) { salesAlert(result.error); return; }
+  salesAlert(`✓ Credit Note ${result.id} created.`);
+  salesCreditNoteDraft = null;
+  salesView = 'creditnote-list';
+  renderSalesBody();
 }
