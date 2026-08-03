@@ -148,6 +148,7 @@ function renderEstimatorBody() {
     case 'hub': content = renderEstimatorQuoteHub(); break;
     case 'index': content = renderEstimationIndex(); break;
     case 'bom': content = renderJobEstimationBOM(); break;
+    case 'review': content = renderEstimatorReview(); break;
     default: content = renderEstimatorDashboard();
   }
   body.innerHTML = content;
@@ -273,6 +274,73 @@ function renderEstimatorQuoteHub() {
     ${renderQuotationAuditTable(q)}`;
 }
 
+// Estimator's own Review screen — Salman's ask: once the BOM work is
+// finished, review the whole quote and send to Approver right from here,
+// without bouncing back out to the Manage Quote hub first. Read-only
+// summary, same shape as Approver's own review (computeBOMTotals per
+// line + a page-level Quote Summary), just reached from a different door.
+function openEstimatorReview(qtnId) {
+  estimatorActiveQtnId = qtnId;
+  estimatorView = 'review';
+  renderEstimatorBody();
+}
+function renderEstimatorReview() {
+  const q = quotations.find(x => x.id === estimatorActiveQtnId);
+  if (!q) return `<p style="font-size:12.5px;color:#64748b;">Quotation not found.</p>`;
+  const c = customers.find(x => x.id === q.customerId);
+
+  let sumAmount = 0, sumDisc = 0, sumNet = 0, sumCost = 0;
+  q.items.forEach(it => {
+    sumAmount += it.amount; sumDisc += it.discAmt; sumNet += it.netAmount;
+    if (it.bom) sumCost += computeBOMTotals(it.bom).totalCostInclOH;
+  });
+  const subtotal = sumAmount - sumDisc;
+  const vatTotal = sumNet - subtotal;
+  const profitTotal = subtotal - sumCost;
+  const profitPctTotal = sumCost > 0 ? (profitTotal / sumCost * 100).toFixed(1) + '%' : '—';
+  const missingBom = q.items.filter(it => !it.bom || !it.bom.submitted).length;
+
+  const rows = q.items.map((it, i) => {
+    let cost = '—', profit = '—', profitPct = '—';
+    if (it.bom) {
+      const t = computeBOMTotals(it.bom);
+      cost = t.totalCostInclOH.toFixed(3);
+      const actualProfit = it.rate * it.qty - t.totalCostInclOH;
+      profit = actualProfit.toFixed(3);
+      profitPct = t.totalCostInclOH > 0 ? (actualProfit / t.totalCostInclOH * 100).toFixed(1) + '%' : '—';
+    }
+    return `<tr><td>${i + 1}</td><td>${eEsc(it.product)}</td><td>${it.qty}</td><td>${it.rate.toFixed(3)}</td><td>${it.amount.toFixed(3)}</td><td>${cost}</td><td>${profit}</td><td>${profitPct}</td></tr>`;
+  }).join('');
+
+  return `
+    <span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:15px;">${q.id}</p>
+      <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${eEsc(c ? c.name : '—')} · Project: ${eEsc(q.projectName)}</p>
+    </div>
+    ${missingBom > 0 ? `<div class="sales-banner">${missingBom} item${missingBom === 1 ? '' : 's'} still ${missingBom === 1 ? "doesn't" : "don't"} have a submitted BOM — figures below are a running total, not final.</div>` : ''}
+    <div class="sales-card" style="overflow-x:auto;">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Line Items</p>
+      <table class="sales-items"><tr><th>#</th><th>Product</th><th>Qty</th><th>Price</th><th>Amount</th><th>Cost</th><th>Profit</th><th>Profit%</th></tr>${rows}</table>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Quote Summary</p>
+      <div class="sales-kpi-grid">
+        <div class="sales-kpi-tile"><div class="num">${subtotal.toFixed(3)}</div><div class="lbl">Quote Value</div></div>
+        <div class="sales-kpi-tile"><div class="num">${sumCost.toFixed(3)}</div><div class="lbl">Cost</div></div>
+        <div class="sales-kpi-tile"><div class="num">${profitTotal.toFixed(3)}</div><div class="lbl">Profit (${profitPctTotal})</div></div>
+      </div>
+      <p style="font-size:12px;color:#64748b;">VAT: BD ${vatTotal.toFixed(3)}</p>
+      <p style="font-weight:700;font-size:14px;margin-top:4px;">Grand Total: BD ${sumNet.toFixed(3)}</p>
+    </div>
+    <div class="sales-card">
+      <div style="display:flex;gap:8px;">
+        <button class="secondary" style="flex:1;" onclick="openEstimationIndex('${q.id}')">‹ Back to Estimation</button>
+        <button class="primary" style="flex:1;" onclick="estimatorTransferStage('${q.id}','approver')">Transfer to Approver →</button>
+      </div>
+    </div>`;
+}
+
 // Matches the live confirmation copy exactly ("Do you Want to Change Status?").
 function estimatorTransferStage(qtnId, stage) {
   if (!window.confirm('Do you Want to Change Status?')) return;
@@ -298,8 +366,13 @@ function renderEstimationIndex() {
 
   const rows = q.items.map((it, i) => {
     const hasBom = !!(it.bom && it.bom.submitted);
-    // "Copy BOM" — qty changed since Sales last sent this back after a BOM was
-    // already submitted, so the Estimator should revisit material quantities.
+    // "Review BOM" — qty changed since Sales last sent this back after a BOM
+    // was already submitted, so the Estimator should revisit quantities.
+    // Deliberately NOT called "Copy BOM" — this just reopens the item's OWN
+    // BOM for review, it doesn't copy anything from anywhere. That name was
+    // confusing right next to the real cross-item Copy BOM feature inside
+    // the BOM entry screen itself (see estimatorCopyBOMFromItem() below) —
+    // Salman found this exact collision while testing.
     const qtyDrifted = hasBom && it.bom.qtyAtSubmit !== it.qty;
     const commentsHtml = (it.internalComments || it.approverComment) ? `
       <div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">
@@ -325,7 +398,7 @@ function renderEstimationIndex() {
         <td>${hasBom ? '✓' : ''}</td>
         <td>${deptCell}</td>
         <td>
-          ${it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">${qtyDrifted ? 'Copy BOM' : 'Update BOM'}</button>
+          ${it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">${qtyDrifted ? 'Review BOM' : 'Update BOM'}</button>
           <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="estimatorClearBOMConfirm('${q.id}',${it.lineId})">Clear BOM</button>`
           : `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">+ Add BOM</button>`}
         </td>
@@ -341,7 +414,8 @@ function renderEstimationIndex() {
     <div class="sales-card">
       <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Department routing is auto-suggested per line (tap a job's Departments cell to review/override) — the Operations Manager confirms it for real once the job is created, this is just getting it right early.</p>
       <table class="sales-items"><tr><th>SL</th><th>Product</th><th>Qty</th><th>Rate</th><th>BOM</th><th>Departments</th><th>Actions</th></tr>${rows}</table>
-    </div>`;
+    </div>
+    <button class="primary" style="width:100%;" onclick="openEstimatorReview('${q.id}')">Review & Send to Approver →</button>`;
 }
 
 // Job Routing (Batch 8, Phase 0) — Estimator's override of the

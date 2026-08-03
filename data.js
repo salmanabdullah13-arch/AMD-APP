@@ -2845,10 +2845,51 @@ function addQuotationItem(qtnId, item) {
     // during BOM entry, carried through to the Job Card at confirm time,
     // and only actually finalized into departmentStatuses by the
     // Operations Manager's routing queue (see confirmJobRouting()).
-    departmentSequence: suggestDepartmentSequence(item.product, enq ? enq.division : null)
+    departmentSequence: suggestDepartmentSequence(item.product, enq ? enq.division : null),
+    // Approver corrections (product/description/price) — see
+    // approverCorrectItem() below. priceManuallyOverridden flags that this
+    // line's rate no longer purely reflects the BOM's own calculated figure.
+    corrections: [], priceManuallyOverridden: false
   };
   qtn.items.push(row);
   return row;
+}
+// Copies every item under a Group (or a specific Sub Group within one) as
+// new items appended to the end of the quote — same "duplicate then
+// tweak" pattern as salesDuplicateItem, just at section granularity so a
+// whole area doesn't need retyping line by line. Rate/BOM always reset
+// like any new item; group/subgroup labels carry over so the copy lands
+// in the same visual section, ready to rename if it's actually a new one.
+function copyQuoteSection(qtnId, group, subgroup) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const matches = qtn.items.filter(it => it.group === group && (subgroup === undefined || subgroup === null || it.subgroup === subgroup));
+  if (!matches.length) return { error: "Nothing to copy." };
+  return matches.map(it => addQuotationItem(qtnId, {
+    group: it.group, subgroup: it.subgroup, product: it.product, qty: it.qty, unit: it.unit,
+    vatPercent: it.vatPercent, discPercent: it.discPercent, description: it.description, internalComments: it.internalComments
+  }));
+}
+// Computes the printed/display hierarchy (Group -> Sub Group -> Item) from
+// the flat items[] array's own stored group/subgroup strings — a new
+// header is introduced wherever the value differs from the previous item,
+// no separate group/subgroup entity or ordering field needed. Group# and
+// Sub Group# are freshly auto-incremented here (Sub Group resets to 1 for
+// each new Group) — this is this app's own numbering rule for quotes
+// created going forward, not an attempt to reproduce exact numbers from
+// any historical/imported document.
+function computeQuoteHierarchy(items) {
+  let groupNo = 0, subgroupNo = 0, itemNo = 0;
+  let lastGroup = null, lastSubgroup = null, first = true;
+  return items.map(it => {
+    const isNewGroup = first || it.group !== lastGroup;
+    const isNewSubgroup = isNewGroup || it.subgroup !== lastSubgroup;
+    if (isNewGroup) { groupNo++; subgroupNo = 0; }
+    if (isNewSubgroup) { subgroupNo++; itemNo = 0; }
+    itemNo++;
+    lastGroup = it.group; lastSubgroup = it.subgroup; first = false;
+    return { item: it, isNewGroup, isNewSubgroup, groupNo, subgroupNo, serial: `${groupNo}.${subgroupNo}.${itemNo - 1}` };
+  });
 }
 // Estimator override — the auto-suggestion above is a starting point, not
 // a final answer. `sequence` is an ordered array of DEPTS keys.
@@ -3333,6 +3374,42 @@ function setLineApproverComment(qtnId, lineId, text) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
   item.approverComment = text;
+  return item;
+}
+
+// Approver direct correction — Product Name/Description/Price, with a
+// mandatory reason (same pattern as rejectCustomer()) and a full audit
+// trail (item.corrections[] + the quotation's own auditLog, already
+// rendered by renderQuotationAuditTable() everywhere it's used). Salman's
+// explicit call, contrasted against the legacy Q-Pro "Approver Print"
+// screen that let Cost be edited invisibly with zero trace — every
+// correction here is logged with who/when/why/before/after. A rate change
+// is tracked as an explicit override (priceManuallyOverridden flag) rather
+// than silently detaching from the BOM's own calculated figure — the BOM
+// stays intact underneath, this is a recorded correction on top of it, not
+// a rewrite of the Estimator's work.
+function approverCorrectItem(qtnId, lineId, patch, reason, approverName) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  if (!reason || !reason.trim()) return { error: "A reason is required for this correction." };
+  const changes = {};
+  ["product", "description"].forEach(f => {
+    if (patch[f] !== undefined && patch[f] !== item[f]) { changes[f] = { from: item[f], to: patch[f] }; item[f] = patch[f]; }
+  });
+  if (patch.rate !== undefined && Number(patch.rate) !== item.rate) {
+    changes.rate = { from: item.rate, to: Number(patch.rate) };
+    item.rate = Number(patch.rate);
+    item.amount = item.qty * item.rate;
+    item.discAmt = item.amount * (item.discPercent || 0) / 100;
+    item.netAmount = (item.amount - item.discAmt) * (1 + (item.vatPercent || 0) / 100);
+    item.priceManuallyOverridden = true;
+  }
+  if (Object.keys(changes).length === 0) return { error: "No changes to save." };
+  if (!item.corrections) item.corrections = [];
+  item.corrections.push({ by: approverName, date: new Date().toISOString().slice(0, 10), reason: reason.trim(), changes });
+  const qtn = quotations.find(q => q.id === qtnId);
+  const fieldList = Object.keys(changes).join(", ");
+  logQuotationAudit(qtn, { action: "Correct Item", user: approverName, userType: "APPROVER", status: `${item.product} — ${fieldList} corrected (${reason.trim()})` });
   return item;
 }
 

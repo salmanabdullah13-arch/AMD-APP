@@ -406,16 +406,50 @@ function approverSaveLineComment() {
   renderApproverBody();
 }
 
-// Per-line estimation breakdown — read-only, so the Approver can see
-// exactly what went into the price before approving, not just the rolled-up
-// Cost/Profit columns on the review table.
+// Per-line estimation breakdown — read-only by default, so the Approver
+// can see exactly what went into the price before approving. A "✎ Correct"
+// toggle underneath (approverCorrectingLineId) opens an editable Product
+// Name/Description/Price panel — unlike the legacy Q-Pro "Approver Print"
+// screen this replaces, every correction here requires a reason and is
+// fully audit-logged (see approverCorrectItem() in data.js), never a
+// silent inline edit.
+let approverDetailLineId = null;
+let approverCorrectingLineId = null;
 function approverOpenItemDetailModal(lineId) {
+  approverDetailLineId = lineId;
+  approverCorrectingLineId = null;
+  approverRenderDetailModal();
+}
+function approverRenderDetailModal() {
+  const lineId = approverDetailLineId;
   const item = findQuotationItem(approverActiveQtnId, lineId);
   const inner = document.getElementById('apr-detail-modal-inner');
-  if (!item || !item.bom) {
+  if (!item) { document.getElementById('apr-detail-modal').style.display = 'none'; return; }
+
+  const correctionPanel = approverCorrectingLineId === lineId ? `
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;margin-top:10px;">
+      <p style="font-weight:700;font-size:12px;margin-bottom:6px;color:#92400e;">Correct This Item</p>
+      <div class="sales-field"><label>Product Name</label><input type="text" id="apr-corr-product" value="${aEsc(item.product)}"></div>
+      <div class="sales-field"><label>Description</label><textarea id="apr-corr-desc">${aEsc(item.description)}</textarea></div>
+      <div class="sales-field"><label>Price (Rate)</label><input type="number" step="0.001" id="apr-corr-rate" value="${item.rate.toFixed(3)}"></div>
+      <div class="sales-field"><label>Reason for correction *</label><textarea id="apr-corr-reason" placeholder="Required — recorded in the audit trail"></textarea></div>
+      <div style="display:flex;gap:8px;">
+        <button class="primary" style="flex:1;" onclick="approverSaveCorrection()">Save Correction</button>
+        <button class="secondary" style="flex:1;" onclick="approverCorrectingLineId=null;approverRenderDetailModal();">Cancel</button>
+      </div>
+    </div>` : `<button class="secondary" style="width:100%;margin-top:10px;" onclick="approverCorrectingLineId=${lineId};approverRenderDetailModal();">✎ Correct Product/Description/Price</button>`;
+
+  const correctionsHistory = (item.corrections && item.corrections.length) ? `
+    <div style="margin-top:10px;font-size:10.5px;color:#94a3b8;border-top:1px solid var(--biz-border-light);padding-top:6px;">
+      <p style="font-weight:700;">Correction history:</p>
+      ${item.corrections.map(c => `<p>${c.date} — ${aEsc(c.by)}: ${Object.entries(c.changes).map(([f, v]) => `${f} "${aEsc(String(v.from))}" → "${aEsc(String(v.to))}"`).join('; ')} (${aEsc(c.reason)})</p>`).join('')}
+    </div>` : '';
+
+  if (!item.bom) {
     inner.innerHTML = `
-      <p style="font-weight:700;font-size:14px;margin-bottom:10px;">${aEsc(item ? item.product : '—')}</p>
+      <p style="font-weight:700;font-size:14px;margin-bottom:10px;">${aEsc(item.product)}</p>
       <p style="font-size:12.5px;color:#64748b;">No BOM has been entered for this item yet.</p>
+      ${correctionPanel}${correctionsHistory}
       <button class="secondary" style="width:100%;margin-top:12px;" onclick="approverCloseDetailModal()">Close</button>`;
     document.getElementById('apr-detail-modal').style.display = 'flex';
     return;
@@ -431,7 +465,7 @@ function approverOpenItemDetailModal(lineId) {
   const hirRows = bom.hiring.map(r => `<tr><td>${aEsc(r.vendor)}</td><td>${aEsc(r.workType)}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('');
   const othRows = bom.others.map(r => `<tr><td>${aEsc(r.party)}</td><td>${aEsc(r.details)}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('');
   inner.innerHTML = `
-    <p style="font-weight:700;font-size:14px;margin-bottom:2px;">${aEsc(item.product)}</p>
+    <p style="font-weight:700;font-size:14px;margin-bottom:2px;">${aEsc(item.product)}${item.priceManuallyOverridden ? ' <span style="font-size:10px;font-weight:600;color:#92400e;">(price manually corrected)</span>' : ''}</p>
     <p style="font-size:11.5px;color:#94a3b8;margin-bottom:6px;">Qty: ${item.qty} ${aEsc(item.unit)} · Rate: BD ${item.rate.toFixed(3)}</p>
     ${section('Materials', matRows, ['Item', 'Qty', 'Rate', 'Amount'])}
     ${section('Labour', labRows, ['Dept', 'Category', 'PPL × Qty', 'Rate', 'Amount'])}
@@ -443,8 +477,22 @@ function approverOpenItemDetailModal(lineId) {
       <p>Cost incl. Overhead: BD ${t.totalCostInclOH.toFixed(3)} · Profit (${bom.profitPercent}%): BD ${t.profitAmount.toFixed(3)}</p>
       <p style="font-weight:700;margin-top:4px;">Calculated Selling Price: BD ${t.calculatedSellingPrice.toFixed(3)}${bom.sellingPriceOverride !== null ? ` (override applied: BD ${bom.sellingPriceOverride.toFixed(3)})` : ''}</p>
     </div>
+    ${correctionPanel}${correctionsHistory}
     <button class="secondary" style="width:100%;margin-top:12px;" onclick="approverCloseDetailModal()">Close</button>`;
   document.getElementById('apr-detail-modal').style.display = 'flex';
+}
+function approverSaveCorrection() {
+  const reason = document.getElementById('apr-corr-reason').value;
+  const result = approverCorrectItem(approverActiveQtnId, approverCorrectingLineId, {
+    product: document.getElementById('apr-corr-product').value,
+    description: document.getElementById('apr-corr-desc').value,
+    rate: Number(document.getElementById('apr-corr-rate').value)
+  }, reason, approverCurrentUser);
+  if (result && result.error) { approverAlert(result.error); return; }
+  approverAlert('✓ Correction saved.');
+  approverCorrectingLineId = null;
+  approverRenderDetailModal();
+  renderApproverBody();
 }
 function approverCloseDetailModal() {
   document.getElementById('apr-detail-modal').style.display = 'none';

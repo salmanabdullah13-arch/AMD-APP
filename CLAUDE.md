@@ -2245,3 +2245,95 @@ assumption but turned out to be wrong: who approves.
   actually landing on the customer record with the right actor/comment.
   Full regression: all 10 current suites re-run — 108/108 plus
   back-button-check clean, zero console/page errors.
+
+### 3 Aug 2026 (later same day) — Group/Sub Group quote structure, Estimator Review screen, Approver corrections, Sales My Jobs
+
+A batch of findings from Salman, built together in one pass after two real
+design decisions were settled up front (see the two AskUserQuestion
+exchanges this session): Approver corrections require a mandatory reason
+and track Price as an explicit override, not a silent overwrite; Sales'
+job visibility is read-only, own-jobs-only, status-rollup (no department
+drill-down — that stays Operations/production's job).
+
+- **Enquiry now pulls + locks Telephone from an existing customer.**
+  Previously, selecting a real customer on the Enquiry form only updated a
+  read-only "preview" panel — the actual Tel input stayed independently
+  editable and disconnected from the customer record. `salesEnqDraftChanged()`
+  (sales.js) now auto-fills `salesDraft.tel` from the selected customer and
+  the Tel input disables whenever a real customer is selected (unlocks and
+  clears if switched back to "None (new prospect)"). Contact Person
+  deliberately stays free-text — one company customer can legitimately have
+  different contacts across different enquiries.
+- **Quote items now have real Group / Sub Group structure**, previously a
+  dormant field on the schema (`group`/`subgroup`, always empty — no UI
+  ever set them). New `computeQuoteHierarchy(items)` (data.js) derives
+  Group/Sub Group header rows and a stable `Group.SubGroup.Item` serial
+  purely from consecutive items sharing the same group/subgroup string —
+  no separate ordering entity needed. This is this app's OWN auto-
+  incrementing numbering rule for quotes built going forward (Sub Group
+  resets to 1 per Group), not an attempt to reproduce whatever numbering
+  happened to exist in a historical/imported document. Sales' item-entry
+  step (`renderWizardStep2()`) now has Group/Sub Group inputs (pre-filled
+  from the last item added, so consecutive items in the same area don't
+  need retyping) and renders the header rows with **Copy Group**/**Copy
+  Sub Group** actions.
+- **Copy Group/Sub Group** — new `copyQuoteSection(qtnId, group, subgroup)`
+  (data.js) clones every item under a Group (or narrower, a specific Sub
+  Group) as new items appended to the quote, same "duplicate then tweak"
+  reasoning as the existing single-item Duplicate. `salesCopySection()`
+  (sales.js) is called with the triggering item's `lineId`, not the raw
+  group/subgroup name string — deliberately, so a section name containing
+  an apostrophe can never break the onclick attribute.
+- **Fixed a real naming collision Salman found while testing:** a
+  pre-existing button (from before this session) was labeled "Copy BOM"
+  but only ever reopened an item's OWN BOM for review after its qty
+  changed post-submission — it never copied anything from anywhere. That
+  sat right next to the real cross-item Copy BOM feature built earlier
+  this session, causing exactly the confusion reported ("copy BOM doesn't
+  pull the information"). Renamed to "Review BOM" — no logic changed,
+  purely disambiguation.
+- **Estimator gets its own Review screen** (`openEstimatorReview()` /
+  `renderEstimatorReview()`, estimator.js) — reachable via a "Review & Send
+  to Approver" button at the bottom of the Estimation Index. Same page
+  shape as Approver's own review (line items with Cost/Profit/Profit%,
+  page-level Quote Summary), plus a direct Transfer to Approver action —
+  no more bouncing back out to the Manage Quote hub just to find the
+  transfer control once BOM work is done. Warns (doesn't block) if any
+  item is still missing a submitted BOM.
+- **Approver can now correct Product Name/Description/Price**, replacing
+  the "so it can be corrected" ask — built as the opposite of the old
+  legacy Q-Pro "Approver Print" backdoor (invisible inline-editable Cost,
+  zero audit trail) that Salman flagged earlier this session. New
+  `approverCorrectItem(qtnId, lineId, patch, reason, approverName)`
+  (data.js): **mandatory reason** (same pattern as `rejectCustomer()`),
+  every changed field recorded on a new `item.corrections[]` array
+  (before/after values, who, when, why), AND logged into the quotation's
+  own `auditLog` via the existing `logQuotationAudit()` — so it shows up
+  automatically in `renderQuotationAuditTable()`, already rendered on
+  every module's quote screens, no new UI needed for that part. A Price
+  change sets `item.priceManuallyOverridden = true` and is shown flagged
+  in the item detail modal — the underlying BOM stays completely intact,
+  this is a recorded correction layered on top of it, not a rewrite of the
+  Estimator's work. UI lives inside the existing read-only item detail
+  modal (`approver.js`) — a "✎ Correct Product/Description/Price" toggle
+  opens the editable panel + reason field; a "Correction history" section
+  shows past corrections once any exist.
+- **Sales gets a "My Jobs" tab** — new `getSalesPersonJobs(salesPersonName)`
+  (sales.js, traced Job → Quotation → Enquiry.salesPerson) +
+  `renderSalesMyJobs()`. Read-only: Job ID, Project, Amount, coarse status,
+  and a department-progress fraction (e.g. "2/5 departments done") — no
+  per-department drill-down, that's Operations/production's own view. Each
+  job has an **Add Variation** button that calls jobs.js's real
+  `jobsNewVariation()` directly (no duplicated logic) — same flow the Jobs
+  module itself uses, giving Sales a variation-creation shortcut without
+  needing broader access to Job Card management.
+- **Verification:** new suite `e2e-batch9-group-review-correction.js`
+  (17/17) — Tel pull+lock, hierarchy serial computation exactly
+  (`1.1.0`/`1.2.0`/`2.1.0`), Group header rendering, Copy Group actually
+  duplicating (3→5 items), the label-collision fix, the Estimator Review
+  screen's direct transfer, the Approver correction's full effect
+  (product/rate/override flag/corrections array/audit trail) and its
+  mandatory-reason rejection, and My Jobs + Add Variation end to end.
+  Full regression: all 10 prior suites re-confirmed (108/108) plus this
+  session's 17/17 — 125/125 total, back-button-check clean across all 12
+  modules, zero console/page errors.

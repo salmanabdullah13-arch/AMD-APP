@@ -164,7 +164,7 @@ function launchEnquiryModule() { openSalesModule(); }
 function launchSalesModule() { openSalesModule(); }
 
 const SALES_TOPVIEW_DEFAULTS = {
-  dashboard: 'dashboard', enquiries: 'enq-list', quotations: 'qtn-list', reports: 'qtn-register'
+  dashboard: 'dashboard', enquiries: 'enq-list', quotations: 'qtn-list', reports: 'qtn-register', myjobs: 'my-jobs'
 };
 function salesSetTopView(v) {
   salesTopView = v;
@@ -180,6 +180,7 @@ function renderSalesBody() {
       <div class="sales-toptab ${salesTopView === 'dashboard' ? 'active' : ''}" onclick="salesSetTopView('dashboard')">Dashboard</div>
       <div class="sales-toptab ${salesTopView === 'enquiries' ? 'active' : ''}" onclick="salesSetTopView('enquiries')">Enquiry</div>
       <div class="sales-toptab ${salesTopView === 'quotations' ? 'active' : ''}" onclick="salesSetTopView('quotations')">Quotation</div>
+      <div class="sales-toptab ${salesTopView === 'myjobs' ? 'active' : ''}" onclick="salesSetTopView('myjobs')">My Jobs</div>
       <div class="sales-toptab ${salesTopView === 'reports' ? 'active' : ''}" onclick="salesSetTopView('reports')">Reports</div>
     </div>`;
 
@@ -194,6 +195,7 @@ function renderSalesBody() {
     case 'qtn-hub': content = renderQuotationHub(); break;
     case 'qtn-wizard': content = renderQuotationWizard(); break;
     case 'qtn-register': content = renderSalesReports(); break;
+    case 'my-jobs': content = renderSalesMyJobs(); break;
     default: content = renderEnquiryList();
   }
   body.innerHTML = topTabs + content;
@@ -293,7 +295,22 @@ function openEnquiryCreate() {
   salesView = 'enq-create';
   renderSalesBody();
 }
-function salesEnqDraftChanged(key, val) { if (salesDraft) salesDraft[key] = val; renderSalesBody(); }
+// Selecting a real existing customer pulls their Telephone in and locks it
+// — Salman's call: Sales was previously able to type ANY number for an
+// existing customer's enquiry, disconnected from the real customer record.
+// Contact Person stays freely editable (a company customer can legitimately
+// have different contacts reach out across different enquiries); Tel is
+// tied to the customer master. Switching back to "None (new prospect)"
+// clears and unlocks it for manual entry.
+function salesEnqDraftChanged(key, val) {
+  if (!salesDraft) return;
+  salesDraft[key] = val;
+  if (key === 'customerId') {
+    const c = customers.find(x => x.id === val);
+    salesDraft.tel = c ? c.tel : '';
+  }
+  renderSalesBody();
+}
 
 function renderEnquiryCreate() {
   const d = salesDraft;
@@ -327,7 +344,8 @@ function renderEnquiryCreate() {
       </div>
       ${!d.customerId ? `<div class="sales-field"><label>New Prospect Name</label><input type="text" value="${esc(d.prospectName)}" oninput="salesEnqDraftChanged('prospectName',this.value)"></div>` : ''}
       <div class="sales-field"><label>Contact Person</label><input type="text" value="${esc(d.contactPerson)}" oninput="salesEnqDraftChanged('contactPerson',this.value)"></div>
-      <div class="sales-field"><label>Tel</label><input type="text" value="${esc(d.tel)}" oninput="salesEnqDraftChanged('tel',this.value)"></div>
+      <div class="sales-field"><label>Tel</label><input class="${d.customerId ? 'sales-locked' : ''}" type="text" value="${esc(d.tel)}" ${d.customerId ? 'disabled' : ''} oninput="salesEnqDraftChanged('tel',this.value)"></div>
+      ${d.customerId ? `<p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Telephone is pulled from the customer record and locked — update it via Customer Update if it's wrong.</p>` : ''}
       <div class="sales-field"><label>Email</label><input type="email" value="${esc(d.email)}" oninput="salesEnqDraftChanged('email',this.value)"></div>
       <div class="sales-field"><label>Requirements</label><textarea oninput="salesEnqDraftChanged('requirements',this.value)">${esc(d.requirements)}</textarea></div>
       <div class="sales-field"><label>Select Source of Enquiry</label>
@@ -832,14 +850,26 @@ function renderWizardStep2() {
   const q = quotations.find(x => x.id === salesActiveQtnId);
   const totals = computeQuotationTotals(q);
   const locked = q.withEstimation;
+  // Pre-fill Group/Sub Group with whatever the last item used — most items
+  // get added consecutively within the same area/section, so this avoids
+  // Sales retyping "RECEPTION AREA" for every single line in it.
+  const lastItem = q.items[q.items.length - 1];
+  const defaultGroup = lastItem ? lastItem.group : '';
+  const defaultSubgroup = lastItem ? lastItem.subgroup : '';
 
+  const hierarchy = computeQuoteHierarchy(q.items);
   const rowsHtml = q.items.length === 0
     ? `<p style="font-size:12px;color:#64748b;margin-bottom:10px;">No items added yet.</p>`
-    : `<table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th><th></th></tr>` +
-      q.items.map(it => `<tr><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
+    : `<table class="sales-items"><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th><th></th></tr>` +
+      hierarchy.map(h => {
+        const it = h.item;
+        let headers = '';
+        if (h.isNewGroup) headers += `<tr style="background:#e2e8f0;"><td colspan="7" style="font-weight:700;">${esc(it.group || '(No Group)')}${it.group ? ` <span style="cursor:pointer;color:var(--biz-primary);font-weight:600;font-size:10.5px;" onclick="salesCopySection('${q.id}',${it.lineId},'group')">⧉ Copy Group</span>` : ''}</td></tr>`;
+        if (h.isNewSubgroup) headers += `<tr style="background:#f1f5f9;"><td colspan="7" style="font-weight:600;text-decoration:underline;">${h.groupNo}.${h.subgroupNo} ${esc(it.subgroup || '(No Sub Group)')}${it.subgroup ? ` <span style="cursor:pointer;color:var(--biz-primary);font-weight:600;font-size:10.5px;text-decoration:none;" onclick="salesCopySection('${q.id}',${it.lineId},'subgroup')">⧉ Copy Sub Group</span>` : ''}</td></tr>`;
+        return headers + `<tr><td>${h.serial}</td><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
         <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})" title="Edit">✎</span><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesDuplicateItem('${q.id}',${it.lineId})" title="Duplicate">⧉</span><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})" title="Remove">✕</span></td></tr>` +
-        (salesEditingLineId === it.lineId ? `<tr><td colspan="6">${renderSalesItemEditPanel(q, it)}</td></tr>` : '')
-      ).join('') +
+        (salesEditingLineId === it.lineId ? `<tr><td colspan="7">${renderSalesItemEditPanel(q, it)}</td></tr>` : '');
+      }).join('') +
       `</table>`;
 
   return `
@@ -847,6 +877,11 @@ function renderWizardStep2() {
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Item</p>
       ${locked ? `<div class="sales-banner">Rate/Amount/Net Amount are locked at 0.000 for Sales — pricing is always completed by the Estimator.</div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="sales-field"><label>Group (Area)</label><input type="text" id="it-group" value="${esc(defaultGroup)}"></div>
+        <div class="sales-field"><label>Sub Group</label><input type="text" id="it-subgroup" value="${esc(defaultSubgroup)}"></div>
+      </div>
+      <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Group/Sub Group become header/sub-header sections on the printed quotation. Leave blank for a flat, ungrouped item.</p>
       <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div class="sales-field"><label>Qty</label><input type="number" id="it-qty" value="1"></div>
@@ -877,6 +912,21 @@ function renderWizardStep2() {
     <button class="primary" style="width:100%;" onclick="salesWizardStep=3;renderSalesBody();">Save & Proceed</button>`;
 }
 
+// Copy a whole Group or Sub Group (and every item inside it) as new items
+// appended to the end — Salman's ask: makes a section faster to build by
+// duplicating a similar one and tweaking, not retyping line by line.
+// Passed by lineId (not the raw group/subgroup name) so a name containing
+// an apostrophe can never break the onclick attribute string.
+function salesCopySection(qtnId, lineId, scope) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  const item = qtn && qtn.items.find(it => it.lineId === lineId);
+  if (!item) return;
+  const result = copyQuoteSection(qtnId, item.group, scope === 'subgroup' ? item.subgroup : undefined);
+  if (result && result.error) { salesAlert(result.error); return; }
+  salesAlert(`✓ ${scope === 'subgroup' ? 'Sub Group' : 'Group'} copied — ${result.length} item${result.length === 1 ? '' : 's'} added.`);
+  renderSalesBody();
+}
+
 function renderSalesItemEditPanel(qtn, item) {
   return `
     <div style="background:#f4e6ec;border-radius:8px;padding:10px;margin:4px 0;">
@@ -897,6 +947,8 @@ function salesAddItem(qtnId) {
   const product = document.getElementById('it-product').value;
   if (!product) { salesAlert('Product/Service is required.'); return; }
   addQuotationItem(qtnId, {
+    group: document.getElementById('it-group').value,
+    subgroup: document.getElementById('it-subgroup').value,
     product,
     qty: Number(document.getElementById('it-qty').value),
     unit: document.getElementById('it-unit').value,
@@ -920,6 +972,7 @@ function salesDuplicateItem(qtnId, lineId) {
   const item = qtn && qtn.items.find(it => it.lineId === lineId);
   if (!item) return;
   addQuotationItem(qtnId, {
+    group: item.group, subgroup: item.subgroup,
     product: item.product, qty: item.qty, unit: item.unit,
     vatPercent: item.vatPercent, discPercent: item.discPercent,
     description: item.description, internalComments: item.internalComments
@@ -996,6 +1049,30 @@ function renderSalesDashboard() {
     </div>`;
 }
 
+// "My Jobs" — read-only job visibility + Add Variation shortcut, scoped to
+// the logged-in Sales identity's own confirmed Job Cards (see
+// getSalesPersonJobs()). Add Variation reuses jobs.js's real
+// jobsNewVariation() — same flow the Jobs module itself uses — rather than
+// duplicating that logic here.
+function renderSalesMyJobs() {
+  const jobs = getSalesPersonJobs(salesCurrentUser);
+  const rows = jobs.length === 0
+    ? `<p style="font-size:12px;color:#64748b;">No confirmed jobs yet for ${esc(salesCurrentUser)}.</p>`
+    : jobs.map(j => `
+      <div class="sales-card" style="margin-bottom:8px;">
+        <p style="font-weight:700;font-size:13px;">${esc(j.projectName)} <span class="sales-pill ${j.status === 'completed' ? 'confirmed' : 'open'}">${esc(j.status)}</span></p>
+        <p style="font-size:11.5px;color:#64748b;">${esc(j.id)} · BD ${j.amount.toFixed(3)} · Confirmed ${j.confirmDate}</p>
+        <p style="font-size:11px;color:#94a3b8;">${esc(j.deptProgress)}</p>
+        <button class="secondary" style="margin-top:8px;font-size:11.5px;padding:6px 10px;" onclick="jobsNewVariation('${j.id}')">+ Add Variation</button>
+      </div>`).join('');
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:14px;margin-bottom:4px;">My Jobs</p>
+      <p style="font-size:11px;color:#94a3b8;">Read-only production status for your own confirmed jobs. Production itself is managed in Operations/Joinery/Upholstery/Painting/Curtain — this is visibility only, plus a shortcut to add a Variation.</p>
+    </div>
+    ${rows}`;
+}
+
 // Was written but never actually wired into any dashboard UI — the Sales
 // module opened straight to the Enquiry List with no landing KPI view.
 // Expanded to match the KPI list from Salman's design notes (Enquiries Un-
@@ -1040,6 +1117,29 @@ function getSalesKPIs() {
     jobsPending, jobsOngoing, toInvoice, receivables, prPending, prNotReceived,
     categoryBreakdown
   };
+}
+
+// "My Jobs" — read-only visibility into a salesperson's own confirmed Job
+// Cards, traced Job -> Quotation -> Enquiry.salesPerson. Salman's call:
+// Sales should see how their jobs are progressing (own jobs only, a simple
+// status rollup — not the department-level detail Operations/production
+// tracks) and gets an Add Variation shortcut, but no editing rights over
+// production itself — that stays exclusively in Operations/Joinery/
+// Upholstery/Painting/Curtain.
+function getSalesPersonJobs(salesPersonName) {
+  return jobCards.filter(job => {
+    const qtn = quotations.find(q => q.id === job.quotationId);
+    const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
+    return enq && enq.salesPerson === salesPersonName;
+  }).map(job => {
+    const allStatuses = job.items.flatMap(it => it.departmentStatuses || []);
+    const doneCount = allStatuses.filter(s => s.status === 'done').length;
+    return {
+      id: job.id, projectName: job.projectName, amount: job.amount, status: job.status,
+      confirmDate: job.confirmDate,
+      deptProgress: allStatuses.length ? `${doneCount}/${allStatuses.length} departments done` : 'Not yet routed'
+    };
+  });
 }
 
 // ══════════════════════════════════════════
