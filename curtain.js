@@ -1335,7 +1335,7 @@ function renderCopyCalcTargetList(sourceId) {
       <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;cursor:pointer;${sameTreatment ? '' : 'opacity:.6;'}">
         <input type="checkbox" class="copy-calc-target" value="${w.id}" style="width:18px;height:18px;flex:none;">
         <span style="flex:1;">
-          <span style="display:block;font-size:13px;font-weight:600;color:#1e2a3b;">
+          <span style="display:block;font-size:13px;font-weight:600;color:var(--shell-ink);">
             ${w.label} <span style="color:#94a3b8;font-weight:400;">· ${w.room}</span>
           </span>
           <span style="display:block;font-size:11px;color:#64748b;">
@@ -2279,7 +2279,7 @@ function ensureRaiseInquirySheet() {
   el.id = 'curt-raise-inquiry-sheet';
   el.style.cssText = 'display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:#fff;overflow-y:auto;';
   el.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <p style="color:#fff;font-weight:700;font-size:15px;">Raise Purchase Request</p>
       <button onclick="closeRaiseInquirySheet()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">✕ Close</button>
     </div>
@@ -3103,7 +3103,7 @@ function openTracksDashboard() {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'tracks-dash-wrap';
-    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:#111827;overflow:hidden;font-family:inherit;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--shell-bg);overflow:hidden;font-family:inherit;';
     document.body.appendChild(wrap);
   }
   wrap.style.display = 'flex';
@@ -3206,59 +3206,59 @@ function renderTracksDashboard() {
   });
 
   const focusBanner = workingSet.length === 0 ? '' : `
-    <div style="background:#0c1a2e;border-bottom:1px solid #1f2937;padding:12px 16px;flex:none;">
+    <div style="background:#f4e6ec;border-bottom:1px solid var(--shell-border,#e7e9ed);padding:12px 16px;flex:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          <div><span style="font-size:18px;font-weight:800;color:${dueToday.length>0?'#ef4444':'#6b7280'};">${dueToday.length}</span> <span style="font-size:11px;color:#9ca3af;">due today</span></div>
-          <div><span style="font-size:18px;font-weight:800;color:#38bdf8;">${todayMetres.toFixed(1)}m</span> <span style="font-size:11px;color:#9ca3af;">track needed today</span></div>
-          ${todayMotorized > 0 ? `<div><span style="font-size:18px;font-weight:800;color:#f59e0b;">⚡${todayMotorized}</span> <span style="font-size:11px;color:#9ca3af;">motorized</span></div>` : ''}
+          <div><span style="font-size:18px;font-weight:800;color:${dueToday.length>0?'#ef4444':'var(--shell-ink-muted,#6b7280)'};">${dueToday.length}</span> <span style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">due today</span></div>
+          <div><span style="font-size:18px;font-weight:800;color:#38bdf8;">${todayMetres.toFixed(1)}m</span> <span style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">track needed today</span></div>
+          ${todayMotorized > 0 ? `<div><span style="font-size:18px;font-weight:800;color:#f59e0b;">⚡${todayMotorized}</span> <span style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">motorized</span></div>` : ''}
         </div>
         <div style="display:flex;gap:8px;font-size:11px;flex-wrap:wrap;">
-          ${TRACK_TEAM.map(p => `<span style="background:#1f2937;border:1px solid #374151;border-radius:20px;padding:3px 10px;color:#e2e8f0;">${p}: <b>${workload[p]}</b></span>`).join('')}
-          ${workload.Unassigned > 0 ? `<span style="background:#1f2937;border:1px solid #374151;border-radius:20px;padding:3px 10px;color:#94a3b8;">Unassigned: <b>${workload.Unassigned}</b></span>` : ''}
+          ${TRACK_TEAM.map(p => `<span style="background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:20px;padding:3px 10px;color:var(--shell-ink,#16181d);">${p}: <b>${workload[p]}</b></span>`).join('')}
+          ${workload.Unassigned > 0 ? `<span style="background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:20px;padding:3px 10px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Unassigned: <b>${workload.Unassigned}</b></span>` : ''}
         </div>
       </div>
     </div>`;
 
   // ── KPI bar ──
   const kpiBar = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1f2937;flex:none;">
-      <div style="background:#111827;padding:14px 10px;text-align:center;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--shell-border,#e7e9ed);flex:none;">
+      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;">
         <p style="font-size:24px;font-weight:800;color:#f59e0b;line-height:1;">${dueThisWeek.length}</p>
-        <p style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.2;">Due this<br>week</p>
+        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">Due this<br>week</p>
       </div>
-      <div style="background:#111827;padding:14px 10px;text-align:center;">
-        <p style="font-size:24px;font-weight:800;color:#7c3aed;line-height:1;">${active.length}</p>
-        <p style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.2;">In<br>production</p>
+      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;">
+        <p style="font-size:24px;font-weight:800;color:var(--maraya);line-height:1;">${active.length}</p>
+        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">In<br>production</p>
       </div>
-      <div style="background:#111827;padding:14px 10px;text-align:center;position:relative;">
-        <p style="font-size:24px;font-weight:800;color:${rework.length>0?'#ef4444':'#374151'};line-height:1;">${rework.length}</p>
-        <p style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.2;">QC failed<br>urgent</p>
+      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;position:relative;">
+        <p style="font-size:24px;font-weight:800;color:${rework.length>0?'#ef4444':'var(--shell-border,#e7e9ed)'};line-height:1;">${rework.length}</p>
+        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">QC failed<br>urgent</p>
         ${rework.length > 0 ? `<div style="position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:#ef4444;"></div>` : ''}
       </div>
-      <div style="background:#111827;padding:14px 10px;text-align:center;">
+      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;">
         <p style="font-size:24px;font-weight:800;color:#10b981;line-height:1;">${ready.length}</p>
-        <p style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.2;">Ready<br>for QC</p>
+        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">Ready<br>for QC</p>
       </div>
     </div>`;
 
   // ── View tabs ──
   const viewTabs = `
-    <div style="display:flex;background:#1f2937;border-bottom:1px solid #374151;flex:none;overflow-x:auto;">
+    <div style="display:flex;background:var(--shell-border,#e7e9ed);border-bottom:1px solid var(--shell-border,#e7e9ed);flex:none;overflow-x:auto;">
       <button onclick="tracksDashView='queue';renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='queue'?'#111827':'transparent'};color:${tracksDashView==='queue'?'#fff':'#6b7280'};font-size:12px;font-weight:${tracksDashView==='queue'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='queue'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='queue'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='queue'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='queue'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='queue'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         My Queue (${active.length + rework.length})
       </button>
       <button onclick="tracksDashView='jobs';tracksActiveJob=null;renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='jobs'?'#111827':'transparent'};color:${tracksDashView==='jobs'?'#fff':'#6b7280'};font-size:12px;font-weight:${tracksDashView==='jobs'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='jobs'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='jobs'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='jobs'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='jobs'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='jobs'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         By Job
       </button>
       <button onclick="tracksDashView='cutlist';renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='cutlist'?'#111827':'transparent'};color:${tracksDashView==='cutlist'?'#fff':'#6b7280'};font-size:12px;font-weight:${tracksDashView==='cutlist'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='cutlist'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='cutlist'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='cutlist'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='cutlist'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='cutlist'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         Cut List
       </button>
       <button onclick="tracksDashView='done';renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='done'?'#111827':'transparent'};color:${tracksDashView==='done'?'#fff':'#6b7280'};font-size:12px;font-weight:${tracksDashView==='done'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='done'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='done'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='done'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='done'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='done'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         Completed (${ready.length + installed.length})
       </button>
     </div>`;
@@ -3277,10 +3277,10 @@ function renderTracksDashboard() {
 
   wrap.innerHTML = `
     <!-- Header -->
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🔩 Tracks & Roller Blinds</p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{weekday:'short',day:'numeric',month:'short'})}</p>
+        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:11px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{weekday:'short',day:'numeric',month:'short'})}</p>
       </div>
       <button onclick="closeTracksDashboard()"
         style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">
@@ -3312,7 +3312,7 @@ function renderTracksQueueView(rework, active, atHoistQC, waitingOnFabric) {
   // Active production items
   if (active.length > 0) {
     html += `<div style="padding:12px 16px 6px;">
-      <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#94a3b8;text-transform:uppercase;">In Production (${active.length})</p>
+      <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));text-transform:uppercase;">In Production (${active.length})</p>
     </div>`;
     active.forEach(i => { html += tracksItemCard(i, 'active'); });
   }
@@ -3320,7 +3320,7 @@ function renderTracksQueueView(rework, active, atHoistQC, waitingOnFabric) {
   // Rail's done, waiting on the stitching team to finish fabric
   if (waitingOnFabric.length > 0) {
     html += `<div style="padding:12px 16px 6px;">
-      <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#a78bfa;text-transform:uppercase;">Rail Done — Waiting on Fabric (${waitingOnFabric.length})</p>
+      <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--maraya);text-transform:uppercase;">Rail Done — Waiting on Fabric (${waitingOnFabric.length})</p>
     </div>`;
     waitingOnFabric.forEach(i => { html += tracksItemCard(i, 'waiting-fabric'); });
   }
@@ -3336,8 +3336,8 @@ function renderTracksQueueView(rework, active, atHoistQC, waitingOnFabric) {
   if (rework.length === 0 && active.length === 0 && atHoistQC.length === 0 && waitingOnFabric.length === 0) {
     html = `<div style="padding:60px 20px;text-align:center;">
       <p style="font-size:40px;margin-bottom:12px;">✓</p>
-      <p style="font-size:15px;color:#9ca3af;font-weight:600;">Queue is clear</p>
-      <p style="font-size:12px;color:#4b5563;margin-top:6px;">All items are ready or installed.</p>
+      <p style="font-size:15px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">Queue is clear</p>
+      <p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);margin-top:6px;">All items are ready or installed.</p>
     </div>`;
   }
   return html;
@@ -3352,12 +3352,12 @@ function renderTracksJobView(all) {
     if (!job) { tracksActiveJob = null; return renderTracksJobView(all); }
     const days = daysUntilInstall(job);
     let html = `
-      <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #1f2937;">
+      <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--shell-border,#e7e9ed);">
         <button onclick="tracksActiveJob=null;renderTracksDashboard()"
-          style="background:rgba(255,255,255,.07);border:1px solid #374151;color:#9ca3af;padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;">← Jobs</button>
+          style="background:rgba(255,255,255,.07);border:1px solid var(--shell-border,#e7e9ed);color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;">← Jobs</button>
         <div>
           <p style="color:#fff;font-weight:700;font-size:14px;">${job.name}</p>
-          <p style="font-size:11px;color:#6b7280;">${job.id} · ${job.client}</p>
+          <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);">${job.id} · ${job.client}</p>
         </div>
         ${days !== null ? `<span style="margin-left:auto;background:${urgencyColor(days)}22;color:${urgencyColor(days)};border:1px solid ${urgencyColor(days)}44;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">${urgencyLabel(days)}</span>` : ''}
       </div>`;
@@ -3383,10 +3383,10 @@ function renderTracksJobView(all) {
   });
 
   if (Object.keys(jobGroups).length === 0) {
-    return `<div style="padding:60px 20px;text-align:center;"><p style="color:#6b7280;">No jobs with track work yet.</p></div>`;
+    return `<div style="padding:60px 20px;text-align:center;"><p style="color:var(--shell-ink-muted,#6b7280);">No jobs with track work yet.</p></div>`;
   }
 
-  let html = `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;">Select a job</p></div>`;
+  let html = `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;">Select a job</p></div>`;
   Object.values(jobGroups).sort((a,b) => {
     if (a.days === null) return 1;
     if (b.days === null) return -1;
@@ -3396,16 +3396,16 @@ function renderTracksJobView(all) {
     const rdone   = items.filter(i => ['Ready','Installed'].includes(i.stageInfo.stage)).length;
     html += `
       <div onclick="tracksActiveJob='${job.id}';renderTracksDashboard()"
-        style="margin:0 16px 10px;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:14px;cursor:pointer;">
+        style="margin:0 16px 10px;background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:14px;cursor:pointer;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
             <p style="color:#fff;font-weight:700;font-size:14px;">${job.name}</p>
-            <p style="font-size:11px;color:#6b7280;margin-top:2px;">${job.id} · ${items.length} item${items.length>1?'s':''}</p>
+            <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);margin-top:2px;">${job.id} · ${items.length} item${items.length>1?'s':''}</p>
           </div>
           ${days !== null ? `<span style="background:${urgencyColor(days)}22;color:${urgencyColor(days)};border:1px solid ${urgencyColor(days)}44;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${urgencyLabel(days)}</span>` : ''}
         </div>
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
-          ${pending > 0 ? `<span style="background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed33;border-radius:20px;padding:3px 9px;font-size:11px;">${pending} pending</span>` : ''}
+          ${pending > 0 ? `<span style="background:#60013122;color:var(--maraya);border:1px solid #60013133;border-radius:20px;padding:3px 9px;font-size:11px;">${pending} pending</span>` : ''}
           ${rdone > 0 ? `<span style="background:#10b98122;color:#34d399;border:1px solid #10b98133;border-radius:20px;padding:3px 9px;font-size:11px;">${rdone} ready</span>` : ''}
         </div>
       </div>`;
@@ -3417,14 +3417,14 @@ function renderTracksJobView(all) {
 function renderTracksDoneView(ready, installed) {
   let html = '';
   if (ready.length === 0 && installed.length === 0) {
-    return `<div style="padding:60px 20px;text-align:center;"><p style="color:#6b7280;">No completed items yet.</p></div>`;
+    return `<div style="padding:60px 20px;text-align:center;"><p style="color:var(--shell-ink-muted,#6b7280);">No completed items yet.</p></div>`;
   }
   if (ready.length > 0) {
     html += `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#10b981;text-transform:uppercase;">Ready for hoist / install (${ready.length})</p></div>`;
     ready.forEach(i => { html += tracksItemCard(i, 'ready'); });
   }
   if (installed.length > 0) {
-    html += `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;">Installed (${installed.length})</p></div>`;
+    html += `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;">Installed (${installed.length})</p></div>`;
     installed.forEach(i => { html += tracksItemCard(i, 'done'); });
   }
   return html;
@@ -3437,7 +3437,7 @@ function renderTracksCutListView(items) {
   if (items.length === 0) {
     return `<div style="padding:60px 20px;text-align:center;">
       <p style="font-size:32px;margin-bottom:8px;">✓</p>
-      <p style="font-size:14px;color:#9ca3af;">Nothing in production — cut list is empty.</p>
+      <p style="font-size:14px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Nothing in production — cut list is empty.</p>
     </div>`;
   }
 
@@ -3486,51 +3486,51 @@ function renderTracksCutListView(items) {
       ? `⚠ Short ${g.totalPieces - stock.piecesInStock} pc${(g.totalPieces - stock.piecesInStock) !== 1 ? 's' : ''}`
       : `⚠ Short ${(g.totalM - stock.metresInStock).toFixed(1)}m`;
     return `
-      <div style="margin:0 16px 12px;background:#1f2937;border:1px solid #374151;border-radius:12px;overflow:hidden;">
-        <div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;background:#161f2e;">
+      <div style="margin:0 16px 12px;background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;overflow:hidden;">
+        <div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--maraya);">
           <div>
-            <p style="font-size:13px;font-weight:700;color:#f1f5f9;">${g.railType}${isPieceMode ? ` <span style="font-size:10px;color:#a78bfa;font-weight:600;">· ${stock.pieceLengthM}m pieces</span>` : ''}</p>
-            <p style="font-size:11px;color:#6b7280;">${g.rows.length} item${g.rows.length > 1 ? 's' : ''} · ${needLabel}</p>
+            <p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${g.railType}${isPieceMode ? ` <span style="font-size:10px;color:var(--maraya);font-weight:600;">· ${stock.pieceLengthM}m pieces</span>` : ''}</p>
+            <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);">${g.rows.length} item${g.rows.length > 1 ? 's' : ''} · ${needLabel}</p>
           </div>
           ${hasStock ? `
             <span style="background:${sufficient ? '#10b98122' : '#ef444422'};color:${sufficient ? '#34d399' : '#f87171'};border:1px solid ${sufficient ? '#10b98144' : '#ef444444'};border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;">
               ${sufficient ? '✓ Stock OK' : shortLabel}
-            </span>` : `<span style="background:#37415122;color:#9ca3af;border:1px solid #37415144;border-radius:20px;padding:4px 10px;font-size:11px;white-space:nowrap;">Stock n/a</span>`}
+            </span>` : `<span style="background:var(--shell-border,#e7e9ed)22;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));border:1px solid var(--shell-border,#e7e9ed)44;border-radius:20px;padding:4px 10px;font-size:11px;white-space:nowrap;">Stock n/a</span>`}
         </div>
         <div style="padding:6px 14px 8px;">
           ${g.rows.map(r => `
-            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #111827;">
-              <span style="color:#e2e8f0;">${r.w.label} <span style="color:#6b7280;">· ${r.job.name}</span></span>
-              <span style="color:#9ca3af;">${isPieceMode ? (r.qty > 1 ? r.qty + ' pcs' : '1 pc') : r.lengthM.toFixed(2) + 'm' + (r.qty > 1 ? ' × ' + r.qty : '')}</span>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
+              <span style="color:var(--shell-ink,#16181d);">${r.w.label} <span style="color:var(--shell-ink-muted,#6b7280);">· ${r.job.name}</span></span>
+              <span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">${isPieceMode ? (r.qty > 1 ? r.qty + ' pcs' : '1 pc') : r.lengthM.toFixed(2) + 'm' + (r.qty > 1 ? ' × ' + r.qty : '')}</span>
             </div>`).join('')}
         </div>
-        ${hasStock ? `<div style="padding:0 14px 10px;font-size:10px;color:#4b5563;">In stock: ${isPieceMode ? stock.piecesInStock + ' pcs' : stock.metresInStock + 'm'} · updated ${fmtDate(stock.lastUpdated)}</div>` : ''}
+        ${hasStock ? `<div style="padding:0 14px 10px;font-size:10px;color:var(--shell-ink-faint,#9ba1aa);">In stock: ${isPieceMode ? stock.piecesInStock + ' pcs' : stock.metresInStock + 'm'} · updated ${fmtDate(stock.lastUpdated)}</div>` : ''}
       </div>`;
   }).join('');
 
   const hardwareSection = `
-    <div style="margin:0 16px 12px;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:14px;">
-      <p style="font-size:11px;font-weight:700;letter-spacing:.6px;color:#6b7280;text-transform:uppercase;margin-bottom:10px;">Hardware pick list</p>
+    <div style="margin:0 16px 12px;background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:14px;">
+      <p style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:10px;">Hardware pick list</p>
       ${Object.values(hardwareParts).length ? Object.values(hardwareParts).sort((a, b) => (b.qty||0) - (a.qty||0)).map(p => `
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid #111827;">
-          <span style="color:#e2e8f0;">${p.label}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
+          <span style="color:var(--shell-ink,#16181d);">${p.label}</span>
           <span style="display:flex;align-items:center;gap:6px;">
-            <span style="color:#9ca3af;font-weight:600;">${p.hasUnknown ? '?' : '× ' + p.qty + (p.unit === 'm' ? 'm' : '')}</span>
+            <span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">${p.hasUnknown ? '?' : '× ' + p.qty + (p.unit === 'm' ? 'm' : '')}</span>
             ${p.hasUnknown ? `<span style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;">NEEDS SPEC</span>`
               : (!p.confirmed ? `<span style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;">UNCONFIRMED</span>` : '')}
           </span>
-        </div>`).join('') : `<p style="font-size:12px;color:#4b5563;">No hardware data yet.</p>`}
+        </div>`).join('') : `<p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);">No hardware data yet.</p>`}
       ${Object.keys(motors).length ? `
-        <p style="font-size:10px;color:#6b7280;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Motors</p>
+        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Motors</p>
         ${Object.values(motors).map(m => `
-          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #111827;">
-            <span style="color:#f59e0b;">⚡ ${m.brand.charAt(0).toUpperCase() + m.brand.slice(1)} ${m.model}</span><span style="color:#9ca3af;font-weight:600;">× ${m.qty}</span>
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
+            <span style="color:#f59e0b;">⚡ ${m.brand.charAt(0).toUpperCase() + m.brand.slice(1)} ${m.model}</span><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">× ${m.qty}</span>
           </div>`).join('')}` : ''}
       ${Object.keys(cords).length ? `
-        <p style="font-size:10px;color:#6b7280;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Cord (roller / blind)</p>
+        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Cord (roller / blind)</p>
         ${Object.entries(cords).map(([type, qty]) => `
-          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #111827;">
-            <span style="color:#e2e8f0;">${type}</span><span style="color:#9ca3af;font-weight:600;">× ${qty}</span>
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
+            <span style="color:var(--shell-ink,#16181d);">${type}</span><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">× ${qty}</span>
           </div>`).join('')}` : ''}
     </div>`;
 
@@ -3538,7 +3538,7 @@ function renderTracksCutListView(items) {
     <div style="padding:12px 16px 6px;">
       <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#38bdf8;text-transform:uppercase;">Cutting list — by rail type (${Object.keys(railGroups).length} types)</p>
     </div>
-    ${railSection || `<p style="padding:0 16px 12px;font-size:12px;color:#4b5563;">No track/rail items in production right now.</p>`}
+    ${railSection || `<p style="padding:0 16px 12px;font-size:12px;color:var(--shell-ink-faint,#9ba1aa);">No track/rail items in production right now.</p>`}
     <div style="padding:12px 16px 6px;">
       <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#38bdf8;text-transform:uppercase;">Hardware needed — all ${items.length} items in production</p>
     </div>
@@ -3560,30 +3560,30 @@ function tracksItemCard(i, mode, showDetail) {
   const stageDots = railStages.map((s, si) => {
     const done    = card && card.railTrack && card.railTrack.stageDates && card.railTrack.stageDates[s];
     const isCurr  = railInfo.stage === s;
-    const bg      = done ? '#10b981' : isCurr ? '#7c3aed' : '#374151';
+    const bg      = done ? '#10b981' : isCurr ? 'var(--maraya)' : 'var(--shell-border,#e7e9ed)';
     return `<div style="display:flex;align-items:center;gap:3px;">
       <div style="width:8px;height:8px;border-radius:50%;background:${bg};flex:none;"></div>
-      <span style="font-size:9px;color:${done?'#10b981':isCurr?'#a78bfa':'#4b5563'};white-space:nowrap;">${s}</span>
-      ${si < railStages.length-1 ? `<div style="width:10px;height:1px;background:#374151;margin:0 1px;"></div>` : ''}
+      <span style="font-size:9px;color:${done?'#10b981':isCurr?'var(--maraya)':'var(--shell-ink-faint,#9ba1aa)'};white-space:nowrap;">${s}</span>
+      ${si < railStages.length-1 ? `<div style="width:10px;height:1px;background:var(--shell-border,#e7e9ed);margin:0 1px;"></div>` : ''}
     </div>`;
   }).join('');
 
   // Full spec block
   const specBlock = isRoller ? `
-    <div style="background:#1a2332;border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-      <div><p style="font-size:10px;color:#6b7280;">Size (W×H)</p><p style="font-size:13px;font-weight:700;color:#e2e8f0;">${w.width} × ${w.height} cm</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Bracket</p><p style="font-size:12px;color:#e2e8f0;font-weight:600;">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Fabric</p><p style="font-size:12px;color:#e2e8f0;">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Cord type</p><p style="font-size:12px;color:#e2e8f0;">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Cord length</p><p style="font-size:12px;color:#e2e8f0;">${w.cordLength ? w.cordLength + ' cm' : '—'}</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Cord side</p><p style="font-size:12px;color:#e2e8f0;font-weight:700;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
+    <div style="background:#f7f8fa;border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Size (W×H)</p><p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${w.width} × ${w.height} cm</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:600;">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Fabric</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord type</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord length</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.cordLength ? w.cordLength + ' cm' : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord side</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:700;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
     </div>` : `
-    <div style="background:#1a2332;border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-      <div><p style="font-size:10px;color:#6b7280;">Track length</p><p style="font-size:13px;font-weight:700;color:#e2e8f0;">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : w.width ? (w.width/100).toFixed(2)+' m' : '—'}</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Rail type</p><p style="font-size:12px;color:#e2e8f0;font-weight:600;">${w.railType || '—'}</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Opening</p><p style="font-size:12px;color:#e2e8f0;font-weight:700;">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
-      <div><p style="font-size:10px;color:#6b7280;">Bracket</p><p style="font-size:12px;color:#e2e8f0;">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-      ${w.motorized ? `<div style="grid-column:1/-1;"><p style="font-size:10px;color:#6b7280;">Motor</p><p style="font-size:12px;color:#f59e0b;font-weight:700;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)} — needs motor team fit</p></div>` : ''}
+    <div style="background:#f7f8fa;border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Track length</p><p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : w.width ? (w.width/100).toFixed(2)+' m' : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Rail type</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:600;">${w.railType || '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Opening</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:700;">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+      ${w.motorized ? `<div style="grid-column:1/-1;"><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Motor</p><p style="font-size:12px;color:#f59e0b;font-weight:700;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)} — needs motor team fit</p></div>` : ''}
     </div>`;
 
   // Action buttons — derived straight from the rail track's own state, so
@@ -3595,7 +3595,7 @@ function tracksItemCard(i, mode, showDetail) {
 
   if (railInfo.isRework) {
     actions = `
-      <div style="background:#450a0a;border:1px solid #7f1d1d;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+      <div style="background:var(--bad-bg,#fdeceb);border:1px solid #f5b8b5;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
         <p style="font-size:11px;color:#f87171;font-weight:700;">QC failed — rail rework required</p>
         <p style="font-size:11px;color:#ef4444;">Return to: ${railInfo.stage}</p>
         ${card && card.reworkLog.length ? `<p style="font-size:10px;color:#991b1b;margin-top:4px;">Reason: ${card.reworkLog[card.reworkLog.length-1].reason || 'No notes'}</p>` : ''}
@@ -3606,7 +3606,7 @@ function tracksItemCard(i, mode, showDetail) {
       </button>`;
   } else if (!railInfo.actionable) {
     if (railInfo.stage === 'Done' && i.stageInfo.stage === 'Production') {
-      actions = `<p style="font-size:12px;color:#a78bfa;padding:4px 0;text-align:center;">✂️ Rail done — waiting on the stitching team</p>`;
+      actions = `<p style="font-size:12px;color:var(--maraya);padding:4px 0;text-align:center;">✂️ Rail done — waiting on the stitching team</p>`;
     } else if (i.stageInfo.stage === 'Hoist QC') {
       actions = `<p style="font-size:12px;color:#3b82f6;padding:4px 0;text-align:center;">Waiting for hoist QC result</p>`;
     } else if (i.stageInfo.stage === 'Ready') {
@@ -3614,7 +3614,7 @@ function tracksItemCard(i, mode, showDetail) {
     }
   } else if (needsMotor) {
     actions = `
-      <div style="background:#1c1208;border:1px solid #78350f;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+      <div style="background:var(--warn-bg,#fff6e3);border:1px solid #ffe0a0;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
         <p style="font-size:11px;color:#f59e0b;font-weight:700;">⚡ Motor fit required before QC</p>
         <p style="font-size:11px;color:#92400e;">Mark assembly done — motor team will be notified</p>
       </div>
@@ -3626,7 +3626,7 @@ function tracksItemCard(i, mode, showDetail) {
     const btnLabel = !railNext ? 'Send to hoist QC →' : `Mark ${railInfo.stage} complete →`;
     actions = `
       <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');renderTracksDashboard()"
-        style="width:100%;padding:12px;background:#7c3aed;border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
+        style="width:100%;padding:12px;background:var(--maraya);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
         ${btnLabel}
       </button>`;
   }
@@ -3636,31 +3636,31 @@ function tracksItemCard(i, mode, showDetail) {
 
   // Paired-opening note — same physical window, different layer (main+sheer, curtain+Roman, etc.)
   const pairedNote = siblings.length > 0 ? `
-    <p style="font-size:11px;color:#a78bfa;margin-top:3px;">
-      🔗 Paired: ${siblings.map(s => `${s.w.label}${s.card ? ` <span style="color:#6b7280;">(${getItemCardStageDisplay(s.card, s.w.treatment).stage})</span>` : ''}`).join(', ')}
+    <p style="font-size:11px;color:var(--maraya);margin-top:3px;">
+      🔗 Paired: ${siblings.map(s => `${s.w.label}${s.card ? ` <span style="color:var(--shell-ink-muted,#6b7280);">(${getItemCardStageDisplay(s.card, s.w.treatment).stage})</span>` : ''}`).join(', ')}
     </p>` : '';
 
   // Assignee row — tap to assign Abdullah / Prince
   const assigneeRow = `
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-      <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;">Assigned:</span>
+      <span style="font-size:10px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;letter-spacing:.5px;">Assigned:</span>
       ${TRACK_TEAM.map(p => `
         <button onclick="assignTrackItem('${job.id}','${w.id}', ${card && card.assignedTo === p ? 'null' : `'${p}'`})"
           style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
-            background:${card && card.assignedTo === p ? '#7c3aed' : '#111827'};
-            color:${card && card.assignedTo === p ? '#fff' : '#9ca3af'};
-            border:1px solid ${card && card.assignedTo === p ? '#7c3aed' : '#374151'};">
+            background:${card && card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-surface,#fff)'};
+            color:${card && card.assignedTo === p ? '#fff' : 'var(--shell-ink-muted,var(--shell-ink-muted,#6b7280))'};
+            border:1px solid ${card && card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-border,#e7e9ed)'};">
           ${p}
         </button>`).join('')}
-      ${!card || !card.assignedTo ? `<span style="font-size:11px;color:#4b5563;">— unassigned</span>` : ''}
+      ${!card || !card.assignedTo ? `<span style="font-size:11px;color:var(--shell-ink-faint,#9ba1aa);">— unassigned</span>` : ''}
     </div>`;
 
-  const borderColor = mode === 'rework' ? '#7f1d1d' :
-                      mode === 'ready'  ? '#065f46' :
-                      mode === 'done'   ? '#1f2937' : '#374151';
-  const bgColor     = mode === 'rework' ? '#1a0a0a' :
-                      mode === 'ready'  ? '#0a1f17' :
-                      mode === 'done'   ? '#1a1f2a' : '#1f2937';
+  const borderColor = mode === 'rework' ? '#f5b8b5' :
+                      mode === 'ready'  ? '#b6e6c9' :
+                      mode === 'done'   ? 'var(--shell-border,#e7e9ed)' : 'var(--shell-border,#e7e9ed)';
+  const bgColor     = mode === 'rework' ? 'var(--bad-bg,#fdeceb)' :
+                      mode === 'ready'  ? 'var(--ok-bg,#eafaf1)' :
+                      mode === 'done'   ? '#f7f7f8' : 'var(--shell-border,#e7e9ed)';
 
   return `
     <div style="margin:0 16px 10px;background:${bgColor};border:1px solid ${borderColor};border-radius:12px;padding:14px;cursor:pointer;"
@@ -3670,17 +3670,17 @@ function tracksItemCard(i, mode, showDetail) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <p style="font-size:15px;font-weight:800;color:#f1f5f9;">${w.label}</p>
-            ${isRoller ? `<span style="background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed44;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">ROLLER</span>` : `<span style="background:#0ea5e922;color:#38bdf8;border:1px solid #0ea5e944;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">RAIL</span>`}
+            <p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.label}</p>
+            ${isRoller ? `<span style="background:#60013122;color:var(--maraya);border:1px solid #60013144;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">ROLLER</span>` : `<span style="background:#0ea5e922;color:#38bdf8;border:1px solid #0ea5e944;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">RAIL</span>`}
             ${qcFails > 0 ? `<span style="background:#ef444422;color:#f87171;border:1px solid #ef444444;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">${qcFails} QC fail${qcFails>1?'s':''}</span>` : ''}
           </div>
-          <p style="font-size:11px;color:#6b7280;margin-top:2px;">${job.name} · ${w.room}</p>
+          <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);margin-top:2px;">${job.name} · ${w.room}</p>
           ${pairedNote}
         </div>
         <!-- Install countdown -->
         <div style="text-align:right;flex:none;">
           <p style="font-size:14px;font-weight:800;color:${daysColor};">${daysText}</p>
-          ${days !== null ? `<p style="font-size:10px;color:#4b5563;">to install</p>` : `<p style="font-size:10px;color:#4b5563;">no date set</p>`}
+          ${days !== null ? `<p style="font-size:10px;color:var(--shell-ink-faint,#9ba1aa);">to install</p>` : `<p style="font-size:10px;color:var(--shell-ink-faint,#9ba1aa);">no date set</p>`}
         </div>
       </div>
 
@@ -3718,15 +3718,15 @@ function renderTracksDetailPanel() {
   const fabInfo    = getFabricDisplay(card);
 
   const historyRows = card.qcHistory.map(h => `
-    <div style="border-bottom:1px solid #1f2937;padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+    <div style="border-bottom:1px solid var(--shell-border,#e7e9ed);padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
       <div>
         <p style="font-size:12px;font-weight:700;color:${h.result==='pass'?'#10b981':'#ef4444'};">
           ${h.result==='pass'?'✓ Pass':'✗ Fail'} — Attempt ${h.attempt}
         </p>
-        <p style="font-size:11px;color:#6b7280;">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
-        ${h.notes ? `<p style="font-size:11px;color:#9ca3af;margin-top:3px;">${h.notes}</p>` : ''}
+        <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+        ${h.notes ? `<p style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-top:3px;">${h.notes}</p>` : ''}
       </div>
-      ${h.photos && h.photos.length ? `<div style="position:relative;flex:none;"><img src="${h.photos[0]}" style="width:44px;height:44px;border-radius:7px;object-fit:cover;">${h.photos.length>1?`<span style="position:absolute;bottom:-4px;right:-4px;background:#1e2a3b;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:8px;">+${h.photos.length-1}</span>`:''}</div>` : ''}
+      ${h.photos && h.photos.length ? `<div style="position:relative;flex:none;"><img src="${h.photos[0]}" style="width:44px;height:44px;border-radius:7px;object-fit:cover;">${h.photos.length>1?`<span style="position:absolute;bottom:-4px;right:-4px;background:var(--maraya);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:8px;">+${h.photos.length-1}</span>`:''}</div>` : ''}
     </div>`).join('');
 
   // Rail track timeline — this is the track team's own work
@@ -3735,17 +3735,17 @@ function renderTracksDetailPanel() {
     const curr = railInfo.stage === s;
     return `
       <div style="flex:1;text-align:center;">
-        <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;background:${done?'#10b981':curr?'#7c3aed':'#374151'};border:2px solid ${done?'#10b981':curr?'#a78bfa':'#4b5563'};">
+        <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;background:${done?'#10b981':curr?'var(--maraya)':'var(--shell-border,#e7e9ed)'};border:2px solid ${done?'#10b981':curr?'var(--maraya)':'var(--shell-ink-faint,#9ba1aa)'};">
           ${done ? `<span style="color:#fff;font-size:11px;font-weight:800;">✓</span>` : curr ? `<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:block;"></span>` : ''}
         </div>
-        <p style="font-size:9px;color:${done?'#10b981':curr?'#a78bfa':'#4b5563'};font-weight:${done||curr?'700':'400'};">${s}</p>
-        ${done && card.railTrack.stageDates[s] ? `<p style="font-size:8px;color:#4b5563;">${new Date(card.railTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</p>` : ''}
+        <p style="font-size:9px;color:${done?'#10b981':curr?'var(--maraya)':'var(--shell-ink-faint,#9ba1aa)'};font-weight:${done||curr?'700':'400'};">${s}</p>
+        ${done && card.railTrack.stageDates[s] ? `<p style="font-size:8px;color:var(--shell-ink-faint,#9ba1aa);">${new Date(card.railTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</p>` : ''}
       </div>`;
   }).join('');
 
   // Fabric status note — read-only context for the track team, not actionable here
   const fabricNote = fabInfo.stage ? `
-    <p style="font-size:11px;color:#a78bfa;margin-top:8px;">
+    <p style="font-size:11px;color:var(--maraya);margin-top:8px;">
       ✂️ Fabric: ${fabInfo.stage === 'Done' ? '✓ Done' : fabInfo.stage + (fabInfo.isRework ? ' (rework)' : '')}
     </p>` : '';
 
@@ -3754,12 +3754,12 @@ function renderTracksDetailPanel() {
   const stockIsPiece = stock && stock.mode === 'piece';
 
   wrap.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;align-items:center;gap:10px;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;align-items:center;gap:10px;flex:none;">
       <button onclick="tracksDetailItem=null;renderTracksDashboard()"
         style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Queue</button>
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">${w.label}</p>
-        <p style="color:#94a3b8;font-size:11px;">${job.name} · ${w.room}</p>
+        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:11px;">${job.name} · ${w.room}</p>
       </div>
       ${days !== null ? `<span style="margin-left:auto;background:${urgencyColor(days)}22;color:${urgencyColor(days)};border:1px solid ${urgencyColor(days)}44;border-radius:20px;padding:5px 11px;font-size:12px;font-weight:700;">${urgencyLabel(days)}</span>` : ''}
     </div>
@@ -3767,56 +3767,56 @@ function renderTracksDetailPanel() {
     <div style="flex:1;overflow-y:auto;padding-bottom:30px;">
 
       <!-- Assignment -->
-      <div style="padding:16px;border-bottom:1px solid #1f2937;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;">Assigned to</span>
+      <div style="padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;">Assigned to</span>
         ${TRACK_TEAM.map(p => `
           <button onclick="assignTrackItem('${job.id}','${w.id}', ${card.assignedTo === p ? 'null' : `'${p}'`})"
             style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;
-              background:${card.assignedTo === p ? '#7c3aed' : '#111827'};
-              color:${card.assignedTo === p ? '#fff' : '#9ca3af'};
-              border:1px solid ${card.assignedTo === p ? '#7c3aed' : '#374151'};">
+              background:${card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-surface,#fff)'};
+              color:${card.assignedTo === p ? '#fff' : 'var(--shell-ink-muted,var(--shell-ink-muted,#6b7280))'};
+              border:1px solid ${card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-border,#e7e9ed)'};">
             ${p}
           </button>`).join('')}
       </div>
 
       ${siblings.length > 0 ? `
       <!-- Paired opening -->
-      <div style="padding:16px;border-bottom:1px solid #1f2937;background:#160f28;">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#a78bfa;text-transform:uppercase;margin-bottom:8px;">🔗 Same opening — ${siblings.length + 1} layers</p>
+      <div style="padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);background:#f4e6ec;">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--maraya);text-transform:uppercase;margin-bottom:8px;">🔗 Same opening — ${siblings.length + 1} layers</p>
         ${siblings.map(s => `
           <div onclick="tracksDetailItem={jobId:'${job.id}',windowId:'${s.w.id}'};renderTracksDashboard()"
             style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;cursor:pointer;">
-            <span style="font-size:12px;color:#e2e8f0;">${s.w.label}</span>
+            <span style="font-size:12px;color:var(--shell-ink,#16181d);">${s.w.label}</span>
             ${s.card ? itemCardStagePill(s.card, s.w.treatment) : ''}
           </div>`).join('')}
       </div>` : ''}
 
       <!-- Stage timeline -->
-      <div style="background:#1f2937;padding:16px;border-bottom:1px solid #374151;">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;">Rail progress</p>
+      <div style="background:var(--shell-border,#e7e9ed);padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:12px;">Rail progress</p>
         <div style="display:flex;align-items:flex-start;">${stageLine}</div>
         ${fabricNote}
       </div>
 
       <!-- Full spec -->
-      <div style="padding:16px;border-bottom:1px solid #1f2937;">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;">${isRoller ? 'Roller blind spec' : 'Rail spec'}</p>
+      <div style="padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:12px;">${isRoller ? 'Roller blind spec' : 'Rail spec'}</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           ${isRoller ? `
-            <div><p style="font-size:10px;color:#6b7280;">Width</p><p style="font-size:15px;font-weight:800;color:#f1f5f9;">${w.width} cm</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Height</p><p style="font-size:15px;font-weight:800;color:#f1f5f9;">${w.height} cm</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Fabric</p><p style="font-size:13px;font-weight:600;color:#e2e8f0;">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Bracket</p><p style="font-size:13px;font-weight:600;color:#e2e8f0;">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Cord type</p><p style="font-size:13px;font-weight:600;color:#e2e8f0;">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Cord length</p><p style="font-size:13px;font-weight:600;color:#e2e8f0;">${w.cordLength ? w.cordLength+' cm' : '—'}</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Cord side</p><p style="font-size:14px;font-weight:800;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? '● '+w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Width</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.width} cm</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Height</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.height} cm</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Fabric</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord type</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord length</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.cordLength ? w.cordLength+' cm' : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord side</p><p style="font-size:14px;font-weight:800;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? '● '+w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
           ` : `
-            <div><p style="font-size:10px;color:#6b7280;">Track length</p><p style="font-size:15px;font-weight:800;color:#f1f5f9;">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : (w.width/100).toFixed(2)+' m'}</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Rail type</p><p style="font-size:13px;font-weight:600;color:#e2e8f0;">${w.railType || '—'}</p></div>
-            <div style="grid-column:1/-1;"><p style="font-size:10px;color:#6b7280;">Opening direction</p><p style="font-size:15px;font-weight:800;color:#f1f5f9;">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
-            <div><p style="font-size:10px;color:#6b7280;">Bracket type</p><p style="font-size:13px;font-weight:600;color:#e2e8f0;">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-            ${w.motorized ? `<div><p style="font-size:10px;color:#6b7280;">Motor</p><p style="font-size:13px;font-weight:700;color:#f59e0b;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)}</p></div>` : ''}
-            ${stock && (stockIsPiece ? stock.piecesInStock != null : stock.metresInStock != null) ? `<div style="grid-column:1/-1;border-top:1px solid #1f2937;padding-top:8px;margin-top:4px;"><p style="font-size:10px;color:#6b7280;">Rail stock on hand</p><p style="font-size:13px;font-weight:700;color:${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '#f87171' : '#34d399'};">${stockIsPiece ? stock.piecesInStock + ' pcs (' + stock.pieceLengthM + 'm each)' : stock.metresInStock + 'm'} ${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '— low, check Cut List' : 'available'}</p></div>` : ''}
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Track length</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : (w.width/100).toFixed(2)+' m'}</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Rail type</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.railType || '—'}</p></div>
+            <div style="grid-column:1/-1;"><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Opening direction</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket type</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+            ${w.motorized ? `<div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Motor</p><p style="font-size:13px;font-weight:700;color:#f59e0b;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)}</p></div>` : ''}
+            ${stock && (stockIsPiece ? stock.piecesInStock != null : stock.metresInStock != null) ? `<div style="grid-column:1/-1;border-top:1px solid var(--shell-border,#e7e9ed);padding-top:8px;margin-top:4px;"><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Rail stock on hand</p><p style="font-size:13px;font-weight:700;color:${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '#f87171' : '#34d399'};">${stockIsPiece ? stock.piecesInStock + ' pcs (' + stock.pieceLengthM + 'm each)' : stock.metresInStock + 'm'} ${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '— low, check Cut List' : 'available'}</p></div>` : ''}
           `}
         </div>
       </div>
@@ -3824,11 +3824,11 @@ function renderTracksDetailPanel() {
       <!-- QC history -->
       ${card.qcHistory.length > 0 ? `
       <div style="padding:16px;">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#6b7280;text-transform:uppercase;margin-bottom:10px;">QC history (${card.qcHistory.length})</p>
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:10px;">QC history (${card.qcHistory.length})</p>
         ${historyRows}
       </div>` : `
       <div style="padding:16px;">
-        <p style="font-size:12px;color:#4b5563;">No QC history yet.</p>
+        <p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);">No QC history yet.</p>
       </div>`}
     </div>`;
 }
@@ -3972,14 +3972,14 @@ function renderQCDashboard() {
   const tabBar = `
     <div style="display:flex;gap:6px;padding:10px 16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
       ${tabs.map(t => `
-        <button onclick="qcSetView('${t}')" style="flex:1;padding:8px;border-radius:8px;border:1px solid ${qcDashView===t?'#1e2a3b':'#e2e8f0'};background:${qcDashView===t?'#1e2a3b':'#f7f9fc'};color:${qcDashView===t?'#fff':'#475569'};font-size:12px;font-weight:700;cursor:pointer;">
+        <button onclick="qcSetView('${t}')" style="flex:1;padding:8px;border-radius:8px;border:1px solid ${qcDashView===t?'var(--maraya)':'#e2e8f0'};background:${qcDashView===t?'var(--maraya)':'#f7f9fc'};color:${qcDashView===t?'#fff':'#475569'};font-size:12px;font-weight:700;cursor:pointer;">
           ${tabLabels[t]}
         </button>`).join('')}
     </div>`;
 
   const acting = `
     <div style="padding:8px 16px;background:#f1f5f9;border-bottom:1px solid #e8ecf0;display:flex;justify-content:space-between;align-items:center;flex:none;">
-      <span style="font-size:11px;color:#64748b;">Acting as: <b style="color:#1e2a3b;">${qcCurrentUser || 'not set'}</b></span>
+      <span style="font-size:11px;color:#64748b;">Acting as: <b style="color:var(--shell-ink);">${qcCurrentUser || 'not set'}</b></span>
       <button onclick="qcSwitchUser()" style="background:none;border:none;color:#3b82f6;font-size:11px;font-weight:600;cursor:pointer;">Switch</button>
     </div>`;
 
@@ -3989,7 +3989,7 @@ function renderQCDashboard() {
   else body = renderQCQueueView();
 
   wrap.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🔍 QC Dashboard</p>
         <p style="color:#94a3b8;font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
@@ -4063,7 +4063,7 @@ function renderQCQueueView() {
         onclick="openQCPanel('${i.job.id}','${i.w.id}')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:#1e2a3b;">${i.w.label}</p>
+            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${i.w.label}</p>
             <p style="font-size:11px;color:#64748b;">${i.job.name} · ${i.job.id} · ${i.w.room}</p>
             <p style="font-size:12px;color:#475569;margin-top:4px;">${treatmentLabel(i.w.treatment)} · ${i.w.width}×${i.w.height} cm</p>
           </div>
@@ -4088,7 +4088,7 @@ function renderQCQueueView() {
       <div style="border:1px solid #fecaca;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:#1e2a3b;">${i.w.label}</p>
+            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${i.w.label}</p>
             <p style="font-size:11px;color:#64748b;">${i.job.name} · ${i.job.id}</p>
           </div>
           <span class="pill bad">Rework → ${i.stageInfo.stage}${i.stageInfo.track ? ` (${i.stageInfo.track === 'fabric' ? 'Fabric' : 'Rail'})` : ''}</span>
@@ -4115,7 +4115,7 @@ function renderQCQueueView() {
           <div style="border:1px solid #d1fae5;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div>
-                <p style="font-size:14px;font-weight:700;color:#1e2a3b;">${i.w.label}</p>
+                <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${i.w.label}</p>
                 <p style="font-size:11px;color:#64748b;">${i.job.name} · ${treatmentLabel(i.w.treatment)}</p>
               </div>
               <span class="pill ok">✓ Passed</span>
@@ -4172,7 +4172,7 @@ function renderQCPerformanceView() {
         <p style="font-size:11px;color:#64748b;margin-top:2px;">Avg attempts to pass</p>
       </div>
       <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
-        <p style="font-size:22px;font-weight:800;color:#7c3aed;">${qcTurnaroundLabel(avgTurnaround)}</p>
+        <p style="font-size:22px;font-weight:800;color:var(--maraya);">${qcTurnaroundLabel(avgTurnaround)}</p>
         <p style="font-size:11px;color:#64748b;margin-top:2px;">Avg turnaround (queue → result)</p>
       </div>
     </div>`;
@@ -4196,7 +4196,7 @@ function renderQCPerformanceView() {
       return `
         <div style="border-bottom:1px solid #f1f5f9;padding:10px 0;display:flex;justify-content:space-between;align-items:center;">
           <div>
-            <p style="font-size:13px;font-weight:700;color:#1e2a3b;">${person}</p>
+            <p style="font-size:13px;font-weight:700;color:var(--shell-ink);">${person}</p>
             <p style="font-size:11px;color:#64748b;">${s.total} inspection${s.total>1?'s':''} · ${s.pass} pass / ${s.fail} fail</p>
           </div>
           <div style="text-align:right;">
@@ -4243,7 +4243,7 @@ function renderQCLogView() {
   const filterBar = `
     <div style="display:flex;gap:6px;padding:12px 16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
       ${['all','pass','fail'].map(f => `
-        <button onclick="qcSetLogFilter('${f}')" style="padding:6px 14px;border-radius:20px;border:1px solid ${qcLogFilter===f?'#1e2a3b':'#e2e8f0'};background:${qcLogFilter===f?'#1e2a3b':'#f7f9fc'};color:${qcLogFilter===f?'#fff':'#475569'};font-size:12px;font-weight:600;cursor:pointer;text-transform:capitalize;">
+        <button onclick="qcSetLogFilter('${f}')" style="padding:6px 14px;border-radius:20px;border:1px solid ${qcLogFilter===f?'var(--maraya)':'#e2e8f0'};background:${qcLogFilter===f?'var(--maraya)':'#f7f9fc'};color:${qcLogFilter===f?'#fff':'#475569'};font-size:12px;font-weight:600;cursor:pointer;text-transform:capitalize;">
           ${f} ${f !== 'all' ? `(${allRows.filter(r=>r.h.result===f).length})` : `(${allRows.length})`}
         </button>`).join('')}
     </div>`;
@@ -4254,14 +4254,14 @@ function renderQCLogView() {
       <div style="border:1px solid #e8ecf0;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
-            <p style="font-size:13px;font-weight:700;color:#1e2a3b;">${r.w.label} <span style="font-weight:400;color:#94a3b8;">· Attempt ${r.h.attempt}</span></p>
+            <p style="font-size:13px;font-weight:700;color:var(--shell-ink);">${r.w.label} <span style="font-weight:400;color:#94a3b8;">· Attempt ${r.h.attempt}</span></p>
             <p style="font-size:11px;color:#64748b;">${r.job.name} · ${r.job.id} · ${treatmentLabel(r.w.treatment)}</p>
           </div>
           <span class="pill ${r.h.result==='pass'?'ok':'bad'}">${r.h.result==='pass'?'✓ Pass':'✗ Fail'}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
           <p style="font-size:11px;color:#64748b;">${r.h.person} · ${new Date(r.h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
-          <p style="font-size:11px;color:#7c3aed;font-weight:600;">⏱ ${qcTurnaroundLabel(ms)}</p>
+          <p style="font-size:11px;color:var(--maraya);font-weight:600;">⏱ ${qcTurnaroundLabel(ms)}</p>
         </div>
         ${r.h.checklist && r.h.checklist.some(c => !c.ok) ? `
           <div style="margin-top:6px;background:#fef2f2;border-radius:8px;padding:6px 10px;">
@@ -4329,7 +4329,7 @@ function openQCPanel(jobId, windowId) {
         <input type="checkbox" id="qc-check-${it.key}" checked
           onchange="qcChecklistItemToggle('${it.key}', this.checked)"
           style="width:18px;height:18px;accent-color:#10b981;flex:none;">
-        <span style="font-size:13px;color:#1e2a3b;font-weight:500;">${it.label}</span>
+        <span style="font-size:13px;color:var(--shell-ink);font-weight:500;">${it.label}</span>
       </label>
       <div id="qc-remark-wrap-${it.key}" style="display:none;margin:8px 0 0 28px;">
         <textarea id="qc-remark-${it.key}" rows="2" placeholder="What's the issue?"
@@ -4361,7 +4361,7 @@ function openQCPanel(jobId, windowId) {
 
   const panel = document.getElementById('qc-panel');
   panel.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">QC — ${win.label}</p>
         <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${win.room} · ${treatmentLabel(win.treatment)}</p>
@@ -4483,7 +4483,7 @@ function openQCPanel(jobId, windowId) {
           </div>
 
           <button id="qc-submit-btn" onclick="submitQCResult()"
-            style="width:100%;padding:13px;border-radius:10px;background:#1e2a3b;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;opacity:.4;pointer-events:none;">
+            style="width:100%;padding:13px;border-radius:10px;background:var(--maraya);color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;opacity:.4;pointer-events:none;">
             Submit QC result
           </button>
         </div>
@@ -4533,7 +4533,7 @@ function closeQCPanel() {
 function openQCLockedPanel(job, win, card) {
   const panel = document.getElementById('qc-panel');
   panel.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">QC — ${win.label}</p>
         <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${win.room}</p>
@@ -4602,7 +4602,7 @@ function qcPersonRosterHtml(card) {
   const selected = window._qcSelectedPerson || qcCurrentUser;
   const chips = QC_TEAM.map(p => `
     <button onclick="qcSelectPerson('${p}')"
-      style="padding:8px 14px;border-radius:20px;border:1px solid ${selected===p?'#1e2a3b':'#e2e8f0'};background:${selected===p?'#1e2a3b':'#f8fafc'};color:${selected===p?'#fff':'#475569'};font-size:13px;font-weight:600;cursor:pointer;">
+      style="padding:8px 14px;border-radius:20px;border:1px solid ${selected===p?'var(--maraya)':'#e2e8f0'};background:${selected===p?'var(--maraya)':'#f8fafc'};color:${selected===p?'#fff':'#475569'};font-size:13px;font-weight:600;cursor:pointer;">
       ${p}
     </button>`).join('');
   return `${chips}
@@ -5024,7 +5024,7 @@ function renderInstallCrewDashboard() {
       <div style="border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:#1e2a3b;">${job.name}</p>
+            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${job.name}</p>
             <p style="font-size:11px;color:#64748b;">${job.id} · ${job.client}</p>
           </div>
           ${statusPill(inst.status || 'pending')}
@@ -5053,7 +5053,7 @@ function renderInstallCrewDashboard() {
         <div style="background:#f0fdf4;border:1px solid #d1fae5;border-radius:8px;padding:10px;margin-bottom:8px;">
           <p style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;">Ready to install (${ready.length})</p>
           <div style="display:flex;flex-wrap:wrap;gap:4px;">
-            ${ready.map(w => `<span style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:3px 8px;font-size:11px;color:#1e2a3b;">${w.label}</span>`).join('')}
+            ${ready.map(w => `<span style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--shell-ink);">${w.label}</span>`).join('')}
           </div>
         </div>` : ''}
         ${installed.length > 0 ? `
@@ -5065,7 +5065,7 @@ function renderInstallCrewDashboard() {
         ${ready.length > 0 && inst.status !== 'complete' ? `
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
           ${ready.map(w => `
-            <button style="background:#1e2a3b;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;"
+            <button style="background:var(--maraya);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;"
               onclick="markItemInstalled('${job.id}','${w.id}');renderInstallCrewDashboard();">
               ✓ ${w.label} installed
             </button>`).join('')}
@@ -5097,14 +5097,14 @@ function renderInstallCrewDashboard() {
       <div style="border:1px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:10px;background:#fffbeb;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:#1e2a3b;">${job.name}</p>
+            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${job.name}</p>
             <p style="font-size:11px;color:#64748b;">${job.id} · ${job.client}</p>
           </div>
           <span class="pill warn">Held</span>
         </div>
         <p style="font-size:12px;color:#92400e;margin-bottom:6px;">${held.length} of ${total} items finished, but held back — QC: ${qc.done}/${qc.total} passed. Released once the whole job clears QC, or Ops enables partial release for this job in the Install tab.</p>
         <div style="display:flex;flex-wrap:wrap;gap:4px;">
-          ${held.map(w => `<span style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;font-size:11px;color:#1e2a3b;">${w.label}</span>`).join('')}
+          ${held.map(w => `<span style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--shell-ink);">${w.label}</span>`).join('')}
         </div>
         <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #fde68a;padding-top:10px;">
           <span style="font-size:12px;color:${openSnags > 0 ? '#ef4444' : '#92400e'};font-weight:${openSnags > 0 ? '700' : '400'};">
@@ -5136,7 +5136,7 @@ function renderInstallCrewDashboard() {
   const totalHeld  = jobCards.reduce((s, j) => s + j.held.length, 0);
 
   wrap.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🏠 Installation Crew</p>
         <p style="color:#94a3b8;font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
@@ -5159,7 +5159,7 @@ function renderInstallCrewDashboard() {
         <p style="font-size:11px;color:#64748b;margin-top:2px;">Held (QC pending)</p>
       </div>
       <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
-        <p style="font-size:22px;font-weight:800;color:#7c3aed;">${totalDone}</p>
+        <p style="font-size:22px;font-weight:800;color:var(--maraya);">${totalDone}</p>
         <p style="font-size:11px;color:#64748b;margin-top:2px;">Installed</p>
       </div>
     </div>
@@ -5229,7 +5229,7 @@ function renderSnagPanel() {
   const resolved = snags.filter(s => s.resolved);
 
   const reporterChips = INSTALL_CREW.map(name => `
-    <button type="button" style="padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid ${window._snagReporter===name?'#1e2a3b':'#e2e8f0'};background:${window._snagReporter===name?'#1e2a3b':'#fff'};color:${window._snagReporter===name?'#fff':'#475569'};cursor:pointer;"
+    <button type="button" style="padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid ${window._snagReporter===name?'var(--maraya)':'#e2e8f0'};background:${window._snagReporter===name?'var(--maraya)':'#fff'};color:${window._snagReporter===name?'#fff':'#475569'};cursor:pointer;"
       onclick="selectSnagReporter('${name}')">${name}</button>`).join('');
 
   function newPhotoGallery() {
@@ -5250,7 +5250,7 @@ function renderSnagPanel() {
       <div style="background:#fff;border:1px solid ${s.resolved ? '#e8ecf0' : '#fecaca'};border-radius:10px;padding:12px;margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
           <div style="flex:1;">
-            <p style="font-size:13px;font-weight:600;color:#1e2a3b;">${s.desc}</p>
+            <p style="font-size:13px;font-weight:600;color:var(--shell-ink);">${s.desc}</p>
             <p style="font-size:11px;color:#94a3b8;margin-top:2px;">Reported by ${s.reportedBy} · ${fmtDate(s.reportedAt)}</p>
           </div>
           ${s.resolved ? `<span class="pill ok">✓ Resolved</span>` : `<span class="pill bad">Open</span>`}
@@ -5272,7 +5272,7 @@ function renderSnagPanel() {
   }
 
   panel.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">Snags — ${job.name}</p>
         <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.id} · ${open.length} open · ${resolved.length} resolved</p>
@@ -5291,7 +5291,7 @@ function renderSnagPanel() {
         <button onclick="document.getElementById('snag-photo-input').click()"
           style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">📷 Add photo</button>
         ${newPhotoGallery()}
-        <button onclick="submitSnag()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;background:#1e2a3b;color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer;">Submit snag</button>
+        <button onclick="submitSnag()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;background:var(--maraya);color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer;">Submit snag</button>
       </div>
 
       ${open.length > 0 ? `<p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#ef4444;margin-bottom:8px;">Open (${open.length})</p>${open.map(snagRow).join('')}` : ''}
@@ -5419,7 +5419,7 @@ function renderSignoffPanel() {
   const openSnags = getOpenSnagCount(job);
 
   const header = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">Client sign-off — ${job.name}</p>
         <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.id} · ${job.client}</p>
@@ -5489,7 +5489,7 @@ function setupSignoffCanvas() {
   canvas.width  = canvas.clientWidth;
   canvas.height = canvas.clientHeight;
   signoffCtx = canvas.getContext('2d');
-  signoffCtx.strokeStyle = '#1e2a3b';
+  signoffCtx.strokeStyle = '#16181d';
   signoffCtx.lineWidth   = 2;
   signoffCtx.lineCap     = 'round';
 
@@ -5662,7 +5662,7 @@ function openPipelineBoard() {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'pipeline-board-wrap';
-    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:#111827;overflow:hidden;font-family:inherit;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--shell-bg);overflow:hidden;font-family:inherit;';
     document.body.appendChild(wrap);
   }
   wrap.style.display = 'flex';
@@ -5694,11 +5694,11 @@ function pipelineCard(entry, colType) {
 
   return `
     <div onclick="openPipelineDetail('${job.id}','${w.id}','${colType}')"
-      style="background:${isRework ? '#450a0a' : '#1a2332'};border:1px solid ${isRework ? '#7f1d1d' : '#2d3748'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
-      <p style="font-size:13px;font-weight:700;color:#e2e8f0;">${w.label}</p>
-      <p style="font-size:11px;color:#9ca3af;margin-top:1px;">${job.name} · ${w.room}</p>
+      style="background:${isRework ? 'var(--bad-bg,#fdeceb)' : '#f7f8fa'};border:1px solid ${isRework ? '#f5b8b5' : 'var(--shell-border,#e7e9ed)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+      <p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${w.label}</p>
+      <p style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-top:1px;">${job.name} · ${w.room}</p>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-        <span style="font-size:11px;font-weight:600;color:${isRework ? '#f87171' : '#a78bfa'};">${isRework ? 'Rework → ' : ''}${stageLabel}</span>
+        <span style="font-size:11px;font-weight:600;color:${isRework ? '#f87171' : 'var(--maraya)'};">${isRework ? 'Rework → ' : ''}${stageLabel}</span>
         <span style="font-size:10px;font-weight:600;color:${daysColor};">${daysText}</span>
       </div>
     </div>`;
@@ -5707,12 +5707,12 @@ function pipelineCard(entry, colType) {
 // ── Column renderer ─────────────────────────────
 function pipelineColumn(title, icon, entries, colType) {
   return `
-    <div style="flex:none;width:78vw;max-width:320px;background:#0d1420;border-radius:14px;margin-right:12px;display:flex;flex-direction:column;max-height:100%;overflow:hidden;">
-      <div style="padding:12px 14px;border-bottom:1px solid #1f2937;flex:none;">
-        <p style="font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#e2e8f0;">${icon} ${title} <span style="color:#6b7280;">(${entries.length})</span></p>
+    <div style="flex:none;width:78vw;max-width:320px;background:var(--shell-tint,#f1f2f4);border-radius:14px;margin-right:12px;display:flex;flex-direction:column;max-height:100%;overflow:hidden;">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--shell-border,#e7e9ed);flex:none;">
+        <p style="font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--shell-ink,#16181d);">${icon} ${title} <span style="color:var(--shell-ink-muted,#6b7280);">(${entries.length})</span></p>
       </div>
       <div style="padding:12px;overflow-y:auto;flex:1;">
-        ${entries.length ? entries.map(e => pipelineCard(e, colType)).join('') : `<p style="font-size:12px;color:#4b5563;text-align:center;padding:20px 0;">Nothing here</p>`}
+        ${entries.length ? entries.map(e => pipelineCard(e, colType)).join('') : `<p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);text-align:center;padding:20px 0;">Nothing here</p>`}
       </div>
     </div>`;
 }
@@ -5724,10 +5724,10 @@ function renderPipelineBoard() {
   const items = getPipelineItems();
 
   wrap.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🧵 Pipeline Board</p>
-        <p style="color:#94a3b8;font-size:12px;margin-top:2px;">All active jobs · ${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:12px;margin-top:2px;">All active jobs · ${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
       </div>
       <button onclick="closePipelineBoard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
     </div>
@@ -5765,10 +5765,10 @@ function openPipelineDetail(jobId, windowId, colType) {
   if (colType === 'stitching') {
     const info = getFabricDisplay(card);
     body = `
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Fabric / stitching</p>
-        <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.fabricCode || '—'}</p>
-        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : '#1e2a3b'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+      <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-bottom:10px;">Fabric / stitching</p>
+        <p style="font-size:13px;color:var(--shell-ink);margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.fabricCode || '—'}</p>
+        <p style="font-size:12px;color:var(--shell-ink-muted,#6b7280);margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : 'var(--shell-ink)'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
         ${info.isRework ? `
           <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
           <button onclick="finishFabricRework('${job.id}','${w.id}');closePipelineDetail();"
@@ -5776,7 +5776,7 @@ function openPipelineDetail(jobId, windowId, colType) {
             Rework complete — send to QC again →
           </button>` : `
           <button onclick="finishFabricWork('${job.id}','${w.id}');closePipelineDetail();"
-            style="width:100%;padding:13px;border-radius:10px;background:#1e2a3b;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            style="width:100%;padding:13px;border-radius:10px;background:var(--maraya);color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
             Mark Fabric Complete →
           </button>`}
       </div>`;
@@ -5786,10 +5786,10 @@ function openPipelineDetail(jobId, windowId, colType) {
     const idx = railStages.indexOf(info.stage);
     const isLast = idx >= railStages.length - 1;
     body = `
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Rail / track</p>
-        <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.railType || '—'}</p>
-        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : '#1e2a3b'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+      <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-bottom:10px;">Rail / track</p>
+        <p style="font-size:13px;color:var(--shell-ink);margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.railType || '—'}</p>
+        <p style="font-size:12px;color:var(--shell-ink-muted,#6b7280);margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : 'var(--shell-ink)'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
         ${info.isRework ? `
           <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
           <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');closePipelineDetail();"
@@ -5797,7 +5797,7 @@ function openPipelineDetail(jobId, windowId, colType) {
             Rework complete — send to QC again →
           </button>` : `
           <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');closePipelineDetail();"
-            style="width:100%;padding:13px;border-radius:10px;background:#7c3aed;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
+            style="width:100%;padding:13px;border-radius:10px;background:var(--maraya);color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
             ${isLast ? 'Send to hoist QC →' : `Mark ${info.stage} complete →`}
           </button>`}
       </div>`;
@@ -5807,10 +5807,10 @@ function openPipelineDetail(jobId, windowId, colType) {
     const released = qc.allPassed || job.installation.partialRelease === true;
     if (card.stage === 'Installed') {
       body = `
-        <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;text-align:center;">
+        <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;text-align:center;">
           <p style="font-size:32px;margin-bottom:8px;">✅</p>
           <p style="font-size:14px;font-weight:700;color:#10b981;">${w.label} is installed</p>
-          <p style="font-size:12px;color:#64748b;margin-top:4px;">${job.name}${job.client ? ' · ' + job.client : ''}</p>
+          <p style="font-size:12px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;">${job.name}${job.client ? ' · ' + job.client : ''}</p>
         </div>`;
     } else if (!released) {
       body = `
@@ -5820,13 +5820,13 @@ function openPipelineDetail(jobId, windowId, colType) {
         </div>`;
     } else {
       body = `
-        <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:16px;">
-          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Ready for delivery</p>
-          <p style="font-size:13px;color:#1e2a3b;margin-bottom:4px;"><b>${w.label}</b> — ${job.name}</p>
+        <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-bottom:10px;">Ready for delivery</p>
+          <p style="font-size:13px;color:var(--shell-ink);margin-bottom:4px;"><b>${w.label}</b> — ${job.name}</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:12px 0 16px;">
-            <div><span style="color:#94a3b8;">Install date:</span> <b>${job.installation.scheduledDate ? fmtDate(job.installation.scheduledDate) : '—'}</b></div>
-            <div><span style="color:#94a3b8;">Site contact:</span> <b>${job.installation.siteContact || '—'}</b></div>
-            <div style="grid-column:1/-1;"><span style="color:#94a3b8;">Crew:</span> <b>${job.installation.team && job.installation.team.length ? job.installation.team.join(', ') : '—'}</b></div>
+            <div><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Install date:</span> <b>${job.installation.scheduledDate ? fmtDate(job.installation.scheduledDate) : '—'}</b></div>
+            <div><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Site contact:</span> <b>${job.installation.siteContact || '—'}</b></div>
+            <div style="grid-column:1/-1;"><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Crew:</span> <b>${job.installation.team && job.installation.team.length ? job.installation.team.join(', ') : '—'}</b></div>
           </div>
           <button onclick="markItemInstalled('${job.id}','${w.id}');closePipelineDetail();"
             style="width:100%;padding:13px;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
@@ -5837,10 +5837,10 @@ function openPipelineDetail(jobId, windowId, colType) {
   }
 
   panel.innerHTML = `
-    <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
+    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">${w.label}</p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${w.room}</p>
+        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:11px;margin-top:1px;">${job.name} · ${w.room}</p>
       </div>
       <button onclick="closePipelineDetail()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Board</button>
     </div>

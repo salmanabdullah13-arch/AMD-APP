@@ -124,13 +124,13 @@
   /* ── Calc sheet form ── */
   .cs-row   { display:flex; flex-direction:column; gap:4px; }
   .cs-label { font-size:12px; font-weight:600; color:#64748b; }
-  .cs-input { padding:9px 11px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; color:#1e2a3b; background:#fff; width:100%; box-sizing:border-box; }
+  .cs-input { padding:9px 11px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; color:var(--shell-ink,#16181d); background:#fff; width:100%; box-sizing:border-box; }
   .cs-input:focus { outline:none; border-color:#600131; box-shadow:0 0 0 3px rgba(96,1,49,.1); }
   .calc-result-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .cr-item  { background:#fff; border-radius:8px; padding:10px 12px; border:1px solid #d1fae5; }
   .cr-item.highlight { background:#dcfce7; border-color:#10b981; }
   .cr-label { font-size:11px; color:#64748b; margin-bottom:3px; }
-  .cr-value { font-size:16px; font-weight:800; color:#1e2a3b; }
+  .cr-value { font-size:16px; font-weight:800; color:var(--shell-ink,#16181d); }
 
   /* ── Curtain dashboard KPI row groups ── */
   .kpi-row-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink2, #64748b); margin:9px 0 5px; }
@@ -657,7 +657,7 @@
         <div id="curt-calc-sheet" style="display:none;flex-direction:column;position:fixed;bottom:0;left:0;right:0;top:0;z-index:300;background:#fff;overflow-y:auto;">
 
           <!-- Header -->
-          <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+          <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
             <div>
               <p style="color:#fff;font-weight:700;font-size:15px;" id="cs-win-label">Window</p>
               <p style="color:#94a3b8;font-size:12px;margin-top:2px;" id="cs-win-room"></p>
@@ -667,10 +667,10 @@
 
           <!-- Window info strip -->
           <div style="background:#f0f4ff;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;gap:16px;flex-wrap:wrap;flex:none;">
-            <span style="font-size:12px;color:#64748b;">Size: <strong id="cs-win-size" style="color:#1e2a3b;"></strong></span>
+            <span style="font-size:12px;color:#64748b;">Size: <strong id="cs-win-size" style="color:var(--shell-ink,#16181d);"></strong></span>
             <span style="font-size:12px;color:#64748b;">Treatment: <strong id="cs-win-treatment" style="color:#600131;"></strong></span>
-            <span style="font-size:12px;color:#64748b;">Fabric: <strong id="cs-win-fabric" style="color:#1e2a3b;"></strong></span>
-            <span style="font-size:12px;color:#64748b;">Design: <strong id="cs-win-design" style="color:#1e2a3b;"></strong></span>
+            <span style="font-size:12px;color:#64748b;">Fabric: <strong id="cs-win-fabric" style="color:var(--shell-ink,#16181d);"></strong></span>
+            <span style="font-size:12px;color:#64748b;">Design: <strong id="cs-win-design" style="color:var(--shell-ink,#16181d);"></strong></span>
           </div>
 
           <!-- Form body -->
@@ -742,7 +742,7 @@
               <label class="cs-label">Motorized</label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                 <input type="checkbox" id="cs-motorized" onchange="toggleCalcMotorBrand(this.checked)" style="width:18px;height:18px;">
-                <span style="font-size:13px;color:#1e2a3b;">Yes</span>
+                <span style="font-size:13px;color:var(--shell-ink,#16181d);">Yes</span>
               </label>
             </div>
             <div id="cs-motor-brand-wrap" style="display:none;margin-top:10px;">
@@ -785,7 +785,7 @@
         <div id="curt-copy-calc-panel" style="display:none;flex-direction:column;position:fixed;bottom:0;left:0;right:0;top:0;z-index:300;background:#fff;overflow-y:auto;">
 
           <!-- Header -->
-          <div style="background:#1e2a3b;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+          <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
             <div>
               <p style="color:#fff;font-weight:700;font-size:15px;">Copy calc from <span id="cc-src-label"></span></p>
               <p style="color:#94a3b8;font-size:12px;margin-top:2px;" id="cc-src-meta"></p>

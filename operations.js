@@ -546,7 +546,7 @@ function renderBomCards2(){
         </div>
       </div>
       <div id="ops-panel-${di}" style="display:none;background:#faf5ff;border-top:1px dashed #c4b5fd;padding:12px 13px;">
-        <p style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:8px;">✏️ Operations filling directly</p>
+        <p style="font-size:11px;font-weight:700;color:var(--maraya);margin-bottom:8px;">✏️ Operations filling directly</p>
         <div class="row3">
           <div class="field"><label>Materials BD</label><input type="number" id="bm-${di}-mat" value="${d.bom.mat}" oninput="recalcBomSummary()"></div>
           <div class="field"><label>Labour BD</label><input type="number" id="bm-${di}-lab" value="${d.bom.lab}" oninput="recalcBomSummary()"></div>

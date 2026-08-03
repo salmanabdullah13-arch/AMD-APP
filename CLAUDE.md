@@ -1150,3 +1150,70 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   this thread of work should be a dedicated `curtain.js` sweep, verified
   the same way as every other file, before calling the whole initiative
   actually complete.
+
+### 3 Aug 2026 — Chunk 4: the actual closing pass on curtain.js's inline colors
+
+- **Confirmed and fixed the gap Chunk 3 flagged.** `curtain.js`'s own
+  ~5,900 lines of inline literal colors — invisible to every prior
+  chunk's CSS-class-based approach, since these render via
+  `document.body`-appended overlay `<div>`s (`#tracks-dash-wrap`,
+  `#qc-dash-wrap`, `#install-crew-wrap`, `#pipeline-board-wrap`) that
+  sit **outside** `#curt-module-wrap` and are built entirely from JS
+  template-string `style="..."` attributes, not CSS classes — got their
+  own dedicated sweep.
+- **Real scope turned out narrower than the raw color count suggested.**
+  Investigated all "four dark surfaces" candidates before touching
+  anything:
+  - **Tracks dashboard** (`openTracksDashboard()`) — genuinely fully
+    dark (`background:#111827` root), ~85 dark-navy/purple color refs.
+    The one dashboard needing a full light conversion.
+  - **QC dashboard** and **Install Crew dashboard** — already built with
+    a light `#f7f9fc` body background (not dark at all); only their
+    header bars and a handful of `#7c3aed` purple text/button literals
+    were leftover from the old theme.
+  - **Pipeline board** (`openPipelineBoard()`, the CLAUDE.md-documented
+    "Job → Window → Stitching/Track/QC/Ready for delivery" board) — a
+    **fourth dark surface not previously identified in this repo's
+    documentation at all**, found only by re-running the whole-repo grep
+    sweep after the other three looked clean. Same pattern: dark
+    `#111827` column-board view, light `#f7f9fc` detail-panel view.
+  - **`#curt-calc-sheet`** and **`#curt-copy-calc-panel`** (two modals
+    embedded directly in `index.html`, not `curtain.js`) — found the
+    same way. Both already had light (`#fff`) bodies; only their header
+    bars were dark.
+  - A cross-cutting discovery along the way: **`#1e2a3b`** (a near-black
+    navy) turned out to be used throughout `curtain.js` in two distinct,
+    consistent roles — `background:` on every header bar (→ retoned to
+    `var(--maraya)`, matching the colored-header pattern every other
+    module already uses) and `color:` on ordinary body text (→ retoned
+    to `var(--shell-ink)`, since it was already functioning as an
+    ink/text color, just not tied to any token). One exception handled
+    separately: a canvas `strokeStyle` assignment (signature pad) needed
+    a real literal color, not a CSS `var()` — set to `#16181d` directly.
+  - Genuine semantics left untouched, same principle as every prior
+    chunk: green/red/amber status indicators (done/rework/warning),
+    blue as a distinct "informational/waiting" tint (matches the
+    existing Open-lifecycle pill precedent, not brand identity), pink
+    as the left/right cord-side differentiator, cyan/purple-adjacent as
+    the two-way ROLLER/RAIL categorical badge. `data.js`'s `DEPTS`
+    registry (including Curtain's own purple department-tag swatch,
+    used for cross-module category badges) was re-confirmed correct to
+    leave alone — same categorical-color precedent as Chunk 1/3.
+- **Verification:** `node --check` on `curtain.js`/`operations.js`;
+  Playwright screenshots of Tracks (queue view + item cards), QC, Install
+  Crew, and Pipeline board (opened, screenshotted, closed back to the
+  Curtain dashboard cleanly with no leftover dark element or broken
+  layout); zero console/page errors throughout. Final whole-repo grep
+  sweep for every old accent/dark hex from all four chunks combined
+  (`#7c3aed`, `#1e2a3b`, `#111827`, `#5a1733`/`#7a2347`/`#9a3560`,
+  `#5b21b6`, `#6B3F7A`/`#9B5FB0`, `#09AD95`) — zero remaining matches
+  outside of source comments and the legitimate `DEPTS`/stage-pill
+  categorical colors.
+- **Redesign initiative is now genuinely complete** — Shell, all 11
+  business modules, the 3D ecosystem hub, and every sub-dashboard/modal
+  found along the way all run on the single wine accent (`#600131`) and
+  light system, with the 3D hub's pure-black canvas as the one
+  deliberate, explicitly-approved exception. Chunks 1–4 committed
+  locally (`a62427c`, `d259e59`, `6ff009a`, `e7bf7b2`, and this session's
+  commit); not pushed yet at time of writing — push all together once
+  reviewed.
