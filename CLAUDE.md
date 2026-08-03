@@ -126,8 +126,9 @@ source of truth for built vs. planned):
 | Approver (`approvals`) | ✓ built | Standalone module, own identity |
 | Jobs (`delivery`) | ✓ built | Job Card — post-Approval production/commercial tracking |
 | Accounts (`accounts`) | ✓ built | Reporting dashboard, not Q-Pro-mapped (own addition) |
+| HR & Payroll (`hr`) | ✓ built | Employee master (8 tabs) + compliance-expiry HR Dashboard — Batch 5, see §3 |
 | Upholstery, Joinery, Painting | ✗ not started | Only Curtain has a built workshop module; these are placeholders |
-| Owner Dashboard, HR & Payroll, Tally Bridge | ✗ not started | Unchanged from original plan |
+| Owner Dashboard, Tally Bridge | ✗ not started | Unchanged from original plan |
 
 **Known staleness:** the `M` object in `shell.js` (drives the ecosystem
 tap-panel descriptions) still describes Purchaser and Storekeeper by their
@@ -275,6 +276,85 @@ then, this section is the only persistent record of what they said.
     prior notes); browser-level confirmation of the new tabs/forms is
     still outstanding and should be run for real before trusting this in
     production, same caveat as the Storekeeper device-test gap in §5.
+- **HR & Payroll — Batch 5** (traced from
+  `docs/qpro-mapping/batch5administrationpayrollhr.txt`, committed 3 Aug
+  2026): new floating module (`hr.js`, `#hr-module-wrap`), first entirely
+  new module added since the light-system redesign — built directly on
+  the wine-accent `--biz-*` tokens, no restyling debt.
+  - **Employee master** — 8-tab record (General Info, Statutory Details,
+    Passport & Visa, Contract, Salary, Dependents, Assets, Notes) per the
+    live spec, seeded from `EMPLOYEE_RATES` (real payroll data, ~70 staff,
+    already in data.js) rather than invented names. `EMPLOYEE_RATES`' own
+    informal department strings ("Admin/Office", "Carpentry", "Watchman",
+    ...) are mapped to the real Q-Pro Administration Department master's 6
+    values (`EMPLOYEE_DEPARTMENTS`) via `EMP_RATE_DEPT_TO_REAL_DEPT` — a
+    **different list from `DEPTS`** (the pre-existing categorical color
+    registry used elsewhere for production-department tagging), left
+    untouched on purpose. Pay Head list simplified from the spec's 17 fixed
+    Q-Pro pay-codes to 6 that actually belong on an employee record (GL-
+    posting artifacts like Gosi Payable/Indemnity Payable excluded).
+    5 employees seeded with realistic compliance dates (spanning expired/
+    expiring/valid) so the HR Dashboard has real data without hand-
+    populating all ~70. Green full-row highlighting for Active status,
+    matching the spec's own observation and the existing red/pink
+    cancelled-row convention (Batch 4).
+  - **HR Dashboard** — 6 expiry tiles (CPR/Passport/Driving Licence/Visa/
+    Contract/Dependent), Expiring/Expired split, pure read-side view over
+    the Employee master (`getHRKPIs()`, data.js) — no separate compliance-
+    tracking entity, confirmed matching the spec's own finding. 30-day
+    "expiring" window, resigned/terminated/retired staff excluded.
+  - **Voucher Ledger Mapping** — built as a new Accounts-module tab (not
+    HR — genuinely an accounting-configuration concern), resolving the 6
+    payment instruments to real `ledgers[]` entries. **Not wired into the
+    existing Receipt/Payment/Credit Note/Debit Note forms** — see §5 for
+    why that was deliberately deferred.
+  - **Customer Update** — new Sales-module tab, a single-quotation
+    correction utility (reassign Customer/Contact Person, Salesman, or
+    VAT% against an already-created quotation) distinct from full editing.
+    Salesman correction traces `qtn.enquiryId → enquiry.salesPerson` since
+    quotations don't carry their own salesPerson field — same trace
+    pattern `accountsDivisionForInvoice()` already uses.
+  - **Approver dashboard KPIs** — turned out already fully built
+    (`getApproverKPIs()` in data.js already computed all 7 values;
+    `approver.js` already rendered all 7 tiles) — the spec's apparent gap
+    didn't exist by the time this session actually checked the code,
+    confirming the house rule of reviewing existing code before building.
+  - **Deliberately not built**, same "don't replicate what the app's own
+    architecture doesn't need" precedent as Batch 1/2's vestigial-list
+    skips: Q-Pro's Users/User Group/Default Controller/role-flag system
+    and Quick Menu (models a real login+permission system this PIN-lock-
+    plus-simulated-identity app doesn't have), and Employee Category
+    (flagged vestigial in the spec itself).
+  - **A real, pre-existing bug found and fixed along the way**: the 3D
+    ecosystem hub's canvas (built 3 Aug 2026, earlier this session) could
+    get stuck rendering at a fallback 380×500 size instead of its actual
+    container size, because `resize()` only ran on a browser `window`
+    resize event, which never fires from switching tabs inside the app.
+    Found while verifying the new HR node opens via a **real tap through
+    the actual raycasting path**, not a direct `launch()` call — the exact
+    verification discipline the earlier session's node-tap bug had already
+    established as necessary. Fixed with a `ResizeObserver` on the canvas
+    container, which also catches the first real layout, not just later
+    resizes. This was a latent bug affecting every node near the
+    canvas's under-sized right/bottom margin, not something Batch 5
+    introduced — HR just happened to be the node whose real-tap
+    verification caught it.
+  - **Verification:** `node --check` on all 11 modified/new files
+    individually and the full 12-file concatenation in load order;
+    duplicate top-level declaration scan (none found); onclick/onchange/
+    oninput cross-reference on `hr.js` and the new Accounts/Sales code
+    (all resolve); closure-variable-in-inline-handler scan (none
+    introduced — new state variables are all top-level `let`, same pattern
+    as `salesView`/`accountsView`); full Playwright pass — HR module
+    opened via a genuine tap on its real ecosystem-hub node (not
+    `launchHRModule()` called directly), Employee list/detail (General
+    Info, Statutory, Dependents tabs) and HR Dashboard screenshotted,
+    Accounts' Voucher Ledger Mapping and Sales' Customer Update
+    screenshotted and functionally tested (`setVoucherLedgerMapping()`/
+    `applyCustomerUpdate()` both confirmed to actually mutate state
+    correctly), mutual-exclusivity module-hiding confirmed both directions
+    (HR→Accounts and Accounts→HR both correctly hide the other). Zero
+    console/page errors throughout.
 
 ### Custom modules NOT mapped from Q-Pro (built to fill gaps, explicitly flagged as this app's own design):
 - **Estimator** and **Approver** as *standalone modules* with their own
@@ -432,12 +512,18 @@ then, this section is the only persistent record of what they said.
   --check`... but **not** in an actual browser~~ — **done**, 2 Aug 2026
   (later session): Playwright installed, full lifecycle browser-tested
   end-to-end, 28/28 checks passed, zero console errors. See Session Log.
-- Voucher Ledger Mapping (Batch 5) remains unbuilt — Batch 3's GL entries
-  and Batch 4's Receipt/Credit Note both pick a ledger/payment-method
-  directly rather than through that resolution step. Fine for now; flag if
-  Reports/Trial Balance get built on top and need it to post correctly.
-- Batches 5 (Administration/Payroll/HR) and 6 (Reports) remain fully
-  spec-only — archived in `docs/qpro-mapping/` but not built.
+- ~~Voucher Ledger Mapping (Batch 5) remains unbuilt~~ — **half-done**, 3 Aug
+  2026: the mapping screen itself is built (Accounts → Voucher Ledger
+  Mapping, `voucherLedgerMap` in data.js), correctly resolving all 6
+  payment instruments to real ledgers. **Not yet consumed anywhere** —
+  Batch 3's GL entries, Batch 4's Receipt/Credit Note, and Batch 1's
+  Supplier Payment/Debit Note all still pick a ledger directly rather than
+  through `resolveVoucherLedger()`. Wiring those 4+ existing forms to
+  actually use the mapping was deliberately deferred rather than risking
+  breakage across several already-working flows in one pass — still open,
+  flag if Reports/Trial Balance need it to post correctly.
+- Batch 6 (Reports) remains fully spec-only — archived in
+  `docs/qpro-mapping/` but not built. Batch 5 is done, see §3.
 
 ---
 
@@ -1278,3 +1364,51 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   manual verification, per the process gap flagged in the previous
   session (background agents shouldn't be trusted to hold a "don't push"
   instruction unsupervised).
+
+### 3 Aug 2026 (later same day) — Built Batch 5: HR & Payroll
+
+- **Built Batch 5** (Employee master, HR Dashboard, Voucher Ledger
+  Mapping, Customer Update), traced from
+  `docs/qpro-mapping/batch5administrationpayrollhr.txt`. Full coverage
+  detail is in §3 rather than repeated here. Short version: reviewed the
+  spec in full, reviewed existing code before building (confirmed
+  Approver's KPI tiles were already complete — the spec's apparent gap
+  no longer existed, saving a rebuild), deliberately skipped Q-Pro's
+  Users/Groups/Quick Menu login-system section and the vestigial Employee
+  Category master (same "don't build what this app's architecture doesn't
+  need" precedent as earlier batches), and built the new HR module
+  directly on the wine-accent light system from the recent redesign — no
+  restyling debt on a module that didn't exist before it.
+- **Real bug found and fixed, not part of Batch 5's own scope:** the 3D
+  ecosystem hub (built earlier this session) could render its canvas at a
+  wrong fallback size (380×500 instead of the real container size)
+  because resize only re-ran on a browser `window` resize event, which
+  tab-switching inside the app never triggers. This silently broke
+  click/raycast alignment near the canvas's right/bottom edge for
+  whichever nodes happened to land there. Found specifically because this
+  session tested the new HR node's tap through the real raycasting path
+  rather than calling `launchHRModule()` directly — the verification
+  discipline established after the earlier node-tap bug this session.
+  Fixed with a `ResizeObserver` on the canvas container.
+- **Voucher Ledger Mapping decision:** built the mapping screen (Accounts
+  → Voucher Ledger Mapping) correctly, but deliberately did NOT wire it
+  into the 4+ existing forms that currently pick a ledger directly
+  (Batch 1's Supplier Payment/Debit Note, Batch 3's General Receipt/
+  Payment, Batch 4's Sales Receipt/Credit Note) — that's a bigger,
+  riskier change touching several already-working flows, kept as an
+  explicit documented follow-up rather than risking breakage in the same
+  pass. See §5.
+- **Verification:** full battery — `node --check` on all 11 modified/new
+  files individually and the 12-file concatenation; duplicate top-level
+  declaration scan (none found); onclick/onchange/oninput cross-reference
+  (all resolve); closure-variable-in-inline-handler scan (none
+  introduced); full Playwright pass including the real-tap verification
+  described above, and functional (not just visual) tests of
+  `setVoucherLedgerMapping()`/`applyCustomerUpdate()` actually mutating
+  state; mutual-exclusivity hiding confirmed both directions. Zero
+  console/page errors.
+- **Next steps:** Batch 6 (Reports) is the last remaining spec-only batch;
+  Voucher Ledger Mapping still needs wiring into the existing
+  Receipt/Payment/Credit Note/Debit Note forms if that's wanted; Accounts'
+  Payables KPI still doesn't net off real payments (long-open item);
+  `jobCards[]`/`curtainJobs[]` unification remains deferred.

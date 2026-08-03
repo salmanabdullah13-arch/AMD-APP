@@ -78,7 +78,7 @@ function openAccountsModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'hr-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -109,6 +109,7 @@ function renderAccountsBody() {
       ${tab('receipts', 'General Receipt')}
       ${tab('payments', 'General Payment')}
       ${tab('journals', 'Journal')}
+      ${tab('voucher-map', 'Voucher Ledger Mapping')}
     </div>`;
   let content = '';
   if (accountsView === 'dashboard') content = renderAccountsDashboard();
@@ -123,6 +124,7 @@ function renderAccountsBody() {
   else if (accountsView === 'payment-new') content = renderGeneralPaymentForm();
   else if (accountsView === 'journals') content = renderJournals();
   else if (accountsView === 'journal-new') content = renderJournalForm();
+  else if (accountsView === 'voucher-map') content = renderVoucherLedgerMapping();
   body.innerHTML = tabsHtml + content;
 }
 
@@ -513,4 +515,39 @@ function acSaveJournal() {
 function acCancelJournal(id) {
   cancelJournal(id);
   renderAccountsBody();
+}
+
+// ── VOUCHER LEDGER MAPPING (Batch 5) ──────────────────────
+// Resolves each payment instrument used on Receipt/Payment/Credit-Note
+// forms to a real Ledger — the config step Batch 3's notes flagged as
+// missing. Not yet consumed by the existing Receipt/Payment/Credit Note/
+// Debit Note forms elsewhere in the app (Purchasing's Supplier Payment,
+// Sales' Receipt/Credit Note, this module's own General Receipt/Payment
+// all still pick a ledger directly) — building the correct mapping here
+// first, wiring it into those already-working flows is a documented
+// follow-up rather than a same-pass change across 4+ forms.
+function acLedgerNameOptionsHtml(selectedName = '') {
+  return ledgers.map(l => `<option value="${acEsc(l.name)}" ${l.name === selectedName ? 'selected' : ''}>${acEsc(l.name)}</option>`).join('');
+}
+function acSetVoucherMapping(key, ledgerName) {
+  const result = setVoucherLedgerMapping(key, ledgerName);
+  if (result && result.error) { accountsAlert(result.error); return; }
+  accountsAlert(`✓ ${key} → ${ledgerName}`);
+  renderAccountsBody();
+}
+function renderVoucherLedgerMapping() {
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Voucher Ledger Mapping</p>
+      <p style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Every payment instrument used on a Receipt/Payment/Credit Note voucher must resolve to a real Ledger before it can post correctly.</p>
+      <table class="sales-items">
+        <tr><th>Payment Instrument</th><th>Mapped Ledger</th></tr>
+        ${VOUCHER_PAYMENT_METHODS.map(m => `<tr>
+          <td>${acEsc(m.label)}</td>
+          <td><select onchange="acSetVoucherMapping('${m.key}', this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--biz-border);border-radius:6px;font-size:12.5px;font-family:inherit;">
+            ${acLedgerNameOptionsHtml(voucherLedgerMap[m.key])}
+          </select></td>
+        </tr>`).join('')}
+      </table>
+    </div>`;
 }

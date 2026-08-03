@@ -147,7 +147,7 @@ function openSalesModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -166,7 +166,8 @@ function launchSalesModule() { openSalesModule(); }
 
 const SALES_TOPVIEW_DEFAULTS = {
   dashboard: 'dashboard', enquiries: 'enq-list', quotations: 'qtn-list',
-  proforma: 'proforma-list', receipts: 'receipt-list', creditnotes: 'creditnote-list'
+  proforma: 'proforma-list', receipts: 'receipt-list', creditnotes: 'creditnote-list',
+  custupdate: 'custupdate-tool'
 };
 function salesSetTopView(v) {
   salesTopView = v;
@@ -185,6 +186,7 @@ function renderSalesBody() {
       <div class="sales-toptab ${salesTopView === 'proforma' ? 'active' : ''}" onclick="salesSetTopView('proforma')">Proforma</div>
       <div class="sales-toptab ${salesTopView === 'receipts' ? 'active' : ''}" onclick="salesSetTopView('receipts')">Receipt</div>
       <div class="sales-toptab ${salesTopView === 'creditnotes' ? 'active' : ''}" onclick="salesSetTopView('creditnotes')">Credit Note</div>
+      <div class="sales-toptab ${salesTopView === 'custupdate' ? 'active' : ''}" onclick="salesSetTopView('custupdate')">Customer Update</div>
     </div>`;
 
   let content = '';
@@ -202,6 +204,7 @@ function renderSalesBody() {
     case 'receipt-create': content = renderReceiptCreate(); break;
     case 'creditnote-list': content = renderCreditNoteList(); break;
     case 'creditnote-create': content = renderCreditNoteCreate(); break;
+    case 'custupdate-tool': content = renderCustomerUpdateTool(); break;
     default: content = renderEnquiryList();
   }
   body.innerHTML = topTabs + content;
@@ -1258,5 +1261,91 @@ function saveCreditNote() {
   salesAlert(`✓ Credit Note ${result.id} created.`);
   salesCreditNoteDraft = null;
   salesView = 'creditnote-list';
+  renderSalesBody();
+}
+
+// ══════════════════════════════════════════
+// CUSTOMER UPDATE (Q-Pro Batch 5) — a single-quotation correction utility,
+// not a customer master editor despite the name. Pick one quotation, then
+// apply any of three independent corrections against it. Distinct from
+// full quotation editing — a narrow, guarded "fix a mistake" pattern.
+// ══════════════════════════════════════════
+let custUpdateSearch = '';
+let custUpdateQtnId = null;
+
+function renderCustomerUpdateTool() {
+  if (!custUpdateQtnId) {
+    const q = custUpdateSearch.trim().toLowerCase();
+    const rows = quotations.filter(qt => !q || qt.id.toLowerCase().includes(q) || custName(qt.customerId).toLowerCase().includes(q))
+      .slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25);
+    return `
+      <div class="sales-card">
+        <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Customer Update</p>
+        <p style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Select Quotation, then correct Customer, Salesman or VAT% against it — without re-keying the whole quotation.</p>
+        <input type="text" placeholder="Search Qtn No or Customer…" value="${esc(custUpdateSearch)}"
+          oninput="custUpdateSearch=this.value;renderSalesBody();"
+          style="width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;">
+      </div>
+      ${rows.length === 0 ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No matching quotations.</p></div>` :
+        rows.map(qt => `<div class="sales-card" style="cursor:pointer;" onclick="custUpdateQtnId='${qt.id}';renderSalesBody();">
+          <p style="font-weight:700;font-size:13px;">${qt.id} <span style="font-weight:400;color:#94a3b8;">· ${qt.date}</span></p>
+          <p style="font-size:12px;color:#334155;">${esc(custName(qt.customerId))} · ${esc(qt.projectName)}</p>
+        </div>`).join('')}`;
+  }
+
+  const qtn = quotations.find(qt => qt.id === custUpdateQtnId);
+  if (!qtn) { custUpdateQtnId = null; return renderCustomerUpdateTool(); }
+  const enq = enquiries.find(e => e.id === qtn.enquiryId);
+  return `
+    <span class="sales-back" onclick="custUpdateQtnId=null;renderSalesBody();">‹ Back to search</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:15px;">${qtn.id}</p>
+      <p style="font-size:12px;color:var(--biz-text-muted, #64748b);">${esc(custName(qtn.customerId))} · ${esc(qtn.projectName)}</p>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">(a) Update Customer</p>
+      <div class="sales-field"><label>Select Customer</label>
+        <select id="cu-customer">${customers.map(c => `<option value="${c.id}" ${c.id === qtn.customerId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+      </div>
+      <div class="sales-field"><label>Select Contact Person</label>
+        <input type="text" id="cu-contact" value="${esc(qtn.contactPerson || '')}">
+      </div>
+      <button class="primary" onclick="custUpdateApplyCustomer()">Update Customer</button>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">(b) Update Salesman</p>
+      <div class="sales-field"><label>Sales Person Assigned</label>
+        <select id="cu-salesman">${STAFF.map(s => `<option value="${s}" ${enq && enq.salesPerson === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      </div>
+      <button class="primary" onclick="custUpdateApplySalesman()">Update Salesman</button>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">(c) Update VAT</p>
+      <div class="sales-field"><label>VAT %</label>
+        <select id="cu-vat">${[10, 5, 0].map(v => `<option value="${v}" ${qtn.taxPercent === v ? 'selected' : ''}>${v}%</option>`).join('')}</select>
+      </div>
+      <button class="primary" onclick="custUpdateApplyVat()">Update VAT</button>
+    </div>`;
+}
+function custUpdateApplyCustomer() {
+  const customerId = document.getElementById('cu-customer').value;
+  const contactPerson = document.getElementById('cu-contact').value;
+  const result = applyCustomerUpdate(custUpdateQtnId, { customerId, contactPerson });
+  if (result && result.error) { salesAlert(result.error); return; }
+  salesAlert('✓ Customer updated.');
+  renderSalesBody();
+}
+function custUpdateApplySalesman() {
+  const salesPerson = document.getElementById('cu-salesman').value;
+  const result = applyCustomerUpdate(custUpdateQtnId, { salesPerson });
+  if (result && result.error) { salesAlert(result.error); return; }
+  salesAlert('✓ Salesman updated.');
+  renderSalesBody();
+}
+function custUpdateApplyVat() {
+  const taxPercent = document.getElementById('cu-vat').value;
+  const result = applyCustomerUpdate(custUpdateQtnId, { taxPercent });
+  if (result && result.error) { salesAlert(result.error); return; }
+  salesAlert('✓ VAT updated.');
   renderSalesBody();
 }

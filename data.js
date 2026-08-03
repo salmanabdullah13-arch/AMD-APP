@@ -2419,6 +2419,187 @@ const EMPLOYEE_RATES = {
 };
 
 // ═══════════════════════════════════════
+// HR & PAYROLL MODULE DATA — Masters → Payroll → Employee, Dashboards → HR
+// Built session: 3 Aug 2026, traced from
+// docs/qpro-mapping/batch5administrationpayrollhr.txt (Q-Pro Batch 5).
+//
+// SCOPE CUT, DELIBERATE: the live spec's Masters -> Administration section
+// (Users / User Group / Default Controller / role flags / Quick Menu) models
+// Q-Pro's own multi-user login+permission system. This app has no such
+// login system — it's a PIN-lock entry plus per-module "simulated identity"
+// pickers (Estimator/Approver already work this way). Building a parallel
+// real user/permission system here would be substantial effort for
+// something this app's actual architecture doesn't need — not built, same
+// spirit as skipping Q-Pro's vestigial Inventory->Vendor list in Batch 1/2.
+// Employee Category (spec 1.4) also skipped — the spec itself flags it as
+// vestigial ("the per-employee rate seems to be what's actually used").
+//
+// Employee record fields follow the spec's 8-tab shape, simplified in a
+// few places (noted inline) — this is the richest single record type in
+// the app. Seeded from EMPLOYEE_RATES above (real payroll data, ~70 staff)
+// rather than invented names. EMPLOYEE_RATES' informal department strings
+// ("Admin/Office", "Carpentry", "Watchman", ...) are mapped to the real
+// Q-Pro Administration Department master's 6 values below — this is a
+// DIFFERENT list from DEPTS (the categorical color registry used elsewhere
+// for production-department tagging) and deliberately doesn't touch it.
+const EMPLOYEE_DEPARTMENTS = ["Curtain", "Upholstery", "Painting", "Joinery", "Administration", "Sales"];
+const EMP_RATE_DEPT_TO_REAL_DEPT = {
+  "Admin/Office": "Administration", "Carpentry": "Joinery",
+  "Curtain & Blinds": "Curtain", "Upholstery": "Upholstery", "Watchman": "Administration"
+};
+const DEPENDENT_RELATIONS = ["Wife", "Husband", "Son", "Daughter", "Father", "Mother", "Grandfather", "Grandmother", "Brother", "Sister", "Cousin", "Nephew", "Niece", "Uncle", "Aunt", "Other"];
+// Simplified Pay Head list — spec has 17 fixed items; kept the ones that
+// actually appear on a real payslip rather than replicating every Q-Pro
+// pay-code verbatim (Gosi Payable/Indemnity Payable/etc. are GL-posting
+// artifacts, not something an employee record needs to carry directly).
+const PAY_HEADS = ["Basic Salary", "Allowance", "Overtime", "HRA", "Air Ticket", "Other Allowances"];
+
+let employees = Object.entries(EMPLOYEE_RATES).map(([name, r], i) => ({
+  id: "E" + String(10001 + i),
+  name, nickName: "",
+  designation: r.category === "Admin" ? "Office Staff" : "Production Staff",
+  department: EMP_RATE_DEPT_TO_REAL_DEPT[r.department] || "Administration",
+  function: "", location: "Main Workshop", doj: "", group: "Emp Group 1",
+  status: "Active", terminationDate: "", terminationReason: "",
+  machineId: "", workingHours: 8,
+  nationality: "", dob: "", gender: "", bloodGroup: "",
+  email: "", mobile: "", localContact: "", officeTel: "", landline: "",
+  contactPersonNo: "", homeContact: "", homeContactNo: "", localAddress: "", homeAddress: "", spouseName: "",
+  bankName: "", bankBranch: "", bankAccountNo: "", iban: "",
+  cpr: "", cprExpiry: "", licenceNo: "", licenceExpiry: "",
+  passportNo: "", passportCountry: "", passportIssue: "", passportExpiry: "", visaNo: "", visaExpiry: "",
+  contractStart: "", contractExpiry: "",
+  normalRate: r.rate, otRate: +(r.rate * 1.5).toFixed(3),
+  payHeads: [], dependents: [], assets: [],
+  notes1: "", notes2: "", notes3: ""
+}));
+
+// Seed a handful with realistic compliance dates (expired / expiring soon /
+// valid) so the HR Dashboard below has real data to show, without having
+// to hand-populate all ~70 staff. Dates are relative to a 3 Aug 2026
+// "today" — deliberately spanning all three states.
+(function seedEmployeeCompliance() {
+  const find = n => employees.find(e => e.name === n);
+  const set = (name, patch) => { const e = find(name); if (e) Object.assign(e, patch); };
+  set("Abdullah Abdul Haq", { // Curtain Track lead — expired CPR, expiring passport
+    designation: "Track Lead", doj: "2019-03-12", nationality: "Bahrain", gender: "Male",
+    cpr: "880412345", cprExpiry: "2026-06-15", licenceNo: "BH-44120", licenceExpiry: "2027-01-10",
+    passportNo: "P1122334", passportCountry: "Bangladesh", passportIssue: "2020-02-01", passportExpiry: "2026-08-20",
+    visaNo: "V9988", visaExpiry: "2027-04-01", contractStart: "2025-01-01", contractExpiry: "2027-01-01",
+    dependents: [{ name: "Sohela Begum", relation: "Wife", dob: "1990-05-14", cpr: "", cprExpiry: "", passport: "P2233445", passportExpiry: "2026-09-05", visa: "", visaExpiry: "" }],
+    assets: [{ name: "Company Phone", code: "AST-014", issueDate: "2023-01-15", returnDate: "", remarks: "iPhone SE" }],
+  });
+  set("Subutktgin (SHIBU)", { // Install crew — valid across the board
+    designation: "Install Crew Lead", doj: "2018-07-01", nationality: "India", gender: "Male",
+    cpr: "870112233", cprExpiry: "2027-11-01", licenceNo: "BH-30219", licenceExpiry: "2028-02-14",
+    passportNo: "K4455667", passportCountry: "India", passportIssue: "2021-06-01", passportExpiry: "2031-06-01",
+    visaNo: "V5566", visaExpiry: "2027-09-01", contractStart: "2025-07-01", contractExpiry: "2027-07-01",
+  });
+  set("Muhammad Furqan", { // expiring driving licence + expired visa
+    designation: "Install Crew", doj: "2021-02-20", nationality: "Pakistan", gender: "Male",
+    cpr: "900233445", cprExpiry: "2027-02-01", licenceNo: "BH-51002", licenceExpiry: "2026-08-25",
+    passportNo: "AB123456", passportCountry: "Pakistan", passportIssue: "2019-03-01", passportExpiry: "2029-03-01",
+    visaNo: "V7712", visaExpiry: "2026-07-10", contractStart: "2024-03-01", contractExpiry: "2026-09-01",
+  });
+  set("Salman Abdullah", { // owner — valid, seeded for realism
+    designation: "Owner", doj: "2015-01-01", nationality: "Bahrain", gender: "Male",
+    cpr: "800112233", cprExpiry: "2029-01-01", contractStart: "2015-01-01", contractExpiry: "2030-01-01",
+  });
+  set("Sharad Kumar Viswakarma", { // expired contract
+    designation: "Account Clerk", doj: "2020-05-10", nationality: "India", gender: "Male",
+    cpr: "910445566", cprExpiry: "2027-05-10", passportNo: "L9988776", passportCountry: "India",
+    passportIssue: "2020-01-01", passportExpiry: "2030-01-01", visaNo: "V3344", visaExpiry: "2027-01-01",
+    contractStart: "2024-05-10", contractExpiry: "2026-07-20",
+  });
+})();
+
+function nextEmployeeId() { return "E" + String(10001 + employees.length); }
+function getEmployee(id) { return employees.find(e => e.id === id); }
+function createEmployee({ name, designation = "", department = "Administration", doj = "", machineId = "", workingHours = 8, notes1 = "" } = {}) {
+  if (!name || !name.trim()) return { error: "Employee Name is required." };
+  if (!notes1 || !notes1.trim()) return { error: "Notes 1 is required." };
+  const e = {
+    id: nextEmployeeId(), name: name.trim(), nickName: "", designation, department,
+    function: "", location: "Main Workshop", doj, group: "Emp Group 1",
+    status: "Active", terminationDate: "", terminationReason: "",
+    machineId, workingHours: Number(workingHours) || 8,
+    nationality: "", dob: "", gender: "", bloodGroup: "",
+    email: "", mobile: "", localContact: "", officeTel: "", landline: "",
+    contactPersonNo: "", homeContact: "", homeContactNo: "", localAddress: "", homeAddress: "", spouseName: "",
+    bankName: "", bankBranch: "", bankAccountNo: "", iban: "",
+    cpr: "", cprExpiry: "", licenceNo: "", licenceExpiry: "",
+    passportNo: "", passportCountry: "", passportIssue: "", passportExpiry: "", visaNo: "", visaExpiry: "",
+    contractStart: "", contractExpiry: "",
+    normalRate: 0, otRate: 0,
+    payHeads: [], dependents: [], assets: [],
+    notes1: notes1.trim(), notes2: "", notes3: ""
+  };
+  employees.push(e);
+  return e;
+}
+function updateEmployee(id, patch) {
+  const e = getEmployee(id);
+  if (!e) return { error: "Employee not found." };
+  Object.assign(e, patch);
+  return e;
+}
+function addEmployeeDependent(id, dep) {
+  const e = getEmployee(id);
+  if (!e) return { error: "Employee not found." };
+  e.dependents.push({ name: dep.name || "", relation: dep.relation || "", dob: dep.dob || "", cpr: dep.cpr || "", cprExpiry: dep.cprExpiry || "", passport: dep.passport || "", passportExpiry: dep.passportExpiry || "", visa: dep.visa || "", visaExpiry: dep.visaExpiry || "" });
+  return e;
+}
+function addEmployeeAsset(id, asset) {
+  const e = getEmployee(id);
+  if (!e) return { error: "Employee not found." };
+  e.assets.push({ name: asset.name || "", code: asset.code || "", issueDate: asset.issueDate || "", returnDate: asset.returnDate || "", remarks: asset.remarks || "" });
+  return e;
+}
+
+// HR Dashboard — 6 expiry tiles (CPR/Passport/Driving Licence/Visa/Contract/
+// Dependent), each split Expiring/Expired. Pure read-side view over
+// employees[] — no separate "compliance tracking" entity, matching the
+// spec's own finding (section 4). "Expiring" window is 30 days; anything
+// past today is "Expired". Both counts skip blank dates (not every seeded
+// employee has every field filled).
+const HR_EXPIRY_WINDOW_DAYS = 30;
+function expiryStatus(dateStr, todayStr) {
+  if (!dateStr) return null;
+  const days = (new Date(dateStr) - new Date(todayStr)) / 86400000;
+  if (days < 0) return "expired";
+  if (days <= HR_EXPIRY_WINDOW_DAYS) return "expiring";
+  return null;
+}
+function getHRKPIs(todayStr = new Date().toISOString().slice(0, 10)) {
+  const tiles = {
+    cpr: { expiring: [], expired: [] },
+    passport: { expiring: [], expired: [] },
+    licence: { expiring: [], expired: [] },
+    visa: { expiring: [], expired: [] },
+    contract: { expiring: [], expired: [] },
+    dependent: { expiring: [], expired: [] },
+  };
+  const bucket = (group, empName, dateStr, label) => {
+    const s = expiryStatus(dateStr, todayStr);
+    if (s) tiles[group][s].push({ name: empName, date: dateStr, label });
+  };
+  employees.forEach(e => {
+    if (e.status !== "Active") return; // Resigned/Terminated/Retired staff drop off compliance tracking
+    bucket("cpr", e.name, e.cprExpiry, "CPR");
+    bucket("passport", e.name, e.passportExpiry, "Passport");
+    bucket("licence", e.name, e.licenceExpiry, "Driving Licence");
+    bucket("visa", e.name, e.visaExpiry, "Visa");
+    bucket("contract", e.name, e.contractExpiry, "Contract");
+    e.dependents.forEach(d => {
+      bucket("dependent", e.name, d.cprExpiry, `${d.name} (CPR)`);
+      bucket("dependent", e.name, d.passportExpiry, `${d.name} (Passport)`);
+      bucket("dependent", e.name, d.visaExpiry, `${d.name} (Visa)`);
+    });
+  });
+  return tiles;
+}
+
+// ═══════════════════════════════════════
 // SALES MODULE DATA — Enquiry → Quotation
 // Rebuilt 25 Jul 2026 from a live reverse-engineered Q-Pro reference
 // (qpro.almarayadecor.com) supplied by Salman, replacing an earlier
@@ -2603,6 +2784,38 @@ function removeQuotationItem(qtnId, lineId) {
   if (!qtn) return { error: "Quotation not found." };
   qtn.items = qtn.items.filter(it => it.lineId !== lineId);
   return { ok: true };
+}
+
+// Customer Update (Q-Pro Batch 5, Masters -> Administration -> Customer
+// Update) — despite the name, a single-quotation correction utility, not a
+// customer master editor. Pick one quotation, apply any of three
+// independent corrections: reassign Customer/Contact Person, reassign
+// salesman, or change VAT%. Distinct from full quotation editing — a
+// narrow, guarded "fix a mistake after the fact" tool. Salesman lives on
+// the linked Enquiry (quotations don't carry their own salesPerson field),
+// so that correction traces qtn -> enquiryId -> salesPerson, same trace
+// pattern accountsDivisionForInvoice() already uses elsewhere.
+function applyCustomerUpdate(qtnId, { customerId, contactPerson, salesPerson, taxPercent } = {}) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  if (customerId !== undefined) {
+    const cust = customers.find(c => c.id === customerId);
+    if (!cust) return { error: "Please select a Customer." };
+    qtn.customerId = customerId;
+  }
+  if (contactPerson !== undefined) {
+    if (!contactPerson.trim()) return { error: "Contact Person is required." };
+    qtn.contactPerson = contactPerson.trim();
+  }
+  if (salesPerson !== undefined) {
+    const enq = enquiries.find(e => e.id === qtn.enquiryId);
+    if (enq) enq.salesPerson = salesPerson;
+  }
+  if (taxPercent !== undefined) {
+    qtn.taxPercent = Number(taxPercent);
+  }
+  logQuotationAudit(qtn, { action: "Customer Update", user: "Admin", userType: "SALES", status: qtn.lifecycleStatus });
+  return qtn;
 }
 // Step 3 of the wizard — "Update Quotation" on the live system. Stays
 // lifecycleStatus "draft" — the live reference trace shows Draft persists
@@ -3608,6 +3821,40 @@ function createLedger({
   };
   ledgers.push(ledger);
   return ledger;
+}
+
+// Voucher Ledger Mapping (Q-Pro Batch 5) — the missing accounting glue
+// flagged as an open item since Batch 3: resolves each payment instrument
+// used on Receipt/Payment/Credit-Note/Debit-Note forms to a real Ledger,
+// rather than those forms picking a ledger directly. Keys match the exact
+// payment-method keys already used by sumPaymentMethods() above (cash/
+// bank/cCard/wallet/cheque) plus "discount" for the sixth instrument the
+// live trace documents. Seeded with sensible defaults from the real
+// ledgers[] list above — editable, not locked.
+const VOUCHER_PAYMENT_METHODS = [
+  { key: "cash", label: "Cash" }, { key: "bank", label: "Bank" },
+  { key: "cCard", label: "Credit/Debit Card" }, { key: "wallet", label: "Wallet" },
+  { key: "cheque", label: "Cheque" }, { key: "discount", label: "Discount" }
+];
+let voucherLedgerMap = {
+  cash: "Cash", bank: "Bank - BBK Current", cCard: "Bank - BBK Current",
+  wallet: "Bank - BBK Current", cheque: "Bank - BBK Current", discount: "Discount (Sales/Purchase)"
+};
+function setVoucherLedgerMapping(key, ledgerName) {
+  if (!VOUCHER_PAYMENT_METHODS.some(m => m.key === key)) return { error: "Unknown payment method." };
+  if (!ledgers.some(l => l.name === ledgerName)) return { error: "Please select a Ledger." };
+  voucherLedgerMap[key] = ledgerName;
+  return voucherLedgerMap;
+}
+// Resolve a payment-method key to its mapped Ledger record — forms that
+// want to actually consume the mapping (rather than pick a ledger
+// directly) call this. Not yet wired into every existing Receipt/Payment/
+// Credit Note/Debit Note form — see CLAUDE.md session log for which do and
+// don't, and why (kept as a documented follow-up rather than touching
+// several already-working flows in one pass).
+function resolveVoucherLedger(methodKey) {
+  const name = voucherLedgerMap[methodKey];
+  return ledgers.find(l => l.name === name) || null;
 }
 
 // Shared by General Receipt/Payment/Journal — the five payment-mode blocks

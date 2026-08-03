@@ -1393,6 +1393,7 @@
 <script src="approver.js"></script>
 <script src="jobs.js"></script>
 <script src="accounts.js"></script>
+<script src="hr.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1453,7 +1454,7 @@ const NODES = [
   { id:'owner',        label:'Owner Dashboard',  built:false },
   { id:'accounts',    label:'Accounts',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAccountsModule(),150); } },
   { id:'delivery',     label:'Jobs',             built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJobsModule(),150); } },
-  { id:'hr',            label:'HR & Payroll',     built:false },
+  { id:'hr',            label:'HR & Payroll',     built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchHRModule(),150); } },
   { id:'approvals',    label:'Approver',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
   { id:'tally',         label:'Tally Bridge',     built:false },
 ];
@@ -1632,6 +1633,19 @@ if (app) {
     renderer.setSize(app.clientWidth, app.clientHeight);
   }
   window.addEventListener('resize', resize);
+  // `w`/`h` above fell back to 380/500 if #eco3d had zero size at the
+  // moment this script ran (e.g. the Ecosystem tab wasn't the active tab
+  // yet) — window 'resize' never fires just from switching tabs, so the
+  // canvas could get stuck rendering at the wrong size forever, silently
+  // misaligning click/raycast coordinates from the visually rendered scene
+  // (found 3 Aug 2026 while verifying the new HR node opens via a real tap,
+  // not a direct launch() call — clicks in the undersized canvas's missing
+  // right/bottom margin didn't map to any node). ResizeObserver catches the
+  // real size the first time the container actually lays out, and any
+  // later real resize too.
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => resize()).observe(app);
+  }
 
   const clock = new THREE.Clock();
   function animate() {

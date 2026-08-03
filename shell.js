@@ -39,6 +39,8 @@ function goTo(p){
   if (jobsMod) jobsMod.style.cssText = 'display:none;';
   const accountsMod = document.getElementById('accounts-module-wrap');
   if (accountsMod) accountsMod.style.cssText = 'display:none;';
+  const hrMod = document.getElementById('hr-module-wrap');
+  if (hrMod) hrMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
