@@ -68,7 +68,7 @@ async function openNode(page, nodeId, wrapId, label) {
     const seeded = await page.evaluate(() => {
       const cust = createCustomer({ name: 'Batch6 Test Client', contactPerson: 'Ali', tel: '39001122', address: 'Manama', creditDays: 30 });
       const enq = createEnquiry({ division: 'Furniture', customerId: cust.id, contactPerson: 'Ali', tel: '39001122', source: 'walk inn', salesPerson: 'Salman Abdullah' });
-      const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Batch6 Test Project', taxPercent: 10, contactPerson: 'Ali', withEstimation: false });
+      const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Batch6 Test Project', taxPercent: 10, contactPerson: 'Ali' });
       addQuotationItem(qtn.id, { product: 'Curtain Set', qty: 2, unit: 'Nos', rate: 100, vatPercent: 10, discPercent: 0 });
       approveQuotation(qtn.id, 'Salman Abdullah');
       const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
@@ -99,24 +99,32 @@ async function openNode(page, nodeId, wrapId, label) {
     record('Accounts Batch 6 tabs render', 'PASS');
   } catch (e) { record('Accounts Batch 6 tabs render', 'FAIL', e.message); await shot(page, 'accounts-FAILED'); }
 
-  // ── Sales: Reports > Quotation Register + Sales Bill Outstanding ──
+  // ── Sales: Reports > Quotation Register (Batch 7 moved Sales Bill
+  // Outstanding to Accounts — Sales Reports is Quotation Register only now) ──
   currentStep = 'sales-reports';
   try {
     await openNode(page, 'sales', 'sales-module-wrap', 'sales');
     await page.click(`#sales-body .sales-toptab:has-text("Reports")`);
     await page.waitForTimeout(200);
     await shot(page, 'sales-quotation-register');
-    await page.click(`#sales-body button:has-text("Sales Bill Outstanding")`);
+    record('Sales Reports (Quotation Register) renders', 'PASS');
+  } catch (e) { record('Sales Reports (Quotation Register) renders', 'FAIL', e.message); await shot(page, 'sales-FAILED'); }
+
+  // ── Accounts: Sales Bill Outstanding (moved here in Batch 7) ──
+  currentStep = 'accounts-sales-bill-os';
+  try {
+    await openNode(page, 'accounts', 'accounts-module-wrap', 'accounts');
+    await page.click(`#accounts-body button:has-text("Sales Bill Outstanding")`);
     await page.waitForTimeout(200);
-    await shot(page, 'sales-bill-outstanding-byparty');
-    await page.click(`#sales-body button:has-text("All")`);
+    await shot(page, 'accounts-sales-bill-outstanding-byparty');
+    await page.click(`#accounts-body button:has-text("All")`);
     await page.waitForTimeout(200);
-    await shot(page, 'sales-bill-outstanding-all');
-    await page.click(`#sales-body input[type=checkbox]`);
+    await shot(page, 'accounts-sales-bill-outstanding-all');
+    await page.click(`#accounts-body input[type=checkbox]`);
     await page.waitForTimeout(200);
-    await shot(page, 'sales-bill-outstanding-all-agewise');
-    record('Sales Reports tabs render', 'PASS');
-  } catch (e) { record('Sales Reports tabs render', 'FAIL', e.message); await shot(page, 'sales-FAILED'); }
+    await shot(page, 'accounts-sales-bill-outstanding-all-agewise');
+    record('Accounts Sales Bill Outstanding renders', 'PASS');
+  } catch (e) { record('Accounts Sales Bill Outstanding renders', 'FAIL', e.message); await shot(page, 'accounts-billos-FAILED'); }
 
   // ── Purchasing: Bill O/s ──
   currentStep = 'purchasing-reports';

@@ -85,12 +85,6 @@ salesStyleTag.textContent = `
 #sales-module-wrap .sales-tile.t-amber{background:linear-gradient(135deg,var(--biz-primary),var(--biz-primary2));}
 #sales-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),var(--biz-primary2));}
 #sales-module-wrap .sales-back{font-size:12px;color:var(--biz-primary);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
-#sales-module-wrap .bill-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;}
-#sales-module-wrap .bill-pill.unpaid{background:var(--bad-bg,#fdeceb);color:var(--bad,#d9342b);}
-#sales-module-wrap .bill-pill.partial{background:var(--warn-bg,#fff6e3);color:var(--warn,#c47d00);}
-#sales-module-wrap .bill-pill.full{background:var(--ok-bg,#eafaf1);color:var(--ok,#0f9d58);}
-#sales-module-wrap .bill-pill.advance{background:#e0ecfb;color:var(--info,#2563eb);}
-#sales-module-wrap .bill-pill.cancelled{background:#eef0f3;color:#64748b;}
 `;
 document.head.appendChild(salesStyleTag);
 
@@ -116,19 +110,16 @@ salesModuleWrap.innerHTML = `
 document.body.appendChild(salesModuleWrap);
 
 // ── State ──
-let salesTopView = 'enquiries';        // 'enquiries' | 'quotations' | 'proforma' | 'receipts' | 'creditnotes'
-let salesView = 'enq-list';            // enq-list | enq-create | enq-detail | cust-create | qtn-list | qtn-hub | qtn-wizard | proforma-list | receipt-list | receipt-create | creditnote-list | creditnote-create
+let salesTopView = 'enquiries';        // 'enquiries' | 'quotations' | 'reports'
+let salesView = 'enq-list';            // enq-list | enq-create | enq-detail | cust-create | qtn-list | qtn-hub | qtn-wizard | qtn-register
 let salesActiveEnquiryId = null;
 let salesActiveQtnId = null;
-let salesReceiptDraft = null;
-let salesCreditNoteDraft = null;
 let salesActiveEnqTab = 'basic';       // basic | followup
 let salesWizardStep = 1;
 let salesEnqFilters = { from: '', to: '', customer: '', salesPerson: '', unassigned: false, unattended: false, unquoted: false };
 let salesQtnFilters = { qtnNo: '', customer: '', project: '', tel: '', salesPerson: '' };
 let salesQtnListTab = 'all';           // draft | open | confirmed | closed | all
 let salesQtnRegFilters = { from: '', to: '', salesPerson: '', status: 'All' };
-let salesBillOSFilters = { view: 'byparty', ageWise: false, ageBasis: 'bill' };
 let salesDraft = null;                 // scratch object for create forms
 let salesEditingLineId = null;         // which item's inline edit panel is open on Wizard Step 2
 let salesCurrentUser = STAFF.find(s => s !== 'Operations') || STAFF[0]; // simulates the logged-in Salesman for the lock/banner rule
@@ -173,9 +164,7 @@ function launchEnquiryModule() { openSalesModule(); }
 function launchSalesModule() { openSalesModule(); }
 
 const SALES_TOPVIEW_DEFAULTS = {
-  dashboard: 'dashboard', enquiries: 'enq-list', quotations: 'qtn-list',
-  proforma: 'proforma-list', receipts: 'receipt-list', creditnotes: 'creditnote-list',
-  custupdate: 'custupdate-tool', reports: 'qtn-register'
+  dashboard: 'dashboard', enquiries: 'enq-list', quotations: 'qtn-list', reports: 'qtn-register'
 };
 function salesSetTopView(v) {
   salesTopView = v;
@@ -191,10 +180,6 @@ function renderSalesBody() {
       <div class="sales-toptab ${salesTopView === 'dashboard' ? 'active' : ''}" onclick="salesSetTopView('dashboard')">Dashboard</div>
       <div class="sales-toptab ${salesTopView === 'enquiries' ? 'active' : ''}" onclick="salesSetTopView('enquiries')">Enquiry</div>
       <div class="sales-toptab ${salesTopView === 'quotations' ? 'active' : ''}" onclick="salesSetTopView('quotations')">Quotation</div>
-      <div class="sales-toptab ${salesTopView === 'proforma' ? 'active' : ''}" onclick="salesSetTopView('proforma')">Proforma</div>
-      <div class="sales-toptab ${salesTopView === 'receipts' ? 'active' : ''}" onclick="salesSetTopView('receipts')">Receipt</div>
-      <div class="sales-toptab ${salesTopView === 'creditnotes' ? 'active' : ''}" onclick="salesSetTopView('creditnotes')">Credit Note</div>
-      <div class="sales-toptab ${salesTopView === 'custupdate' ? 'active' : ''}" onclick="salesSetTopView('custupdate')">Customer Update</div>
       <div class="sales-toptab ${salesTopView === 'reports' ? 'active' : ''}" onclick="salesSetTopView('reports')">Reports</div>
     </div>`;
 
@@ -208,14 +193,7 @@ function renderSalesBody() {
     case 'qtn-list': content = renderQuotationList(); break;
     case 'qtn-hub': content = renderQuotationHub(); break;
     case 'qtn-wizard': content = renderQuotationWizard(); break;
-    case 'proforma-list': content = renderProformaList(); break;
-    case 'receipt-list': content = renderReceiptList(); break;
-    case 'receipt-create': content = renderReceiptCreate(); break;
-    case 'creditnote-list': content = renderCreditNoteList(); break;
-    case 'creditnote-create': content = renderCreditNoteCreate(); break;
-    case 'custupdate-tool': content = renderCustomerUpdateTool(); break;
     case 'qtn-register': content = renderSalesReports(); break;
-    case 'bill-os': content = renderSalesReports(); break;
     default: content = renderEnquiryList();
   }
   body.innerHTML = topTabs + content;
@@ -544,7 +522,7 @@ function startConvertToQuotation(enquiryId) {
   const enq = enquiries.find(e => e.id === enquiryId);
   if (!enq) return;
   if (!canConvertToQuotation(enq)) { salesAlert('Please Select Customer To Proceed!!!'); return; }
-  salesDraft = { enquiryId, projectName: '', taxPercent: 10, contactPerson: enq.contactPerson, withEstimation: false, notes: '' };
+  salesDraft = { enquiryId, projectName: '', taxPercent: 10, contactPerson: enq.contactPerson, notes: '' };
   salesWizardStep = 1;
   salesActiveQtnId = null;
   salesView = 'qtn-wizard';
@@ -640,27 +618,30 @@ function renderQuotationHub() {
       <p style="font-weight:700;font-size:15px;">${q.id} <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span> <span class="sales-pill stage-${q.stage}">${q.stage.toUpperCase()}</span></p>
       <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${esc(c ? c.name : '—')} · Project: ${esc(q.projectName)}</p>
       <p style="font-size:12px;color:#64748b;">Qtn Date: ${q.date} · Confirm Date: ${q.confirmDate || '—'} · Amount: BD ${totals.netTotal.toFixed(3)}</p>
-      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${esc(q.enquiryId)} · Salesman: ${esc(enq ? enq.salesPerson : '—')}</p>
+      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${q.parentJobId ? `Variation for Job <b>${esc(q.parentJobId)}</b>` : `Linked Enquiry: ${esc(q.enquiryId)} · Salesman: ${esc(enq ? enq.salesPerson : '—')}`}</p>
     </div>
     <div class="sales-tile-row">
       <div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>
-      <div class="sales-tile t-purple" onclick="salesAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>
+      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile t-purple" onclick="salesAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
       <div class="sales-tile t-teal" onclick="salesAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
       <div class="sales-tile t-magenta" onclick="salesAlert('Discount — apply from the Product & Services step.')"><span class="sales-tile-icon">%</span>Discount</div>
     </div>
+    ${q.lifecycleStatus === 'draft' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Print Quote becomes available once the Approver has approved this quote.</p>` : ''}
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
       ${q.stage === 'sales' && q.lifecycleStatus === 'draft'
         ? `<button class="primary" style="width:100%;" onclick="salesTransferToEstimator('${q.id}')">Transfer to Estimator</button>` : ''}
       ${q.stage === 'sales' && q.lifecycleStatus === 'open'
-        ? `<button class="primary" style="width:100%;" onclick="salesConfirmQuote('${q.id}')">Confirm Quote</button>` : ''}
+        ? `<button class="primary" style="width:100%;" onclick="${q.parentJobId ? `salesConfirmVariation('${q.id}')` : `salesConfirmQuote('${q.id}')`}">${q.parentJobId ? 'Confirm Variation — Merge into Job' : 'Confirm Quote'}</button>` : ''}
       ${q.stage !== 'sales'
         ? `<p style="font-size:11.5px;color:#64748b;">This quotation is with ${q.stage === 'estimator' ? 'the Estimator' : 'the Approver'} — Sales has no action here until it's sent back.</p>` : ''}
       ${q.stage === 'estimator' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.estimatorPickedBy ? 'Picked by ' + esc(q.estimatorPickedBy) : 'Not yet picked'} — see the Estimator module.</p>` : ''}
       ${q.stage === 'approver' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.approverPickedBy ? 'Picked by ' + esc(q.approverPickedBy) : 'Not yet picked'} — see the Approver module.</p>` : ''}
       ${q.lifecycleStatus === 'confirmed' ? (() => {
-        const job = jobCards.find(j => j.quotationId === q.id);
-        return job ? `<p style="font-size:11.5px;color:#166534;margin-top:8px;">✓ Confirmed — Job Card <b>${esc(job.id)}</b> created.</p><button class="secondary" style="width:100%;margin-top:6px;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule('${job.id}'),150);">Open Job Card →</button>` : '';
+        const job = q.parentJobId ? getJobCard(q.parentJobId) : jobCards.find(j => j.quotationId === q.id);
+        if (!job) return '';
+        const label = q.parentJobId ? `✓ Merged into Job Card <b>${esc(job.id)}</b>.` : `✓ Confirmed — Job Card <b>${esc(job.id)}</b> created.`;
+        return `<p style="font-size:11.5px;color:#166534;margin-top:8px;">${label}</p><button class="secondary" style="width:100%;margin-top:6px;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule('${job.id}'),150);">Open Job Card →</button>`;
       })() : ''}
     </div>
     <div class="sales-card">
@@ -750,6 +731,16 @@ function salesConfirmQuote(qtnId) {
   renderSalesBody();
 }
 
+// Variation Order equivalent of salesConfirmQuote() — merges into the
+// EXISTING parent Job Card instead of creating a new one.
+function salesConfirmVariation(qtnId) {
+  if (!window.confirm('Do you Want to Change Status?')) return;
+  const result = confirmVariationToJobCard(qtnId, salesCurrentUser);
+  if (result.error) { salesAlert(result.error); return; }
+  salesAlert(`✓ Variation approved and merged into Job Card ${result.id}.`);
+  renderSalesBody();
+}
+
 // ── Edit Quote wizard (3 steps) ──
 function openQuotationWizard(id, step) {
   salesActiveQtnId = id;
@@ -792,7 +783,7 @@ function renderWizardStep1(isNew) {
         <div class="sales-field"><label>Tax %</label><input type="number" value="${d.taxPercent}" oninput="salesDraft.taxPercent=Number(this.value)"></div>
         <div class="sales-field"><label>Project Name</label><input type="text" value="${esc(d.projectName)}" oninput="salesDraft.projectName=this.value"></div>
         <div class="sales-field"><label>Contact Person</label><input type="text" value="${esc(d.contactPerson)}" oninput="salesDraft.contactPerson=this.value"></div>
-        <div class="sales-field"><label><input type="checkbox" ${d.withEstimation ? 'checked' : ''} onchange="salesDraft.withEstimation=this.checked"> Quote Type: With Estimation</label></div>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Pricing is always completed by the Estimator — Sales never enters a Rate.</p>
         <div class="sales-field"><label>Notes</label><textarea oninput="salesDraft.notes=this.value">${esc(d.notes)}</textarea></div>
         <button class="primary" style="width:100%;" onclick="saveWizardStep1()">Save & Proceed</button>
       </div>`;
@@ -816,7 +807,7 @@ function renderWizardStep1(isNew) {
       <div class="sales-field"><label>Tax %</label><input type="number" value="${q.taxPercent}" onchange="salesUpdateQtnField('taxPercent',Number(this.value))"></div>
       <div class="sales-field"><label>Project Name</label><input type="text" value="${esc(q.projectName)}" onchange="salesUpdateQtnField('projectName',this.value)"></div>
       <div class="sales-field"><label>Contact Person</label><input type="text" value="${esc(q.contactPerson)}" onchange="salesUpdateQtnField('contactPerson',this.value)"></div>
-      <div class="sales-field"><label><input type="checkbox" ${q.withEstimation ? 'checked' : ''} disabled> Quote Type: With Estimation (locked after creation)</label></div>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Pricing is always completed by the Estimator — Sales never enters a Rate.</p>
       <div class="sales-field"><label>Notes</label><textarea onchange="salesUpdateQtnField('notes',this.value)">${esc(q.notes)}</textarea></div>
       <button class="primary" style="width:100%;" onclick="salesWizardStep=2;renderSalesBody();">Save & Proceed</button>
     </div>`;
@@ -1031,359 +1022,15 @@ function getSalesKPIs() {
 }
 
 // ══════════════════════════════════════════
-// PROFORMA — Batch 4. List-only per the live trace: no manual create form
-// exists there, Proforma is generated from the Quotation Hub above or the
-// Job Card Management hub's "PROFORMA" tile (jobs.js) — see
-// createProformaFromJob() in data.js.
+// Batch 7 (3 Aug 2026): Proforma, Sales Receipt, Sales Credit Note, and
+// Customer Update all moved to accounts.js — Salman's call: Sales never
+// creates/edits/deletes these, only views them read-only via
+// renderRelatedRecords() above (still here, called from both this file
+// and jobs.js). See accounts.js for the moved create/list functions.
 // ══════════════════════════════════════════
-function renderProformaList() {
-  const rows = proformas.slice().sort((a, b) => b.date.localeCompare(a.date));
-  if (rows.length === 0) {
-    return `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No proforma invoices yet — generate one from a confirmed Quotation's or its Job Card's hub.</p></div>`;
-  }
-  return `<div class="sales-card" style="overflow-x:auto;">
-    <table class="sales-items"><tr><th>Proforma</th><th>Qtn No</th><th>Date</th><th>Client</th><th>Amount</th></tr>
-    ${rows.map(p => {
-      const c = customers.find(x => x.id === p.customerId);
-      return `<tr style="cursor:pointer;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule('${p.jobId}'),150);"><td>${esc(p.id)}</td><td>${esc(p.quotationId)}</td><td>${p.date}</td><td>${esc(c ? c.name : '—')}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`;
-    }).join('')}
-    </table>
-  </div>`;
-}
-
-// ══════════════════════════════════════════
-// SALES RECEIPT — Batch 4. Customer-side, mirrors Purchasing's Supplier
-// Payment (Batch 1) structurally. getCustomerOpenInvoices() (data.js)
-// actually looks the client's open invoices up — the live system's "No
-// Invoice List Available..!" bug is fixed here, not reproduced (same
-// pattern as Batch 1's Payment/Debit Note).
-// ══════════════════════════════════════════
-function renderReceiptList() {
-  let html = `<button class="primary" style="width:100%;margin-bottom:12px;" onclick="openReceiptCreate()">+ New Receipt</button>`;
-  if (salesReceipts.length === 0) {
-    html += `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No receipts yet.</p></div>`;
-  } else {
-    html += `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>Receipt No</th><th>Client</th><th>Date</th><th>Amount</th></tr>
-    ${salesReceipts.slice().reverse().map(r => {
-      const c = customers.find(x => x.id === r.customerId);
-      return `<tr><td>${esc(r.id)}</td><td>${esc(c ? c.name : '—')}</td><td>${r.receiptDate}</td><td>${r.amount.toFixed(3)}</td></tr>`;
-    }).join('')}
-    </table></div>`;
-  }
-  return html;
-}
-
-function openReceiptCreate() {
-  salesReceiptDraft = {
-    customerId: '',
-    methods: {
-      cash: { enabled: false, amount: 0 },
-      bank: { enabled: false, amount: 0, bank: '' },
-      cCard: { enabled: false, amount: 0, type: 'Visa Card', authorized: '' },
-      wallet: { enabled: false, amount: 0, type: 'B wallet', authorized: '' },
-      cheque: { enabled: false, amount: 0, number: '', bank: '' }
-    },
-    referenceNumber: '', allocations: [], advanceAmount: 0, remarks: ''
-  };
-  salesView = 'receipt-create';
-  renderSalesBody();
-}
-
-function receiptCustomerChanged(customerId) {
-  salesReceiptDraft.customerId = customerId;
-  salesReceiptDraft.allocations = customerId
-    ? getCustomerOpenInvoices(customerId).map(row => ({ ...row, payingAmount: 0, discountAmount: 0 }))
-    : [];
-  renderSalesBody();
-}
-function receiptMethodToggle(method, checked) { salesReceiptDraft.methods[method].enabled = checked; renderSalesBody(); }
-function receiptMethodField(method, field, val) { salesReceiptDraft.methods[method][field] = (field === 'amount') ? Number(val) || 0 : val; }
-function receiptAllocationChanged(i, field, val) { salesReceiptDraft.allocations[i][field] = Number(val) || 0; }
-
-function renderReceiptCreate() {
-  const d = salesReceiptDraft;
-  const c = customers.find(x => x.id === d.customerId);
-
-  const methodBlock = (key, label, extraHtml) => `
-    <div class="sales-field">
-      <label><input type="checkbox" ${d.methods[key].enabled ? 'checked' : ''} onchange="receiptMethodToggle('${key}',this.checked)"> ${label}</label>
-      ${d.methods[key].enabled ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-        <input type="number" step="0.001" style="flex:1;" placeholder="Amount" value="${d.methods[key].amount}" onchange="receiptMethodField('${key}','amount',this.value)">
-        ${extraHtml || ''}
-      </div>` : ''}
-    </div>`;
-
-  let reveal = '';
-  if (d.customerId) {
-    const allocHtml = d.allocations.length === 0
-      ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
-      : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Paid</th><th>Paying Amt</th><th>Disc</th><th>Balance</th></tr>
-        ${d.allocations.map((a, i) => `<tr><td>${esc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.paidAmount.toFixed(3)}</td>
-          <td><input type="number" step="0.001" style="width:80px;" value="${a.payingAmount}" onchange="receiptAllocationChanged(${i},'payingAmount',this.value)"></td>
-          <td><input type="number" step="0.001" style="width:70px;" value="${a.discountAmount}" onchange="receiptAllocationChanged(${i},'discountAmount',this.value)"></td>
-          <td>${a.balanceAmount.toFixed(3)}</td></tr>`).join('')}
-        </table></div>`;
-
-    reveal = `
-      <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Client Name: ${esc(c ? c.name : '—')}</p>
-      ${methodBlock('cash', 'Cash')}
-      ${methodBlock('bank', 'Bank', `<input type="text" style="flex:1;" placeholder="Bank" value="${esc(d.methods.bank.bank)}" onchange="receiptMethodField('bank','bank',this.value)">`)}
-      ${methodBlock('cCard', 'C Card', `<select style="flex:1;" onchange="receiptMethodField('cCard','type',this.value)"><option ${d.methods.cCard.type === 'Visa Card' ? 'selected' : ''}>Visa Card</option><option ${d.methods.cCard.type === 'Master Card' ? 'selected' : ''}>Master Card</option><option ${d.methods.cCard.type === 'Others' ? 'selected' : ''}>Others</option></select><input type="text" style="flex:1;" placeholder="Authorized" value="${esc(d.methods.cCard.authorized)}" onchange="receiptMethodField('cCard','authorized',this.value)">`)}
-      ${methodBlock('wallet', 'Wallet', `<select style="flex:1;" onchange="receiptMethodField('wallet','type',this.value)"><option ${d.methods.wallet.type === 'B wallet' ? 'selected' : ''}>B wallet</option><option ${d.methods.wallet.type === 'IBAN' ? 'selected' : ''}>IBAN</option><option ${d.methods.wallet.type === 'Benefit' ? 'selected' : ''}>Benefit</option></select><input type="text" style="flex:1;" placeholder="Authorized" value="${esc(d.methods.wallet.authorized)}" onchange="receiptMethodField('wallet','authorized',this.value)">`)}
-      ${methodBlock('cheque', 'Cheque', `<input type="text" style="flex:1;" placeholder="Number" value="${esc(d.methods.cheque.number)}" onchange="receiptMethodField('cheque','number',this.value)"><input type="text" style="flex:1;" placeholder="Bank" value="${esc(d.methods.cheque.bank)}" onchange="receiptMethodField('cheque','bank',this.value)">`)}
-      <div class="sales-field"><label>Amount *</label><input type="number" step="0.001" id="rc-amount"></div>
-      <div class="sales-field"><label>Reference Number</label><input type="text" id="rc-reference"></div>
-      <div class="sales-field"><label>Advance payment</label><input type="number" step="0.001" id="rc-advance" value="0"></div>
-      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Invoice Allocation</p>
-      ${allocHtml}
-      <div class="sales-field" style="margin-top:10px;"><label>Remarks</label><textarea id="rc-remarks"></textarea></div>
-      <div style="display:flex;gap:8px;">
-        <button class="primary" style="flex:1;" onclick="saveReceipt()">Create Receipt</button>
-        <button class="secondary" style="flex:1;" onclick="salesView='receipt-list';renderSalesBody();">Exit</button>
-      </div>`;
-  }
-
-  return `
-    <span class="sales-back" onclick="salesView='receipt-list';renderSalesBody();">‹ Back to Receipt List</span>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:14px;margin-bottom:12px;">Create Receipt</p>
-      <div class="sales-field"><label>Name</label>
-        <select onchange="receiptCustomerChanged(this.value)">
-          <option value="">Select client…</option>
-          ${customers.map(x => `<option value="${x.id}" ${d.customerId === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
-        </select>
-      </div>
-      ${reveal}
-    </div>`;
-}
-
-function saveReceipt() {
-  const d = salesReceiptDraft;
-  const amount = Number(document.getElementById('rc-amount').value) || 0;
-  const referenceNumber = document.getElementById('rc-reference').value.trim();
-  const advanceAmount = Number(document.getElementById('rc-advance').value) || 0;
-  const remarks = document.getElementById('rc-remarks').value.trim();
-  if (!d.customerId) { salesAlert('Please select a client.'); return; }
-  if (!amount) { salesAlert('Amount is required.'); return; }
-  const result = createSalesReceipt({
-    customerId: d.customerId, methods: d.methods, amount, referenceNumber,
-    allocations: d.allocations.filter(a => a.payingAmount > 0), advanceAmount, remarks
-  });
-  if (result.error) { salesAlert(result.error); return; }
-  salesAlert(`✓ Receipt ${result.id} created.`);
-  salesReceiptDraft = null;
-  salesView = 'receipt-list';
-  renderSalesBody();
-}
-
-// ══════════════════════════════════════════
-// SALES CREDIT NOTE — Batch 4. Same two-stage pattern as Receipt (client
-// first, then an invoice-allocation table). List view uses the red/pink
-// cancelled-row convention observed live and used elsewhere in this app
-// (Debit Note, Materials Issue/Return).
-// ══════════════════════════════════════════
-function renderCreditNoteList() {
-  let html = `<button class="primary" style="width:100%;margin-bottom:12px;" onclick="openCreditNoteCreate()">+ New Credit Note</button>`;
-  if (salesCreditNotes.length === 0) {
-    html += `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No credit notes yet.</p></div>`;
-  } else {
-    html += `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>Credit Note No</th><th>Client</th><th>Date</th><th>Amount</th><th>Action</th></tr>
-    ${salesCreditNotes.slice().reverse().map(cn => {
-      const c = customers.find(x => x.id === cn.customerId);
-      return `<tr style="${cn.status === 'cancelled' ? 'background:#fee2e2;' : ''}"><td>${esc(cn.id)}</td><td>${esc(c ? c.name : '—')}</td><td>${cn.creditNoteDate}</td><td>${cn.amount.toFixed(3)}</td>
-        <td>${cn.status === 'cancelled' ? 'Cancelled' : `<span style="cursor:pointer;color:#b91c1c;" onclick="salesCancelCreditNote('${cn.id}')">Cancel</span>`}</td></tr>`;
-    }).join('')}
-    </table></div>`;
-  }
-  return html;
-}
-
-function salesCancelCreditNote(id) {
-  if (!window.confirm('Cancel this credit note?')) return;
-  cancelSalesCreditNote(id);
-  salesAlert('✓ Credit Note cancelled.');
-  renderSalesBody();
-}
-
-function openCreditNoteCreate() {
-  salesCreditNoteDraft = { customerId: '', allocations: [], reason: '' };
-  salesView = 'creditnote-create';
-  renderSalesBody();
-}
-function creditNoteCustomerChanged(customerId) {
-  salesCreditNoteDraft.customerId = customerId;
-  salesCreditNoteDraft.allocations = customerId
-    ? getCustomerOpenInvoices(customerId).map(row => ({ ...row, creditingAmount: 0 }))
-    : [];
-  renderSalesBody();
-}
-function creditNoteAllocationChanged(i, val) { salesCreditNoteDraft.allocations[i].creditingAmount = Number(val) || 0; }
-
-function renderCreditNoteCreate() {
-  const d = salesCreditNoteDraft;
-  const c = customers.find(x => x.id === d.customerId);
-
-  let reveal = '';
-  if (d.customerId) {
-    const allocHtml = d.allocations.length === 0
-      ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
-      : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Balance</th><th>Crediting Amt</th></tr>
-        ${d.allocations.map((a, i) => `<tr><td>${esc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.balanceAmount.toFixed(3)}</td>
-          <td><input type="number" step="0.001" style="width:80px;" value="${a.creditingAmount}" onchange="creditNoteAllocationChanged(${i},this.value)"></td></tr>`).join('')}
-        </table></div>`;
-
-    reveal = `
-      <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Client Name: ${esc(c ? c.name : '—')}</p>
-      <p style="font-weight:700;font-size:12px;margin:6px 0 4px;">Invoice Allocation</p>
-      ${allocHtml}
-      <div class="sales-field" style="margin-top:10px;"><label>Amount *</label><input type="number" step="0.001" id="cn-amount"></div>
-      <div class="sales-field"><label>Reason</label><textarea id="cn-reason"></textarea></div>
-      <div style="display:flex;gap:8px;">
-        <button class="primary" style="flex:1;" onclick="saveCreditNote()">Create Credit Note</button>
-        <button class="secondary" style="flex:1;" onclick="salesView='creditnote-list';renderSalesBody();">Exit</button>
-      </div>`;
-  }
-
-  return `
-    <span class="sales-back" onclick="salesView='creditnote-list';renderSalesBody();">‹ Back to Credit Note List</span>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:14px;margin-bottom:12px;">Create Credit Note</p>
-      <div class="sales-field"><label>Name</label>
-        <select onchange="creditNoteCustomerChanged(this.value)">
-          <option value="">Select client…</option>
-          ${customers.map(x => `<option value="${x.id}" ${d.customerId === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
-        </select>
-      </div>
-      ${reveal}
-    </div>`;
-}
-
-function saveCreditNote() {
-  const d = salesCreditNoteDraft;
-  const amount = Number(document.getElementById('cn-amount').value) || 0;
-  const reason = document.getElementById('cn-reason').value.trim();
-  if (!d.customerId) { salesAlert('Please select a client.'); return; }
-  if (!amount) { salesAlert('Amount is required.'); return; }
-  const result = createSalesCreditNote({
-    customerId: d.customerId, amount,
-    allocations: d.allocations.filter(a => a.creditingAmount > 0), reason
-  });
-  if (result.error) { salesAlert(result.error); return; }
-  salesAlert(`✓ Credit Note ${result.id} created.`);
-  salesCreditNoteDraft = null;
-  salesView = 'creditnote-list';
-  renderSalesBody();
-}
-
-// ══════════════════════════════════════════
-// CUSTOMER UPDATE (Q-Pro Batch 5) — a single-quotation correction utility,
-// not a customer master editor despite the name. Pick one quotation, then
-// apply any of three independent corrections against it. Distinct from
-// full quotation editing — a narrow, guarded "fix a mistake" pattern.
-// ══════════════════════════════════════════
-let custUpdateSearch = '';
-let custUpdateQtnId = null;
-
-function renderCustomerUpdateTool() {
-  if (!custUpdateQtnId) {
-    const q = custUpdateSearch.trim().toLowerCase();
-    const rows = quotations.filter(qt => !q || qt.id.toLowerCase().includes(q) || custName(qt.customerId).toLowerCase().includes(q))
-      .slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25);
-    return `
-      <div class="sales-card">
-        <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Customer Update</p>
-        <p style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Select Quotation, then correct Customer, Salesman or VAT% against it — without re-keying the whole quotation.</p>
-        <input type="text" placeholder="Search Qtn No or Customer…" value="${esc(custUpdateSearch)}"
-          oninput="custUpdateSearch=this.value;renderSalesBody();"
-          style="width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;">
-      </div>
-      ${rows.length === 0 ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No matching quotations.</p></div>` :
-        rows.map(qt => `<div class="sales-card" style="cursor:pointer;" onclick="custUpdateQtnId='${qt.id}';renderSalesBody();">
-          <p style="font-weight:700;font-size:13px;">${qt.id} <span style="font-weight:400;color:#94a3b8;">· ${qt.date}</span></p>
-          <p style="font-size:12px;color:#334155;">${esc(custName(qt.customerId))} · ${esc(qt.projectName)}</p>
-        </div>`).join('')}`;
-  }
-
-  const qtn = quotations.find(qt => qt.id === custUpdateQtnId);
-  if (!qtn) { custUpdateQtnId = null; return renderCustomerUpdateTool(); }
-  const enq = enquiries.find(e => e.id === qtn.enquiryId);
-  return `
-    <span class="sales-back" onclick="custUpdateQtnId=null;renderSalesBody();">‹ Back to search</span>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:15px;">${qtn.id}</p>
-      <p style="font-size:12px;color:var(--biz-text-muted, #64748b);">${esc(custName(qtn.customerId))} · ${esc(qtn.projectName)}</p>
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">(a) Update Customer</p>
-      <div class="sales-field"><label>Select Customer</label>
-        <select id="cu-customer">${customers.map(c => `<option value="${c.id}" ${c.id === qtn.customerId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
-      </div>
-      <div class="sales-field"><label>Select Contact Person</label>
-        <input type="text" id="cu-contact" value="${esc(qtn.contactPerson || '')}">
-      </div>
-      <button class="primary" onclick="custUpdateApplyCustomer()">Update Customer</button>
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">(b) Update Salesman</p>
-      <div class="sales-field"><label>Sales Person Assigned</label>
-        <select id="cu-salesman">${STAFF.map(s => `<option value="${s}" ${enq && enq.salesPerson === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
-      </div>
-      <button class="primary" onclick="custUpdateApplySalesman()">Update Salesman</button>
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">(c) Update VAT</p>
-      <div class="sales-field"><label>VAT %</label>
-        <select id="cu-vat">${[10, 5, 0].map(v => `<option value="${v}" ${qtn.taxPercent === v ? 'selected' : ''}>${v}%</option>`).join('')}</select>
-      </div>
-      <button class="primary" onclick="custUpdateApplyVat()">Update VAT</button>
-    </div>`;
-}
-function custUpdateApplyCustomer() {
-  const customerId = document.getElementById('cu-customer').value;
-  const contactPerson = document.getElementById('cu-contact').value;
-  const result = applyCustomerUpdate(custUpdateQtnId, { customerId, contactPerson });
-  if (result && result.error) { salesAlert(result.error); return; }
-  salesAlert('✓ Customer updated.');
-  renderSalesBody();
-}
-function custUpdateApplySalesman() {
-  const salesPerson = document.getElementById('cu-salesman').value;
-  const result = applyCustomerUpdate(custUpdateQtnId, { salesPerson });
-  if (result && result.error) { salesAlert(result.error); return; }
-  salesAlert('✓ Salesman updated.');
-  renderSalesBody();
-}
-function custUpdateApplyVat() {
-  const taxPercent = document.getElementById('cu-vat').value;
-  const result = applyCustomerUpdate(custUpdateQtnId, { taxPercent });
-  if (result && result.error) { salesAlert(result.error); return; }
-  salesAlert('✓ VAT updated.');
-  renderSalesBody();
-}
-
-// ══════════════════════════════════════════
-// BATCH 6 — REPORTS (Quotation Register, Sales Bill Outstanding)
-// Data/computation lives in data.js — this section is UI only.
-// ══════════════════════════════════════════
-
-function billPillClass(status) {
-  return status === 'Fully Paid' ? 'full' : status === 'Partially Paid' ? 'partial' : status === 'Advance' ? 'advance' : status === 'Cancelled' ? 'cancelled' : 'unpaid';
-}
-function salesBillOSFilterChanged(key, val) { salesBillOSFilters[key] = val; renderSalesBody(); }
-function billOSLegendHtml() {
-  return `<p style="font-size:10.5px;color:#94a3b8;margin-top:8px;">Legend:
-    <span class="bill-pill advance">Advance</span> <span class="bill-pill unpaid">Unpaid</span>
-    <span class="bill-pill partial">Partially Paid</span> <span class="bill-pill full">Fully Paid</span>
-    <span class="bill-pill cancelled">Cancelled</span></p>`;
-}
 
 function renderSalesReports() {
-  const subTabs = `
-    <div class="sales-tabs">
-      <button class="sales-tabbtn ${salesView === 'bill-os' ? '' : 'active'}" onclick="salesView='qtn-register';renderSalesBody();">Quotation Register</button>
-      <button class="sales-tabbtn ${salesView === 'bill-os' ? 'active' : ''}" onclick="salesView='bill-os';renderSalesBody();">Sales Bill Outstanding</button>
-    </div>`;
-  return subTabs + (salesView === 'bill-os' ? renderSalesBillOutstanding() : renderQuotationRegisterReport());
+  return renderQuotationRegisterReport();
 }
 
 function salesQtnRegFilterChanged(key, val) { salesQtnRegFilters[key] = val; renderSalesBody(); }
@@ -1432,69 +1079,4 @@ function renderQuotationRegisterReport() {
         }).join('')}
         </table>`}
     </div>`;
-}
-
-function renderSalesBillOutstanding() {
-  const f = salesBillOSFilters;
-  const opts = { ageBasis: f.ageBasis };
-  let rows, buckets = false;
-  if (f.view === 'all') {
-    rows = f.ageWise ? getSalesBillOutstandingAllCustomersAgeWise(opts) : getSalesBillOutstandingAllCustomers();
-    buckets = f.ageWise;
-  } else {
-    rows = f.ageWise ? getSalesBillOutstandingByPartyAgeWise(opts) : getSalesBillOutstandingByParty(opts);
-    buckets = f.ageWise;
-  }
-  if (f.client) rows = rows.filter(r => custName(r.customerId).toLowerCase().includes(f.client.toLowerCase()));
-  if (f.salesPerson && f.view === 'byparty') rows = rows.filter(r => r.salesPerson === f.salesPerson);
-  const outstandingTotal = rows.reduce((s, r) => s + r.balAmt, 0);
-
-  const filterHtml = `
-    <div class="sales-card">
-      <div style="display:flex;gap:6px;margin-bottom:10px;">
-        <button class="sales-tabbtn ${f.view === 'byparty' ? 'active' : ''}" onclick="salesBillOSFilterChanged('view','byparty')">By Party</button>
-        <button class="sales-tabbtn ${f.view === 'all' ? 'active' : ''}" onclick="salesBillOSFilterChanged('view','all')">All</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div class="sales-field" style="margin-bottom:0;"><label>Division</label><input type="text" value="Al Maraya Decor" disabled></div>
-        <div class="sales-field" style="margin-bottom:0;"><label>Client Name</label><input type="text" value="${f.client || ''}" oninput="salesBillOSFilterChanged('client',this.value)"></div>
-      </div>
-      ${f.view === 'byparty' ? `
-      <div class="sales-field" style="margin-top:8px;margin-bottom:0;"><label>Select Salesman</label>
-        <select onchange="salesBillOSFilterChanged('salesPerson',this.value)">
-          <option value="">All</option>${STAFF.map(s => `<option value="${s}" ${f.salesPerson === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>` : ''}
-      <div style="display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap;">
-        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" ${f.ageWise ? 'checked' : ''} onchange="salesBillOSFilterChanged('ageWise',this.checked)"> Age-wise</label>
-        ${!f.ageWise ? `
-        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="radio" name="ageBasis" ${f.ageBasis === 'bill' ? 'checked' : ''} onchange="salesBillOSFilterChanged('ageBasis','bill')"> Age by Bill Date</label>
-        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="radio" name="ageBasis" ${f.ageBasis === 'due' ? 'checked' : ''} onchange="salesBillOSFilterChanged('ageBasis','due')"> Age by Due Date</label>` : ''}
-      </div>
-      ${billOSLegendHtml()}
-    </div>
-    <div class="sales-card"><p style="font-weight:700;font-size:13px;">Outstanding Amount: BD ${outstandingTotal.toFixed(3)}</p></div>`;
-
-  let tableHtml;
-  if (rows.length === 0) {
-    tableHtml = `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No outstanding bills match these filters.</p></div>`;
-  } else if (f.view === 'byparty' && !buckets) {
-    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Bill No</th><th>Bill Type</th><th>Date</th><th>PO No</th><th>Salesman</th><th>Bill Amt</th><th>Paid Amt</th><th>Bal Amt</th><th>Age</th><th>Status</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.invoiceId)}</td><td>Tax Invoice</td><td>${r.date}</td><td>${esc(r.lpoNo) || '—'}</td><td>${esc(r.salesPerson) || '—'}</td><td>${r.billAmt.toFixed(3)}</td><td>${r.paidAmt.toFixed(3)}</td><td>${r.balAmt.toFixed(3)}</td><td>${r.age}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
-      </table></div>`;
-  } else if (f.view === 'byparty' && buckets) {
-    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Bill No</th><th>Date</th><th>Client</th><th>Bal Amt</th><th>${BILL_AGE_BUCKETS.map(b => b.label).join('</th><th>')}</th><th>Due On</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.invoiceId)}</td><td>${r.date}</td><td>${esc(custName(r.customerId))}</td><td>${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}<td>${r.dueDate}</td></tr>`).join('')}
-      </table></div>`;
-  } else if (f.view === 'all' && !buckets) {
-    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Client</th><th>Bill Amt</th><th>Paid Amt</th><th>Bal Amt</th><th>Status</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(custName(r.customerId))}</td><td>${r.billAmt.toFixed(3)}</td><td>${r.paidAmt.toFixed(3)}</td><td>${r.balAmt.toFixed(3)}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
-      </table></div>`;
-  } else {
-    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Client</th><th>Bal Amt</th><th>${BILL_AGE_BUCKETS.map(b => b.label).join('</th><th>')}</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(custName(r.customerId))}</td><td>${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}</tr>`).join('')}
-      </table></div>`;
-  }
-
-  return filterHtml + tableHtml;
 }

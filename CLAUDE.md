@@ -620,6 +620,28 @@ then, this section is the only persistent record of what they said.
   "nice to have" if Salman wants Payment/Receipt/Credit/Debit Note to post
   through real ledgers too.
 
+**New, from Batch 7 (3 Aug 2026 — role-boundary/Job-as-parent/Variation
+Orders/Tasks-Activity-Log session):**
+- Tasks/Activity Log primitive (`tasks[]`/`activityLog[]` in data.js)
+  exists and is real, but is only surfaced on the Job Card hub and only
+  wired into the Variation Order flow — not retrofitted into the other 11
+  modules' own actions. A fuller cross-module task inbox / activity feed
+  is a natural follow-up, deliberately not built in this pass.
+- Curtain's header icon badge (and ~6 more spots across `index.html`'s
+  Curtain screens and `curtain.js`) still use the old purple accent as
+  decimal `rgba(124,58,237,...)` rather than hex `#7c3aed` — invisible to
+  every prior redesign chunk's hex-string grep. Found while fixing the
+  back-button bug, not yet fixed itself — a real, contained follow-up.
+- A Job bridged into `curtainJobs[]` (Curtain & Blinds division jobs only)
+  starts with empty `windowGroups`/`windows` — correct/expected (no window
+  data exists until Curtain's own screens populate it), but worth knowing
+  if a bridged job looks "thin" in Curtain's Windows/BOM tabs at first.
+- The bridge (`bridgeJobToOperationsAndCurtain()`) only fires from
+  `confirmQuotationToJobCard()` and `confirmVariationToJobCard()` — any
+  other future path that creates/mutates a Job Card's amount should call
+  it too, or `projects[]`/`curtainJobs[]` will drift out of sync with the
+  real `jobCards[]` figure.
+
 ---
 
 ## 6. Conflicts found between the old notes and the current repo
@@ -1639,3 +1661,145 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   Operations paths pass. Re-ran `e2e-batch6-reports.js` afterward too (no
   JS changed, `index.html` inline-style edits only, but re-verified
   nothing regressed) — 7/7, zero console errors.
+
+### 3 Aug 2026 (later same day) — Batch 7: role-boundary fixes, Job-as-parent bridge, Variation Orders, shared Tasks/Activity Log
+
+Planning-only session first (no code), then Salman said "complete both
+together" — see `project_amd_app_batch7_planning.md` (Claude's own memory
+file, not part of this repo) for the full planning conversation this
+session's build reuses. Two batches of work landed together:
+
+**Part A — 4 small, fully-decided role/UX fixes:**
+- **Accounts now owns Proforma, Sales Receipt, Sales Credit Note,
+  Customer Update, and Sales Bill Outstanding.** Moved out of `sales.js`
+  entirely (create/edit/delete UI, state, and the underlying render
+  functions) into `accounts.js` as 5 new tabs. Sales keeps a read-only
+  view — `renderRelatedRecords()` (still in `sales.js`, shared with
+  `jobs.js`, untouched) already did this job. Quotation Register Report
+  stayed in Sales — confirmed with Salman it's Sales' own domain, not
+  accounting. Proforma generation itself (previously a tile on the Job
+  Card hub calling `jobsGenerateProforma()`) moved to Accounts too — a
+  Job Card reachable from Sales' own Quotation Hub was a live loophole for
+  triggering financial-document creation, which is exactly what this fix
+  needed to close. Tax Invoice generation was left exactly where it was
+  (Job Card hub, `jobsGenerateInvoice()`) — it was never reachable from
+  Sales in the first place, so it wasn't the target of the ask, and it's a
+  verified-working critical path not worth touching without a reason.
+- **Sales pricing is now unconditionally locked, no opt-out.** The
+  `withEstimation` checkbox (defaulted unchecked, let Sales type a Rate
+  directly) is gone from the wizard UI; `convertEnquiryToQuotation()` in
+  data.js now hardcodes `withEstimation: true` regardless of what a caller
+  passes. **Why, in Salman's own words: sales staff have previously used
+  this exact editable-price path to defraud the company** — this is a
+  fraud-prevention rule, not a UX preference, and should never be
+  softened/reintroduced without Salman explicitly asking again (see the
+  `feedback_amd_pricing_lock` memory file).
+- **Print Quote is gated on Approver approval** (`lifecycleStatus !==
+  'draft'`) on all three places it appears — Sales' Quotation Hub,
+  Estimator's Quote Hub, Approver's Quote Hub. Previously showed
+  unconditionally (it's a stub either way — "not wired to a document
+  generator yet" — but the gate is the actual behavior asked for).
+- **Estimator's Action card is now a single KPI-styled dropdown**
+  ("Select…" / "‹ Back to Sales" / "Transfer to Approver →") replacing the
+  two side-by-side buttons.
+
+**Part B — bigger architecture, built together per Salman's "complete both
+together":**
+- **Job-as-parent bridge to `curtainJobs[]`/`projects[]` — bridge/link,
+  NOT a data-model merge** (Salman's explicit choice after being shown the
+  tradeoff: a full merge means rewriting `curtain.js`'s entire UI, its own
+  multi-session project, since it's the largest, most production-critical
+  file in the repo). Real finding that motivated this: both `curtainJobs[]`
+  (Curtain's Tracks/QC/Install/BOM tracker) and `projects[]` (Operations'
+  dashboard) were **pure hand-seeded fixture arrays with zero live
+  creation path** — confirmed by grep, no `.push()` into either anywhere
+  in the app before this. So `confirmQuotationToJobCard()` (and the new
+  variation-merge path below) now calls `bridgeJobToOperationsAndCurtain()`
+  (data.js), which auto-creates a minimal linked `projects[]` entry always,
+  and a linked `curtainJobs[]` entry when the job's traced Enquiry division
+  is "Curtain & Blinds" — cross-referenced by `linkedJobCardId`, seeded
+  with safe/neutral defaults (health:"ok", zero budgets, empty
+  `windowGroups`) rather than invented percentages nobody's actually
+  entered. **A real bug found by this bridge's own Playwright test, not by
+  code review:** `curtain.js`'s `ensureItemCards()` reads a flat
+  `job.windows[]` array that data.js normally hydrates ONCE at load time
+  (`curtainJobs.forEach(job => job.windows = flattenWindowGroups(job))`,
+  over the 2 original seed jobs only) — a job bridged in later at runtime
+  never got this hydration and crashed the first time Curtain's dashboard
+  tried to render it. Fixed by having the bridge call
+  `flattenWindowGroups()` itself when creating a new `curtainJobs[]` entry.
+  Curtain's and Operations' own screens were otherwise **not touched at
+  all** — confirmed via Playwright that both dashboards render the new
+  live job cleanly (Curtain's "Running Jobs"/"Awaiting BOM" tiles picked it
+  up automatically).
+- **Variation Orders**, reusing `quotations[].rev` rather than inventing a
+  new field — that field already existed (`"AMD-15350-0"`, comment: `"-0"
+  is revision 0`) but was never incremented anywhere before this, strong
+  evidence the real Q-Pro system already modeled quotation revisions and
+  this app just never built the "create a new revision" flow. Solves the
+  real problem Salman raised: a variation/change order on an existing job
+  used to need a whole fresh Enquiry→Quotation→Estimator→Approver cycle
+  with no link back to the original job. Now: `createVariationForJob()`
+  (data.js) makes a real `quotations[]` entry (`parentJobId` set,
+  `enquiryId` null) that flows through the **exact same** Estimator/
+  Approver stage machinery every other quotation uses — Salman was
+  explicit that variations should keep full pricing/approval rigor, no
+  shortcut. `confirmVariationToJobCard()` — the Approver-gated merge —
+  appends the variation's items onto the **existing** Job Card (new
+  lineIds continuing from the job's current max, each tagged
+  `variationId`) and adds to `job.amount`, instead of spawning a new
+  `jobCards[]` entry; also re-runs the Operations/Curtain bridge so those
+  linked entries' values stay in sync. UI: a "+ New Variation" tile on the
+  Job Card hub (`jobsNewVariation()`) creates the variation and drops
+  straight into Sales' existing wizard at step 2 (item entry) — step 1
+  (Enquiry-specific fields) is skipped entirely since the variation
+  already inherits the parent job's customer/project. Sales'/Estimator's/
+  Approver's Quote Hub headers show "Variation for Job X" instead of a
+  blank Linked-Enquiry line when `parentJobId` is set. The Job Card hub
+  gained a Variations list (click through to that variation's Sales hub)
+  and Items now tag which line came from which variation.
+- **Shared Tasks + Activity Log primitive**, prompted by asking Salman to
+  role-play Sales/Estimator/Approver/Purchaser/Accounts/Storekeeper/
+  Operations Manager and describe what each role is missing — every
+  single one of the 7 independently asked for the same two things (task
+  tracking, a communication/activity log). Built as ONE shared primitive
+  (`tasks[]`: assignee/dueDate/status/linkedType/linkedId;
+  `activityLog[]`: linked to any record type) rather than 8 bespoke
+  per-module implementations. **Deliberately not retrofitted into every
+  existing action across all 12 modules** — real scope beyond one
+  session — but it IS wired into the new Variation flow
+  (`job-created`/`variation-created`/`variation-merged` log entries) and
+  surfaced as real, working UI on the Job Card hub (add/complete a task,
+  read the activity feed). A fuller cross-module task inbox is flagged as
+  a natural, separate follow-up.
+- **Verification:** full battery — `node --check` on every modified file
+  individually and the full 12-file concatenation in load order; duplicate
+  top-level declaration scan across all 12 files (none found); onclick/
+  onchange/oninput cross-reference across the whole repo (all resolve);
+  closure-variable-in-inline-handler scan (none introduced). Four
+  Playwright suites, all committed and reusable:
+  `e2e-batch7-small-items.js` (8/8 — tab removal from Sales confirmed, no
+  withEstimation checkbox anywhere, Estimator dropdown confirmed, Print
+  Quote gating confirmed both states, Accounts' 5 new tabs confirmed, a
+  real Proforma generated from Accounts), `e2e-batch7-big-pieces.js`
+  (12/12 — bridge creates both linked entries, Curtain/Operations render
+  the bridged job with zero console errors, a full Variation lifecycle
+  through the REAL UI from "+ New Variation" through wizard → estimator →
+  approver → Sales' "Confirm Variation" button, confirmed merged into the
+  same Job Card not a new one, task create/complete, activity log
+  entries). Also re-ran `e2e-batch6-reports.js` and
+  `e2e-back-button-check.js` afterward for regression — `e2e-batch6-
+  reports.js` needed a small update (Sales Bill Outstanding assertions
+  moved to Accounts, matching this session's Part A move) — both suites
+  pass clean, zero console/page errors across all four scripts.
+- **Not done this session, flagged as genuinely open:** Tasks/Activity Log
+  is only wired into the Job Card hub and the Variation flow, not
+  retrofitted across the other 11 modules (a deliberate scope cut, not an
+  oversight); a real, separate redesign gap was found in passing — Curtain's
+  header icon badge and ~6 more spots use the old purple accent as decimal
+  `rgba(124,58,237,...)` rather than hex, which is why every prior
+  redesign chunk's hex-string grep missed them — still unfixed, flagged
+  for its own small sweep; a bridged Curtain job has empty `windowGroups`
+  until someone actually adds window data through Curtain's own screens
+  (expected — the bridge seeds a valid empty starting point, it doesn't
+  invent window data nobody's entered).

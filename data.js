@@ -2758,13 +2758,20 @@ function computeQuotationTotals(qtn) {
 }
 // Step 1 of the 3-step wizard. Refuses conversion from a prospect-only
 // Enquiry — see canConvertToQuotation() above.
-function convertEnquiryToQuotation(enquiryId, { projectName, taxPercent, contactPerson, withEstimation, notes = "" }) {
+//
+// withEstimation is ALWAYS true, unconditionally — Salman's direct
+// instruction (3 Aug 2026): sales staff have previously used an
+// editable-price path to defraud the company, so pricing must always
+// route through the Estimator's BOM, with no opt-out. Do not reintroduce
+// a caller-supplied withEstimation param here without Salman explicitly
+// asking for it again.
+function convertEnquiryToQuotation(enquiryId, { projectName, taxPercent, contactPerson, notes = "" }) {
   const enq = enquiries.find(e => e.id === enquiryId);
   if (!enq) return { error: "Enquiry not found." };
   if (!canConvertToQuotation(enq)) return { error: "Please Select Customer To Proceed!!!" };
   const qtn = {
     id: nextQtnNo(), rev: 0, enquiryId, customerId: enq.customerId,
-    projectName, taxPercent, contactPerson, withEstimation: !!withEstimation, notes,
+    projectName, taxPercent, contactPerson, withEstimation: true, notes,
     items: [], coveringLetterTemplate: null, coveringLetterBody: "", termsTemplate: null, termsBody: "",
     lifecycleStatus: "draft", stage: "sales",
     estimatorPickedBy: null, approverPickedBy: null,
@@ -3346,6 +3353,64 @@ function getJobCard(jobId) { return jobCards.find(j => j.id === jobId); }
 // "Confirm Quote" — the action that actually creates the Job Card. Only
 // available once Approver has moved a quotation to "Open" (see
 // approveQuotation() in the APPROVER section above).
+// ── JOB-AS-PARENT BRIDGE to curtainJobs[]/projects[] ──
+// Bridge/link approach, not a data-model merge — Salman's explicit call,
+// 3 Aug 2026 (curtain.js is the largest, most production-critical file in
+// the repo; a full merge would mean rewriting its entire UI, its own
+// multi-session project). jobCards[] stays the single source of truth for
+// creation. curtainJobs[] (Curtain's Tracks/QC/Install/BOM tracker) and
+// projects[] (Operations' dashboard) were BOTH pure hand-seeded fixture
+// arrays before this — confirmed by grep, zero `.push()` into either
+// anywhere in the app — so every real Job Card confirmed from now on also
+// gets a minimal linked entry, cross-referenced by job.id via
+// linkedJobCardId, so Curtain's and Operations' EXISTING screens
+// (unmodified) start rendering real live jobs instead of only the 2
+// frozen fixture jobs (AMD-15002/AMD-13898). Fields are seeded with safe,
+// empty/neutral defaults rather than invented percentages or costs no one
+// has actually entered — those get filled in by whoever actually works
+// the job, same as a fresh Q-Pro entry would start empty too.
+function bridgeJobToOperationsAndCurtain(job) {
+  const customer = customers.find(c => c.id === job.customerId);
+  const clientName = customer ? customer.name : "—";
+  const qtn = quotations.find(q => q.id === job.quotationId);
+  const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
+  const division = enq ? enq.division : null;
+
+  let proj = projects.find(p => p.id === job.id);
+  if (!proj) {
+    proj = {
+      id: job.id, name: job.projectName, client: clientName, val: job.amount, health: "ok",
+      depts: [], budget: { sell: job.amount, cost: 0, mat: 0, lab: 0, sub: 0, hir: 0, oth: 0 },
+      actuals: { mat: 0, lab: 0, sub: 0, hir: 0, oth: 0 }, alerts: [], linkedJobCardId: job.id
+    };
+    projects.push(proj);
+  } else {
+    proj.val = job.amount;
+    proj.budget.sell = job.amount;
+  }
+
+  if (division === "Curtain & Blinds") {
+    let cj = curtainJobs.find(j => j.id === job.id);
+    if (!cj) {
+      cj = {
+        id: job.id, name: job.projectName, client: clientName, val: job.amount, deptVal: job.amount,
+        status: "bom_pending", bomStatus: "bom_pending", budgetStatus: "pending", bomRejectionComment: null,
+        wastageBuffer: 10, windowGroups: [], linkedJobCardId: job.id
+      };
+      // curtain.js reads a flat job.windows[] (produced by flattenWindowGroups()
+      // above) rather than windowGroups directly — the initial seed jobs get
+      // this hydrated once at data.js load time (see the .forEach right below
+      // flattenWindowGroups's definition); a job bridged in later at runtime
+      // needs the same hydration or every Curtain screen that reads
+      // job.windows crashes (found via this exact bridge's own Playwright test).
+      cj.windows = flattenWindowGroups(cj);
+      curtainJobs.push(cj);
+    } else {
+      cj.val = job.amount;
+    }
+  }
+}
+
 function confirmQuotationToJobCard(qtnId, confirmedBy) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
@@ -3363,13 +3428,100 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
     })),
     poNo: null, poDate: null, vendor: null,
     deliveryNotes: [], materialsIssues: [], materialsReturns: [], labourCostEntries: [],
-    linkedInvoiceIds: []
+    linkedInvoiceIds: [], variationIds: []
   };
   jobCards.push(job);
   qtn.lifecycleStatus = "confirmed";
   qtn.confirmDate = job.confirmDate;
   logQuotationAudit(qtn, { action: "Transfer", user: confirmedBy, userType: "SALES", status: "Confirmed" });
+  bridgeJobToOperationsAndCurtain(job);
+  logActivity({ type: "job-created", linkedType: "job", linkedId: job.id, user: confirmedBy, message: `Job Card ${job.id} created from Quotation ${qtn.id}` });
   return job;
+}
+
+// ═══════════════════════════════════════
+// VARIATION ORDERS (Batch 7, 3 Aug 2026)
+// Real problem Salman raised: a variation/change order on an existing job
+// (e.g. a 50K joinery job gets an addition or a sales return) used to need
+// a whole new Enquiry -> Quotation -> Estimator -> Approver cycle with no
+// link back to the original job — budgeting/consumption/labour couldn't
+// roll up across variations. Direction agreed: keep full Estimator ->
+// Approver discipline (no shortcut — Salman explicitly wants that rigor
+// kept), but a Variation attaches directly to the existing Job's
+// customer/project instead of starting from a bare Enquiry, and on
+// approval it MERGES into the existing Job Card rather than spawning a
+// new one.
+//
+// Reuses quotations[].rev rather than inventing a new field — that field
+// already existed (format "AMD-15350-0", "-0" is revision 0) but was
+// never incremented anywhere before this, a strong sign the real Q-Pro
+// system already modeled quotation revisions and this app just never
+// built the "create a new revision" flow.
+//
+// A Variation is a real quotations[] entry (parentJobId set, enquiryId
+// null) so it automatically flows through the EXACT SAME Estimator/
+// Approver stage machinery every other quotation uses — no parallel
+// pipeline to maintain.
+// ═══════════════════════════════════════
+
+function nextVariationRev(jobId) { return quotations.filter(q => q.parentJobId === jobId).length + 1; }
+
+function createVariationForJob(jobId, { notes = "" } = {}) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const origQtn = quotations.find(q => q.id === job.quotationId);
+  const rev = nextVariationRev(jobId);
+  const baseId = job.quotationId.replace(/-\d+$/, "");
+  const qtn = {
+    id: baseId + "-" + rev, rev, enquiryId: null, parentJobId: jobId,
+    customerId: job.customerId, projectName: job.projectName,
+    taxPercent: origQtn ? origQtn.taxPercent : 10, contactPerson: "",
+    withEstimation: true, notes,
+    items: [], coveringLetterTemplate: null, coveringLetterBody: "", termsTemplate: null, termsBody: "",
+    lifecycleStatus: "draft", stage: "sales",
+    estimatorPickedBy: null, approverPickedBy: null,
+    headerComment: "", auditLog: [],
+    date: new Date().toISOString().slice(0, 10), confirmDate: null
+  };
+  quotations.push(qtn);
+  logActivity({ type: "variation-created", linkedType: "job", linkedId: jobId, user: "Sales", message: `Variation ${qtn.id} created` });
+  return qtn;
+}
+
+// Approval gate mirrors confirmQuotationToJobCard() exactly — refuses
+// until Approver has flipped lifecycleStatus to "open". Merges items into
+// the EXISTING Job Card (new lineIds continuing on from the job's current
+// max, so departmentStatuses/deliveredQty tracking stays per-line-correct)
+// instead of creating a new jobCards[] entry.
+function confirmVariationToJobCard(qtnId, confirmedBy) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  if (!qtn.parentJobId) return { error: "Not a Variation." };
+  if (qtn.lifecycleStatus !== "open") return { error: "Variation must be Open (Approver-approved) before it can be confirmed." };
+  const job = getJobCard(qtn.parentJobId);
+  if (!job) return { error: "Parent Job Card not found." };
+  const totals = computeQuotationTotals(qtn);
+  let nextLineId = job.items.reduce((m, it) => Math.max(m, it.lineId), 0);
+  qtn.items.forEach(it => {
+    nextLineId++;
+    job.items.push({
+      lineId: nextLineId, product: it.product, qty: it.qty, unit: it.unit, rate: it.rate,
+      discPercent: it.discPercent, amount: it.amount, vatPercent: it.vatPercent, netAmount: it.netAmount,
+      deliveredQty: 0, departmentStatuses: [], variationId: qtn.id
+    });
+  });
+  job.amount = Math.round((job.amount + totals.netTotal) * 1000) / 1000;
+  if (!job.variationIds) job.variationIds = [];
+  job.variationIds.push(qtn.id);
+  qtn.lifecycleStatus = "confirmed";
+  qtn.confirmDate = new Date().toISOString().slice(0, 10);
+  bridgeJobToOperationsAndCurtain(job);
+  logActivity({ type: "variation-merged", linkedType: "job", linkedId: job.id, user: confirmedBy, message: `Variation ${qtn.id} approved and merged — +BD ${totals.netTotal.toFixed(3)}` });
+  return job;
+}
+
+function getVariationsForJob(jobId) {
+  return quotations.filter(q => q.parentJobId === jobId).sort((a, b) => a.rev - b.rev);
 }
 
 // "Update BOM" on Edit Job — re-syncs Qty/Rate/Amount from the linked
@@ -4420,4 +4572,65 @@ function getProjectWiseInvoiceReceipt(jobId) {
     if (amt > 0.0005) rows.push({ docNo: cn.id, date: cn.creditNoteDate, debit: 0, credit: amt });
   });
   return rows.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ═══════════════════════════════════════
+// BATCH 7 — SHARED TASKS + ACTIVITY LOG PRIMITIVE
+// Built 3 Aug 2026. Prompted by asking Salman to role-play Sales/Estimator/
+// Approver/Purchaser/Accounts/Storekeeper/Operations Manager and describe
+// what each role is missing — every single one independently asked for
+// the same two things: task tracking and a communication/activity log.
+// Rather than building 8 bespoke per-module implementations, this is ONE
+// shared primitive any record (Enquiry/Quotation/Job/PO/Invoice/etc.) can
+// attach to via linkedType/linkedId. Deliberately NOT retrofitted into
+// every existing action across all 12 modules in this pass — that's real
+// scope beyond what's buildable in one session. It IS wired into the new
+// Variation Order flow below (a Job accumulating variations needs a
+// timeline — that timeline IS this activity log) and surfaced on the Job
+// Card hub (jobs.js). A fuller cross-module task inbox is a natural
+// follow-up, not built here.
+// ═══════════════════════════════════════
+
+const tasks = [];
+function nextTaskId() { return "TSK-" + String(tasks.length + 1).padStart(5, "0"); }
+function createTask({ title, assignee, dueDate = null, linkedType = null, linkedId = null, notes = "" } = {}) {
+  if (!title || !title.trim()) return { error: "Task title is required." };
+  if (!assignee) return { error: "Assignee is required." };
+  const task = {
+    id: nextTaskId(), title: title.trim(), assignee, dueDate, notes,
+    linkedType, linkedId, // e.g. linkedType:"job", linkedId:"JB26AMD01000"
+    status: "open", // open | done
+    createdDate: new Date().toISOString().slice(0, 10), completedDate: null
+  };
+  tasks.push(task);
+  return task;
+}
+function completeTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return { error: "Task not found." };
+  t.status = "done";
+  t.completedDate = new Date().toISOString().slice(0, 10);
+  return t;
+}
+function getTasksFor(linkedType, linkedId) {
+  return tasks.filter(t => t.linkedType === linkedType && t.linkedId === linkedId).sort((a, b) => b.createdDate.localeCompare(a.createdDate));
+}
+function getOpenTasksForAssignee(assignee) {
+  return tasks.filter(t => t.assignee === assignee && t.status === "open").sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+}
+
+const activityLog = [];
+function logActivity({ type, linkedType = null, linkedId = null, user, message }) {
+  const entry = {
+    id: activityLog.length + 1, date: new Date().toISOString().slice(0, 10), time: new Date().toISOString(),
+    type, linkedType, linkedId, user, message
+  };
+  activityLog.push(entry);
+  return entry;
+}
+function getActivityFor(linkedType, linkedId) {
+  return activityLog.filter(a => a.linkedType === linkedType && a.linkedId === linkedId).sort((a, b) => b.time.localeCompare(a.time));
+}
+function getRecentActivity(limit = 20) {
+  return activityLog.slice().sort((a, b) => b.time.localeCompare(a.time)).slice(0, limit);
 }

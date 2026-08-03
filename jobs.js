@@ -284,10 +284,10 @@ function renderJobHub() {
     <div class="sales-tile-row">
       <div class="sales-tile t-blue" onclick="jobsAlert('Print Job — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Job</div>
       <div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>
-      <div class="sales-tile t-cyan" onclick="jobsGenerateProforma('${job.id}')"><span class="sales-tile-icon">📄</span>Proforma</div>
       <div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>
       <div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>
       <div class="sales-tile t-magenta" onclick="openMaterialsMove('${job.id}','return')"><span class="sales-tile-icon">↩</span>Material Return</div>
+      <div class="sales-tile t-cyan" onclick="jobsNewVariation('${job.id}')"><span class="sales-tile-icon">➕</span>New Variation</div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Job Actions</p>
@@ -334,10 +334,12 @@ function renderJobHub() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Items (${job.items.length})</p>
-      <table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Delivered</th><th>Rate</th><th>Net</th></tr>
-      ${job.items.map(it => `<tr><td>${jEsc(it.product)}</td><td>${it.qty} ${jEsc(it.unit)}</td><td>${it.deliveredQty}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td></tr>`).join('')}
+      <table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Delivered</th><th>Rate</th><th>Net</th><th></th></tr>
+      ${job.items.map(it => `<tr><td>${jEsc(it.product)}</td><td>${it.qty} ${jEsc(it.unit)}</td><td>${it.deliveredQty}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td><td>${it.variationId ? `<span class="sales-pill open" style="font-size:9.5px;">${jEsc(it.variationId)}</span>` : ''}</td></tr>`).join('')}
       </table>
-    </div>`;
+    </div>
+    ${renderJobVariations(job)}
+    ${renderJobTasksAndActivity(job)}`;
 }
 
 function jobsSetStatus(jobId, status) {
@@ -704,13 +706,10 @@ function prJobSubmit() {
 // TAX INVOICE — generated from a Job Card, print/PDF-style view
 // ══════════════════════════════════════════
 
-function jobsGenerateProforma(jobId) {
-  const p = createProformaFromJob(jobId);
-  if (p.error) { jobsAlert(p.error); return; }
-  jobsAlert(`✓ Proforma ${p.id} generated.`);
-  renderJobsBody();
-}
-
+// Proforma generation moved to Accounts (accountsGenerateProforma() in
+// accounts.js) — Salman's call, 3 Aug 2026: Sales/Jobs shouldn't be able
+// to trigger creation of a financial document, only view it read-only via
+// renderRelatedRecords() above.
 function jobsGenerateInvoice(jobId) {
   const lpoNo = window.prompt("Customer's LPO No (optional — leave blank if none):", '') || null;
   const inv = generateInvoiceFromJob(jobId, { lpoNo });
@@ -881,4 +880,79 @@ function renderProjectWiseInvoiceReceiptView() {
     ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${jEsc(r.docNo)}</td><td>${r.date}</td><td>${r.debit ? r.debit.toFixed(3) : ''}</td><td>${r.credit ? r.credit.toFixed(3) : ''}</td></tr>`).join('')}
     </table>
   </div>`;
+}
+
+// ══════════════════════════════════════════
+// BATCH 7 — VARIATION ORDERS + TASKS/ACTIVITY LOG (Job Card hub surface)
+// Data/computation lives in data.js (createVariationForJob/
+// confirmVariationToJobCard/getVariationsForJob, createTask/completeTask/
+// getTasksFor, logActivity/getActivityFor). This is UI only.
+// ══════════════════════════════════════════
+
+function jobsNewVariation(jobId) {
+  const result = createVariationForJob(jobId);
+  if (result.error) { jobsAlert(result.error); return; }
+  jobsAlert(`✓ Variation ${result.id} created — continue in Sales to add items.`);
+  closeJobsModule();
+  setTimeout(() => { openSalesModule(); openQuotationWizard(result.id, 2); }, 150);
+}
+
+function renderJobVariations(job) {
+  const variations = getVariationsForJob(job.id);
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Variations (${variations.length})</p>
+      ${variations.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No variations yet — use "New Variation" above for additions/changes/returns on this job without starting a new Enquiry.</p>` :
+        `<table class="sales-items"><tr><th>Variation</th><th>Date</th><th>Status</th><th>Stage</th></tr>
+        ${variations.map(v => `<tr style="cursor:pointer;" onclick="closeJobsModule();setTimeout(()=>{openSalesModule();openQuotationHub('${v.id}');},150);"><td>${jEsc(v.id)}</td><td>${v.date}</td><td><span class="sales-pill ${v.lifecycleStatus}">${v.lifecycleStatus}</span></td><td>${v.lifecycleStatus === 'confirmed' ? 'Merged' : v.stage}</td></tr>`).join('')}
+        </table>`}
+    </div>`;
+}
+
+let jobsNewTaskDraft = null;
+function jobsOpenNewTask(jobId) { jobsNewTaskDraft = { jobId, title: '', assignee: STAFF[0], dueDate: '' }; renderJobsBody(); }
+function jobsCancelNewTask() { jobsNewTaskDraft = null; renderJobsBody(); }
+function jobsSaveNewTask() {
+  const title = document.getElementById('jt-title').value;
+  const assignee = document.getElementById('jt-assignee').value;
+  const dueDate = document.getElementById('jt-due').value || null;
+  const result = createTask({ title, assignee, dueDate, linkedType: 'job', linkedId: jobsNewTaskDraft.jobId });
+  if (result.error) { jobsAlert(result.error); return; }
+  jobsAlert(`✓ Task created.`);
+  jobsNewTaskDraft = null;
+  renderJobsBody();
+}
+function jobsCompleteTask(id) { completeTask(id); renderJobsBody(); }
+
+function renderJobTasksAndActivity(job) {
+  const jobTasks = getTasksFor('job', job.id);
+  const openTasks = jobTasks.filter(t => t.status === 'open');
+  const doneTasks = jobTasks.filter(t => t.status === 'done');
+  const activity = getActivityFor('job', job.id);
+  const showForm = jobsNewTaskDraft && jobsNewTaskDraft.jobId === job.id;
+
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Tasks (${openTasks.length} open)</p>
+      ${openTasks.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No open tasks on this job.</p>` :
+        `<table class="sales-items"><tr><th>Task</th><th>Assignee</th><th>Due</th><th></th></tr>
+        ${openTasks.map(t => `<tr><td>${jEsc(t.title)}</td><td>${jEsc(t.assignee)}</td><td>${t.dueDate || '—'}</td><td><span style="cursor:pointer;color:#0f9d58;font-size:11px;" onclick="jobsCompleteTask('${t.id}')">✓ Done</span></td></tr>`).join('')}
+        </table>`}
+      ${doneTasks.length > 0 ? `<p style="font-size:10.5px;color:#94a3b8;margin-top:6px;">${doneTasks.length} completed task(s) not shown.</p>` : ''}
+      ${showForm ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--biz-border-light);">
+          <div class="sales-field"><label>Title</label><input type="text" id="jt-title"></div>
+          <div class="sales-field"><label>Assignee</label><select id="jt-assignee">${STAFF.map(s => `<option value="${s}">${s}</option>`).join('')}</select></div>
+          <div class="sales-field"><label>Due Date</label><input type="date" id="jt-due"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="primary" style="flex:1;" onclick="jobsSaveNewTask()">Save Task</button>
+            <button class="secondary" style="flex:1;" onclick="jobsCancelNewTask()">Cancel</button>
+          </div>
+        </div>` : `<button class="secondary" style="width:100%;margin-top:8px;" onclick="jobsOpenNewTask('${job.id}')">+ Add Task</button>`}
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Activity</p>
+      ${activity.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No activity logged yet.</p>` :
+        activity.map(a => `<p style="font-size:11.5px;color:#334155;margin:4px 0;">${a.date} · <b>${jEsc(a.user)}</b> — ${jEsc(a.message)}</p>`).join('')}
+    </div>`;
 }

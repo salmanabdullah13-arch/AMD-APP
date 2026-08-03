@@ -291,11 +291,11 @@ function renderApproverQuoteHub() {
       <p style="font-weight:700;font-size:15px;">${q.id} <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span> <span class="sales-pill stage-${q.stage}">${q.stage.toUpperCase()}</span></p>
       <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${aEsc(c ? c.name : '—')} · Project: ${aEsc(q.projectName)}</p>
       <p style="font-size:12px;color:#64748b;">Qtn Date: ${q.date} · Confirm Date: ${q.confirmDate || '—'} · Amount: BD ${totals.netTotal.toFixed(3)}</p>
-      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${aEsc(q.enquiryId)} · Salesman: ${aEsc(enq ? enq.salesPerson : '—')} · Picked by: ${aEsc(q.approverPickedBy) || '—'}</p>
+      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${q.parentJobId ? `Variation for Job <b>${aEsc(q.parentJobId)}</b>` : `Linked Enquiry: ${aEsc(q.enquiryId)} · Salesman: ${aEsc(enq ? enq.salesPerson : '—')}`} · Picked by: ${aEsc(q.approverPickedBy) || '—'}</p>
     </div>
     <div class="sales-tile-row">
       <div class="sales-tile" onclick="openApproverReview('${q.id}')"><span class="sales-tile-icon">🔍</span>Review Quote</div>
-      <div class="sales-tile" onclick="approverAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>
+      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile" onclick="approverAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>

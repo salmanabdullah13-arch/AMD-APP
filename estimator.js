@@ -247,21 +247,22 @@ function renderEstimatorQuoteHub() {
       <p style="font-weight:700;font-size:15px;">${q.id} <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span> <span class="sales-pill stage-${q.stage}">${q.stage.toUpperCase()}</span></p>
       <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${eEsc(c ? c.name : '—')} · Project: ${eEsc(q.projectName)}</p>
       <p style="font-size:12px;color:#64748b;">Qtn Date: ${q.date} · Confirm Date: ${q.confirmDate || '—'} · Amount: BD ${totals.netTotal.toFixed(3)}</p>
-      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Enquiry: ${eEsc(q.enquiryId)} · Salesman: ${eEsc(enq ? enq.salesPerson : '—')} · Picked by: ${eEsc(q.estimatorPickedBy) || '—'}</p>
+      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${q.parentJobId ? `Variation for Job <b>${eEsc(q.parentJobId)}</b>` : `Linked Enquiry: ${eEsc(q.enquiryId)} · Salesman: ${eEsc(enq ? enq.salesPerson : '—')}`} · Picked by: ${eEsc(q.estimatorPickedBy) || '—'}</p>
     </div>
     ${q.headerComment ? `<div class="sales-preview"><p style="font-weight:700;color:#1a1f2e;margin-bottom:4px;">Approver Comments</p><p>${eEsc(q.headerComment)}</p></div>` : ''}
     <div class="sales-tile-row">
-      <div class="sales-tile" onclick="estimatorAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>
+      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile" onclick="estimatorAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
       <div class="sales-tile" onclick="estimatorAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
       <div class="sales-tile" onclick="openEstimationIndex('${q.id}')"><span class="sales-tile-icon">📐</span>ESTIMATION</div>
       <div class="sales-tile" onclick="estimatorAlert('Short List for Estimation — consolidated print view not implemented yet; use the Estimation index below.')"><span class="sales-tile-icon">📋</span>Short List</div>
     </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="secondary" style="flex:1;" onclick="estimatorTransferStage('${q.id}','sales')">Back to Sales</button>
-        <button class="primary" style="flex:1;" onclick="estimatorTransferStage('${q.id}','approver')">Transfer to Approver</button>
-      </div>
+    <div class="sales-kpi-tile" style="text-align:left;margin-bottom:10px;">
+      <div class="lbl" style="margin-bottom:6px;">Action</div>
+      <select onchange="if(this.value){estimatorTransferStage('${q.id}',this.value);this.value='';}" style="width:100%;padding:9px 10px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;font-weight:600;font-family:inherit;color:var(--biz-text);background:var(--biz-card-bg);">
+        <option value="">Select…</option>
+        <option value="sales">‹ Back to Sales</option>
+        <option value="approver">Transfer to Approver →</option>
+      </select>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Items (${q.items.length})</p>
