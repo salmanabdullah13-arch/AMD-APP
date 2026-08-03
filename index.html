@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AMD Dev">
 <meta name="theme-color" content="#0a0a0f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Al Maraya — Developer</title>
 <!-- IBM Plex Sans (Google Fonts) dropped 3 Aug 2026 — --font-biz now uses
      the system font stack, matching the rest of the app. One less CDN
@@ -1684,6 +1686,18 @@ if (app) {
   }
   animate();
   window.__eco3d = { scene, camera, renderer, hub, branches, NODES };
+}
+</script>
+<script>
+// Registers on window.load so it never competes with the initial render.
+// Registration failures (e.g. running from a file:// URL during local
+// testing, where service workers aren't allowed at all) are silently
+// ignored — this is a progressive enhancement, not something the app
+// depends on to function.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
 }
 </script>
 </body>

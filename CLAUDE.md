@@ -546,8 +546,7 @@ then, this section is the only persistent record of what they said.
 ## 5. Known issues / pending work
 
 **Carried forward from the old notes, status resolved:**
-- ~~sw.js / PWA offline support~~ — still **not built**, `sw.js` does not
-  exist. Still open.
+- ~~sw.js / PWA offline support~~ — **done**, 4 Aug 2026, see Session Log.
 - ~~Real Reminders log~~ — **done**. `reminders[]` is real, seeded data in
   data.js; a duplicate `renderReminders()` stub that used to silently
   overwrite it in operations.js was found and removed (the Reminders tab
@@ -2539,3 +2538,55 @@ that it was explicitly requested.
   (153/153) plus this session's 8+15+12 — 188/188 total, back-button-check
   clean across all 13 modules (now including `owner`), zero console/page
   errors.
+
+### 4 Aug 2026 (late night) — PWA offline support (sw.js), then a full audit pass
+
+Salman asked me to keep building overnight; explained honestly that I
+can't detect "credits refilled" to resume unsupervised, and that the
+remaining backlog either needs his own product decisions or a human on a
+real device — not something to invent scope on for live business
+software. Built the one item that was genuinely safe to do without him
+(bounded, no product ambiguity), then moved to a full audit pass per his
+follow-up ask, with findings written up for him to review.
+
+- **PWA offline support, done.** New `manifest.json`, `sw.js`, three
+  generated PNG icons (`icon-192.png`, `icon-512.png`,
+  `apple-touch-icon.png` — simple wine-on-white "AD" mark, rendered via a
+  throwaway Playwright screenshot, no new image-generation dependency).
+  `index.html` gained the manifest link, apple-touch-icon link, and a
+  `window.load`-gated service-worker registration (silently no-ops if
+  registration fails, e.g. testing from a `file://` URL, where service
+  workers aren't allowed at all — this is progressive enhancement, the
+  app doesn't depend on it).
+  **What "offline" means here, precisely**: this app has no backend and
+  persists no data across reloads regardless of network state — every
+  quotation/job/customer lives in in-memory JS arrays reseeded on every
+  full page load. Offline support means exactly one thing: the app SHELL
+  (this static HTML/CSS/JS) still loads and every module still opens with
+  no network connection. It does NOT mean data survives a reload, online
+  or offline — that's a separate, pre-existing characteristic of the
+  app's architecture, out of scope here.
+  **Strategy: network-first, falling back to cache** — deliberately NOT
+  cache-first, since this codebase changes every session (multiple
+  commits some days) and a cache-first worker would silently serve stale
+  JS to a user with a perfectly good connection. The cache is purely the
+  offline fallback; every successful online fetch refreshes it. Cache
+  name is versioned (`amd-app-v1`) with old-cache cleanup on `activate`,
+  so a future version bump won't leave anyone stuck on stale-forever
+  cached code.
+  **Verification required a real HTTP origin** — service workers can't
+  register on `file://` at all, so `e2e-pwa-offline.js` (new) spins up a
+  plain Node `http` static server (no new dependency) rather than the
+  `file://` pattern every other e2e script uses. 9/9: PIN unlock over
+  real HTTP, service worker reaches `active`, the versioned cache
+  populates with all 18 real module JS files, the page (PIN lock *and*
+  the full unlocked app) still loads with the network fully cut via
+  Playwright's `context.setOffline(true)`, a real module (Sales) opens
+  correctly while offline, and going back online + reloading works
+  normally rather than getting stuck on the cached version. Emergent
+  bonus: the fetch handler caches every successful GET, not just the
+  pre-warmed list, so the CDN-loaded Three.js module (the ecosystem hub's
+  3D graph) ends up cached too after first load, without being named
+  anywhere in `sw.js`. Full regression: all 16 prior suites re-confirmed
+  (188/188) plus this session's 9/9 — 197/197 total, back-button-check
+  clean across all 13 modules, zero console/page errors.
