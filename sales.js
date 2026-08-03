@@ -642,7 +642,7 @@ function renderQuotationHub() {
     </div>
     <div class="sales-tile-row">
       ${q.stage === 'sales' ? `<div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>` : ''}
-      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile t-purple" onclick="salesAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
+      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile t-purple" onclick="openPrintDialog('${q.id}',false)"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
       <div class="sales-tile t-teal" onclick="salesAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
       <div class="sales-tile t-magenta" onclick="salesAlert('Discount — apply from the Product & Services step.')"><span class="sales-tile-icon">%</span>Discount</div>
     </div>

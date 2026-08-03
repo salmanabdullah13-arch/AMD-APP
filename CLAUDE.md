@@ -643,16 +643,27 @@ Orders/Tasks-Activity-Log session):**
   other future path that creates/mutates a Job Card's amount should call
   it too, or `projects[]`/`curtainJobs[]` will drift out of sync with the
   real `jobCards[]` figure.
-- `e2e-lifecycle.js` is **stale and currently broken** — confirmed 3 Aug
-  2026 (not a regression from anything built that day). It waits on
-  `#node-sales`, a selector from before the ecosystem hub's Three.js
-  rewrite (real hub taps now go through `window.__eco3d.branches` +
-  `.userData.node.launch()`, see every other e2e script), and later steps
-  also expect Sales Receipt/Credit Note tabs inside the Sales/Jobs modules
-  that Batch 7 moved into Accounts. Needs a rewrite (or retirement in
-  favor of the newer suites that already cover the same lifecycle in
-  smaller pieces) rather than being trusted as part of the regression
-  set — don't count its failures against new work until that's done.
+- ~~`e2e-lifecycle.js` is stale and currently broken~~ — **retired 4 Aug
+  2026**. It waited on `#node-sales`, a selector from before the ecosystem
+  hub's Three.js rewrite, and later steps expected Sales Receipt/Credit
+  Note tabs inside Sales/Jobs that Batch 7 moved into Accounts. Deleted
+  rather than rewritten — the same lifecycle is already covered across the
+  newer, smaller suites (`e2e-batch7-*`, `e2e-batch9-*`, etc.), so a
+  rewrite would have been pure duplication.
+- **Voucher Ledger Mapping investigated further (4 Aug 2026) — turns out
+  wiring it in is a bigger job than the deferred note implied, not a
+  simple swap.** Checked `createGeneralReceipt()`/`createGeneralPayment()`
+  (data.js) and Batch 1's `createPayment()` (Supplier Payment) — none of
+  them actually post a real GL entry against a resolved ledger for the
+  payment-method side at all; they just store a `methods`/`ledgerSplits`
+  breakdown as a descriptive record. `resolveVoucherLedger()` has nothing
+  to plug into on these forms without first designing real GL posting for
+  them, which doesn't exist today. Confirmed (again) that Trial Balance/
+  Ledger Report/P&L don't need any of this — they read straight from the
+  transactional documents. Left as-is rather than forcing in a change
+  that would touch several working flows for no visible effect — flag
+  this note if Salman ever wants real payment-method GL posting built,
+  since that's the actual task, not "wiring an existing conduit in."
 
 ---
 
@@ -2381,3 +2392,77 @@ same record, no coupling between them.
   hop lands with the right job pre-filled. Full regression: all 11 prior
   suites re-confirmed (125/125) plus this session's 13/13 — 138/138 total,
   back-button-check clean across all 12 modules, zero console/page errors.
+
+### 4 Aug 2026 — Print/Preview module, Curtain color fix, Voucher Ledger investigation, e2e-lifecycle.js retired
+
+Worked through the open backlog from §5 Known Issues and the paused
+Print module design (Sales asked "what's next", then "do all that you
+know"). One item (jobCards[]/curtainJobs[]/projects[] unification) was
+deliberately left alone — still a real architectural decision, not
+something to just decide unilaterally.
+
+- **Built the Print/Preview module** (new `print.js`, loads right after
+  data.js). One shared dialog + one document builder, not four separate
+  "print types" — replaces the stubbed "Print Quote — not wired to a
+  document generator yet." tiles in `sales.js`/`estimator.js`/`approver.js`
+  (Jobs' own "Print Job" and the Tax Invoice print screen are a different,
+  not-yet-designed scope — left as-is). `openPrintDialog(qtnId,
+  allowInternalCost)` — Sales/Estimator always pass `false` (Client
+  Quotation only); Approver passes `true` (adds an Audience select:
+  Client Quotation / Internal Cost Review, matching the earlier
+  AskUserQuestion — Approver + Accounts only see cost/profit).
+  `buildQuotationPrintHTML(qtn, settings)` builds a full static HTML
+  document string, reusing `computeQuoteHierarchy()` for the same Group/
+  Sub Group headers and serials Sales/Estimator already see live, and
+  `computeBOMTotals()` for the Internal Cost Review's Cost/Profit/Profit%
+  columns. Opens via `Blob` + `URL.createObjectURL` + `window.open` in a
+  new tab — no server, no PDF library; the user's own browser Print ->
+  Save as PDF handles the PDF case, matching this app's zero-dependency,
+  static-hosting architecture. Every cell in the output is plain text —
+  no inputs, no delete icons, no live comment box — the deliberate
+  opposite of the legacy Q-Pro "Approver Print" screen this replaces
+  (see the 3 Aug 2026 entry above). Company letterhead details (TRN/CR/
+  address/bank/IBAN) are hardcoded static text — nothing in the data
+  model captures them yet, and they don't belong on a per-quote record.
+- **Fixed a real, visible color bug in Curtain**, not just a cosmetic
+  nit: the `--purple` CSS variable was intentionally repointed to wine
+  (`#600131`) during the Aug redesign so old `var(--purple)` references
+  would automatically pick up the new brand color — but 10 spots (3 in
+  `curtain.js`, 7 in `index.html`) hardcoded the raw old-purple RGB triple
+  `rgba(124,58,237,...)` directly instead of using the variable, so they
+  never got swept along. This produced genuinely mismatched two-toned UI
+  within the same component (e.g. the window-progress stepper's "current"
+  step showed wine via `var(--purple)` while its "completed" siblings
+  still showed old purple via the hardcoded value). Replaced all 10 with
+  wine's equivalent RGB (`rgba(96,1,49,...)`, preserving each spot's own
+  alpha value). Visually confirmed via a throwaway screenshot check
+  (not committed) — Curtain now renders a single consistent wine accent
+  throughout.
+- **Investigated wiring Voucher Ledger Mapping into Receipt/Payment/
+  Credit/Debit Note — turned out to be a bigger task than the deferred
+  note implied, left as-is.** See the updated §5 Known Issues entry:
+  none of `createGeneralReceipt()`/`createGeneralPayment()`/Batch 1's
+  `createPayment()` (Supplier Payment) actually post a real GL entry
+  against a resolved ledger for the payment-method side — they just store
+  a descriptive `methods`/`ledgerSplits` breakdown. `resolveVoucherLedger()`
+  has nothing to plug into without first designing real GL posting for
+  these forms, which is a genuine new feature, not a wire-up. Confirmed
+  again that Trial Balance/Ledger Report/P&L don't need this. Chose not to
+  force a change that would touch several working flows for no visible
+  effect.
+- **Retired `e2e-lifecycle.js`** (deleted) rather than rewriting it — it
+  was confirmed stale/broken (pre-Three.js-hub selector, pre-Batch-7
+  Sales/Accounts layout), and the same lifecycle is already covered across
+  the newer, smaller suites. A rewrite would have been pure duplication.
+- **Verification:** new suite `e2e-print-preview.js` (15/15) — Sales'
+  dialog correctly omits the Audience option (Client-only), Approver's
+  offers it, the generated Client doc has the right heading/Group-Sub
+  Group serials/Terms/signatures and no Cost columns, the Internal doc
+  has the right heading/Cost-Profit columns with the real BOM-derived
+  figure and no client signature blocks, neither document has a single
+  editable field or delete action anywhere in it, and the Without VAT/
+  Without Sub Total toggles produce the right output. Full regression:
+  all 12 prior suites re-confirmed (138/138, `e2e-lifecycle.js` now
+  removed from the count) plus this session's 15/15 — 153/153 total,
+  back-button-check clean across all 12 modules, zero console/page
+  errors.

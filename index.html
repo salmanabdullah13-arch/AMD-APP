@@ -532,7 +532,7 @@
   <div class="module" id="curt-module-wrap" style="display:none;">
     <div class="ops-header">
       <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:32px;height:32px;border-radius:8px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);display:flex;align-items:center;justify-content:center;font-size:16px;">🪟</div>
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(96,1,49,.15);border:1px solid rgba(96,1,49,.3);display:flex;align-items:center;justify-content:center;font-size:16px;">🪟</div>
         <div><p style="font-weight:700;font-size:15px;color:#fff;">Curtain &amp; Blinds</p><p style="font-size:11px;color:rgba(255,255,255,.45);">Silva · Production Manager</p></div>
       </div>
       <button class="icon-btn" onclick="goTo('eco')" title="Back to ecosystem" style="color:#fff;font-size:22px;">✕</button>
@@ -590,7 +590,7 @@
           <button class="back" onclick="showCurtWinPicker()">← Job list</button>
 
           <!-- Job header -->
-          <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
+          <div style="background:rgba(96,1,49,.08);border:1px solid rgba(96,1,49,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
               <div>
                 <p style="font-weight:700;font-size:15px;" id="cw-job-name"></p>
@@ -616,7 +616,7 @@
               <p style="font-size:12px;color:var(--ink2);">Track requirements</p>
               <div id="cw-track-totals" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;"></div>
             </div>
-            <div id="cw-motor-flag" style="display:none;margin-top:10px;padding:8px 10px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:var(--r3);">
+            <div id="cw-motor-flag" style="display:none;margin-top:10px;padding:8px 10px;background:rgba(96,1,49,.08);border:1px solid rgba(96,1,49,.2);border-radius:var(--r3);">
               <p style="font-size:12px;font-weight:600;color:#a78bfa;" id="cw-motor-text"></p>
             </div>
           </div>
@@ -626,7 +626,7 @@
 
           <!-- Push to BOM -->
           <div class="btnrow" style="margin-top:14px;">
-            <button class="primary" onclick="pushWindowsToBOM()" style="background:rgba(124,58,237,.8);border-color:rgba(124,58,237,.5);">Generate BOM from windows →</button>
+            <button class="primary" onclick="pushWindowsToBOM()" style="background:rgba(96,1,49,.8);border-color:rgba(96,1,49,.5);">Generate BOM from windows →</button>
           </div>
         </div>
 
@@ -799,7 +799,7 @@
         <!-- BOM detail -->
         <div id="curt-bom-detail" style="display:none;">
           <button class="back" onclick="showCurtBomPicker()">← Job list</button>
-          <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
+          <div style="background:rgba(96,1,49,.08);border:1px solid rgba(96,1,49,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
             <p style="font-weight:700;font-size:15px;" id="cb-job-name"></p>
             <p style="font-size:12px;color:var(--ink2);margin:3px 0;" id="cb-job-meta"></p>
           </div>
@@ -842,7 +842,7 @@
           <!-- Submit for budget approval -->
           <div id="cb-approval-section">
             <div class="btnrow">
-              <button class="primary" id="cb-submit-btn" onclick="submitCurtainBudget()" style="background:rgba(124,58,237,.8);border-color:rgba(124,58,237,.5);">Submit for budget approval →</button>
+              <button class="primary" id="cb-submit-btn" onclick="submitCurtainBudget()" style="background:rgba(96,1,49,.8);border-color:rgba(96,1,49,.5);">Submit for budget approval →</button>
             </div>
           </div>
           <div id="cb-approval-done" style="display:none;margin-top:10px;background:var(--ok-bg);border:1px solid var(--ok-line);border-radius:var(--r2);padding:11px 13px;font-size:13px;color:var(--ok);font-weight:500;"></div>
@@ -866,7 +866,7 @@
         <div id="curt-wip-detail" style="display:none;">
           <button class="back" onclick="showWipPicker()">← Job list</button>
 
-          <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
+          <div style="background:rgba(96,1,49,.08);border:1px solid rgba(96,1,49,.2);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px;">
             <p style="font-weight:700;font-size:15px;" id="wip-job-name"></p>
             <p style="font-size:12px;color:var(--ink2);margin:2px 0;" id="wip-job-meta"></p>
           </div>
@@ -1366,6 +1366,7 @@
 <div id="eco-tooltip">Coming soon</div>
 
 <script src="data.js"></script>
+<script src="print.js"></script>
 <script src="shell.js"></script>
 <script src="operations.js"></script>
 <script src="curtain.js"></script>

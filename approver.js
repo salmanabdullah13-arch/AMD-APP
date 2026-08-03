@@ -255,7 +255,7 @@ function renderApproverQuoteHub() {
     </div>
     <div class="sales-tile-row">
       <div class="sales-tile" onclick="openApproverReview('${q.id}')"><span class="sales-tile-icon">🔍</span>Review Quote</div>
-      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile" onclick="approverAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
+      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile" onclick="openPrintDialog('${q.id}',true)"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>

@@ -2048,7 +2048,7 @@ function renderWipWindows() {
     tmEl.innerHTML = `
       <p class="card-title" style="margin-bottom:10px;">🔩 Track Making <span style="font-weight:400;color:var(--ink2);font-size:11px;">(auto — self-pick by track team)</span></p>
       ${trackLines.length > 0 ? `
-      <div style="background:var(--card2,rgba(124,58,237,.05));border:1px solid rgba(124,58,237,.15);border-radius:var(--r3);padding:10px 12px;margin-bottom:10px;">
+      <div style="background:var(--card2,rgba(96,1,49,.05));border:1px solid rgba(96,1,49,.15);border-radius:var(--r3);padding:10px 12px;margin-bottom:10px;">
         <p style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Rail requirements (from calc sheets)</p>
         ${trackLines.map(t => `
           <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--line);">
@@ -2181,7 +2181,7 @@ function renderInquiryStageBar(inquiry) {
     <div style="display:flex;align-items:center;gap:3px;margin:8px 0;flex-wrap:wrap;">
       ${stages.map((s, i) => `
         <span style="font-size:9.5px;padding:3px 7px;border-radius:20px;white-space:nowrap;
-          background:${i<=currentIdx ? (i===currentIdx ? 'var(--purple)' : 'rgba(124,58,237,.15)') : '#f1f5f9'};
+          background:${i<=currentIdx ? (i===currentIdx ? 'var(--purple)' : 'rgba(96,1,49,.15)') : '#f1f5f9'};
           color:${i<=currentIdx ? (i===currentIdx ? '#fff' : 'var(--purple)') : '#94a3b8'};
           font-weight:${i===currentIdx?'700':'500'};">
           ${PI_STAGE_LABELS[s]}
@@ -2241,7 +2241,7 @@ function renderCurtFabric() {
           ${pi.notes ? `<p style="font-size:11px;color:var(--purple);margin-bottom:8px;">${pi.notes}</p>` : ''}
 
           ${arrived ? `
-            <button class="primary" style="background:rgba(124,58,237,.7);border-color:rgba(124,58,237,.5);font-size:12px;"
+            <button class="primary" style="background:rgba(96,1,49,.7);border-color:rgba(96,1,49,.5);font-size:12px;"
               onclick="markInquiryReceived('${pi.id}')">Mark received by Curtain →</button>
           ` : ''}
         </div>`;

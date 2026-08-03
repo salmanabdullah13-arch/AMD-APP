@@ -252,7 +252,7 @@ function renderEstimatorQuoteHub() {
     </div>
     ${q.headerComment ? `<div class="sales-preview"><p style="font-weight:700;color:#1a1f2e;margin-bottom:4px;">Approver Comments</p><p>${eEsc(q.headerComment)}</p></div>` : ''}
     <div class="sales-tile-row">
-      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile" onclick="estimatorAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
+      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile" onclick="openPrintDialog('${q.id}',false)"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
       <div class="sales-tile" onclick="estimatorAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
       <div class="sales-tile" onclick="openEstimationIndex('${q.id}')"><span class="sales-tile-icon">📐</span>ESTIMATION</div>
       <div class="sales-tile" onclick="estimatorAlert('Short List for Estimation — consolidated print view not implemented yet; use the Estimation index below.')"><span class="sales-tile-icon">📋</span>Short List</div>
