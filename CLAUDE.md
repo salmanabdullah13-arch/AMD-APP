@@ -588,9 +588,11 @@ then, this section is the only persistent record of what they said.
   deferred architectural question.
 - Multi-location Inventory is deliberately not built — the live system is
   single-location ("Location 1" only), matched intentionally.
-- Upholstery, Joinery, Painting workshop modules, Owner Dashboard, HR &
-  Payroll, and Tally Bridge remain fully unstarted (`built:false` in the
-  ecosystem `NODES` registry).
+- ~~Upholstery, Joinery, Painting workshop modules, Owner Dashboard, HR &
+  Payroll, and Tally Bridge remain fully unstarted~~ — Upholstery/Joinery/
+  Painting (Batch 8) and HR & Payroll (3 Aug 2026) are all `built:true`
+  now. Only **Owner Dashboard** and **Tally Bridge** remain `built:false`
+  in the ecosystem `NODES` registry.
 - No QPro mapping spec files are committed to the repo (see §3) — worth
   fixing if Salman wants them preserved.
 
