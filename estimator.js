@@ -416,6 +416,16 @@ function renderJobEstimationBOM() {
   return `<span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>${header}${tabsHtml}<div class="sales-card">${tabBody}</div>`;
 }
 
+// Item Name is a real search-and-select against the Item Master, not a
+// datalist suggestion — Salman's explicit call: an estimator typing a
+// free-text name that doesn't match a real inventory item was silently
+// accepted before, which meant the BOM line never linked to real stock
+// (no itemId, invisible to Job Material Requirement's demand tracking).
+// Forcing a real selection guarantees addBOMMaterial()'s itemId match
+// always succeeds, not just when the typed text happens to line up.
+let estimatorMatSearch = '';
+let estimatorMatSelectedId = null;
+
 function renderBomMaterialsTab(item) {
   const bom = item.bom;
   const rows = bom.materials.map(m => `
@@ -423,40 +433,60 @@ function renderBomMaterialsTab(item) {
     <td><span style="cursor:pointer;color:#b91c1c;" onclick="estimatorRemoveEntry('materials',${m.id})">✕</span></td></tr>`).join('');
   const total = bom.materials.reduce((s, m) => s + m.amount, 0);
 
+  const selected = estimatorMatSelectedId ? ITEM_MASTER.find(it => it.id === estimatorMatSelectedId) : null;
+  const q = estimatorMatSearch.trim().toLowerCase();
+  const matches = (!selected && q) ? ITEM_MASTER.filter(it => it.name.toLowerCase().includes(q)).slice(0, 8) : [];
+
   return `
     <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Material</p>
     <div class="sales-field"><label>Item Name</label>
-      <input type="text" id="mat-name" list="item-master-list" oninput="estimatorMaterialAutofill(this.value)">
-      <datalist id="item-master-list">${ITEM_MASTER.map(it => `<option value="${it.name}">`).join('')}</datalist>
+      ${selected
+        ? `<div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--biz-border);border-radius:8px;background:var(--biz-input-bg);">
+            <span style="flex:1;font-size:13px;">${eEsc(selected.name)}</span>
+            <span style="cursor:pointer;color:var(--biz-primary);font-size:11.5px;font-weight:600;" onclick="estimatorClearMaterialSelection()">Change</span>
+          </div>`
+        : `<input type="text" id="mat-search" placeholder="Search inventory item…" value="${eEsc(estimatorMatSearch)}" oninput="estimatorMatSearch=this.value;renderEstimatorBody();" autocomplete="off">`}
     </div>
-    <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Type to search the item master, or enter a new name — <a href="#" onclick="estimatorAlert('CREATE NEW PRODUCT — not wired to a real item master yet.');return false;" style="color:var(--biz-primary);">CREATE NEW PRODUCT</a></p>
+    ${!selected && q
+      ? (matches.length === 0
+          ? `<p style="font-size:11px;color:#94a3b8;margin:-6px 0 8px;">No matching inventory item — add it in Storekeeper → Item Master first.</p>`
+          : `<div style="border:1px solid var(--biz-border);border-radius:8px;margin:-6px 0 10px;max-height:160px;overflow-y:auto;">
+              ${matches.map(it => `<div style="padding:8px 11px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--biz-border-light);" onclick="estimatorSelectMaterialItem('${it.id}')">${eEsc(it.name)} <span style="color:#94a3b8;font-size:10.5px;">· BD ${it.cost.toFixed(3)}/${eEsc(it.unit)}</span></div>`).join('')}
+            </div>`)
+      : (!selected ? `<p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Search and select a real inventory item — free text isn't accepted.</p>` : '')}
     <div class="sales-field"><label>Description</label><input type="text" id="mat-desc"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="sales-field"><label>Qty</label><input type="number" id="mat-qty" value="1"></div>
-      <div class="sales-field"><label>Unit</label><input type="text" id="mat-unit" value="Nos"></div>
+      <div class="sales-field"><label>Unit</label><input type="text" id="mat-unit" value="${selected ? eEsc(selected.unit) : 'Nos'}" ${selected ? 'readonly' : ''}></div>
     </div>
-    <div class="sales-field"><label>Rate</label><input type="number" step="0.001" id="mat-rate" value="0"></div>
-    <button class="primary" style="width:100%;" onclick="estimatorAddMaterial()">ADD</button>
+    <div class="sales-field"><label>Rate</label><input type="number" step="0.001" id="mat-rate" value="${selected ? selected.cost : 0}"></div>
+    <button class="primary" style="width:100%;" onclick="estimatorAddMaterial()" ${!selected ? 'disabled title="Select an inventory item first"' : ''}>ADD</button>
     <table class="sales-items" style="margin-top:12px;"><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th><th></th></tr>${rows}</table>
     <p style="font-weight:700;font-size:12.5px;">Total: BD ${total.toFixed(3)}</p>`;
 }
 
-function estimatorMaterialAutofill(name) {
-  const match = ITEM_MASTER.find(it => it.name === name);
-  if (!match) return;
-  document.getElementById('mat-rate').value = match.cost;
-  document.getElementById('mat-unit').value = match.unit;
+function estimatorSelectMaterialItem(itemId) {
+  estimatorMatSelectedId = itemId;
+  estimatorMatSearch = '';
+  renderEstimatorBody();
+}
+function estimatorClearMaterialSelection() {
+  estimatorMatSelectedId = null;
+  estimatorMatSearch = '';
+  renderEstimatorBody();
 }
 
 function estimatorAddMaterial() {
-  const name = document.getElementById('mat-name').value;
-  if (!name) { estimatorAlert('Item Name is required.'); return; }
+  const selected = estimatorMatSelectedId ? ITEM_MASTER.find(it => it.id === estimatorMatSelectedId) : null;
+  if (!selected) { estimatorAlert('Please select an item from the inventory search.'); return; }
   addBOMMaterial(estimatorActiveQtnId, estimatorActiveLineId, {
-    name, description: document.getElementById('mat-desc').value,
+    name: selected.name, description: document.getElementById('mat-desc').value,
     qty: Number(document.getElementById('mat-qty').value),
     unit: document.getElementById('mat-unit').value,
     rate: Number(document.getElementById('mat-rate').value)
   });
+  estimatorMatSelectedId = null;
+  estimatorMatSearch = '';
   renderEstimatorBody();
 }
 

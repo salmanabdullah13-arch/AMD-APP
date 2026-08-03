@@ -2062,3 +2062,56 @@ three were genuine defects, fixed directly.
   (committed, reusable, 6/6) covering all three; updated
   `e2e-batch7-big-pieces.js`'s now-corrected assertion; re-ran all 7
   Playwright suites end to end — all pass clean, zero console/page errors.
+
+### 3 Aug 2026 (later same day) — Edit Quote lock + Estimator material search-and-select
+
+- **Edit Quote was never gated on stage.** Sales could reopen the wizard
+  and change a quotation even while it was sitting with the Estimator or
+  Approver. Fixed in `sales.js`'s `renderQuotationHub()`: the "Edit Quote"
+  tile now only renders when `q.stage === 'sales'`; a note explains the
+  lock and names who currently holds it while hidden. Verified with new
+  suite `e2e-edit-quote-lock.js` (7/7).
+- **Estimator's BOM "Add Material" Item Name field allowed free-typed
+  names that didn't match any real inventory item.** `data.js`'s
+  `addBOMMaterial()` already tagged `itemId: null` for non-matches, so
+  these lines were silently invisible to real stock/demand tracking —
+  exactly the failure mode Salman flagged: "it should not allow typing."
+  Rebuilt `renderBomMaterialsTab()` in `estimator.js` as a real
+  search-and-select: typing filters `ITEM_MASTER` live into a clickable
+  results list; picking one locks in the name, auto-fills Rate + Unit
+  (Unit becomes read-only — it's an inventory-item property, not
+  something to retype), and only then does the ADD button enable.
+  `estimatorAddMaterial()` now hard-refuses to submit without a selected
+  item. The old native `<datalist>` (which can't block free text) and its
+  "or enter a new name" caption are gone. New state: `estimatorMatSearch`,
+  `estimatorMatSelectedId`; new functions `estimatorSelectMaterialItem()`,
+  `estimatorClearMaterialSelection()` (a "Change" link resets the
+  selection back to search). Verified with new suite
+  `e2e-estimator-material-search.js` (12/12) — covers the disabled ADD
+  button pre-selection, the results list, the no-match message, the
+  auto-fill + Unit lock, the real `itemId` landing on the BOM line, and
+  the Change-selection round trip.
+- **Full regression:** all 9 Playwright suites re-run — 81/81 plus this
+  session's new 12/12, zero console/page errors.
+- **Next up (queued, not yet built):** a large batch of real-usage
+  findings from Salman — Estimator Labour tab's department dropdown
+  should be restricted to the department(s) already chosen for that line
+  (currently shows every department); Labour Rate should be mandatory
+  before Qty/Hours can be entered; Unit of Measurement needs the same
+  search-and-select treatment as Item Name everywhere it's still
+  free-typed (sales people write "Meters"/"Mtr"/"M"/"Mtrs" inconsistently);
+  BOM items need a stable per-quote serial number so a "Copy BOM from
+  Item #N" action can duplicate an existing line's full BOM into another
+  line; Approver's quote view should let them click into a line item for
+  its full estimation breakdown and show a page-level summary (quote
+  value, cost, profit %, VAT, total). Two open design questions raised
+  by Salman, answered with a recommendation, awaiting confirmation before
+  building: (1) whether Labour entries should support a per-day mode
+  alongside per-hour, (2) whether labour costing should pull real
+  employee pay rates from HR instead of a generic trade rate. A third
+  item — new Customer creation requiring Accounts approval with
+  duplicate-client detection (a real fraud/data-integrity incident from
+  Q-Pro days) — needs the workflow shape clarified with Salman before any
+  build (who approves, what Sales can/can't do with a customer while
+  pending, how "duplicate" is detected) since it changes the Customer
+  data model and touches the start of every Sales flow.
