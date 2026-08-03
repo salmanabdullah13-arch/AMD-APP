@@ -9,6 +9,38 @@ const DEPTS=[{k:"carp",n:"Carpentry",c:"#0f9d58"},{k:"paint",n:"Painting",c:"#c4
 function dc(k){return DEPTS.find(d=>d.k===k)||{n:k,c:"#888"};}
 const STAFF=["Arun Kumar","Karthik Silva","Silva","Salman Abdullah","Operations"];
 
+// ═══════════════════════════════════════
+// JOB ROUTING — department auto-suggestion (Batch 8, Phase 0)
+// Rule-based lookup, per Salman's own call ("simplest starting point,
+// can layer in learning from past overrides later" — that later layer is
+// NOT built here on purpose). Keyword-matches the item's product name
+// first; falls back to the linked Enquiry's own `division` field (already
+// captured today, values overlap DEPTS closely) when no keyword hits.
+// Returns an ordered array of DEPTS keys — most items are a single stop;
+// a product whose name mentions paint gets a second "paint" stop appended
+// (e.g. a painted cabinet: ["carp","paint"]), matching the confirmed
+// design's own painted-cabinet example.
+// ═══════════════════════════════════════
+const DEPARTMENT_KEYWORD_MAP = [
+  { keywords: ["curtain", "blind", "drape", "sheer"], dept: "curt" },
+  { keywords: ["sofa", "chair", "cushion", "upholst", "ottoman", "settee"], dept: "uph" },
+  { keywords: ["cabinet", "wardrobe", "shelf", "counter", "vanity", "joinery"], dept: "carp" },
+  { keywords: ["rail", "track", "bracket", "steel"], dept: "metal" }
+];
+const DIVISION_TO_DEPT = {
+  "Curtain & Blinds": "curt", "Upholstery": "uph", "Joinery": "carp",
+  "Metal Works": "metal", "Furniture": "carp"
+};
+function suggestDepartmentSequence(product, enquiryDivision) {
+  const seq = [];
+  const p = (product || "").toLowerCase();
+  const primaryMatch = DEPARTMENT_KEYWORD_MAP.find(m => m.keywords.some(k => p.includes(k)));
+  if (primaryMatch) seq.push(primaryMatch.dept);
+  else if (enquiryDivision && DIVISION_TO_DEPT[enquiryDivision]) seq.push(DIVISION_TO_DEPT[enquiryDivision]);
+  if (p.includes("paint") && !seq.includes("paint")) seq.push("paint");
+  return seq;
+}
+
 
 // ═══════════════════════════════════════
 // CURTAIN MODULE DATA
@@ -2790,6 +2822,7 @@ function addQuotationItem(qtnId, item) {
   const amount = (item.qty || 0) * (item.rate || 0);
   const discAmt = item.discAmt || (amount * (item.discPercent || 0) / 100);
   const netAmount = qtn.withEstimation ? 0 : (amount - discAmt) * (1 + (item.vatPercent || 0) / 100);
+  const enq = enquiries.find(e => e.id === qtn.enquiryId);
   const row = {
     lineId: nextQuotationItemId(qtn), group: item.group || "", subgroup: item.subgroup || "",
     product: item.product, qty: item.qty || 0, unit: item.unit || "Nos",
@@ -2798,10 +2831,23 @@ function addQuotationItem(qtnId, item) {
     netAmount: qtn.withEstimation ? 0 : netAmount,
     description: item.description || "", internalComments: item.internalComments || "", optional: !!item.optional,
     approverComment: "", // Approver's per-line comment — see setLineApproverComment() below
-    bom: null // set by ensureItemBOM() once the Estimator adds a BOM — see ESTIMATOR section below
+    bom: null, // set by ensureItemBOM() once the Estimator adds a BOM — see ESTIMATOR section below
+    // Job Routing (Batch 8) — auto-suggested now, editable by the Estimator
+    // during BOM entry, carried through to the Job Card at confirm time,
+    // and only actually finalized into departmentStatuses by the
+    // Operations Manager's routing queue (see confirmJobRouting()).
+    departmentSequence: suggestDepartmentSequence(item.product, enq ? enq.division : null)
   };
   qtn.items.push(row);
   return row;
+}
+// Estimator override — the auto-suggestion above is a starting point, not
+// a final answer. `sequence` is an ordered array of DEPTS keys.
+function setItemDepartmentSequence(qtnId, lineId, sequence) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  item.departmentSequence = sequence || [];
+  return item;
 }
 function removeQuotationItem(qtnId, lineId) {
   const qtn = quotations.find(q => q.id === qtnId);
@@ -3424,11 +3470,13 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
     items: qtn.items.map(it => ({
       lineId: it.lineId, product: it.product, qty: it.qty, unit: it.unit, rate: it.rate,
       discPercent: it.discPercent, amount: it.amount, vatPercent: it.vatPercent, netAmount: it.netAmount,
-      deliveredQty: 0, departmentStatuses: [] // [{department, status}] — per-line-per-department, see updateJobLineStatus()
+      deliveredQty: 0, departmentStatuses: [], // [{department, status}] — per-line-per-department, see updateJobLineStatus()
+      departmentSequence: it.departmentSequence || [] // carried from the quotation item — see confirmJobRouting()
     })),
     poNo: null, poDate: null, vendor: null,
     deliveryNotes: [], materialsIssues: [], materialsReturns: [], labourCostEntries: [],
-    linkedInvoiceIds: [], variationIds: []
+    linkedInvoiceIds: [], variationIds: [],
+    routingConfirmed: false, routingConfirmedBy: null, routingConfirmedDate: null
   };
   jobCards.push(job);
   qtn.lifecycleStatus = "confirmed";
@@ -3436,6 +3484,47 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
   logQuotationAudit(qtn, { action: "Transfer", user: confirmedBy, userType: "SALES", status: "Confirmed" });
   bridgeJobToOperationsAndCurtain(job);
   logActivity({ type: "job-created", linkedType: "job", linkedId: job.id, user: confirmedBy, message: `Job Card ${job.id} created from Quotation ${qtn.id}` });
+  return job;
+}
+
+// ═══════════════════════════════════════
+// JOB ROUTING — Operations Manager queue (Batch 8, Phase 1)
+// A freshly-confirmed Job Card (or one that just gained a Variation
+// before its first routing pass) sits in this queue until the Operations
+// Manager reviews the auto-suggested department sequence per line and
+// confirms it. This is the ONE human checkpoint in the whole routing
+// design — every hand-off AFTER this point (Joinery -> Painting, etc.)
+// auto-advances without coming back through the manager (see the design
+// note in project_amd_app_routing_and_budgeting.md — that's Phase 2+,
+// not built yet).
+// ═══════════════════════════════════════
+function getJobsPendingRouting() {
+  return jobCards.filter(j => !j.routingConfirmed && j.status !== "cancelled");
+}
+
+// lineOverrides: optional { [lineId]: [deptKey,...] } — the manager's
+// per-line override of the auto-suggested sequence, applied before
+// finalizing. Writes each line's confirmed sequence into
+// departmentStatuses (first stop "queued" and ready to start, any later
+// stops "pending" until hand-off) and flips routingConfirmed so the job
+// drops off this queue for good.
+function confirmJobRouting(jobId, lineOverrides = {}, confirmedBy) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  if (job.routingConfirmed) return { error: "Routing already confirmed for this job." };
+  job.items.forEach(item => {
+    const seq = lineOverrides[item.lineId] || item.departmentSequence || [];
+    item.departmentSequence = seq;
+    item.departmentStatuses = seq.map((dept, i) => ({ department: dept, status: i === 0 ? "queued" : "pending" }));
+  });
+  job.routingConfirmed = true;
+  job.routingConfirmedBy = confirmedBy;
+  job.routingConfirmedDate = new Date().toISOString().slice(0, 10);
+  const deptNames = [...new Set(job.items.flatMap(it => it.departmentSequence))].map(k => dc(k).n);
+  logActivity({
+    type: "job-routed", linkedType: "job", linkedId: job.id, user: confirmedBy,
+    message: `Routing confirmed — ${job.items.length} line(s) dispatched to ${deptNames.length ? deptNames.join(', ') : 'no department'}`
+  });
   return job;
 }
 
@@ -3504,10 +3593,18 @@ function confirmVariationToJobCard(qtnId, confirmedBy) {
   let nextLineId = job.items.reduce((m, it) => Math.max(m, it.lineId), 0);
   qtn.items.forEach(it => {
     nextLineId++;
+    const seq = it.departmentSequence || [];
     job.items.push({
       lineId: nextLineId, product: it.product, qty: it.qty, unit: it.unit, rate: it.rate,
       discPercent: it.discPercent, amount: it.amount, vatPercent: it.vatPercent, netAmount: it.netAmount,
-      deliveredQty: 0, departmentStatuses: [], variationId: qtn.id
+      deliveredQty: 0, variationId: qtn.id, departmentSequence: seq,
+      // The job's own initial routing already went through the Operations
+      // Manager's queue (see confirmJobRouting()) — a variation merging in
+      // AFTER that point doesn't need a second manager pass, its line just
+      // joins the already-approved routing directly. If the parent job
+      // somehow hasn't been routed yet, leave this empty — it'll be picked
+      // up by the normal routing queue alongside the original lines.
+      departmentStatuses: job.routingConfirmed ? seq.map((dept, i) => ({ department: dept, status: i === 0 ? "queued" : "pending" })) : []
     });
   });
   job.amount = Math.round((job.amount + totals.netTotal) * 1000) / 1000;

@@ -1803,3 +1803,83 @@ together":**
   until someone actually adds window data through Curtain's own screens
   (expected — the bridge seeds a valid empty starting point, it doesn't
   invent window data nobody's entered).
+
+### 3 Aug 2026 (later same day) — Batch 8, Phase 0-1: Job Routing (department auto-suggestion + Operations Manager routing queue)
+
+A design-review round preceded this build — Salman explicitly said "before
+you proceed with any build I need feedback" and the design went through
+several confirmation rounds before anything was coded (full design detail
+in the `project_amd_app_routing_and_budgeting` memory file, not part of
+this repo — Claude's own memory, kept in sync with what's actually built).
+Scope for this session, by Salman's own choice: build Phase 0-1 (the
+department field + routing queue) and stop there to check in before
+building the two new production modules (Joinery/Upholstery shared
+pipeline, standalone Painting) and the three-tier costing/budget-approval
+layer on top of it.
+
+- **Phase 0 — department auto-suggestion on quotation items.** Each
+  quotation item now gets a `departmentSequence` (ordered array of `DEPTS`
+  keys) computed at `addQuotationItem()` time via a new
+  `suggestDepartmentSequence()` — keyword-matches the product name first
+  (curtain/blind → curt; sofa/chair/cushion/upholster → uph; cabinet/
+  wardrobe/shelf/counter/vanity/joinery → carp; rail/track/bracket/steel
+  → metal), falling back to the linked Enquiry's own `division` field
+  when no keyword hits, and appending a `paint` stop whenever the product
+  name itself mentions paint (a painted cabinet auto-suggests
+  `["carp","paint"]`, matching the confirmed design's own example
+  exactly). Deliberately rule-based only, per Salman's own instruction —
+  no historical-pattern/ML learning layer, that's an explicit non-goal for
+  now. Estimator can review/override per line from a new "Departments"
+  column on the Estimation Index (`estimator.js`) — checkbox toggles per
+  department, `DEPTS`' own array order doubles as the canonical stop
+  order (carp before paint) rather than building a separate drag-reorder
+  UI. `setItemDepartmentSequence()` (data.js) is the override path; the
+  sequence carries through to the Job Card at confirm time (both
+  `confirmQuotationToJobCard()` and `confirmVariationToJobCard()`).
+- **Phase 1 — Operations Manager routing queue.** New
+  `getJobsPendingRouting()`/`confirmJobRouting()` in data.js:
+  `job.routingConfirmed` (default false) gates a job out of this queue;
+  confirming writes each line's (possibly-overridden) `departmentSequence`
+  into `departmentStatuses` (first stop `"queued"`, later stops
+  `"pending"` until hand-off) and logs a `job-routed` activity entry. This
+  is the ONE human checkpoint in the whole design — every hand-off after
+  this auto-advances without coming back through the manager (Phase 2+,
+  not built yet).
+  - **A genuinely nice find while building this:** Operations' "New Jobs"
+    tab (`#p-alerts`) turned out to already be static, hand-authored demo
+    markup from long before any of this app's real data-wiring sessions —
+    2 hardcoded example jobs, a header banner reading almost exactly like
+    this feature's own spec ("Assign departments per item, set sequence,
+    release. PMs get 48h to submit BOM"), and an "Assign departments &
+    release →" button wired to nothing but a `showAlert()` stub. Rather
+    than building a parallel new screen, this tab was converted to real
+    data — `renderJobRouting()` now reads `getJobsPendingRouting()` for
+    real, the nav badge and header "N new jobs" notification are both
+    live counts (`updateOpsRoutingBadge()`), and "Confirm routing &
+    dispatch →" actually calls `confirmJobRouting()`. The old mockup
+    happening to already describe this exact workflow is a good sign the
+    original design intent for this app already anticipated it, even
+    though it was never wired up.
+- **Verification:** full battery — `node --check` on all modified files
+  individually and the 12-file concatenation; duplicate top-level
+  declaration scan (none found); onclick/onchange/oninput cross-reference
+  across the whole repo (all resolve); closure-variable-in-inline-handler
+  scan (none introduced). New Playwright suite `e2e-batch8-routing.js`
+  (committed, reusable, 12/12) — confirms the painted-cabinet/curtain
+  auto-suggestion examples exactly, exercises the Estimator's real
+  Departments-column override UI, confirms routing through the real
+  Operations "New Jobs" queue UI (not a direct data-layer call), confirms
+  first-stop `"queued"`/later-stops-`"pending"` statuses, the job
+  dropping off the queue, the nav badge updating, and the activity log
+  entry. Re-ran all four prior Playwright suites
+  (`e2e-batch6-reports.js`, `e2e-back-button-check.js`,
+  `e2e-batch7-small-items.js`, `e2e-batch7-big-pieces.js`) for regression
+  — all pass clean, zero console/page errors across all five scripts.
+- **Not done this session, by design — stopping here per Salman's own
+  choice:** Phase 2 (shared Joinery/Upholstery production pipeline),
+  Phase 3 (standalone Painting module + Painting Lead/Work Supervisor
+  role), and Phase 4 (three-tier costing + budget-approval gate, which
+  will finally populate the Batch 7 bridge's still-empty
+  `projects[].budget`/`.actuals` fields) are fully designed (see the
+  `project_amd_app_routing_and_budgeting` memory file) but explicitly not
+  started — check in with Salman before building further.

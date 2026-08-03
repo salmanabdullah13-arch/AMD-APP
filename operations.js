@@ -763,12 +763,99 @@ function opsGoTo(p){
   document.getElementById("p-"+p).classList.add("active");
   document.querySelector("[data-p="+p+"]").classList.add("active");
   window.scrollTo({top:0,behavior:"smooth"});
+  if(p==="alerts"){ renderJobRouting(); }
   if(p==="bom"){ renderBomList(""); }
   if(p==="curtapp"){ renderCurtainApprovals(); }
   if(p==="projects"){ renderProjList(); }
   if(p==="reminders"){ renderReminders(); }
 }
 
+// ══════════════════════════════════════════
+// JOB ROUTING (Batch 8, Phase 1) — "New Jobs" tab, the Operations Manager's
+// one real checkpoint in the whole routing design. Was static hand-authored
+// demo markup before this (2 hardcoded example jobs, "Assign departments &
+// release" wired to nothing but a showAlert() stub) — now reads real
+// getJobsPendingRouting()/confirmJobRouting() from data.js. Every hand-off
+// AFTER a job clears this queue auto-advances without coming back here —
+// see the design note in memory (project_amd_app_routing_and_budgeting.md)
+// for why, and for Phase 2+ (the actual Joinery/Upholstery/Painting
+// department queues that will eventually consume the routing this confirms)
+// which is NOT built yet, deliberately, per Salman's own choice to check in
+// after Phase 1.
+// ══════════════════════════════════════════
+let opsRoutingOverrides = {}; // { [jobId]: { [lineId]: [deptKey,...] } } — scratch edits before Confirm
+
+function updateOpsRoutingBadge() {
+  const n = typeof jobCards !== 'undefined' ? getJobsPendingRouting().length : 0;
+  const navBadge = document.querySelector('#ops-module-wrap [data-p="alerts"] .nbadge');
+  if (navBadge) navBadge.textContent = n;
+  const notifBtn = document.querySelector('#ops-module-wrap .notif-btn');
+  if (notifBtn) { const txt = notifBtn.childNodes[notifBtn.childNodes.length - 1]; if (txt) txt.textContent = ` ${n} new job${n === 1 ? '' : 's'}`; }
+}
+
+function opsToggleRoutingDept(jobId, lineId, deptKey, checked) {
+  if (!opsRoutingOverrides[jobId]) opsRoutingOverrides[jobId] = {};
+  const job = getJobCard(jobId);
+  const item = job.items.find(it => it.lineId === lineId);
+  const current = new Set(opsRoutingOverrides[jobId][lineId] || item.departmentSequence || []);
+  if (checked) current.add(deptKey); else current.delete(deptKey);
+  opsRoutingOverrides[jobId][lineId] = DEPTS.map(d => d.k).filter(k => current.has(k));
+  renderJobRouting();
+}
+
+function opsConfirmRouting(jobId) {
+  const result = confirmJobRouting(jobId, opsRoutingOverrides[jobId] || {}, 'Operations');
+  if (result.error) { showAlert(result.error); return; }
+  delete opsRoutingOverrides[jobId];
+  showAlert(`✓ Routing confirmed for ${result.id}.`);
+  renderJobRouting();
+  updateOpsRoutingBadge();
+}
+
+function renderJobRouting() {
+  const body = document.getElementById('ops-routing-body');
+  if (!body) return;
+  const pending = getJobsPendingRouting();
+  if (pending.length === 0) {
+    body.innerHTML = `<div class="card"><p style="font-size:13px;color:var(--ink2);">No jobs waiting on department routing right now — confirmed jobs land here the moment Sales confirms a Quote (or a Variation gets approved) until routing is set.</p></div>`;
+    updateOpsRoutingBadge();
+    return;
+  }
+  body.innerHTML = `
+    <div style="background:var(--info-bg);border:1px solid var(--info-line);border-radius:var(--r);padding:11px 15px;margin-bottom:14px;display:flex;gap:9px;">
+      <div class="pulse" style="margin-top:5px;"></div>
+      <div><b style="font-size:14px;">${pending.length} confirmed job${pending.length === 1 ? '' : 's'} need${pending.length === 1 ? 's' : ''} department routing</b>
+      <p style="margin:3px 0 0;font-size:12px;color:var(--ink2);line-height:1.5;">Each line's department is auto-suggested from the Estimator's BOM — review, override any line, then confirm to dispatch.</p></div>
+    </div>
+    ${pending.map(job => {
+      const customer = customers.find(c => c.id === job.customerId);
+      const overrides = opsRoutingOverrides[job.id] || {};
+      const rowsHtml = job.items.map(it => {
+        const seq = overrides[it.lineId] || it.departmentSequence || [];
+        return `
+        <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:8px;">
+          <p style="font-size:12.5px;font-weight:600;">${it.product} <span style="font-weight:400;color:var(--ink2);">· ${it.qty} ${it.unit}</span></p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+            ${DEPTS.map(d => `<label style="font-size:11px;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${seq.includes(d.k) ? 'checked' : ''} onchange="opsToggleRoutingDept('${job.id}',${it.lineId},'${d.k}',this.checked)"> ${d.n}</label>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
+      return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+          <div><p style="font-weight:700;font-size:15px;">${job.projectName}</p><p style="font-size:13px;color:var(--ink2);margin:2px 0;">${job.id} · ${customer ? customer.name : '—'} · BD ${job.amount.toFixed(3)}</p></div>
+          <span class="pill info">Assign now</span>
+        </div>
+        ${rowsHtml}
+        <div class="btnrow">
+          <button class="primary" onclick="opsConfirmRouting('${job.id}')">Confirm routing &amp; dispatch →</button>
+        </div>
+      </div>`;
+    }).join('')}`;
+  updateOpsRoutingBadge();
+}
+
 // init
 renderProjList();
 updateCurtAppBadge();
+updateOpsRoutingBadge();

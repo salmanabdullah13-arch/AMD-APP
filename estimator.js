@@ -306,6 +306,16 @@ function renderEstimationIndex() {
         ${it.internalComments ? `<span title="${eEsc(it.internalComments)}" style="cursor:help;">💬 Sales comment</span>` : ''}
         ${it.approverComment ? ` <span title="${eEsc(it.approverComment)}" style="cursor:help;">👁 Approver comment</span>` : ''}
       </div>` : '';
+    const deptEditing = estimatorEditingDeptLineId === it.lineId;
+    const deptCell = deptEditing ? `
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        ${DEPTS.map(d => `<label style="font-size:10.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${(it.departmentSequence || []).includes(d.k) ? 'checked' : ''} onchange="estimatorToggleDept('${q.id}',${it.lineId},'${d.k}',this.checked)"> ${d.n}</label>`).join('')}
+        <span style="font-size:10px;color:var(--biz-primary);cursor:pointer;" onclick="estimatorEditingDeptLineId=null;renderEstimatorBody();">Done</span>
+      </div>` :
+      `<div style="cursor:pointer;" onclick="estimatorEditingDeptLineId=${it.lineId};renderEstimatorBody();">
+        ${(it.departmentSequence || []).length === 0 ? '<span style="color:#94a3b8;font-size:11px;">— tap to set —</span>' :
+          (it.departmentSequence || []).map(k => `<span style="display:inline-block;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin:1px;background:${dc(k).c}22;color:${dc(k).c};">${eEsc(dc(k).n)}</span>`).join(' → ')}
+      </div>`;
     return `
       <tr style="${hasBom ? 'background:#dcfce7;' : ''}">
         <td>${i + 1}</td>
@@ -313,6 +323,7 @@ function renderEstimationIndex() {
         <td>${it.qty} ${eEsc(it.unit)}</td>
         <td>${it.rate.toFixed(3)}</td>
         <td>${hasBom ? '✓' : ''}</td>
+        <td>${deptCell}</td>
         <td>
           ${it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">${qtyDrifted ? 'Copy BOM' : 'Update BOM'}</button>
           <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="estimatorClearBOMConfirm('${q.id}',${it.lineId})">Clear BOM</button>`
@@ -328,8 +339,25 @@ function renderEstimationIndex() {
       <p style="font-size:11.5px;color:#64748b;">${eEsc(q.projectName)}</p>
     </div>
     <div class="sales-card">
-      <table class="sales-items"><tr><th>SL</th><th>Product</th><th>Qty</th><th>Rate</th><th>BOM</th><th>Actions</th></tr>${rows}</table>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Department routing is auto-suggested per line (tap a job's Departments cell to review/override) — the Operations Manager confirms it for real once the job is created, this is just getting it right early.</p>
+      <table class="sales-items"><tr><th>SL</th><th>Product</th><th>Qty</th><th>Rate</th><th>BOM</th><th>Departments</th><th>Actions</th></tr>${rows}</table>
     </div>`;
+}
+
+// Job Routing (Batch 8, Phase 0) — Estimator's override of the
+// auto-suggested department sequence. DEPTS' own array order (carp, paint,
+// uph, curt, metal) doubles as the canonical stop order — matches the
+// real physical sequence closely enough (joinery before paint) without
+// needing a separate drag-to-reorder UI.
+let estimatorEditingDeptLineId = null;
+function estimatorToggleDept(qtnId, lineId, deptKey, checked) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return;
+  const current = new Set(item.departmentSequence || []);
+  if (checked) current.add(deptKey); else current.delete(deptKey);
+  const ordered = DEPTS.map(d => d.k).filter(k => current.has(k));
+  setItemDepartmentSequence(qtnId, lineId, ordered);
+  renderEstimatorBody();
 }
 
 function estimatorClearBOMConfirm(qtnId, lineId) {
