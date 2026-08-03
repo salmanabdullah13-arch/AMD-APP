@@ -2691,28 +2691,38 @@ const customers = [
     vatName: "", vatNo: "", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0,
     bankAccountNumber: "", bankAccountHolderName: "", ibanNumber: "", bankSwift: "", bankName: "", bankBranch: "",
     address: "Test Address, Manama", crNo: "", country: "Bahrain", openingBalance: 0, salesMan: "Salman Abdullah",
-    status: "approved", approvedBy: "Salman Abdullah", approvalDate: "2026-07-24", rejectionComment: null
+    status: "approved", approvedBy: "Salman Abdullah", approvalDate: "2026-07-24", rejectionComment: null, possibleDuplicateOf: null
   }
 ];
 function nextCustomerCode() { return "C" + (1508 + customers.length); }
 function customerTelExists(tel, excludeId = null) {
   return customers.some(c => c.id !== excludeId && c.tel === tel);
 }
-// Mirrors the live Add Customer form field-for-field. Telephone uniqueness is
-// enforced here (confirmed live Q-Pro validation), matching the "*" required
-// fields: Name, Contact Person, Telephone, Address.
+// Soft duplicate detection for Accounts' approval queue — Salman's call,
+// from a real past incident: duplicate client records slipped through and
+// caused problems downstream in Accounts. Flags a likely match on phone OR
+// email against an existing customer rather than hard-blocking creation —
+// Sales keeps moving (see the non-blocking note below), Accounts catches
+// and resolves the duplicate before it becomes a receivables mess.
+function findPossibleDuplicateCustomer(tel, email, excludeId = null) {
+  const normEmail = (email || "").trim().toLowerCase();
+  return customers.find(c => c.id !== excludeId && (
+    c.tel === tel || (normEmail && c.email && c.email.trim().toLowerCase() === normEmail)
+  )) || null;
+}
+// Mirrors the live Add Customer form field-for-field.
 //
-// ASSUMPTION (not yet confirmed against live Q-Pro — flagged for Salman to
-// correct): new customers start "pending" so they show up on the Approver's
-// "New Customers" KPI, but are NOT blocked from use in the meantime — Sales
-// can still pick a pending customer on an Enquiry right away. Approval here
-// is presented as after-the-fact governance (catching duplicates/bad data),
-// not a hard gate that would slow Sales down. If Q-Pro actually blocks a
-// pending customer from being used until approved, this needs to change.
+// New customers start "pending" and show up on Accounts' own "Pending
+// Customers" approval queue (moved there from the Approver module 3 Aug
+// 2026 — customer verification is an Accounts responsibility, confirmed by
+// Salman), but are NOT blocked from use in the meantime — Sales can still
+// pick a pending customer on an Enquiry right away, confirmed by Salman.
+// Approval here is after-the-fact governance (catching duplicates/bad
+// data), not a hard gate that would slow Sales down.
 function createCustomer({ name, contactPerson, tel, tel2 = "", email = "", fax = "", vatName = "", vatNo = "", taxPercent = 0, isCredit = false, creditLimit = 0, creditDays = 0, bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "", bankSwift = "", bankName = "", bankBranch = "", address, crNo = "", country = "Bahrain", openingBalance = 0, salesMan }) {
   if (!name || !contactPerson || !tel || !address) return { error: "Name, Contact Person, Telephone and Address are required." };
-  if (customerTelExists(tel)) return { error: "Telephone must be unique across all customers." };
-  const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, address, crNo, country, openingBalance, salesMan, status: "pending", approvedBy: null, approvalDate: null, rejectionComment: null };
+  const dup = findPossibleDuplicateCustomer(tel, email);
+  const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, address, crNo, country, openingBalance, salesMan, status: "pending", approvedBy: null, approvalDate: null, rejectionComment: null, possibleDuplicateOf: dup ? dup.id : null };
   customers.push(c);
   return c;
 }
@@ -3352,7 +3362,6 @@ function getApproverKPIs(approverName) {
   const poApproval = getPendingPOApprovals().length;
   const prPending = purchaseRequests.filter(pr => pr.status === "open").length;
   const prNotReceived = purchaseOrders.filter(po => po.status === "issued").length;
-  const newCustomersList = customers.filter(c => c.status === "pending");
 
   function divisionCategory(div) {
     if (div === "Curtain & Blinds") return "curtain";
@@ -3370,7 +3379,6 @@ function getApproverKPIs(approverName) {
     forApproval: forApprovalList.length, forApprovalList,
     quotationsTotal: quotations.length,
     prPending, prNotReceived, poApproval,
-    newCustomers: newCustomersList.length, newCustomersList,
     categoryBreakdown
   };
 }

@@ -2198,3 +2198,50 @@ building rather than guessed at silently:
   and a non-blocking pending-approval indicator wherever Sales works with
   a new customer) and deserves its own investigation + build pass rather
   than being folded into this batch.
+
+### 3 Aug 2026 (later same day) — Customer approval workflow moved to Accounts, with real duplicate detection
+
+Investigating this surfaced something worth recording: the approval-status
+data model (`customer.status: "pending"|"approved"|"rejected"`,
+`approveCustomer()`, `rejectCustomer()`) and the non-blocking behavior
+(Sales can already use a pending customer on an Enquiry right away)
+**already existed in data.js**, built in an earlier session and flagged
+with its own inline comment as an unconfirmed assumption — it just wasn't
+wired to the right role. Salman's answers today confirmed the non-blocking
+behavior was right, and settled the one thing that WASN'T flagged as an
+assumption but turned out to be wrong: who approves.
+
+- **Moved the "New Customers" approval queue from Approver to Accounts.**
+  `renderApproverCustomerQueue()`, `approverApproveCustomer()`,
+  `approverRejectCustomer()`, the "New Customers" KPI tile, and the
+  `newCustomers`/`newCustomersList` fields on `getApproverKPIs()` are gone
+  from `approver.js`/data.js. New `renderAccountsPendingCustomers()`
+  (`accounts.js`, new "Pending Customers" tab, count badge in the tab
+  label itself) + `accountsApproveCustomer()`/`accountsRejectCustomer()`
+  calling the same underlying `approveCustomer()`/`rejectCustomer()` —
+  Accounts has no per-user identity picker (unlike Estimator/Approver), so
+  both are attributed to a fixed `'Accounts'` actor string.
+- **Real duplicate detection, replacing the old hard tel-uniqueness
+  block.** The previous `customerTelExists()` check in `createCustomer()`
+  flatly rejected a repeated phone number — stronger than what actually
+  caused the past incident (near-duplicates: same client, a typo'd phone,
+  or no phone match at all but same email) which slipped through
+  undetected because nothing was watching for them. New
+  `findPossibleDuplicateCustomer(tel, email)` matches on phone OR email
+  (case-insensitive/trimmed) against every existing customer and, if
+  found, stamps the new record with `possibleDuplicateOf: <matchedId>` —
+  creation is never blocked, Accounts' Pending Customers queue shows the
+  flagged record with the matched existing customer's name/contact/tel/
+  email directly alongside it for a quick side-by-side call. Sales' own
+  "Customer created" confirmation now also mentions the flag when one
+  fires, so the salesperson isn't left thinking nothing happened.
+- **Verification:** new suite `e2e-customer-approval.js` (11/11) — pending
+  status + no false flag on a clean create, Sales creating an Enquiry
+  against a pending customer with zero friction, phone-match flagging,
+  case-insensitive email-match flagging, a genuinely unrelated customer
+  NOT getting flagged, Approver's dashboard confirmed to no longer show
+  any customer-queue UI at all, Accounts' Pending Customers tab listing
+  everything with the duplicate warning visible, and both Approve/Reject
+  actually landing on the customer record with the right actor/comment.
+  Full regression: all 10 current suites re-run — 108/108 plus
+  back-button-check clean, zero console/page errors.

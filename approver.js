@@ -89,9 +89,9 @@ approverModuleWrap.innerHTML = `
 `;
 document.body.appendChild(approverModuleWrap);
 
-let approverView = 'dashboard';        // dashboard | hub | review | customers
+let approverView = 'dashboard';        // dashboard | hub | review
 let approverActiveQtnId = null;
-let approverDashExpanded = null;       // null | 'pending' | 'forApproval' | 'newCustomers'
+let approverDashExpanded = null;       // null | 'pending' | 'forApproval'
 let approverCommentLineId = null;      // which line's Comment modal is open
 
 function aEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
@@ -146,7 +146,6 @@ function renderApproverBody() {
     case 'dashboard': content = renderApproverDashboard(); break;
     case 'hub': content = renderApproverQuoteHub(); break;
     case 'review': content = renderApproverReview(); break;
-    case 'customers': content = renderApproverCustomerQueue(); break;
     default: content = renderApproverDashboard();
   }
   body.innerHTML = content;
@@ -193,7 +192,6 @@ function renderApproverDashboard() {
       <div class="sales-kpi-tile"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
       <div class="sales-kpi-tile"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.poApproval}</div><div class="lbl">PO Approval →</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('newCustomers')"><div class="num">${k.newCustomers}</div><div class="lbl">New Customers</div></div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>
@@ -225,50 +223,9 @@ function renderApproverDashboard() {
             <p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p>
           </div>`;
         }).join('')) + `</div>`;
-  } else if (approverDashExpanded === 'newCustomers') {
-    expandedHtml = renderApproverCustomerQueue(true);
   }
 
   return kpiTilesHtml + expandedHtml;
-}
-
-// ══════════════════════════════════════════
-// NEW CUSTOMERS — approval queue
-// Own feature, not part of the live Q-Pro trace above (flagged assumption
-// when this KPI was first built) — createCustomer() defaults new customers
-// to "pending" without blocking their use, so this is after-the-fact
-// governance (catching duplicates/bad data), not a hard gate on Sales.
-// ══════════════════════════════════════════
-
-function renderApproverCustomerQueue(embedded) {
-  const pending = customers.filter(c => c.status === 'pending');
-  const rows = pending.length === 0
-    ? `<p style="font-size:12px;color:#64748b;">No customers awaiting approval.</p>`
-    : pending.map(c => `
-      <div class="sales-card" style="margin-bottom:8px;">
-        <p style="font-weight:700;font-size:13px;">${aEsc(c.name)} <span class="sales-pill">${c.id}</span></p>
-        <p style="font-size:11.5px;color:#64748b;">${aEsc(c.contactPerson)} · ${aEsc(c.tel)} · ${aEsc(c.address)}</p>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="primary" style="flex:1;font-size:11.5px;padding:7px;" onclick="approverApproveCustomer('${c.id}')">Approve</button>
-          <button class="secondary" style="flex:1;font-size:11.5px;padding:7px;color:#b91c1c;" onclick="approverRejectCustomer('${c.id}')">Reject</button>
-        </div>
-      </div>`).join('');
-  const wrap = `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">New Customers</p>${rows}</div>`;
-  return embedded ? wrap : `<span class="sales-back" onclick="approverView='dashboard';renderApproverBody();">‹ Back to Dashboard</span>${wrap}`;
-}
-
-function approverApproveCustomer(customerId) {
-  approveCustomer(customerId, approverCurrentUser);
-  approverAlert('✓ Customer approved.');
-  renderApproverBody();
-}
-function approverRejectCustomer(customerId) {
-  const comment = window.prompt('Reason for rejecting this customer:', '');
-  if (comment === null) return;
-  const result = rejectCustomer(customerId, approverCurrentUser, comment);
-  if (result.error) { approverAlert(result.error); return; }
-  approverAlert('✓ Customer rejected.');
-  renderApproverBody();
 }
 
 // ══════════════════════════════════════════

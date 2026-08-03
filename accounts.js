@@ -119,6 +119,7 @@ function renderAccountsBody() {
   const body = document.getElementById('accounts-body');
   if (!body) return;
   const tab = (v, label) => `<button class="sales-tabbtn ${accountsView === v || (accountsView === v + '-new' ) ? 'active' : ''}" onclick="accountsSetView('${v}')">${label}</button>`;
+  const pendingCustomerCount = customers.filter(c => c.status === 'pending').length;
   const tabsHtml = `
     <div class="sales-tabs">
       ${tab('dashboard', 'Dashboard')}
@@ -140,9 +141,11 @@ function renderAccountsBody() {
       ${tab('creditnotes', 'Sales Credit Note')}
       ${tab('custupdate', 'Customer Update')}
       ${tab('bill-os', 'Sales Bill Outstanding')}
+      ${tab('pending-customers', `Pending Customers${pendingCustomerCount ? ` (${pendingCustomerCount})` : ''}`)}
     </div>`;
   let content = '';
   if (accountsView === 'dashboard') content = renderAccountsDashboard();
+  else if (accountsView === 'pending-customers') content = renderAccountsPendingCustomers();
   else if (accountsView === 'invoices') content = renderAccountsSalesInvoices();
   else if (accountsView === 'purchases') content = renderAccountsPurchaseInvoices();
   else if (accountsView === 'coa') content = renderAccountsGroups();
@@ -228,6 +231,54 @@ function renderAccountsDashboard() {
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Note</p>
       <p style="font-size:11.5px;color:#94a3b8;">Receivables/Payables above are true outstanding balances, netting off Sales Receipt/Credit Note and Supplier Payment activity. Tally bridge sync is not built.</p>
     </div>`;
+}
+
+// ══════════════════════════════════════════
+// PENDING CUSTOMERS — Accounts' approval queue
+// Moved here from the Approver module 3 Aug 2026 — customer verification
+// (catching duplicate client records before they cause receivables
+// problems, a real past incident) is an Accounts responsibility, confirmed
+// by Salman. Non-blocking: Sales can already create Enquiries/Quotations
+// against a "pending" customer immediately (see createCustomer() in
+// data.js) — this queue is after-the-fact governance, not a gate on Sales.
+// ══════════════════════════════════════════
+
+function renderAccountsPendingCustomers() {
+  const pending = customers.filter(c => c.status === 'pending');
+  const rows = pending.length === 0
+    ? `<p style="font-size:12px;color:#64748b;">No customers awaiting approval.</p>`
+    : pending.map(c => {
+        const dup = c.possibleDuplicateOf ? customers.find(x => x.id === c.possibleDuplicateOf) : null;
+        return `
+      <div class="sales-card" style="margin-bottom:8px;${dup ? 'border-color:#f59e0b;' : ''}">
+        <p style="font-weight:700;font-size:13px;">${acEsc(c.name)} <span class="sales-pill">${c.id}</span></p>
+        <p style="font-size:11.5px;color:#64748b;">${acEsc(c.contactPerson)} · ${acEsc(c.tel)} · ${acEsc(c.email)} · ${acEsc(c.address)}</p>
+        ${dup ? `
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px;margin-top:8px;">
+          <p style="font-size:11px;font-weight:700;color:#92400e;">⚠ Possible duplicate — matches existing customer ${acEsc(dup.id)}</p>
+          <p style="font-size:11px;color:#92400e;">${acEsc(dup.name)} · ${acEsc(dup.contactPerson)} · ${acEsc(dup.tel)} · ${acEsc(dup.email)}</p>
+        </div>` : ''}
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="primary" style="flex:1;font-size:11.5px;padding:7px;" onclick="accountsApproveCustomer('${c.id}')">Approve</button>
+          <button class="secondary" style="flex:1;font-size:11.5px;padding:7px;color:#b91c1c;" onclick="accountsRejectCustomer('${c.id}')">Reject</button>
+        </div>
+      </div>`;
+      }).join('');
+  return `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">Pending Customers</p>${rows}</div>`;
+}
+
+function accountsApproveCustomer(customerId) {
+  approveCustomer(customerId, 'Accounts');
+  accountsAlert('✓ Customer approved.');
+  renderAccountsBody();
+}
+function accountsRejectCustomer(customerId) {
+  const comment = window.prompt('Reason for rejecting this customer:', '');
+  if (comment === null) return;
+  const result = rejectCustomer(customerId, 'Accounts', comment);
+  if (result.error) { accountsAlert(result.error); return; }
+  accountsAlert('✓ Customer rejected.');
+  renderAccountsBody();
 }
 
 function renderAccountsSalesInvoices() {

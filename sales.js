@@ -412,7 +412,9 @@ function saveCustomerCreate() {
   const returnTo = d._returnTo;
   const result = createCustomer(d);
   if (result.error) { salesAlert(result.error); return; }
-  salesAlert(`✓ Customer ${result.id} created.`);
+  salesAlert(result.possibleDuplicateOf
+    ? `✓ Customer ${result.id} created — flagged as a possible duplicate of ${result.possibleDuplicateOf} for Accounts to review. You can keep working with it right away.`
+    : `✓ Customer ${result.id} created.`);
   if (returnTo === 'enq-create') {
     salesDraft = { division: SALES_DIVISIONS[0], customerId: result.id, prospectName: '', contactPerson: result.contactPerson, tel: result.tel, email: result.email, requirements: '', source: ENQUIRY_SOURCES[0], salesPerson: STAFF[0] };
     salesView = 'enq-create';
