@@ -83,6 +83,9 @@ approverModuleWrap.innerHTML = `
   <div class="apr-modal" id="apr-comment-modal">
     <div class="apr-modal-inner" id="apr-comment-modal-inner"></div>
   </div>
+  <div class="apr-modal" id="apr-detail-modal">
+    <div class="apr-modal-inner" id="apr-detail-modal-inner" style="max-width:560px;max-height:80vh;overflow-y:auto;"></div>
+  </div>
 `;
 document.body.appendChild(approverModuleWrap);
 
@@ -322,6 +325,20 @@ function renderApproverReview() {
   if (!q) return `<p style="font-size:12.5px;color:#64748b;">Quotation not found.</p>`;
   const c = customers.find(x => x.id === q.customerId);
 
+  // Page-level summary — quote value, cost, profit, VAT, grand total.
+  // Cost only aggregates lines that actually have a BOM (matches the
+  // per-row "—" fallback below); a quote isn't fully estimated until every
+  // line has one, so this total is a running figure, not a guarantee.
+  let sumAmount = 0, sumDisc = 0, sumNet = 0, sumCost = 0;
+  q.items.forEach(it => {
+    sumAmount += it.amount; sumDisc += it.discAmt; sumNet += it.netAmount;
+    if (it.bom) sumCost += computeBOMTotals(it.bom).totalCostInclOH;
+  });
+  const subtotal = sumAmount - sumDisc;
+  const vatTotal = sumNet - subtotal;
+  const profitTotal = subtotal - sumCost;
+  const profitPctTotal = sumCost > 0 ? (profitTotal / sumCost * 100).toFixed(1) + '%' : '—';
+
   const rows = q.items.map((it, i) => {
     let cost = '—', profit = '—', profitPct = '—';
     if (it.bom) {
@@ -332,7 +349,7 @@ function renderApproverReview() {
       profitPct = t.totalCostInclOH > 0 ? (actualProfit / t.totalCostInclOH * 100).toFixed(1) + '%' : '—';
     }
     return `
-      <tr>
+      <tr style="cursor:pointer;" onclick="approverOpenItemDetailModal(${it.lineId})">
         <td>${i + 1}</td>
         <td>${aEsc(it.product)}${it.description ? `<div style="font-size:10.5px;color:#94a3b8;">${aEsc(it.description)}</div>` : ''}</td>
         <td>${it.qty}</td>
@@ -342,9 +359,9 @@ function renderApproverReview() {
         <td>${cost}</td>
         <td>${profit}</td>
         <td>${profitPct}</td>
-        <td><button class="secondary" style="font-size:10px;padding:4px 7px;" onclick="approverOpenCommentModal(${it.lineId})">${it.approverComment ? '✎ Comment' : '+ Comment'}</button></td>
+        <td><button class="secondary" style="font-size:10px;padding:4px 7px;" onclick="event.stopPropagation();approverOpenCommentModal(${it.lineId})">${it.approverComment ? '✎ Comment' : '+ Comment'}</button></td>
         <td>—</td>
-        <td><span style="cursor:pointer;color:#b91c1c;" onclick="approverDeleteItem('${q.id}',${it.lineId})">✕</span></td>
+        <td><span style="cursor:pointer;color:#b91c1c;" onclick="event.stopPropagation();approverDeleteItem('${q.id}',${it.lineId})">✕</span></td>
       </tr>`;
   }).join('');
 
@@ -363,7 +380,18 @@ function renderApproverReview() {
     </div>
     <div class="sales-card" style="overflow-x:auto;">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Line Items</p>
+      <p style="font-size:10.5px;color:#94a3b8;margin:-2px 0 8px;">Tap a row for its full material/labour/subcontract estimation breakdown.</p>
       <table class="sales-items"><tr><th>#</th><th>Name/Description</th><th>Qty</th><th>Price</th><th>Disc</th><th>Amount</th><th>Cost</th><th>Profit</th><th>Profit%</th><th>Comments</th><th>Image</th><th></th></tr>${rows}</table>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Quote Summary</p>
+      <div class="sales-kpi-grid">
+        <div class="sales-kpi-tile"><div class="num">${subtotal.toFixed(3)}</div><div class="lbl">Quote Value</div></div>
+        <div class="sales-kpi-tile"><div class="num">${sumCost.toFixed(3)}</div><div class="lbl">Cost</div></div>
+        <div class="sales-kpi-tile"><div class="num">${profitTotal.toFixed(3)}</div><div class="lbl">Profit (${profitPctTotal})</div></div>
+      </div>
+      <p style="font-size:12px;color:#64748b;">VAT: BD ${vatTotal.toFixed(3)}</p>
+      <p style="font-weight:700;font-size:14px;margin-top:4px;">Grand Total: BD ${sumNet.toFixed(3)}</p>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Terms and Conditions</p>
@@ -419,6 +447,50 @@ function approverSaveLineComment() {
   approverCloseCommentModal();
   approverAlert('✓ Comment saved.');
   renderApproverBody();
+}
+
+// Per-line estimation breakdown — read-only, so the Approver can see
+// exactly what went into the price before approving, not just the rolled-up
+// Cost/Profit columns on the review table.
+function approverOpenItemDetailModal(lineId) {
+  const item = findQuotationItem(approverActiveQtnId, lineId);
+  const inner = document.getElementById('apr-detail-modal-inner');
+  if (!item || !item.bom) {
+    inner.innerHTML = `
+      <p style="font-weight:700;font-size:14px;margin-bottom:10px;">${aEsc(item ? item.product : '—')}</p>
+      <p style="font-size:12.5px;color:#64748b;">No BOM has been entered for this item yet.</p>
+      <button class="secondary" style="width:100%;margin-top:12px;" onclick="approverCloseDetailModal()">Close</button>`;
+    document.getElementById('apr-detail-modal').style.display = 'flex';
+    return;
+  }
+  const bom = item.bom;
+  const t = computeBOMTotals(bom);
+  const section = (title, rows, cols) => rows.length ? `
+    <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">${title}</p>
+    <table class="sales-items"><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>${rows}</table>` : '';
+  const matRows = bom.materials.map(m => `<tr><td>${aEsc(m.name)}</td><td>${m.qty} ${aEsc(m.unit)}</td><td>${m.rate.toFixed(3)}</td><td>${m.amount.toFixed(3)}</td></tr>`).join('');
+  const labRows = bom.labour.map(l => `<tr><td>${dc(l.department).n}</td><td>${aEsc(l.empCategory)}</td><td>${l.noOfPpl} × ${l.qty}${l.calcMode === 'days' ? 'd' : 'h'}</td><td>${l.rate.toFixed(3)}</td><td>${l.amount.toFixed(3)}</td></tr>`).join('');
+  const subRows = bom.subcontract.map(r => `<tr><td>${aEsc(r.vendor)}</td><td>${aEsc(r.workType)}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('');
+  const hirRows = bom.hiring.map(r => `<tr><td>${aEsc(r.vendor)}</td><td>${aEsc(r.workType)}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('');
+  const othRows = bom.others.map(r => `<tr><td>${aEsc(r.party)}</td><td>${aEsc(r.details)}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('');
+  inner.innerHTML = `
+    <p style="font-weight:700;font-size:14px;margin-bottom:2px;">${aEsc(item.product)}</p>
+    <p style="font-size:11.5px;color:#94a3b8;margin-bottom:6px;">Qty: ${item.qty} ${aEsc(item.unit)} · Rate: BD ${item.rate.toFixed(3)}</p>
+    ${section('Materials', matRows, ['Item', 'Qty', 'Rate', 'Amount'])}
+    ${section('Labour', labRows, ['Dept', 'Category', 'PPL × Qty', 'Rate', 'Amount'])}
+    ${section('Sub Contract', subRows, ['Vendor', 'Work Type', 'Amount'])}
+    ${section('Hiring', hirRows, ['Vendor', 'Work Type', 'Amount'])}
+    ${section('Others', othRows, ['Party', 'Details', 'Amount'])}
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--biz-border-light);font-size:12px;">
+      <p>Total Cost: BD ${t.totalCost.toFixed(3)} · Overhead: BD ${(t.totalCostInclOH - t.totalCost).toFixed(3)}</p>
+      <p>Cost incl. Overhead: BD ${t.totalCostInclOH.toFixed(3)} · Profit (${bom.profitPercent}%): BD ${t.profitAmount.toFixed(3)}</p>
+      <p style="font-weight:700;margin-top:4px;">Calculated Selling Price: BD ${t.calculatedSellingPrice.toFixed(3)}${bom.sellingPriceOverride !== null ? ` (override applied: BD ${bom.sellingPriceOverride.toFixed(3)})` : ''}</p>
+    </div>
+    <button class="secondary" style="width:100%;margin-top:12px;" onclick="approverCloseDetailModal()">Close</button>`;
+  document.getElementById('apr-detail-modal').style.display = 'flex';
+}
+function approverCloseDetailModal() {
+  document.getElementById('apr-detail-modal').style.display = 'none';
 }
 
 // Matches the live confirmation copy exactly ("Do you Want to Change Status?").

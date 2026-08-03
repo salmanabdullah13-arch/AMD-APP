@@ -643,6 +643,16 @@ Orders/Tasks-Activity-Log session):**
   other future path that creates/mutates a Job Card's amount should call
   it too, or `projects[]`/`curtainJobs[]` will drift out of sync with the
   real `jobCards[]` figure.
+- `e2e-lifecycle.js` is **stale and currently broken** — confirmed 3 Aug
+  2026 (not a regression from anything built that day). It waits on
+  `#node-sales`, a selector from before the ecosystem hub's Three.js
+  rewrite (real hub taps now go through `window.__eco3d.branches` +
+  `.userData.node.launch()`, see every other e2e script), and later steps
+  also expect Sales Receipt/Credit Note tabs inside the Sales/Jobs modules
+  that Batch 7 moved into Accounts. Needs a rewrite (or retirement in
+  favor of the newer suites that already cover the same lifecycle in
+  smaller pieces) rather than being trusted as part of the regression
+  set — don't count its failures against new work until that's done.
 
 ---
 
@@ -2093,25 +2103,98 @@ three were genuine defects, fixed directly.
   the Change-selection round trip.
 - **Full regression:** all 9 Playwright suites re-run — 81/81 plus this
   session's new 12/12, zero console/page errors.
-- **Next up (queued, not yet built):** a large batch of real-usage
-  findings from Salman — Estimator Labour tab's department dropdown
-  should be restricted to the department(s) already chosen for that line
-  (currently shows every department); Labour Rate should be mandatory
-  before Qty/Hours can be entered; Unit of Measurement needs the same
-  search-and-select treatment as Item Name everywhere it's still
-  free-typed (sales people write "Meters"/"Mtr"/"M"/"Mtrs" inconsistently);
-  BOM items need a stable per-quote serial number so a "Copy BOM from
-  Item #N" action can duplicate an existing line's full BOM into another
-  line; Approver's quote view should let them click into a line item for
-  its full estimation breakdown and show a page-level summary (quote
-  value, cost, profit %, VAT, total). Two open design questions raised
-  by Salman, answered with a recommendation, awaiting confirmation before
-  building: (1) whether Labour entries should support a per-day mode
-  alongside per-hour, (2) whether labour costing should pull real
-  employee pay rates from HR instead of a generic trade rate. A third
-  item — new Customer creation requiring Accounts approval with
-  duplicate-client detection (a real fraud/data-integrity incident from
-  Q-Pro days) — needs the workflow shape clarified with Salman before any
-  build (who approves, what Sales can/can't do with a customer while
-  pending, how "duplicate" is detected) since it changes the Customer
-  data model and touches the start of every Sales flow.
+
+### 3 Aug 2026 (later same day) — Labour dept lock, hours/days mode, mandatory rate, Unit Master unification, Copy BOM, Approver drilldown + summary
+
+Second real-usage batch from Salman in the same day. Two open design
+questions ("need your advice") were answered with a recommendation before
+building rather than guessed at silently:
+
+- **Estimator Labour tab showed every production department, regardless
+  of what the line was actually routed to.** `renderBomLabourTab()`
+  (`estimator.js`) now restricts the Department select to `item.
+  departmentSequence` (the same array set in the Estimation Index's
+  Departments cell) — a line routed only to Joinery can no longer book
+  labour against Upholstery. If no department has been set yet, the
+  entire entry form is replaced with a message pointing back to the
+  Estimation Index — Labour can't be booked at all until routing exists.
+- **Labour supports Per Hour or Per Day now, not just hours.** Recommended
+  over forcing one unit onto both small installs (naturally hour-based)
+  and joinery/painting crew tasks (naturally day-based) — reasoning: a
+  forced-wrong unit just gets faked to fit the field. `addBOMLabour()`
+  (data.js) takes `calcMode: 'hours'|'days'` plus a generic `qty`/`manQty`
+  (renamed from `hrs`/`manHrs` — only consumer was this same function and
+  its one caller, safe rename). UI is a two-button toggle that relabels
+  Qty/Rate/table headers accordingly.
+  Rate is now mandatory. — the app previously let `noOfPpl`/`hrs` be
+  entered and saved with Rate left at 0, producing a silently-worthless
+  labour line. `addBOMLabour()` rejects with an error if `rate` is falsy;
+  `estimatorAddLabour()` checks first and alerts before even calling it.
+- **Labour Rate now pre-fills from a real department payroll average, not
+  a guess.** Recommended AGAINST pulling individual employee salaries into
+  quoting (`EMPLOYEE_RATES`, ~70 real staff, already used by Curtain's
+  own POST-sale actual-labour tracking — a legitimately different use
+  case since a real crew is assigned by then) — a customer-facing
+  cost-plus estimate shouldn't expose or assume one specific worker's pay
+  before the job is even sold. Instead, new `getDeptAvgLabourRate(deptKey)`
+  averages `EMPLOYEE_RATES` production-staff rates PER DEPARTMENT (an
+  aggregate, not a named figure) via `LABOUR_DEPT_PAYROLL_MAP` (`paint`/
+  `metal` fall back to Carpentry's average — no dedicated payroll bucket
+  for either yet). Shown as a pre-filled, clearly-labeled, freely-editable
+  suggestion on the Rate field.
+- **Unit of Measurement was split across two divergent lists.** A real,
+  already-editable Unit Master (`units[]`, managed under Storekeeper →
+  Masters → Unit) existed the whole time, but Sales' quotation item Unit
+  field and the Job Card's variation-item Unit field both read a separate
+  hardcoded `QUOTE_UNITS` array instead — exactly the kind of split that
+  lets "Meters" drift from whatever the real master says elsewhere.
+  `QUOTE_UNITS` deleted; both `sales.js` (`it-unit`) and `jobs.js`
+  (`prjob-unit`) now source their `<select>` from the one real `units[]`
+  master. (Both fields were already `<select>`s, not free-typed inputs —
+  Storekeeper's own Item Master creation form already read `units[]`
+  correctly; the gap was purely Sales/Jobs pointing at a second list.)
+- **BOM items can now be copied from one line to another in the same
+  quote.** New `cloneBOMToItem(qtnId, sourceLineId, targetLineId)`
+  (data.js) deep-clones materials/labour/subcontract/hiring/others +
+  overhead%/profit% wholesale, resets `submitted`/`qtyAtSubmit` so it
+  reads as unreviewed until the Estimator re-checks it against the
+  target's own qty/spec. No new schema field needed for Salman's "each
+  item should have a serial number" ask — `lineId` already IS a stable
+  per-quote serial (assigned once at `addQuotationItem()` time, never
+  recalculated), it just wasn't being displayed as one; the Estimation
+  Index's SL column now shows `it.lineId` instead of the render-time
+  array index. New "Copy BOM from another item" control at the top of
+  the BOM entry screen (`estimator.js`), listing every OTHER item in the
+  quote that already has a BOM, labeled `#<lineId> — <product>`.
+- **Approver can now drill into a line item's full estimation breakdown,
+  and see a page-level summary.** Clicking any Line Items row in
+  `renderApproverReview()` opens a new read-only modal
+  (`approverOpenItemDetailModal()`) showing every BOM section (Materials/
+  Labour/Subcontract/Hiring/Others) plus Cost/Overhead/Profit/Calculated
+  Selling Price — same `computeBOMTotals()` data the Estimator sees, just
+  not editable. The Comment button and delete ✕ inside each row call
+  `event.stopPropagation()` so they don't also trigger the row's own
+  click-through. A new "Quote Summary" card shows Quote Value (pre-VAT
+  subtotal), Cost (summed across lines that have a BOM), Profit + Profit%,
+  VAT, and Grand Total.
+- **Verification:** new suite `e2e-labour-copybom-approver.js` (14/14) —
+  dept-lock, per-day math (2 ppl × 3 days × BD5 = BD30 checked exactly),
+  rate-mandatory rejection, the no-department gate, stable SL numbers,
+  Copy BOM landing with real data and `submitted:false`, Sales' Unit
+  select matching the real `units[]` master exactly, and the Approver
+  summary + detail modal. Full regression: all 9 current suites re-run —
+  97/97 plus back-button-check's own all-12-modules-pass, zero console/
+  page errors. (`e2e-lifecycle.js` was also re-run and confirmed still
+  broken, but pre-existing and unrelated — see Known Issues below.)
+- **Still open, needs Salman's input before building:** new Customer
+  creation requiring Accounts approval with duplicate detection (a real
+  fraud/data-integrity incident from Q-Pro days). Two of the three open
+  questions are now answered — Sales can create Enquiries/Quotations on
+  an unapproved customer immediately (approval just needs to land before
+  the job is confirmed/invoiced, not before Sales can start); duplicate
+  detection flags on phone number AND email match. Not yet built — this
+  is a real Customer data-model change (an approval-status field, an
+  Accounts-side review queue, a "possible duplicate" flag/match display,
+  and a non-blocking pending-approval indicator wherever Sales works with
+  a new customer) and deserves its own investigation + build pass rather
+  than being folded into this batch.

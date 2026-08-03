@@ -2676,7 +2676,6 @@ const FOLLOWUP_OUTCOMES = ["On call/whatsapp", "Required design/proposal", "Clie
 // Q-Pro URL path (furniture/Enquiry/createenquiry); the rest mirror AMD's own
 // production divisions (DEPTS above) until Q-Pro's full division list is captured.
 const SALES_DIVISIONS = ["Curtain & Blinds", "Furniture", "Joinery", "Upholstery", "Metal Works"];
-const QUOTE_UNITS = ["Nos", "Meters", "Sqmtr", "CFT", "CBM", "Box", "Btl", "Ctn", "Yard", "Lot", "Window", "Room"];
 // Common subset, NOT the full ISO-3166 list Q-Pro's Add Customer dropdown actually has —
 // good enough until that full list is captured.
 const COUNTRIES = ["Bahrain", "Saudi Arabia", "United Arab Emirates", "Kuwait", "Qatar", "Oman", "India", "Pakistan", "Bangladesh", "Philippines", "Sri Lanka", "Nepal", "Egypt", "Jordan", "Lebanon", "United Kingdom", "United States", "Other"];
@@ -3091,14 +3090,37 @@ function addBOMMaterial(qtnId, lineId, { name, description = "", qty, unit, rate
   bom.materials.push({ id: bom.materials.length + 1, itemId: master ? master.id : null, name, description, qty: qty || 0, unit, rate: rate || 0, amount });
   return bom;
 }
-function addBOMLabour(qtnId, lineId, { department, empCategory, noOfPpl, hrs, rate }) {
+// calcMode 'hours' (PPL x Hrs x hourly Rate) or 'days' (PPL x Days x daily
+// Rate) — Salman's call: joinery/painting crews plan in days-per-task,
+// small installs plan in hours, forcing one unit onto both just makes
+// someone fake numbers to fit the field. qty holds hrs OR days depending
+// on calcMode; manQty is the resulting man-hours/man-days total.
+function addBOMLabour(qtnId, lineId, { department, empCategory, calcMode = "hours", noOfPpl, qty, rate }) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  if (!rate) return { error: "Rate is required." };
   const bom = ensureItemBOM(item);
-  const manHrs = (noOfPpl || 0) * (hrs || 0);
-  const amount = manHrs * (rate || 0);
-  bom.labour.push({ id: bom.labour.length + 1, department, empCategory, noOfPpl: noOfPpl || 0, hrs: hrs || 0, manHrs, rate: rate || 0, amount });
+  const manQty = (noOfPpl || 0) * (qty || 0);
+  const amount = manQty * rate;
+  bom.labour.push({ id: bom.labour.length + 1, department, empCategory, calcMode, noOfPpl: noOfPpl || 0, qty: qty || 0, manQty, rate, amount });
   return bom;
+}
+// Department production-floor averages from real payroll (EMPLOYEE_RATES)
+// — an aggregate default suggestion for the Estimator's Labour tab, NOT
+// individual salaries. Salman's call: quoting shouldn't expose or assume a
+// specific worker's pay before a job is even sold, but the estimate should
+// still start from a real number instead of a guessed one. Painting and
+// Metal Works have no dedicated payroll bucket yet (see DEPARTMENT_APPROVERS
+// — Painting shares Joinery's floor), so they fall back to Carpentry's
+// average; returns 0 (no autofill, Estimator just types their own) if
+// nothing matches at all.
+const LABOUR_DEPT_PAYROLL_MAP = { carp: "Carpentry", paint: "Carpentry", uph: "Upholstery", curt: "Curtain & Blinds", metal: "Carpentry" };
+function getDeptAvgLabourRate(deptKey) {
+  const deptName = LABOUR_DEPT_PAYROLL_MAP[deptKey];
+  if (!deptName) return 0;
+  const rates = Object.values(EMPLOYEE_RATES).filter(e => e.department === deptName && e.category === "Production").map(e => e.rate);
+  if (!rates.length) return 0;
+  return Math.round((rates.reduce((s, r) => s + r, 0) / rates.length) * 1000) / 1000;
 }
 function addBOMSubcontract(qtnId, lineId, { vendor, workType, amount }) {
   const item = findQuotationItem(qtnId, lineId);
@@ -3192,6 +3214,23 @@ function clearItemBOM(qtnId, lineId) {
   item.bom = null;
   item.rate = 0; item.amount = 0; item.discAmt = 0; item.netAmount = 0;
   return { ok: true };
+}
+// Clone another line item's full BOM (materials/labour/subcontract/hiring/
+// others + overhead%/profit%) into this one as a starting point — Salman's
+// ask, for near-identical items in the same quote. lineId is already the
+// stable per-quote serial (assigned once at addQuotationItem() time), so it
+// doubles as the "Item #N" reference with no separate SL field needed.
+// Replaces the target's current BOM entirely; marked unsubmitted since the
+// copied figures haven't been reviewed against THIS item's own qty/spec yet.
+function cloneBOMToItem(qtnId, sourceLineId, targetLineId) {
+  const source = findQuotationItem(qtnId, sourceLineId);
+  const target = findQuotationItem(qtnId, targetLineId);
+  if (!source || !target) return { error: "Item not found." };
+  if (!source.bom) return { error: "Source item has no BOM to copy." };
+  target.bom = JSON.parse(JSON.stringify(source.bom));
+  target.bom.submitted = false;
+  target.bom.qtyAtSubmit = null;
+  return target.bom;
 }
 
 // Estimator dashboard KPIs. PR Pending/Not Received is an approximation off

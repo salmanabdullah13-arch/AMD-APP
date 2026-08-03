@@ -848,7 +848,7 @@ function renderWizardStep2() {
       <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div class="sales-field"><label>Qty</label><input type="number" id="it-qty" value="1"></div>
-        <div class="sales-field"><label>Unit</label><select id="it-unit">${QUOTE_UNITS.map(u => `<option value="${u}">${u}</option>`).join('')}</select></div>
+        <div class="sales-field"><label>Unit</label><select id="it-unit">${units.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}</select></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div class="sales-field"><label>Rate</label><input class="${locked ? 'sales-locked' : ''}" type="number" id="it-rate" ${locked ? 'disabled value="0"' : 'value="0"'}></div>

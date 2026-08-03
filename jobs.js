@@ -669,7 +669,7 @@ function renderPurchaseRequestJob() {
       <div class="sales-field"><label>Product/Service</label><input type="text" id="prjob-product"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div class="sales-field"><label>Qty</label><input type="number" id="prjob-qty" value="1"></div>
-        <div class="sales-field"><label>Unit</label><select id="prjob-unit">${QUOTE_UNITS.map(u => `<option value="${u}">${u}</option>`).join('')}</select></div>
+        <div class="sales-field"><label>Unit</label><select id="prjob-unit">${units.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}</select></div>
       </div>
       <div class="sales-field"><label>Remarks</label><input type="text" id="prjob-remarks"></div>
       <button class="secondary" style="width:100%;" onclick="prJobAddItem()">+ Add</button>

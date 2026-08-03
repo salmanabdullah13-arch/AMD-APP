@@ -318,7 +318,7 @@ function renderEstimationIndex() {
       </div>`;
     return `
       <tr style="${hasBom ? 'background:#dcfce7;' : ''}">
-        <td>${i + 1}</td>
+        <td>${it.lineId}</td>
         <td>${eEsc(it.product)}${commentsHtml}</td>
         <td>${it.qty} ${eEsc(it.unit)}</td>
         <td>${it.rate.toFixed(3)}</td>
@@ -401,6 +401,20 @@ function renderJobEstimationBOM() {
       ${item.approverComment ? `<p><b>Comments (line-item):</b> ${eEsc(item.approverComment)}</p>` : ''}
     </div>`;
 
+  // Copy BOM from another item in the same quote — lineId is already the
+  // stable per-quote serial (assigned once at addQuotationItem() time), so
+  // it doubles as the "Item #N" reference shown here.
+  const copySources = q.items.filter(it => it.lineId !== item.lineId && it.bom);
+  const copyBlock = copySources.length ? `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">Copy BOM from another item</p>
+      <div style="display:flex;gap:8px;">
+        <select id="bom-copy-source" style="flex:1;">${copySources.map(it => `<option value="${it.lineId}">#${it.lineId} — ${eEsc(it.product)}</option>`).join('')}</select>
+        <button class="secondary" onclick="estimatorCopyBOMFromItem()">Copy</button>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:4px;">Replaces this item's current BOM entirely — review and adjust after copying.</p>
+    </div>` : '';
+
   const tabs = ['materials', 'labour', 'subcontract', 'hiring', 'others', 'summary'];
   const tabLabels = { materials: 'Materials', labour: 'Labour Cost', subcontract: 'Sub Contract', hiring: 'Hiring', others: 'Others', summary: 'Summary' };
   const tabsHtml = `<div class="sales-tabs">${tabs.map(t => `<button class="sales-tabbtn ${estimatorBomTab === t ? 'active' : ''}" onclick="estimatorSetBomTab('${t}')">${tabLabels[t]}</button>`).join('')}</div>`;
@@ -413,7 +427,17 @@ function renderJobEstimationBOM() {
   else if (estimatorBomTab === 'others') tabBody = renderBomOthersTab(item);
   else tabBody = renderBomSummaryTab(item);
 
-  return `<span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>${header}${tabsHtml}<div class="sales-card">${tabBody}</div>`;
+  return `<span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>${header}${copyBlock}${tabsHtml}<div class="sales-card">${tabBody}</div>`;
+}
+
+function estimatorCopyBOMFromItem() {
+  const sourceLineId = Number(document.getElementById('bom-copy-source').value);
+  if (!sourceLineId) { estimatorAlert('Choose an item to copy from.'); return; }
+  if (!window.confirm('This replaces this item\'s current BOM entirely. Continue?')) return;
+  const result = cloneBOMToItem(estimatorActiveQtnId, sourceLineId, estimatorActiveLineId);
+  if (result && result.error) { estimatorAlert(result.error); return; }
+  estimatorAlert('✓ BOM copied — review and adjust before submitting.');
+  renderEstimatorBody();
 }
 
 // Item Name is a real search-and-select against the Item Master, not a
@@ -490,35 +514,63 @@ function estimatorAddMaterial() {
   renderEstimatorBody();
 }
 
+// Department here is locked to the department(s) already chosen for this
+// line (Estimation Index's Departments cell) — Salman's call: showing every
+// production department when the line has already been routed to, say,
+// just Joinery invited labour lines that don't match where the work is
+// actually happening. calcMode ('hours'/'days') and the picked department
+// are UI-only scratch state (estimatorLab*), not persisted onto the BOM —
+// each saved labour row carries its own calcMode/department permanently.
+let estimatorLabDept = null;
+let estimatorLabCat = EMP_CATEGORIES[0];
+let estimatorLabMode = 'hours'; // 'hours' | 'days'
+
 function renderBomLabourTab(item) {
   const bom = item.bom;
   const rows = bom.labour.map(l => `
-    <tr><td>${dc(l.department).n}</td><td>${eEsc(l.empCategory)}</td><td>${l.noOfPpl}</td><td>${l.hrs}</td><td>${l.manHrs}</td><td>${l.rate.toFixed(3)}</td><td>${l.amount.toFixed(3)}</td>
+    <tr><td>${dc(l.department).n}</td><td>${eEsc(l.empCategory)}</td><td>${l.noOfPpl}</td><td>${l.qty} ${l.calcMode === 'days' ? 'd' : 'h'}</td><td>${l.manQty.toFixed(1)}</td><td>${l.rate.toFixed(3)}</td><td>${l.amount.toFixed(3)}</td>
     <td><span style="cursor:pointer;color:#b91c1c;" onclick="estimatorRemoveEntry('labour',${l.id})">✕</span></td></tr>`).join('');
   const total = bom.labour.reduce((s, l) => s + l.amount, 0);
 
+  const availableDepts = item.departmentSequence || [];
+  if (!estimatorLabDept || !availableDepts.includes(estimatorLabDept)) estimatorLabDept = availableDepts[0] || null;
+  const suggestedRate = estimatorLabDept ? getDeptAvgLabourRate(estimatorLabDept) : 0;
+  const dayLabel = estimatorLabMode === 'days' ? 'Days' : 'Hrs';
+
   return `
     <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Labour Cost</p>
-    <div class="sales-field"><label>Select Department</label><select id="lab-dept">${typeof purchDeptOptionsHtml === 'function' ? purchDeptOptionsHtml('carp') : DEPTS.map(d => `<option value="${d.k}">${d.n}</option>`).join('')}</select></div>
-    <div class="sales-field"><label>Select Emp Category</label><select id="lab-cat">${EMP_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}</select></div>
+    ${availableDepts.length === 0 ? `<p style="font-size:11px;color:#b91c1c;margin:-4px 0 10px;">Set this item's Department(s) in the Estimation Index first — Labour can only be booked against a department this item is actually routed to.</p>` : `
+    <div class="sales-field"><label>Select Department</label>
+      <select id="lab-dept" onchange="estimatorLabDept=this.value;renderEstimatorBody();">${availableDepts.map(k => `<option value="${k}" ${k === estimatorLabDept ? 'selected' : ''}>${dc(k).n}</option>`).join('')}</select>
+    </div>
+    <div class="sales-field"><label>Select Emp Category</label><select id="lab-cat" onchange="estimatorLabCat=this.value;">${EMP_CATEGORIES.map(c => `<option value="${c}" ${c === estimatorLabCat ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    <div class="sales-tabs" style="margin-bottom:8px;">
+      <button type="button" class="sales-tabbtn ${estimatorLabMode === 'hours' ? 'active' : ''}" onclick="estimatorLabMode='hours';renderEstimatorBody();">Per Hour</button>
+      <button type="button" class="sales-tabbtn ${estimatorLabMode === 'days' ? 'active' : ''}" onclick="estimatorLabMode='days';renderEstimatorBody();">Per Day</button>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="sales-field"><label>No of PPL</label><input type="number" id="lab-ppl" value="1"></div>
-      <div class="sales-field"><label>Hrs</label><input type="number" id="lab-hrs" value="1"></div>
+      <div class="sales-field"><label>${dayLabel}</label><input type="number" id="lab-qty" value="1"></div>
     </div>
-    <div class="sales-field"><label>Rate</label><input type="number" step="0.001" id="lab-rate" value="0"></div>
-    <button class="primary" style="width:100%;" onclick="estimatorAddLabour()">ADD</button>
-    <table class="sales-items" style="margin-top:12px;"><tr><th>Dept</th><th>Category</th><th>PPL</th><th>Hrs</th><th>Man Hrs</th><th>Rate</th><th>Amount</th><th></th></tr>${rows}</table>
+    <div class="sales-field"><label>Rate (per ${estimatorLabMode === 'days' ? 'day' : 'hour'}) *</label><input type="number" step="0.001" id="lab-rate" value="${suggestedRate || ''}" placeholder="Required"></div>
+    ${suggestedRate > 0 ? `<p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Suggested from ${dc(estimatorLabDept).n} floor average (real payroll, aggregated — not a named employee's rate). Pre-filled, adjust freely.</p>` : ''}
+    <button class="primary" style="width:100%;" onclick="estimatorAddLabour()">ADD</button>`}
+    <table class="sales-items" style="margin-top:12px;"><tr><th>Dept</th><th>Category</th><th>PPL</th><th>${dayLabel}</th><th>Man ${dayLabel}</th><th>Rate</th><th>Amount</th><th></th></tr>${rows}</table>
     <p style="font-weight:700;font-size:12.5px;">Total: BD ${total.toFixed(3)}</p>`;
 }
 
 function estimatorAddLabour() {
-  addBOMLabour(estimatorActiveQtnId, estimatorActiveLineId, {
+  const rate = Number(document.getElementById('lab-rate').value);
+  if (!rate || rate <= 0) { estimatorAlert('Rate is required and must be greater than 0.'); return; }
+  const result = addBOMLabour(estimatorActiveQtnId, estimatorActiveLineId, {
     department: document.getElementById('lab-dept').value,
-    empCategory: document.getElementById('lab-cat').value,
+    empCategory: estimatorLabCat,
+    calcMode: estimatorLabMode,
     noOfPpl: Number(document.getElementById('lab-ppl').value),
-    hrs: Number(document.getElementById('lab-hrs').value),
-    rate: Number(document.getElementById('lab-rate').value)
+    qty: Number(document.getElementById('lab-qty').value),
+    rate
   });
+  if (result && result.error) { estimatorAlert(result.error); return; }
   renderEstimatorBody();
 }
 
