@@ -8,31 +8,36 @@
 
 const purchStyleTag = document.createElement('style');
 purchStyleTag.textContent = `
-#purch-module-wrap { font-family: inherit; }
-#purch-module-wrap .ops-header{background:#6B3F7A;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
-#purch-module-wrap .nav{background:#fff;border-bottom:1px solid #e2e8f0;overflow-x:auto;display:flex;padding:0 16px;flex:none;}
-#purch-module-wrap .ntab{background:none;border:0;border-bottom:2.5px solid transparent;color:#64748b;padding:10px 11px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;position:relative;}
-#purch-module-wrap .ntab.active{color:#6B3F7A;border-bottom-color:#9B5FB0;font-weight:700;}
+/* Retoned 3 Aug 2026 (Chunk 2) — migrated off its own hardcoded lavender
+   scheme (was #6B3F7A/#9B5FB0) onto the shared --biz-* tokens, same wine
+   accent as every other module. Status pill colors (pending/approved/
+   rejected/issued/invoiced) are true semantics, left as their own literal
+   hex on purpose. */
+#purch-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
+#purch-module-wrap .ops-header{background:var(--biz-primary);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#purch-module-wrap .nav{background:var(--biz-card-bg);border-bottom:1px solid var(--biz-border);overflow-x:auto;display:flex;padding:0 16px;flex:none;}
+#purch-module-wrap .ntab{background:none;border:0;border-bottom:2.5px solid transparent;color:var(--biz-text-muted);padding:10px 11px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;position:relative;}
+#purch-module-wrap .ntab.active{color:var(--biz-primary);border-bottom-color:var(--biz-primary2);font-weight:700;}
 #purch-module-wrap .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px;}
 #purch-module-wrap .page{display:none;padding:16px 18px;max-width:980px;margin:0 auto;}
 #purch-module-wrap .page.active{display:block;}
-#purch-module-wrap button.primary{background:#9B5FB0;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+#purch-module-wrap button.primary{background:var(--biz-primary);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
 #purch-module-wrap .p-card {
-  background:#fff; border:1px solid #e2e8f0; border-radius:12px;
-  padding:14px; margin-bottom:12px;
+  background:var(--biz-card-bg); border:1px solid var(--biz-border); border-radius:var(--biz-r);
+  padding:14px; margin-bottom:12px; box-shadow:var(--biz-shadow);
 }
 #purch-module-wrap .p-kpi-grid {
   display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px;
 }
 #purch-module-wrap .p-kpi-tile {
-  background:#fff; border:1px solid #e2e8f0; border-radius:12px;
-  padding:12px; text-align:center;
+  background:var(--biz-card-bg); border:1px solid var(--biz-border); border-radius:var(--biz-r);
+  padding:12px; text-align:center; box-shadow:var(--biz-shadow);
 }
-#purch-module-wrap .p-kpi-tile .num { font-size:22px; font-weight:800; color:#9B5FB0; }
-#purch-module-wrap .p-kpi-tile .lbl { font-size:11px; color:#64748b; margin-top:2px; }
+#purch-module-wrap .p-kpi-tile .num { font-size:22px; font-weight:800; color:var(--biz-primary); }
+#purch-module-wrap .p-kpi-tile .lbl { font-size:11px; color:var(--biz-text-muted); margin-top:2px; }
 #purch-module-wrap .p-pill {
   display:inline-block; font-size:10.5px; font-weight:600; padding:3px 9px;
-  border-radius:20px; background:#f1f5f9; color:#64748b;
+  border-radius:20px; background:var(--biz-border-light); color:var(--biz-text-muted);
 }
 #purch-module-wrap .p-pill.pending { background:#fef3c7; color:#92400e; }
 #purch-module-wrap .p-pill.approved { background:#dcfce7; color:#166534; }
@@ -43,25 +48,25 @@ purchStyleTag.textContent = `
   display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;
 }
 #purch-module-wrap .p-dept-filter button {
-  font-size:11px; padding:5px 10px; border-radius:16px; border:1px solid #e2e8f0;
-  background:#fff; color:#475569; cursor:pointer;
+  font-size:11px; padding:5px 10px; border-radius:16px; border:1px solid var(--biz-border);
+  background:var(--biz-card-bg); color:var(--biz-text-muted); cursor:pointer;
 }
 #purch-module-wrap .p-dept-filter button.active {
-  background:#9B5FB0; border-color:#9B5FB0; color:#fff;
+  background:var(--biz-primary); border-color:var(--biz-primary); color:#fff;
 }
 #purch-module-wrap .p-panel {
   display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:200;
-  background:rgba(15,23,42,.55); flex-direction:column; align-items:center;
+  background:rgba(16,24,40,.4); flex-direction:column; align-items:center;
   justify-content:flex-start; overflow-y:auto; padding:20px 12px;
 }
 #purch-module-wrap .p-panel-inner {
-  background:#fff; border-radius:14px; padding:18px; width:100%; max-width:480px;
+  background:var(--biz-card-bg); border-radius:var(--biz-r-lg); padding:18px; width:100%; max-width:480px;
   margin-top:20px;
 }
 #purch-module-wrap .p-field { margin-bottom:10px; }
-#purch-module-wrap .p-field label { font-size:11px; color:#64748b; display:block; margin-bottom:3px; }
+#purch-module-wrap .p-field label { font-size:11px; color:var(--biz-text-muted); display:block; margin-bottom:3px; }
 #purch-module-wrap .p-field input, #purch-module-wrap .p-field select, #purch-module-wrap .p-field textarea {
-  width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px;
+  width:100%; padding:8px 10px; border:1px solid var(--biz-border); border-radius:var(--biz-r-sm); font-size:13px;
 }
 `;
 document.head.appendChild(purchStyleTag);
@@ -185,7 +190,7 @@ function openPurchasingModule() {
   });
 
   const mod = document.getElementById('purch-module-wrap');
-  mod.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  mod.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
 
   purchGoTo('purch-dashboard');
 }
@@ -307,7 +312,7 @@ function renderPurchRequests() {
           <p style="font-size:11.5px;color:#334155;margin:8px 0;">
             ${pr.items.map(it => `${it.name} (${it.qty} ${it.unit})${purchRefLabel(it.itemRef)}`).join(', ')}
           </p>
-          <button class="primary" style="font-size:12px;background:#9B5FB0;border-color:#9B5FB0;" onclick="openPOForm('${pr.id}')">Convert to PO →</button>
+          <button class="primary" style="font-size:12px;background:var(--biz-primary);border-color:var(--biz-primary);" onclick="openPOForm('${pr.id}')">Convert to PO →</button>
         </div>`;
     });
   }
@@ -376,7 +381,7 @@ function renderPRFormItems() {
       </div>
       ${prFormDraft.items.length > 1 ? `<button style="margin-top:8px;background:none;border:0;color:#dc2626;font-size:11.5px;cursor:pointer;padding:0;" onclick="prFormRemoveItem(${i})">Remove item</button>` : ''}
     </div>`).join('') +
-    `<button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="prFormAddItem()">+ Add item</button>`;
+    `<button style="background:none;border:1px dashed var(--biz-primary);color:var(--biz-primary);border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="prFormAddItem()">+ Add item</button>`;
 }
 
 function prFormUpdateItem(idx, field, value) {
@@ -641,7 +646,7 @@ function renderPODirectFormItems() {
       </div>
       ${poDirectFormDraft.items.length > 1 ? `<button style="margin-top:8px;background:none;border:0;color:#dc2626;font-size:11.5px;cursor:pointer;padding:0;" onclick="poDirectFormRemoveItem(${i})">Remove item</button>` : ''}
     </div>`).join('') +
-    `<button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="poDirectFormAddItem()">+ Add item</button>`;
+    `<button style="background:none;border:1px dashed var(--biz-primary);color:var(--biz-primary);border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="poDirectFormAddItem()">+ Add item</button>`;
 }
 
 function poDirectFormUpdateItem(idx, field, value) {
@@ -862,7 +867,7 @@ function renderPurchOrders() {
   let html = `
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button class="primary" style="flex:1;" onclick="openPODirectForm()">+ New PO</button>
-      <button class="primary" style="flex:1;background:#6B3F7A;border-color:#6B3F7A;" onclick="openInvDirectForm()">+ New Invoice</button>
+      <button class="primary" style="flex:1;background:var(--biz-primary);border-color:var(--biz-primary);" onclick="openInvDirectForm()">+ New Invoice</button>
     </div>`;
 
   html += `<p style="font-weight:700;font-size:13px;margin:4px 0 8px;">Awaiting Delivery (${issued.length})</p>`;
@@ -880,7 +885,7 @@ function renderPurchOrders() {
             </div>
             <span class="p-pill issued">Issued</span>
           </div>
-          <button class="primary" style="font-size:12px;background:#9B5FB0;border-color:#9B5FB0;margin-top:8px;" onclick="openInvoiceForm('${po.id}')">Receive & Convert to Invoice →</button>
+          <button class="primary" style="font-size:12px;background:var(--biz-primary);border-color:var(--biz-primary);margin-top:8px;" onclick="openInvoiceForm('${po.id}')">Receive & Convert to Invoice →</button>
         </div>`;
     });
   }
@@ -917,7 +922,7 @@ function renderPurchOrders() {
           <p style="font-weight:700;font-size:13px;">${inv.id} ${inv.department ? '· ' + dc(inv.department).n : ''}</p>
           <p style="font-size:11px;color:#64748b;">${inv.supplierNameTel || '—'} · ${inv.dateReceived}${inv.linkedJobId ? ' · ' + inv.linkedJobId : ''}</p>
           <span class="p-pill ${pillClass}">${pillLabel}</span>
-          ${inv.status === 'draft' ? `<button class="primary" style="font-size:12px;background:#be185d;border-color:#be185d;margin-top:8px;" onclick="openInvoiceDraftPanel('${inv.id}')">Continue draft →</button>` : ''}
+          ${inv.status === 'draft' ? `<button class="primary" style="font-size:12px;background:var(--biz-primary);border-color:var(--biz-primary);margin-top:8px;" onclick="openInvoiceDraftPanel('${inv.id}')">Continue draft →</button>` : ''}
         </div>`;
     });
   }
@@ -1174,7 +1179,7 @@ function renderInvDirectFormItems() {
       </div>
       ${invDirectFormDraft.items.length > 1 ? `<button style="margin-top:8px;background:none;border:0;color:#dc2626;font-size:11.5px;cursor:pointer;padding:0;" onclick="invDirectFormRemoveItem(${i})">Remove item</button>` : ''}
     </div>`).join('') +
-    `<button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="invDirectFormAddItem()">+ Add item</button>`;
+    `<button style="background:none;border:1px dashed var(--biz-primary);color:var(--biz-primary);border-radius:8px;padding:8px;width:100%;font-size:12.5px;cursor:pointer;" onclick="invDirectFormAddItem()">+ Add item</button>`;
 }
 
 function invDirectFormUpdateItem(idx, field, value) {
@@ -1312,14 +1317,14 @@ function renderInvoiceDraftPanel() {
       <label>Other Expense Amount</label>
       <input type="number" step="0.001" id="invd-draft-other-expense" value="${otherExp}" onchange="invDraftOtherExpenseChanged(this.value)">
     </div>
-    <button style="background:none;border:1px dashed #9B5FB0;color:#6B3F7A;border-radius:8px;padding:7px;width:100%;font-size:12px;cursor:pointer;margin-bottom:10px;" onclick="invDraftOtherExpenseChanged(document.getElementById('invd-draft-other-expense').value)">+ Add Other Expenses</button>
+    <button style="background:none;border:1px dashed var(--biz-primary);color:var(--biz-primary);border-radius:8px;padding:7px;width:100%;font-size:12px;cursor:pointer;margin-bottom:10px;" onclick="invDraftOtherExpenseChanged(document.getElementById('invd-draft-other-expense').value)">+ Add Other Expenses</button>
     <div class="p-card" style="background:#f8fafc;">
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span>Invoice Total</span><span>BD ${base.toFixed(3)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span>Other Expenses</span><span>BD ${otherExp.toFixed(3)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:4px 0 0;border-top:1px solid #e2e8f0;margin-top:4px;"><span>Grand Total</span><span id="invd-draft-grand">BD ${grand.toFixed(3)}</span></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:14px;">
-      <button style="flex:1;background:#be185d;color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="confirmInvoiceDraftAction()">Confirm</button>
+      <button style="flex:1;background:var(--biz-primary);color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="confirmInvoiceDraftAction()">Confirm</button>
       <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;" onclick="closeInvoiceDraftPanel()">Save as Draft</button>
     </div>`;
 }
@@ -1369,7 +1374,7 @@ function renderSuppliers() {
           <td style="padding:6px;">${s.telephone}</td>
           <td style="padding:6px;">${s.contactPerson}</td>
           <td style="padding:6px;">${s.address}</td>
-          <td style="padding:6px;"><button style="font-size:11px;background:none;border:1px solid #9B5FB0;color:#6B3F7A;border-radius:6px;padding:3px 8px;cursor:pointer;" onclick="viewSupplierDetail('${s.id}')">View</button></td>
+          <td style="padding:6px;"><button style="font-size:11px;background:none;border:1px solid var(--biz-primary);color:var(--biz-primary);border-radius:6px;padding:3px 8px;cursor:pointer;" onclick="viewSupplierDetail('${s.id}')">View</button></td>
         </tr>`).join('')}
       </table>
     </div>`;

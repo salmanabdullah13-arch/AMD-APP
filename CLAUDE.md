@@ -952,3 +952,102 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   Estimator/Approver/Jobs/Accounts) remain exactly as documented in the
   previous session log entry — still on old hardcoded colors, still
   pending.
+
+### 3 Aug 2026 (later same day) — UI redesign Chunk 2: Purchasing + Storekeeper
+
+- **Retoned the central `--biz-*` design tokens** in `styles.css` (the
+  "SHARED BUSINESS-MODULE DESIGN SYSTEM" block) to the same wine accent
+  (`#600131`) light system as Chunk 1 — every module-identity `--biz-*`
+  color (`--biz-primary`/`-purple`/`-teal`/`-cyan`/`-magenta`/`-amber`/
+  `-crimson`/`-lavender`/`-emerald`, plus their lighter `2`-suffixed
+  steps) now resolves to the one shared wine ramp instead of each having
+  its own hardcoded hex. `--biz-page-bg`/`-card-bg`/`-border`/
+  `-border-light`/`-text`/`-text-muted`/`-text-faint` now match the light
+  Heartwood palette; `--biz-r`/`-r-sm`/`-r-lg` are `14px`/`8px`/`16px`;
+  `--biz-shadow` is the same subtle card shadow used everywhere else.
+  The quotation-lifecycle pill colors (draft/open/confirmed/closed) were
+  deliberately left untouched — genuine semantic state, not brand
+  identity, same principle Chunk 1 applied to Operations' ok/warn/bad.
+  **This immediately, automatically improved every module that already
+  read from `--biz-*`** (Storekeeper fully, Sales/Estimator/Approver/
+  Jobs/Accounts partially, since they're only partly tokenized) — a
+  known, accepted side effect of doing the token change centrally;
+  Chunk 3 still owns finishing those five files' own hardcoded leftovers.
+- **Dropped the IBM Plex Sans Google Fonts `<link>`** from `index.html`'s
+  `<head>` and pointed `--font-biz` at the same system font stack as the
+  rest of the app — one less CDN dependency, full typographic consistency
+  with Shell/Operations/Curtain. Nothing else referenced that font.
+- **Storekeeper (`storekeeper.js`)** — already used `--biz-*` for most of
+  its styling (built that way from the start, 25 Jul 2026), so the
+  central token change did most of the work. Spot-fixed the ~4 remaining
+  literal-hex leftovers that were genuine brand-accent bleed-through: a
+  manually-computed `:hover` darken (`#0d5f58`, old teal → now
+  `var(--biz-primary-dark)`), a light-teal-tinted header subtitle
+  (`#ccfbf1` → a light wine tint, `#f0cfe0`), the module wrapper's page
+  background (`#f7f9fc` literal → `var(--biz-page-bg)`), and one stray
+  border literal (`#e2e8f0` → `var(--biz-border)`). Left ~26 other
+  literals alone — slate-gray neutrals (`#64748b`/`#94a3b8`/etc.) close
+  enough in value/role to the new neutral scale that touching dozens of
+  scattered inline-template-literal instances wasn't worth the risk for
+  a barely-perceptible difference, plus one neutral dark tooltip
+  background (`#1a1f2e`) that isn't brand-related at all.
+- **Purchasing (`purchasing.js`)** — this one was NOT tokenized at all
+  (confirmed zero `var(--biz-*)` usage before this session, 87 literal
+  hex colors, its own separate hardcoded lavender scheme). Migrated it
+  onto the shared `--biz-*` system rather than just recoloring in place —
+  a real architectural fix, not just a reskin, bringing it in line with
+  how Storekeeper/Sales/Estimator/Approver/Jobs/Accounts already work.
+  Rewrote the module's injected `<style>` block (header, nav/tabs,
+  buttons, cards, KPI tiles, dept-filter chips, the modal panel and its
+  form fields) to consume `--biz-primary`/`--biz-primary2`/
+  `--biz-card-bg`/`--biz-border`/`--biz-border-light`/`--biz-text-muted`/
+  `--biz-r`/`--biz-r-sm`/`--biz-r-lg`/`--biz-shadow` instead of hardcoded
+  values, added the same subtle card shadow Chunk 1 gave Operations/
+  Curtain, and aligned the modal backdrop color to the same
+  `rgba(16,24,40,.4)` used by the Shell's own overlay. Then swept the
+  remaining ~1,650 lines of dynamically-generated HTML (inline `style=`
+  strings in template literals) for the same lavender leftovers — found
+  8 more instances of `#9B5FB0`/`#6B3F7A` on buttons ("+ Add item",
+  "Convert to PO →", "Receive & Convert to Invoice →", "New Invoice",
+  supplier "View") and 2 instances of a third, distinct magenta
+  (`#be185d`, the "pink/magenta Confirm button" CLAUDE.md §3 already
+  documents as matching the live Q-Pro Invoice two-stage flow) — folded
+  all of these into `var(--biz-primary)` too, since none of them are true
+  semantics, just in-module accent choices. The 5 status-pill colors
+  (pending/approved/rejected/issued/invoiced) are genuine semantic state
+  and were left as their own literal hex, same call as everywhere else.
+- **Found 2 more leftovers outside either module's own file** — the
+  Purchase Invoice "Locate" button and the Supplier Payment "Create
+  Payment" button both live as static markup directly in `index.html`
+  (not in `purchasing.js`), so Purchasing's own file-level color audit
+  missed them. Caught via a repo-wide grep for every old per-module
+  `--biz-*` hex value as a final check — both now use
+  `var(--biz-primary)`.
+- **Also fixed, out of this chunk's original scope but flagged in the
+  previous session's log as a small leftover:** the PIN-lock screen's
+  logo mark (`index.html`, the raw inline-styled `<div>` inside
+  `<div class="lock" id="lock">`) still had a literal dark gradient
+  (`#1a0a14`→`#0a0a0f`) — Chunk 1 had only fixed the unused `.lock-logo`
+  *class*, not this actual unclassed element. Now uses
+  `linear-gradient(135deg,var(--maraya),var(--maraya2))` plus the same
+  soft wine glow shadow the rest of the Shell's brand marks use.
+  Re-verified via `smoke-test.js` screenshot — matches the rest of the
+  lock screen now.
+- **Verification:** loaded the app in Playwright (PIN `1994`), opened
+  both modules via their real `launch*Module()` functions, screenshotted
+  both dashboards — wine accent consistent throughout (header bars,
+  active tabs, KPI numbers, toggle buttons), cards showing the new
+  subtle shadow, status pills still distinct. Zero console errors.
+  Repo-wide grep for every old per-module accent hex (`#6B3F7A`,
+  `#9B5FB0`, `#09AD95`, `#0774F8`, `#45AAF2`, `#0A5FCC`, `#5E2DD8`,
+  `#007EA7`, `#D43F8D`, `#b45309`, `#e0a530`, `#9f1239`, `#dc2f5e`,
+  `#047857`, `#10a370`, `#be185d`) turned up hits only in files that are
+  explicitly Chunk 3's scope (`approver.js`, `estimator.js`, `sales.js`,
+  `jobs.js` — left untouched on purpose) plus one genuine semantic
+  amber-warning color in `curtain.js` (QC "Being inspected/Held" lock
+  state, `#b45309` — not brand identity, left alone) — confirms Chunk 2's
+  own scope is fully clean.
+- **Not touched:** Chunk 3 (Sales/Estimator/Approver/Jobs/Accounts)
+  remains on its own old hardcoded colors (partially improved for free by
+  the central `--biz-*` token change, as noted above, but still needs its
+  own dedicated pass for the literal hex each of those 5 files carries).

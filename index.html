@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-title" content="AMD Dev">
 <meta name="theme-color" content="#0a0a0f">
 <title>Al Maraya — Developer</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<!-- IBM Plex Sans (Google Fonts) dropped 3 Aug 2026 — --font-biz now uses
+     the system font stack, matching the rest of the app. One less CDN
+     dependency. -->
 <link rel="stylesheet" href="styles.css">
 
 <script type="importmap">
@@ -148,7 +148,7 @@
 
 <!-- LOCK SCREEN -->
 <div class="lock" id="lock">
-  <div style="width:80px;height:80px;border-radius:20px;border:1.5px solid rgba(255,255,255,.15);background:linear-gradient(135deg,#1a0a14,#0a0a0f);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+  <div style="width:80px;height:80px;border-radius:20px;border:1px solid var(--shell-border);background:linear-gradient(135deg,var(--maraya),var(--maraya2));display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 8px 20px -8px rgba(96,1,49,.35);">
     <svg width="58" height="58" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="4" y="4" width="92" height="92" rx="18" stroke="white" stroke-width="4.5" fill="none"/>
       <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="white" stroke-width="5.5" stroke-linejoin="miter" stroke-linecap="square"/>
@@ -1202,7 +1202,7 @@
           <label>Search PO Number</label>
           <div style="display:flex;gap:6px;">
             <input id="invd-po-search" type="text" placeholder="e.g. PO-0001-AMD" style="flex:1;">
-            <button style="background:#9B5FB0;color:#fff;border:0;border-radius:8px;padding:0 14px;font-size:12.5px;cursor:pointer;" onclick="invDirectLocatePO()">Locate</button>
+            <button style="background:var(--biz-primary);color:#fff;border:0;border-radius:8px;padding:0 14px;font-size:12.5px;cursor:pointer;" onclick="invDirectLocatePO()">Locate</button>
           </div>
         </div>
 
@@ -1323,7 +1323,7 @@
           <div class="p-field" style="margin-top:10px;"><label>Remarks</label><textarea id="pay-remarks" rows="3"></textarea></div>
 
           <div style="display:flex;gap:8px;margin-top:14px;">
-            <button style="flex:1;background:#0774F8;color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="savePaymentForm()">Create Payment</button>
+            <button style="flex:1;background:var(--biz-primary);color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="savePaymentForm()">Create Payment</button>
             <button style="flex:1;background:#dc2626;color:#fff;border:0;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="closePaymentForm()">Cancel</button>
           </div>
         </div>

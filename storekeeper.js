@@ -35,7 +35,7 @@ skStyleTag.textContent = `
 #sk-module-wrap .sk-pill.released{background:var(--biz-confirmed-bg);color:var(--biz-confirmed-text);}
 #sk-module-wrap .sk-search{width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;margin-bottom:12px;box-sizing:border-box;background:var(--biz-input-bg);font-family:inherit;}
 #sk-module-wrap button.primary{background:var(--biz-teal);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s;}
-#sk-module-wrap button.primary:hover{background:#0d5f58;}
+#sk-module-wrap button.primary:hover{background:var(--biz-primary-dark);}
 #sk-module-wrap .sk-tabs{display:flex;gap:6px;margin-bottom:12px;}
 #sk-module-wrap .sk-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:var(--biz-card-bg);color:var(--biz-text-muted);cursor:pointer;font-family:inherit;}
 #sk-module-wrap .sk-tabbtn.active{background:var(--biz-teal);border-color:var(--biz-teal);color:#fff;}
@@ -58,7 +58,7 @@ skModuleWrap.innerHTML = `
       <span style="font-size:20px;">📦</span>
       <div>
         <div style="color:#fff;font-weight:700;font-size:15px;">Storekeeper</div>
-        <div style="color:#ccfbf1;font-size:11px;">Inventory · stock pool → department release</div>
+        <div style="color:#f0cfe0;font-size:11px;">Inventory · stock pool → department release</div>
       </div>
     </div>
     <button onclick="closeStorekeeperModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
@@ -145,7 +145,7 @@ function openStorekeeperModule() {
     if (el) el.style.display = 'none';
   });
 
-  skModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  skModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   skGoTo('dashboard');
 }
 
@@ -284,7 +284,7 @@ function renderReleasePanel() {
 
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button class="primary" style="flex:1;" onclick="saveReleasePanel()">Confirm Release</button>
-      <button style="flex:1;background:none;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;cursor:pointer;font-family:inherit;" onclick="closeReleasePanel()">Cancel</button>
+      <button style="flex:1;background:none;border:1px solid var(--biz-border);border-radius:8px;color:#475569;font-size:13px;cursor:pointer;font-family:inherit;" onclick="closeReleasePanel()">Cancel</button>
     </div>`;
 }
 

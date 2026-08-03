@@ -15,37 +15,40 @@
   --r:14px;--r2:10px;--r3:10px;
 
   /* ── SHARED BUSINESS-MODULE DESIGN SYSTEM ──
-     Added 25 Jul 2026 — extracted/adapted from a Q-Pro UI audit (Salman's
-     reference session), used to modernize + consolidate Sales/Estimator/
-     Approver/Storekeeper, which previously each hardcoded their own one-off
-     colors in injected <style> tags instead of sharing tokens the way
-     Operations/Curtain already do. --maraya above stays the core Al Maraya
-     brand color (lock screen, ecosystem hub, Operations topbar) — these are
-     for the data-entry/workflow layer inside each business module.
-     Font: IBM Plex Sans (linked in index.html <head>), falls back to system
-     sans if the CDN is unreachable (app is online-only anyway). */
-  --font-biz: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+     Added 25 Jul 2026, retoned 3 Aug 2026 (Chunk 2) — one wine accent
+     everywhere, matching the Shell/Operations/Curtain retoning from Chunk 1.
+     Every module-identity color below (--biz-primary/-purple/-teal/-cyan/
+     -magenta/-amber/-crimson/-lavender/-emerald and their steps) now points
+     at the same wine ramp — no more per-module color zoning. --biz-danger
+     aligned to the shared --bad red so "destructive" reads the same
+     everywhere. True semantics (the quotation-lifecycle pill colors below)
+     are left alone on purpose — those are real state, not brand identity.
+     Font switched from IBM Plex Sans (Google Fonts CDN) to the same system
+     stack as the rest of the app — one less CDN dependency, and full
+     typographic consistency with Shell/Operations/Curtain. */
+  --font-biz: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 
-  --biz-primary:#0774F8; --biz-primary2:#45AAF2; --biz-primary-dark:#0A5FCC;
-  --biz-danger:#F82649;
-  --biz-purple:#5E2DD8; --biz-teal:#09AD95; --biz-cyan:#007EA7; --biz-magenta:#D43F8D;
-  --biz-amber:#b45309; --biz-amber2:#e0a530; --biz-crimson:#9f1239; --biz-crimson2:#dc2f5e;
-  --biz-lavender:#6B3F7A; --biz-lavender2:#9B5FB0;
-  --biz-emerald:#047857; --biz-emerald2:#10a370;
+  --biz-primary:#600131; --biz-primary2:#9c3d6c; --biz-primary-dark:#42011f;
+  --biz-danger:#d9342b;
+  --biz-purple:#600131; --biz-teal:#600131; --biz-cyan:#600131; --biz-magenta:#600131;
+  --biz-amber:#600131; --biz-amber2:#9c3d6c; --biz-crimson:#600131; --biz-crimson2:#9c3d6c;
+  --biz-lavender:#600131; --biz-lavender2:#9c3d6c;
+  --biz-emerald:#600131; --biz-emerald2:#9c3d6c;
 
-  --biz-page-bg:#F2F3F9; --biz-card-bg:#FFFFFF; --biz-input-bg:#F1F1F9;
-  --biz-border:#D8DDE4; --biz-border-light:#EAEDF1;
-  --biz-text:#25252A; --biz-text-muted:#5a6478; --biz-text-faint:#8a93a6;
+  --biz-page-bg:#f5f6f8; --biz-card-bg:#ffffff; --biz-input-bg:#ffffff;
+  --biz-border:#e7e9ed; --biz-border-light:#eef0f3;
+  --biz-text:#16181d; --biz-text-muted:#6b7280; --biz-text-faint:#9ba1aa;
 
   /* Quotation lifecycle — pale-fill pill, not full-row tint (row tinting is
-     the one Q-Pro pattern the audit flagged as dated at scale) */
-  --biz-draft-bg:#F1F1F9; --biz-draft-text:#5a6478;
+     the one Q-Pro pattern the audit flagged as dated at scale). True
+     semantics, deliberately NOT folded into the wine accent above. */
+  --biz-draft-bg:#f1f2f4; --biz-draft-text:#6b7280;
   --biz-open-bg:#DAEEFC; --biz-open-text:#24587E;
   --biz-confirmed-bg:#D2ECB8; --biz-confirmed-text:#316100;
   --biz-closed-bg:#F5D2D2; --biz-closed-text:#6B1110;
 
-  --biz-r:10px; --biz-r-sm:6px; --biz-r-lg:14px;
-  --biz-shadow: 0 8px 24px 0 rgba(37,37,42,.06);
+  --biz-r:14px; --biz-r-sm:8px; --biz-r-lg:16px;
+  --biz-shadow: 0 1px 2px rgba(16,24,40,.04);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;overflow:hidden;background:var(--shell-bg);}
