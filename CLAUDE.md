@@ -573,9 +573,12 @@ then, this section is the only persistent record of what they said.
   new**, rather than trusting the old checklist as still current.
 
 **New, from this session's Batch 1/2 work:**
-- Accounts module's Receivables/Payables KPIs don't yet net off Batch 1's
-  real `paidAmount` per invoice — they still show full invoiced amounts.
-  Small, contained fix (`getAccountsKPIs()` in accounts.js).
+- ~~Accounts module's Receivables/Payables KPIs don't yet net off Batch 1's
+  real `paidAmount` per invoice~~ — **done**. `getAccountsKPIs()` (accounts.js)
+  nets Receivables off Batch 4's Receipt/Credit Note activity and Payables
+  off Batch 1's Supplier Payment `paidAmount` — same real-balance
+  computation Batch 6's Balance Sheet needed, fixed once rather than
+  leaving two different figures side by side.
 - `shell.js`'s `M` object descriptions for Purchaser and Storekeeper are
   stale relative to their actual current feature sets (see §2).
 - Item Master "Create New Product" round-trip from a PO/Invoice line item
@@ -592,12 +595,9 @@ then, this section is the only persistent record of what they said.
   fixing if Salman wants them preserved.
 
 **New, from Batch 3/4 work (27 Jul – 2 Aug 2026):**
-- Accounts module's own read-only KPI dashboard (`getAccountsKPIs()` in
-  accounts.js — distinct from Sales' `getSalesKPIs()`) still doesn't net
-  Batch 1's Payment `paidAmount` off its Payables figure. Sales' own
-  Receivables KPI **was** fixed this session (now nets off Batch 4's Receipt/
-  Credit Note activity via `invoiceBalance()`) — this remaining item is
-  specifically the Accounts-module/Payables/purchase side, not yet touched.
+- ~~Accounts module's own read-only KPI dashboard still doesn't net Batch
+  1's Payment `paidAmount` off its Payables figure~~ — **done** (see the
+  Batch 1/2 entry above, fixed the same pass as Sales' Receivables KPI).
 - ~~Batch 4's Proforma/Receipt/Credit Note build was verified with `node
   --check`... but **not** in an actual browser~~ — **done**, 2 Aug 2026
   (later session): Playwright installed, full lifecycle browser-tested
@@ -629,11 +629,10 @@ Orders/Tasks-Activity-Log session):**
   wired into the Variation Order flow — not retrofitted into the other 11
   modules' own actions. A fuller cross-module task inbox / activity feed
   is a natural follow-up, deliberately not built in this pass.
-- Curtain's header icon badge (and ~6 more spots across `index.html`'s
-  Curtain screens and `curtain.js`) still use the old purple accent as
-  decimal `rgba(124,58,237,...)` rather than hex `#7c3aed` — invisible to
-  every prior redesign chunk's hex-string grep. Found while fixing the
-  back-button bug, not yet fixed itself — a real, contained follow-up.
+- ~~Curtain's header icon badge (and ~6 more spots) still use the old
+  purple accent as decimal `rgba(124,58,237,...)`~~ — **done**, 4 Aug 2026
+  (see that day's Session Log entry) — all 10 spots converted to wine's
+  equivalent RGB.
 - A Job bridged into `curtainJobs[]` (Curtain & Blinds division jobs only)
   starts with empty `windowGroups`/`windows` — correct/expected (no window
   data exists until Curtain's own screens populate it), but worth knowing
