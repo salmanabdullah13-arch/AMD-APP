@@ -127,7 +127,9 @@ source of truth for built vs. planned):
 | Jobs (`delivery`) | ✓ built | Job Card — post-Approval production/commercial tracking |
 | Accounts (`accounts`) | ✓ built | Reporting dashboard, not Q-Pro-mapped (own addition) |
 | HR & Payroll (`hr`) | ✓ built | Employee master (8 tabs) + compliance-expiry HR Dashboard — Batch 5, see §3 |
-| Upholstery, Joinery, Painting | ✗ not started | Only Curtain has a built workshop module; these are placeholders |
+| Joinery (`joinery`) | ✓ built | Production pipeline + budget submission/approval — Batch 8, NOT a Q-Pro trace, see §3 |
+| Upholstery (`upholstery`) | ✓ built | Shares Joinery's production-pipeline primitive — Batch 8, see §3 |
+| Painting (`painting`) | ✓ built | Deliberately standalone, own budget form, no shared pipeline — Batch 8, see §3 |
 | Owner Dashboard, Tally Bridge | ✗ not started | Unchanged from original plan |
 
 **Known staleness:** the `M` object in `shell.js` (drives the ecosystem
@@ -1883,3 +1885,125 @@ layer on top of it.
   `projects[].budget`/`.actuals` fields) are fully designed (see the
   `project_amd_app_routing_and_budgeting` memory file) but explicitly not
   started — check in with Salman before building further.
+
+### 3 Aug 2026 (later same day) — Batch 8, Phase 2-4: Joinery/Upholstery production pipeline, standalone Painting module, three-tier costing + budget approval
+
+Salman said "Let's continue" after Phase 0-1 — everything below (the
+remaining Phases 2-4 from the confirmed design) was built in one pass,
+matching the "complete both together" precedent from Batch 7.
+
+- **Phase 2 — shared Joinery/Upholstery production pipeline.** New shared
+  pipeline functions in data.js: `getDepartmentQueue()`/
+  `startLineProduction()`/`submitLineForQC()`/`recordLineQCResult()`/
+  `reworkLineBackToProduction()`/`handOffLine()`. Stage vocabulary per
+  line/department entry: `pending` (waiting on an earlier stop) ->
+  `queued` -> `in-production` -> `qc` -> `ready-for-handoff` (a real,
+  visible stop — QC passing doesn't auto-advance, the department still
+  clicks "Hand Off →" itself) or `rework` (QC failing loops back to
+  `in-production`) -> `done`. Generalizes Curtain's own already-proven
+  Production/Hoist-QC/Ready/Installed + isRework shape rather than
+  inventing new vocabulary. Two new files, `joinery.js` and
+  `upholstery.js`, are near-identical thin wrappers (own module-wrap,
+  own dashboard) around this shared logic plus a shared UI file,
+  `dept-pipeline-ui.js` (queue table + budget submit/approve UI) — loaded
+  as its own file rather than living inside either module, so neither
+  Joinery nor Upholstery appears to "own" the other; they're siblings
+  consuming a shared primitive.
+- **Phase 3 — standalone Painting module (`painting.js`).** Deliberately
+  built with its OWN separate pipeline functions in data.js
+  (`getPaintingQueue()`/`startPaintingWork()`/`submitPaintingForQC()`/
+  `recordPaintingQCResult()`/`reworkPaintingBackToProduction()`/
+  `handOffPaintingLine()`) and its OWN budget-submit UI code, rather than
+  calling into `dept-pipeline-ui.js` — Salman's explicit instruction ("I
+  don't want it to share anything," Painting has its own materials and
+  process lead times). Added its own material lead-time tracking
+  (`setPaintingMaterialStatus()` — awaiting/ordered/arrived per line),
+  the actual point of difference from Joinery/Upholstery. New simulated
+  identity: **Painting Lead / Work Supervisor** — operational visibility
+  only (sees incoming/upcoming workload), explicitly no budget-approval
+  authority, since Painting has no dedicated manager today (a real
+  staffing fact — Al Maraya doesn't want to hire one yet).
+- **Phase 4 — three-tier costing + budget-approval gate.** Estimated
+  (the Estimator's existing rough BOM, unchanged) -> Budgeted (each
+  routed department submits its own more detailed cost — reuses
+  `computeBOMTotals()` itself, wrapped as single-aggregate-per-category
+  entries rather than a full repeating-line-item editor, a deliberate
+  scope simplification) -> Actual (recorded once work is done,
+  `recordDepartmentActual()`). Writes into `projects[].budget`/`.actuals`
+  — the exact fields the Batch 7 bridge seeded as empty placeholders;
+  this phase is what actually fills them, via `recomputeJobBudgetRollup()`
+  (overwrites rather than accumulates, so resubmitting a department's
+  budget doesn't double-count). **Gate:** `startLineProduction()`/
+  `startPaintingWork()` both now refuse to start unless
+  `isDepartmentBudgetApproved()` — a department literally cannot begin
+  production until its own budget is approved.
+  - **`DEPARTMENT_APPROVERS` is a configurable assignment, not a
+    hardcoded merge** — the key correction from the design conversation.
+    Today: `carp` and `paint` BOTH map to "Joinery Production Manager"
+    (a real staffing fact — no dedicated Painting Manager exists yet),
+    `uph` maps to "Upholstery Manager". Each department still submits
+    its OWN separate budget; they just land in the same approver's
+    queue. Concretely: Joinery's own module has an "Approvals" tab that
+    shows BOTH Joinery's and Painting's pending submissions (verified via
+    Playwright — a submission from Painting's own module shows up inside
+    Joinery's Approvals tab labelled "— Painting", approved from there),
+    while Upholstery's Approvals tab only ever shows its own. Curtain is
+    deliberately NOT in this map — it already has its own pre-existing
+    `curtainJobs[].budgetStatus` approval flow (Silva, via Operations'
+    "Curtain Approvals" tab) from a much earlier session; retrofitting it
+    onto this new mechanism was out of scope, risking an already-working
+    flow for no real benefit.
+  - **Over-budget is flag-only, never a hold** — confirmed explicitly by
+    Salman. `isDepartmentOverBudget()` just compares recorded actuals
+    against the approved budget; nothing gates on it, matching Curtain's
+    own existing reactive "Material Overage" tile pattern rather than a
+    new mid-job re-approval workflow.
+- **Ecosystem hub wiring:** `joinery`/`upholstery`/`painting` flipped
+  from `built:false` placeholders to real `launch()` entries in
+  `index.html`'s `NODES` registry. Added the 3 new module-wrap ids to
+  every existing module's hide-list (9 files) plus `shell.js`'s `goTo()`
+  — the "any new floating module must be added to every existing
+  module's hide-list on the same day it's created" rule this file has
+  flagged as the single most common integration bug in this codebase,
+  followed this time from the start rather than caught later.
+- **A real naming collision caught by the duplicate-declaration scan,
+  not by testing:** `operations.js` already had its own `renderBudgetTab(j)`
+  function from an earlier session (Operations' "BOM / Budget" tab). The
+  new shared budget-tab renderer in `dept-pipeline-ui.js` was originally
+  named identically — since `dept-pipeline-ui.js` loads after
+  `operations.js`, it would have silently overwritten Operations'
+  existing function with no error, only a quietly broken BOM/Budget tab.
+  Caught by the repo-wide duplicate-top-level-declaration grep (part of
+  the standing verification battery) before any testing happened; renamed
+  to `renderDeptBudgetTab()`.
+- **Verification:** full battery — `node --check` on all 16 files
+  (12 pre-existing + `dept-pipeline-ui.js`/`joinery.js`/`upholstery.js`/
+  `painting.js`) individually and the full concatenation in load order;
+  duplicate top-level declaration scan across all 16 (caught the
+  collision above); onclick/onchange/oninput cross-reference across the
+  whole repo (all resolve); closure-variable-in-inline-handler scan (none
+  introduced). New Playwright suite `e2e-batch8-phase2-4.js` (committed,
+  reusable, 17/17) — walks a single job with a mixed Joinery+Painting+
+  Upholstery routing all the way through the REAL UI: queue rendering,
+  the production gate blocking Start before budget approval, submit ->
+  approve via real clicks, QC fail -> rework -> resume -> QC pass ->
+  ready-for-handoff -> hand-off, Painting's queue picking up the handed-
+  off line automatically, Painting's OWN budget form submitting
+  separately, that submission showing up correctly inside JOINERY's
+  Approvals tab (not Painting's, which has none), Upholstery's fully
+  independent approval flow, and the final over-budget-flag + `projects[]`
+  rollup check. Re-ran all 5 prior Playwright suites for regression
+  (`e2e-batch6-reports.js`, `e2e-back-button-check.js` — extended to also
+  click all 3 new modules' close buttons, `e2e-batch7-small-items.js`,
+  `e2e-batch7-big-pieces.js`, `e2e-batch8-routing.js`) — all 6 suites pass
+  clean, zero console/page errors throughout.
+- **Not done, by design — real scope boundaries, not oversights:**
+  Tasks/Activity Log is still only wired into the Job Card hub and the
+  Variation flow, not into any of these 3 new modules; department budget
+  entry is single-aggregate-per-category, not a full repeating BOM line
+  editor like the Estimator's own; Curtain's separate, pre-existing
+  budget/approval flow was deliberately left untouched rather than folded
+  into `DEPARTMENT_APPROVERS`; Painting's material lead-time tracking
+  (awaiting/ordered/arrived) is informational only, nothing gates
+  production start on it besides the budget-approval check everyone
+  shares.

@@ -1377,6 +1377,10 @@
 <script src="jobs.js"></script>
 <script src="accounts.js"></script>
 <script src="hr.js"></script>
+<script src="dept-pipeline-ui.js"></script>
+<script src="joinery.js"></script>
+<script src="upholstery.js"></script>
+<script src="painting.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1429,9 +1433,9 @@ const NODES = [
   { id:'curtain',      label:'Curtain & Blinds', built:true, launch:()=>{ closePanel(); setTimeout(()=>launchCurtainModule(),150); } },
   { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPurchasingModule(),150); } },
   { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchStorekeeperModule(),150); } },
-  { id:'upholstery',  label:'Upholstery',       built:false },
-  { id:'joinery',      label:'Joinery',          built:false },
-  { id:'painting',    label:'Painting',         built:false },
+  { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryModule(),150); } },
+  { id:'joinery',      label:'Joinery',          built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJoineryModule(),150); } },
+  { id:'painting',    label:'Painting',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPaintingModule(),150); } },
   { id:'sales',        label:'Sales',            built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchSalesModule(),150); } },
   { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
   { id:'owner',        label:'Owner Dashboard',  built:false },

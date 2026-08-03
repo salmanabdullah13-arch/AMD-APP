@@ -68,7 +68,10 @@ for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
     { id: 'approvals', wrap: 'approver-module-wrap' },
     { id: 'delivery', wrap: 'jobs-module-wrap' },
     { id: 'hr', wrap: 'hr-module-wrap' },
-    { id: 'curtain', wrap: 'curt-module-wrap' }
+    { id: 'curtain', wrap: 'curt-module-wrap' },
+    { id: 'joinery', wrap: 'joinery-module-wrap' },
+    { id: 'upholstery', wrap: 'upholstery-module-wrap' },
+    { id: 'painting', wrap: 'painting-module-wrap' }
   ];
   for (const m of modules) {
     await page.evaluate((id) => {

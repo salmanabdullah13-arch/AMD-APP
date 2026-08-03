@@ -3520,12 +3520,432 @@ function confirmJobRouting(jobId, lineOverrides = {}, confirmedBy) {
   job.routingConfirmed = true;
   job.routingConfirmedBy = confirmedBy;
   job.routingConfirmedDate = new Date().toISOString().slice(0, 10);
+  ensureDepartmentBudgets(job); // Phase 4 — a budget slot per routed department, ready for that department to submit against
   const deptNames = [...new Set(job.items.flatMap(it => it.departmentSequence))].map(k => dc(k).n);
   logActivity({
     type: "job-routed", linkedType: "job", linkedId: job.id, user: confirmedBy,
     message: `Routing confirmed — ${job.items.length} line(s) dispatched to ${deptNames.length ? deptNames.join(', ') : 'no department'}`
   });
   return job;
+}
+
+// ═══════════════════════════════════════
+// SHARED PRODUCTION PIPELINE — Joinery + Upholstery (Batch 8, Phase 2)
+// One shared stage-pipeline primitive both departments consume — per
+// Salman's own reasoning, Joinery (timber/hardware-driven) and Upholstery
+// (fabric-driven, closer to Curtain's reality) aren't identical, but
+// neither warrants its own bespoke ~5,900-line file the way Curtain has.
+// Painting deliberately does NOT use any of this — it's fully standalone
+// per Salman's explicit instruction (see the PAINTING section further
+// below) — own materials/lead-time, zero shared plumbing.
+//
+// Stage vocabulary per line/department entry (departmentStatuses[]):
+//   pending (waiting on an earlier department in this line's sequence)
+//   -> queued (ready, not yet started — set by confirmJobRouting() or a
+//      hand-off from the previous department)
+//   -> in-production
+//   -> qc
+//   -> ready-for-handoff (QC passed — a real, visible stop, not
+//      instantaneous, so a department can't push work along before its
+//      own quality check clears) | rework (QC failed, loops back to
+//      in-production, reworkCount increments for visibility)
+//   -> done (only once hand-off is actually clicked)
+// Generalizes Curtain's own already-proven Production -> Hoist QC ->
+// Ready -> Installed + isRework shape rather than inventing new
+// vocabulary from scratch.
+//
+// The hand-off itself is still the CURRENT department confirming "this is
+// actually ready to move," not a return trip through the Operations
+// Manager — Phase 1's routing queue is the only manager checkpoint in the
+// whole design; every hand-off after that is between departments only.
+// ═══════════════════════════════════════
+
+// What both Joinery's and Upholstery's own dashboards read, parameterized
+// by department key — every job line currently active (not pending on an
+// earlier stop, not finished) in that department's queue.
+function getDepartmentQueue(deptKey) {
+  const rows = [];
+  jobCards.forEach(job => {
+    if (!job.routingConfirmed || job.status === "cancelled") return;
+    job.items.forEach(item => {
+      const entry = (item.departmentStatuses || []).find(d => d.department === deptKey);
+      if (entry && entry.status !== "pending" && entry.status !== "done") {
+        rows.push({ job, item, entry });
+      }
+    });
+  });
+  return rows;
+}
+
+function startLineProduction(jobId, lineId, deptKey) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === deptKey);
+  if (!entry) return { error: "This line isn't routed to that department." };
+  if (entry.status !== "queued") return { error: "Line must be Queued before starting production." };
+  if (!isDepartmentBudgetApproved(job, deptKey)) return { error: "Department budget must be approved before production can start." };
+  entry.status = "in-production";
+  return item;
+}
+
+function submitLineForQC(jobId, lineId, deptKey) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === deptKey);
+  if (!entry) return { error: "Line not found for that department." };
+  if (entry.status !== "in-production") return { error: "Line must be In Production before it can go to QC." };
+  entry.status = "qc";
+  return item;
+}
+
+// pass=true -> "ready-for-handoff" (a real stop, waits for an explicit
+// handOffLine() call below — see the stage-vocabulary note above for
+// why); pass=false -> "rework" (loops back to in-production).
+function recordLineQCResult(jobId, lineId, deptKey, pass, user) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === deptKey);
+  if (!entry) return { error: "Line not found for that department." };
+  if (entry.status !== "qc") return { error: "Line must be submitted for QC first." };
+  if (!pass) {
+    entry.status = "rework";
+    entry.reworkCount = (entry.reworkCount || 0) + 1;
+    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, message: `${item.product} failed QC at ${dc(deptKey).n} (rework #${entry.reworkCount})` });
+    return item;
+  }
+  entry.status = "ready-for-handoff";
+  logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, message: `${item.product} passed QC at ${dc(deptKey).n}` });
+  return item;
+}
+
+function reworkLineBackToProduction(jobId, lineId, deptKey) {
+  const job = getJobCard(jobId);
+  const item = job && job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === deptKey);
+  if (!entry) return { error: "Line not found for that department." };
+  if (entry.status !== "rework") return { error: "Line isn't in rework." };
+  entry.status = "in-production";
+  return item;
+}
+
+// The actual hand-off — auto-advances to the next queued department (or
+// marks the line fully done if this was the last stop). No manager
+// re-approval, just the current department confirming it's actually ready
+// to move — matches the design's "every hand-off after the first routing
+// assignment auto-advances" rule.
+function handOffLine(jobId, lineId, deptKey, user) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === deptKey);
+  if (!entry) return { error: "Line not found for that department." };
+  if (entry.status !== "ready-for-handoff") return { error: "Line must pass QC before hand-off." };
+  const seq = item.departmentSequence || [];
+  const idx = seq.indexOf(deptKey);
+  entry.status = "done";
+  if (idx > -1 && idx + 1 < seq.length) {
+    const nextDept = seq[idx + 1];
+    const nextEntry = item.departmentStatuses.find(d => d.department === nextDept);
+    if (nextEntry) {
+      nextEntry.status = "queued";
+      logActivity({ type: "handoff", linkedType: "job", linkedId: job.id, user, message: `${item.product} handed off from ${dc(deptKey).n} to ${dc(nextDept).n}` });
+    }
+  } else {
+    logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
+  }
+  return item;
+}
+
+// ═══════════════════════════════════════
+// PAINTING — standalone (Batch 8, Phase 3)
+// Deliberately NOT built on the shared Joinery/Upholstery pipeline above
+// — Salman's explicit instruction: Painting has its own materials and
+// process lead times, "I don't want it to share anything." So this is a
+// separate set of functions, not a third consumer of getDepartmentQueue()/
+// startLineProduction()/etc., even though the stage shape looks similar —
+// a future change to the Joinery/Upholstery pipeline should never ripple
+// into Painting, or vice versa. It DOES still read/write the same
+// job.items[].departmentStatuses array everyone shares (that's core Job
+// Card data, populated by Phase 1's routing regardless of department) —
+// only the workflow/functions around it are separate.
+// ═══════════════════════════════════════
+const PAINT_DEPT_KEY = "paint";
+
+function getPaintingQueue() {
+  const rows = [];
+  jobCards.forEach(job => {
+    if (!job.routingConfirmed || job.status === "cancelled") return;
+    job.items.forEach(item => {
+      const entry = (item.departmentStatuses || []).find(d => d.department === PAINT_DEPT_KEY);
+      if (entry && entry.status !== "pending" && entry.status !== "done") rows.push({ job, item, entry });
+    });
+  });
+  return rows;
+}
+
+// Painting's own material lead-time tracking — its actual point of
+// difference from Joinery/Upholstery. materialStatus: "awaiting" |
+// "ordered" | "arrived". Purely informational (doesn't gate production —
+// Painting Lead uses it to know what's realistic to start).
+function setPaintingMaterialStatus(jobId, lineId, materialStatus, eta = null) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === PAINT_DEPT_KEY);
+  if (!entry) return { error: "Line not routed to Painting." };
+  entry.materialStatus = materialStatus;
+  entry.materialETA = eta;
+  return item;
+}
+
+function startPaintingWork(jobId, lineId) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === PAINT_DEPT_KEY);
+  if (!entry) return { error: "Line not routed to Painting." };
+  if (entry.status !== "queued") return { error: "Line must be Queued before starting." };
+  if (!isDepartmentBudgetApproved(job, PAINT_DEPT_KEY)) return { error: "Department budget must be approved before production can start." };
+  entry.status = "in-production";
+  return item;
+}
+
+function submitPaintingForQC(jobId, lineId) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === PAINT_DEPT_KEY);
+  if (!entry) return { error: "Line not routed to Painting." };
+  if (entry.status !== "in-production") return { error: "Line must be In Production before it can go to QC." };
+  entry.status = "qc";
+  return item;
+}
+
+function recordPaintingQCResult(jobId, lineId, pass, user) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === PAINT_DEPT_KEY);
+  if (!entry) return { error: "Line not routed to Painting." };
+  if (entry.status !== "qc") return { error: "Line must be submitted for QC first." };
+  if (!pass) {
+    entry.status = "rework";
+    entry.reworkCount = (entry.reworkCount || 0) + 1;
+    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, message: `${item.product} failed QC at Painting (rework #${entry.reworkCount})` });
+    return item;
+  }
+  entry.status = "ready-for-handoff";
+  logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, message: `${item.product} passed QC at Painting` });
+  return item;
+}
+
+function reworkPaintingBackToProduction(jobId, lineId) {
+  const job = getJobCard(jobId);
+  const item = job && job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === PAINT_DEPT_KEY);
+  if (!entry) return { error: "Line not routed to Painting." };
+  if (entry.status !== "rework") return { error: "Line isn't in rework." };
+  entry.status = "in-production";
+  return item;
+}
+
+function handOffPaintingLine(jobId, lineId, user) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === PAINT_DEPT_KEY);
+  if (!entry) return { error: "Line not routed to Painting." };
+  if (entry.status !== "ready-for-handoff") return { error: "Line must pass QC before hand-off." };
+  const seq = item.departmentSequence || [];
+  const idx = seq.indexOf(PAINT_DEPT_KEY);
+  entry.status = "done";
+  if (idx > -1 && idx + 1 < seq.length) {
+    const nextDept = seq[idx + 1];
+    const nextEntry = item.departmentStatuses.find(d => d.department === nextDept);
+    if (nextEntry) {
+      nextEntry.status = "queued";
+      logActivity({ type: "handoff", linkedType: "job", linkedId: job.id, user, message: `${item.product} handed off from Painting to ${dc(nextDept).n}` });
+    }
+  } else {
+    logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
+  }
+  return item;
+}
+
+// ═══════════════════════════════════════
+// THREE-TIER COSTING + BUDGET APPROVAL GATE (Batch 8, Phase 4)
+// Estimated (the Estimator's rough BOM at quotation stage, already
+// exists via computeBOMTotals()) -> Budgeted (each routed department's
+// own more detailed cost entry, THIS section — reuses computeBOMTotals()
+// itself rather than a second calculation method) -> Actual (recorded
+// once a department's work is done). Writes into projects[].budget/
+// .actuals — the exact fields the Batch 7 bridge seeded as empty
+// placeholders; this is what actually fills them.
+//
+// Department budget entry here is deliberately a single aggregate figure
+// per cost category (Material/Labour/Subcontract/Hiring/Others), not a
+// full repeating multi-line BOM editor like the Estimator's — a
+// reasonable scope simplification for this pass, still driving real
+// budget-vs-actual variance. Wrapped as a one-line array per category so
+// computeBOMTotals() (which expects arrays) still does the real
+// calculation, unchanged.
+//
+// Department -> approver is a configurable ASSIGNMENT, not a hardcoded
+// merge of departments — the key correction from the design conversation.
+// Today: Joinery AND Painting both route to the Joinery Production
+// Manager (a real staffing fact — no dedicated Painting Manager exists
+// yet, Al Maraya doesn't want to hire one right now), each as its own
+// separate submission landing in the same person's queue. Upholstery has
+// its own manager. Curtain is deliberately NOT in this map — it already
+// has its own pre-existing budget/approval mechanism
+// (curtainJobs[].budgetStatus, built long before this session,
+// approved by Silva via Operations' own "Curtain Approvals" tab) and is
+// out of scope here; retrofitting it onto this new mechanism risks
+// breaking an already-working, previously-verified flow for no real
+// benefit.
+// ═══════════════════════════════════════
+const DEPARTMENT_APPROVERS = {
+  carp: "Joinery Production Manager",
+  paint: "Joinery Production Manager",
+  uph: "Upholstery Manager"
+};
+const EMPTY_BOM_CATEGORIES = ["materials", "labour", "subcontract", "hiring", "others"];
+
+function blankDepartmentBudget() {
+  return {
+    bom: { materials: [], labour: [], subcontract: [], hiring: [], others: [], ohPercents: { material: 0, labour: 0, subcontract: 0, hiring: 0, others: 0 }, profitPercent: 0 },
+    approvalStatus: "not-submitted", // not-submitted | pending | approved | rejected
+    submittedBy: null, submittedDate: null, approvedBy: null, approvedDate: null, rejectionComment: null,
+    actual: { material: 0, labour: 0, subcontract: 0, hiring: 0, others: 0, recordedBy: null, recordedDate: null }
+  };
+}
+
+// Lazily creates a budget slot for every department a job is actually
+// routed to (once routing is confirmed) — called wherever a department
+// module needs to read/write a job's budget entry for its own key.
+function ensureDepartmentBudgets(job) {
+  if (!job.departmentBudgets) job.departmentBudgets = {};
+  const depts = new Set(job.items.flatMap(it => it.departmentSequence || []));
+  depts.forEach(k => { if (!job.departmentBudgets[k]) job.departmentBudgets[k] = blankDepartmentBudget(); });
+  return job.departmentBudgets;
+}
+
+// Recomputes the whole-job projects[] rollup by summing every
+// department's CURRENT budget (or actual) figures — overwrites rather
+// than accumulates, so resubmitting a department's budget doesn't
+// double-count.
+function recomputeJobBudgetRollup(job) {
+  const proj = projects.find(p => p.id === job.id);
+  if (!proj || !job.departmentBudgets) return;
+  const budgetTotals = { mat: 0, lab: 0, sub: 0, hir: 0, oth: 0 };
+  const actualTotals = { mat: 0, lab: 0, sub: 0, hir: 0, oth: 0 };
+  Object.values(job.departmentBudgets).forEach(entry => {
+    if (entry.approvalStatus !== "not-submitted") {
+      const t = computeBOMTotals(entry.bom);
+      budgetTotals.mat += t.materialCost; budgetTotals.lab += t.labourCost; budgetTotals.sub += t.subcontractCost;
+      budgetTotals.hir += t.hiringCost; budgetTotals.oth += t.othersCost;
+    }
+    const a = entry.actual || {};
+    actualTotals.mat += a.material || 0; actualTotals.lab += a.labour || 0; actualTotals.sub += a.subcontract || 0;
+    actualTotals.hir += a.hiring || 0; actualTotals.oth += a.others || 0;
+  });
+  const round = n => Math.round(n * 1000) / 1000;
+  proj.budget.mat = round(budgetTotals.mat); proj.budget.lab = round(budgetTotals.lab); proj.budget.sub = round(budgetTotals.sub);
+  proj.budget.hir = round(budgetTotals.hir); proj.budget.oth = round(budgetTotals.oth);
+  proj.budget.cost = round(budgetTotals.mat + budgetTotals.lab + budgetTotals.sub + budgetTotals.hir + budgetTotals.oth);
+  proj.actuals.mat = round(actualTotals.mat); proj.actuals.lab = round(actualTotals.lab); proj.actuals.sub = round(actualTotals.sub);
+  proj.actuals.hir = round(actualTotals.hir); proj.actuals.oth = round(actualTotals.oth);
+}
+
+function submitDepartmentBudget(jobId, deptKey, categoryAmounts, submittedBy) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  ensureDepartmentBudgets(job);
+  const entry = job.departmentBudgets[deptKey];
+  if (!entry) return { error: "This job isn't routed to that department." };
+  EMPTY_BOM_CATEGORIES.forEach(cat => {
+    const amt = Number(categoryAmounts[cat]) || 0;
+    entry.bom[cat] = amt > 0 ? [{ amount: amt }] : [];
+  });
+  entry.approvalStatus = "pending";
+  entry.submittedBy = submittedBy;
+  entry.submittedDate = new Date().toISOString().slice(0, 10);
+  entry.rejectionComment = null;
+  recomputeJobBudgetRollup(job);
+  logActivity({ type: "budget-submitted", linkedType: "job", linkedId: job.id, user: submittedBy, message: `${dc(deptKey).n} budget submitted for approval` });
+  return entry;
+}
+
+function approveDepartmentBudget(jobId, deptKey, approvedBy) {
+  const job = getJobCard(jobId);
+  if (!job || !job.departmentBudgets || !job.departmentBudgets[deptKey]) return { error: "Budget submission not found." };
+  const entry = job.departmentBudgets[deptKey];
+  if (entry.approvalStatus !== "pending") return { error: "Budget must be submitted before it can be approved." };
+  entry.approvalStatus = "approved";
+  entry.approvedBy = approvedBy;
+  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget approved — production can start` });
+  return entry;
+}
+function rejectDepartmentBudget(jobId, deptKey, rejectedBy, comment) {
+  const job = getJobCard(jobId);
+  if (!job || !job.departmentBudgets || !job.departmentBudgets[deptKey]) return { error: "Budget submission not found." };
+  const entry = job.departmentBudgets[deptKey];
+  if (entry.approvalStatus !== "pending") return { error: "Budget must be submitted before it can be rejected." };
+  entry.approvalStatus = "rejected";
+  entry.approvedBy = rejectedBy;
+  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  entry.rejectionComment = comment;
+  logActivity({ type: "budget-rejected", linkedType: "job", linkedId: job.id, user: rejectedBy, message: `${dc(deptKey).n} budget rejected — ${comment || "no comment"}` });
+  return entry;
+}
+function getPendingBudgetApprovalsFor(approverName) {
+  const rows = [];
+  jobCards.forEach(job => {
+    if (!job.departmentBudgets) return;
+    Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
+      if (entry.approvalStatus === "pending" && DEPARTMENT_APPROVERS[deptKey] === approverName) rows.push({ job, deptKey, entry });
+    });
+  });
+  return rows;
+}
+
+// Over-budget check is reactive/informational only, per Salman's explicit
+// instruction — flag it, never hold production. Mirrors Curtain's own
+// existing "Material Overage" tile pattern rather than a new gate.
+function isDepartmentOverBudget(jobId, deptKey) {
+  const job = getJobCard(jobId);
+  const entry = job && job.departmentBudgets && job.departmentBudgets[deptKey];
+  if (!entry || entry.approvalStatus !== "approved") return false;
+  const budgeted = computeBOMTotals(entry.bom).totalCostInclOH;
+  const actual = Object.values(entry.actual || {}).filter(v => typeof v === "number").reduce((s, v) => s + v, 0);
+  return budgeted > 0 && actual > budgeted;
+}
+
+function recordDepartmentActual(jobId, deptKey, categoryAmounts, recordedBy) {
+  const job = getJobCard(jobId);
+  if (!job || !job.departmentBudgets || !job.departmentBudgets[deptKey]) return { error: "Budget submission not found." };
+  const entry = job.departmentBudgets[deptKey];
+  if (entry.approvalStatus !== "approved") return { error: "Budget must be approved before recording actuals." };
+  ["material", "labour", "subcontract", "hiring", "others"].forEach(cat => { entry.actual[cat] = Number(categoryAmounts[cat]) || 0; });
+  entry.actual.recordedBy = recordedBy;
+  entry.actual.recordedDate = new Date().toISOString().slice(0, 10);
+  recomputeJobBudgetRollup(job);
+  const overBudget = isDepartmentOverBudget(jobId, deptKey);
+  logActivity({ type: "actual-recorded", linkedType: "job", linkedId: job.id, user: recordedBy, message: `${dc(deptKey).n} actual cost recorded${overBudget ? " — OVER BUDGET" : ""}` });
+  return entry;
+}
+
+// The production-start gate — a department's line can't move past
+// "queued" until ITS OWN budget is approved. Applied inside
+// startLineProduction() (Joinery/Upholstery) and startPaintingWork()
+// (Painting) above; kept as one small shared check both call, so the
+// rule lives in exactly one place.
+function isDepartmentBudgetApproved(job, deptKey) {
+  return !!(job.departmentBudgets && job.departmentBudgets[deptKey] && job.departmentBudgets[deptKey].approvalStatus === "approved");
 }
 
 // ═══════════════════════════════════════

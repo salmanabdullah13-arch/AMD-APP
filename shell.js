@@ -41,6 +41,12 @@ function goTo(p){
   if (accountsMod) accountsMod.style.cssText = 'display:none;';
   const hrMod = document.getElementById('hr-module-wrap');
   if (hrMod) hrMod.style.cssText = 'display:none;';
+  const joineryMod = document.getElementById('joinery-module-wrap');
+  if (joineryMod) joineryMod.style.cssText = 'display:none;';
+  const upholsteryMod = document.getElementById('upholstery-module-wrap');
+  if (upholsteryMod) upholsteryMod.style.cssText = 'display:none;';
+  const paintingMod = document.getElementById('painting-module-wrap');
+  if (paintingMod) paintingMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
