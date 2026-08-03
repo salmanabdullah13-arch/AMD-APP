@@ -2337,3 +2337,47 @@ drill-down — that stays Operations/production's job).
   Full regression: all 10 prior suites re-confirmed (108/108) plus this
   session's 17/17 — 125/125 total, back-button-check clean across all 12
   modules, zero console/page errors.
+
+### 3 Aug 2026 (later same day) — Job Card / Operations routing gate, Sales Request Purchase
+
+Salman asked me to explain the Jobs module's relationship to Operations'
+routing queue, and correctly suspected a gap. Traced it in the code before
+answering: `confirmQuotationToJobCard()` creates the Job Card and bridges
+it to `projects[]`/`curtainJobs[]` immediately; separately, Operations has
+its own "New Jobs" queue where the job sits with `routingConfirmed: false`
+until routed. The department production queues (Joinery/Upholstery/
+Painting) already correctly gate on `routingConfirmed` — but `jobs.js`
+itself had **zero references to `routingConfirmed` anywhere** (grepped to
+confirm). A freshly-confirmed job was fully operable in the Jobs module
+instantly — Delivery Note, Material Issue/Return, Invoice generation all
+available before Operations had even looked at it. Two screens on the
+same record, no coupling between them.
+
+- **Gated the Jobs module's production-presupposing actions on
+  `job.routingConfirmed`**: Delivery Note, Material Issue, Material
+  Return, and Generate Invoice are now locked (greyed tiles/button,
+  clicking alerts "Locked until Operations routes this job to a
+  department") until Operations confirms routing. An "Awaiting Operations
+  Routing" banner shows on the Job Card hub while locked. Deliberately
+  did NOT lock Tasks/Activity Log/Variations — Salman's call, confirmed
+  via AskUserQuestion — those don't presuppose any production state, so
+  gating them too would just block harmless things like a follow-up task.
+  New `jobsLockedTile()` helper (jobs.js) for the greyed-tile pattern.
+- **Sales gets a Request Purchase shortcut** on the "My Jobs" tab
+  (`salesRequestPurchase(jobId)`, sales.js) — hops into Purchasing's own
+  real "New Purchase Request" form (`openPRForm()`), pre-filled with the
+  job via `prFormJobChanged()`. This isn't new infrastructure — Purchasing
+  already had a job-linked PR field (`prFormDraft.linkedJobId`,
+  `purchJobOptionsHtml()`) from an earlier session, it just had no door
+  from Sales into it. Same module-hop pattern as `jobsNewVariation()`, no
+  duplicated form. This closes out Salman's ask that Sales' limited job
+  access exist primarily so they can request materials/POs for a job they
+  sold, not to manage production.
+- **Verification:** new suite
+  `e2e-job-routing-gate-sales-purchase.js` (13/13) — confirms a fresh job
+  starts unrouted, the 4 actions are locked and clicking them doesn't
+  navigate away, Tasks can still be added pre-routing, everything unlocks
+  the instant `confirmJobRouting()` runs, and the Sales → Purchasing PR
+  hop lands with the right job pre-filled. Full regression: all 11 prior
+  suites re-confirmed (125/125) plus this session's 13/13 — 138/138 total,
+  back-button-check clean across all 12 modules, zero console/page errors.

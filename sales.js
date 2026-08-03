@@ -1049,11 +1049,15 @@ function renderSalesDashboard() {
     </div>`;
 }
 
-// "My Jobs" — read-only job visibility + Add Variation shortcut, scoped to
-// the logged-in Sales identity's own confirmed Job Cards (see
-// getSalesPersonJobs()). Add Variation reuses jobs.js's real
-// jobsNewVariation() — same flow the Jobs module itself uses — rather than
-// duplicating that logic here.
+// "My Jobs" — read-only job visibility + Add Variation/Request Purchase
+// shortcuts, scoped to the logged-in Sales identity's own confirmed Job
+// Cards (see getSalesPersonJobs()). Sales never opens the real Jobs
+// module at all — this lightweight view, plus these two module-hop
+// shortcuts into jobs.js's/purchasing.js's own real flows, is the entire
+// surface Sales gets. Deliberately no access to Delivery Notes, Materials
+// Issue/Return, Invoicing, or Job Status changes — those stay exclusively
+// in the Jobs module (and are further gated there on Operations having
+// actually routed the job — see jobs.js's routingConfirmed check).
 function renderSalesMyJobs() {
   const jobs = getSalesPersonJobs(salesCurrentUser);
   const rows = jobs.length === 0
@@ -1063,14 +1067,32 @@ function renderSalesMyJobs() {
         <p style="font-weight:700;font-size:13px;">${esc(j.projectName)} <span class="sales-pill ${j.status === 'completed' ? 'confirmed' : 'open'}">${esc(j.status)}</span></p>
         <p style="font-size:11.5px;color:#64748b;">${esc(j.id)} · BD ${j.amount.toFixed(3)} · Confirmed ${j.confirmDate}</p>
         <p style="font-size:11px;color:#94a3b8;">${esc(j.deptProgress)}</p>
-        <button class="secondary" style="margin-top:8px;font-size:11.5px;padding:6px 10px;" onclick="jobsNewVariation('${j.id}')">+ Add Variation</button>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="secondary" style="flex:1;font-size:11.5px;padding:6px 10px;" onclick="jobsNewVariation('${j.id}')">+ Add Variation</button>
+          <button class="secondary" style="flex:1;font-size:11.5px;padding:6px 10px;" onclick="salesRequestPurchase('${j.id}')">+ Request Purchase</button>
+        </div>
       </div>`).join('');
   return `
     <div class="sales-card">
       <p style="font-weight:700;font-size:14px;margin-bottom:4px;">My Jobs</p>
-      <p style="font-size:11px;color:#94a3b8;">Read-only production status for your own confirmed jobs. Production itself is managed in Operations/Joinery/Upholstery/Painting/Curtain — this is visibility only, plus a shortcut to add a Variation.</p>
+      <p style="font-size:11px;color:#94a3b8;">Read-only production status for your own confirmed jobs. Production itself is managed in Operations/Joinery/Upholstery/Painting/Curtain — this is visibility only, plus shortcuts to add a Variation or request a Purchase for the job.</p>
     </div>
     ${rows}`;
+}
+
+// Hops into Purchasing's own real "New Purchase Request" form, pre-filled
+// with this job — same module-hop pattern as jobsNewVariation(), not a
+// duplicated form. Purchasing's PR form already supports a linked Job No
+// (prFormDraft.linkedJobId); this just gives Sales a door into it without
+// broader access to Purchasing itself.
+function salesRequestPurchase(jobId) {
+  closeSalesModule();
+  setTimeout(() => {
+    launchPurchasingModule();
+    openPRForm();
+    document.getElementById('pr-form-job').value = jobId;
+    prFormJobChanged(jobId);
+  }, 150);
 }
 
 // Was written but never actually wired into any dashboard UI — the Sales
