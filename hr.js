@@ -66,6 +66,8 @@ let hrView = 'dashboard'; // dashboard | emp-list | emp-detail
 let hrDetailId = null;
 let hrDetailTab = 'general';
 let hrEmpSearch = '';
+let hrPayrollYear = new Date().getFullYear();
+let hrPayrollMonth = new Date().getMonth() + 1; // 1-12
 
 function hrEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function hrFmtDate(d) { return d ? d : '—'; }
@@ -96,11 +98,12 @@ function renderHRBody() {
   const body = document.getElementById('hr-body');
   if (!body) return;
   const tab = (v, label) => `<button class="sales-tabbtn ${hrView === v ? 'active' : ''}" onclick="hrSetView('${v}')">${label}</button>`;
-  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'HR Dashboard')}${tab('emp-list', 'Employee')}</div>`;
+  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'HR Dashboard')}${tab('emp-list', 'Employee')}${tab('payroll', 'Payroll Report')}</div>`;
   let content = '';
   if (hrView === 'dashboard') content = renderHRDashboard();
   else if (hrView === 'emp-list') content = renderEmployeeList();
   else if (hrView === 'emp-detail') content = renderEmployeeDetail();
+  else if (hrView === 'payroll') content = renderPayrollReport();
   body.innerHTML = (hrView === 'emp-detail' ? '' : tabsHtml) + content;
 }
 
@@ -288,4 +291,39 @@ function hrAlert(msg) {
   toast.style.opacity = '1';
   clearTimeout(toast._t);
   toast._t = setTimeout(() => toast.style.opacity = '0', 2800);
+}
+
+// ══════════════════════════════════════════
+// BATCH 6 — PAYROLL REPORT. Data/computation (getPayrollReport) lives in
+// data.js — UI only here.
+// ══════════════════════════════════════════
+const HR_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function hrPayrollFilterChanged(key, val) {
+  if (key === 'year') hrPayrollYear = Number(val); else hrPayrollMonth = Number(val);
+  renderHRBody();
+}
+function renderPayrollReport() {
+  const rows = getPayrollReport();
+  const grandTotal = Math.round(rows.reduce((s, r) => s + r.total, 0) * 1000) / 1000;
+  const yearOptions = [];
+  for (let y = 2024; y <= 2036; y++) yearOptions.push(y);
+  return `
+    <div class="sales-card">
+      <div class="hr-row2">
+        <div class="hr-field"><label>Select Year</label>
+          <select onchange="hrPayrollFilterChanged('year',this.value)">${yearOptions.map(y => `<option value="${y}" ${hrPayrollYear === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+        </div>
+        <div class="hr-field"><label>Select Month</label>
+          <select onchange="hrPayrollFilterChanged('month',this.value)">${HR_MONTH_NAMES.map((m, i) => `<option value="${i + 1}" ${hrPayrollMonth === i + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--biz-text-muted);">Payroll has no separate monthly "run" entity — this is a live rollup of each Active employee's Pay Heads (Salary tab), same as the live system. Year/Month narrow the label only, not the underlying data.</p>
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      ${rows.length === 0 ? `<p class="hr-empty">No active employees.</p>` :
+        `<table class="sales-items"><tr><th>#</th><th>Name</th>${PAY_HEADS.map(h => `<th>${hrEsc(h)}</th>`).join('')}<th>Total Salary</th></tr>
+        ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${hrEsc(r.name)}</td>${PAY_HEADS.map(h => `<td>${r.byHead[h] ? r.byHead[h].toFixed(3) : ''}</td>`).join('')}<td style="font-weight:700;">${r.total.toFixed(3)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td colspan="${PAY_HEADS.length + 2}">Grand Total</td><td>${grandTotal.toFixed(3)}</td></tr>
+        </table>`}
+    </div>`;
 }

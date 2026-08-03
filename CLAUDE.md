@@ -355,6 +355,94 @@ then, this section is the only persistent record of what they said.
     correctly), mutual-exclusivity module-hiding confirmed both directions
     (HR→Accounts and Accounts→HR both correctly hide the other). Zero
     console/page errors throughout.
+- **Batch 6: Reports** (traced from `docs/qpro-mapping/batch6reports.txt`,
+  committed 3 Aug 2026): the last of the 6 Q-Pro batches, closing out the
+  full mapping exercise. No new business entities — every report is a
+  read-only view over data already mapped in Batches 1–5, per the spec's
+  own cross-cutting finding. No new ecosystem-hub node (Reports isn't a
+  standalone module in Q-Pro either) — each report lives as a new tab
+  inside whichever existing module already owns that data, same "extend
+  the natural home" call Batch 3 made for the GL layer inside Accounts:
+  - **Accounts** — Day Book (cross-voucher log spanning Invoice/Receipt/
+    Purchase Invoice/Supplier Payment/Credit Note/Debit Note/General
+    Receipt/Payment/Journal), Ledger Report, Trial Balance (Ledger-wise
+    toggle), Profit & Loss, Balance Sheet.
+  - **Sales** (new "Reports" top-tab) — Quotation Register Report,
+    Sales Bill Outstanding (By Party/All × Age-wise toggle covers all 4
+    spec variants in one screen rather than 4 separate ones).
+  - **Purchasing** (new "Bill O/s" nav tab) — Purchase Bill Outstanding,
+    mirroring Sales Bill Outstanding's structure for the vendor side.
+  - **Jobs** (new "📊 Reports" button on the Job List) — Job report
+    (single Job No lookup, a per-job mini P&L), Project Outstanding
+    (job-level receivables reconciliation across every Job Card),
+    Project wise Invoice & Receipt (single Job No lookup).
+  - **HR & Payroll** (new "Payroll Report" tab) — Year/Month rollup of
+    each Active employee's Pay Heads.
+  - PO Register (Batch 1) and the three Stock Ledger sub-reports (Batch 2)
+    were already built and are not repeated.
+  - **A real design problem found and fixed while building this**: a
+    pure ledger-postings-based P&L/Balance Sheet came out useless —
+    Batch 3's seed Chart of Accounts files the "Sales" ledger group under
+    "Current Assets", not "Direct Incomes"/"Sales Accounts" (a real,
+    legitimate accounting pattern — a Sales Ledger/Debtors-control account
+    is distinct from a P&L income account — not a data bug, so the seed
+    data was NOT changed), and no custom group at all sits under
+    "Direct Incomes". A pure-GL P&L would show zero Direct Income even
+    with real invoices posted. Fix: Direct Income/Expense (P&L) and
+    Receivables/Payables (Balance Sheet) read straight from the real
+    transactional documents (taxInvoices/purchaseInvoices) — the same
+    source `getAccountsKPIs()`'s existing Dashboard tab already uses —
+    while Indirect Income/Expense and Cash/Bank/other real ledger balances
+    still come from the GL layer (Journal/General Receipt/Payment), which
+    is genuinely correct there. Verified end-to-end via a synthetic
+    Enquiry→Quotation→Job→Invoice→Receipt lifecycle in a standalone
+    `vm.runInContext` smoke test before writing any UI.
+  - **Closed a long-standing flagged TODO as a direct side effect**:
+    `getAccountsKPIs()`'s Receivables/Payables figures (Accounts Dashboard
+    tab) were still summing full invoiced/received amounts without netting
+    off real Payment/Receipt/Credit Note activity — flagged as open since
+    Batch 1/4. Building the Balance Sheet needed the correct netted figure
+    anyway, so fixed `getAccountsKPIs()` itself rather than shipping two
+    different Receivables numbers (a stale Dashboard one, a correct
+    Balance Sheet one) side by side.
+  - **Materials Issued/Returned on the Job report are move COUNTS, not a
+    currency value** — this app's Material Issue/Return moves don't carry
+    a rate/cost (confirmed existing precedent: `getStockReport()` already
+    sets `rate:0`/`amount:0` for these voucher types), so inventing a new
+    valuation methodology here (e.g. off `itemMaster.avgCost`) would be
+    unverified and inconsistent with the rest of the app. Flagged in the
+    report's own UI text, not silently guessed.
+  - **Sales/Purchase Bill Outstanding's "Age by Due Date" reuses the real
+    creditDays field** already captured on the Customer/Supplier masters
+    (no per-invoice due-date field exists, same "reuse an existing trace
+    rather than invent a field" precedent as `accountsDivisionForInvoice()`).
+  - **Purchase Bill Outstanding's vendor-side mislabel — fixed, not
+    reproduced**: the live spec confirms all 4 Purchase Bill Outstanding
+    variants still show "Client Name"/"CLIENT" (cloned from Sales Bill
+    Outstanding without relabeling). Every label here correctly says
+    Supplier/Vendor.
+  - **The "No Invoice/Bill List Exist" bug** (confirmed systemic across
+    3 earlier contexts) is reported again here for Project wise Invoice &
+    Receipt — fixed here too, same pattern: `getProjectWiseInvoiceReceipt()`
+    actually looks the job's real invoices/receipts/credit notes up.
+  - **Verification:** `node --check` on all 7 modified files individually
+    and the full 12-file concatenation in load order; duplicate top-level
+    declaration scan across all 12 files (none found); onclick/onchange/
+    oninput cross-reference (every handler in the 5 modified files plus
+    `index.html`'s new markup resolves to a defined function); closure-
+    variable-in-inline-handler scan (none introduced — the two new
+    `salesView='...';renderSalesBody();` / `jobsView='...';renderJobsBody();`
+    inline assignments target genuine top-level `let` globals, same pattern
+    already used throughout both files). Full Playwright pass
+    (`e2e-batch6-reports.js`, committed, reusable) — seeded a real
+    Enquiry→Quotation→Job→Invoice→Sales Receipt→General Receipt chain
+    through the actual data-layer functions, opened all 5 touched modules
+    via their real ecosystem-hub node `launch()` (via `window.__eco3d`,
+    the established debug handle from the earlier node-tap bug fix), then
+    exercised every new report tab via real DOM clicks. 7/7 checks passed,
+    zero console/page errors. Screenshots confirmed Receivables/Payables/
+    P&L numbers net correctly against the seeded data (e.g. Balance Sheet:
+    Accounts Receivable 170.000 = Invoice 220.000 − Receipt 50.000 paid).
 
 ### Custom modules NOT mapped from Q-Pro (built to fill gaps, explicitly flagged as this app's own design):
 - **Estimator** and **Approver** as *standalone modules* with their own
@@ -522,8 +610,15 @@ then, this section is the only persistent record of what they said.
   actually use the mapping was deliberately deferred rather than risking
   breakage across several already-working flows in one pass — still open,
   flag if Reports/Trial Balance need it to post correctly.
-- Batch 6 (Reports) remains fully spec-only — archived in
-  `docs/qpro-mapping/` but not built. Batch 5 is done, see §3.
+- ~~Batch 6 (Reports) remains fully spec-only~~ — **done**, 3 Aug 2026, see §3
+  and the Session Log. Voucher Ledger Mapping still isn't wired into
+  Receipt/Payment/Credit Note/Debit Note — Trial Balance/Ledger Report/P&L
+  do NOT need that mapping to post correctly after all (see §3's Batch 6
+  writeup for why: Direct Income/Expense and Receivables/Payables read
+  straight from the real transactional documents, not through the ledger
+  layer) — so this is no longer a blocker for anything, just still an open
+  "nice to have" if Salman wants Payment/Receipt/Credit/Debit Note to post
+  through real ledgers too.
 
 ---
 
@@ -1412,3 +1507,84 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   Receipt/Payment/Credit Note/Debit Note forms if that's wanted; Accounts'
   Payables KPI still doesn't net off real payments (long-open item);
   `jobCards[]`/`curtainJobs[]` unification remains deferred.
+
+### 3 Aug 2026 (later same day) — Built Batch 6: Reports — completes the full 6-batch Q-Pro mapping exercise
+
+- **Built Batch 6**, traced from `docs/qpro-mapping/batch6reports.txt`.
+  Full coverage detail is in §3 rather than repeated here. Short version:
+  13 reports across 5 existing files (Accounts got 5 new tabs — Day Book,
+  Ledger Report, Trial Balance, P&L, Balance Sheet; Sales got a new
+  "Reports" top-tab — Quotation Register + Sales Bill Outstanding covering
+  all 4 spec variants in one screen; Purchasing got a new "Bill O/s" nav
+  tab for the vendor-side mirror; Jobs got a new "📊 Reports" button — Job
+  report, Project Outstanding, Project wise Invoice & Receipt; HR got a
+  new Payroll Report tab). No new ecosystem-hub node, no new business
+  entities — matches the spec's own finding that Reports are thin,
+  read-only views over data already mapped in Batches 1–5. This is now
+  **the last of the original 6 Q-Pro batches** — the full mapping exercise
+  (Purchases, Inventory, Accounts, Sales & Job Operations, Administration/
+  Payroll/HR, Reports) is complete.
+- **The one real design problem this session surfaced**: while building
+  P&L/Balance Sheet purely off GL ledger postings (Journal/General
+  Receipt/Payment), the numbers came out useless — Batch 3's seed Chart of
+  Accounts files "Sales" under "Current Assets", not "Direct Incomes", and
+  no custom group at all sits under "Direct Incomes" — a legitimate
+  Debtors-control-account pattern, not a data bug, so the seed data was
+  left untouched. Fixed by having Direct Income/Expense (P&L) and
+  Receivables/Payables (Balance Sheet) read straight from the real
+  taxInvoices/purchaseInvoices, the same source the existing Accounts
+  Dashboard KPIs already use, with Indirect Income/Expense and Cash/Bank
+  balances still coming from the GL layer where that's genuinely correct.
+  Verified via a standalone `vm.runInContext` smoke test (a synthetic
+  Enquiry→Quotation→Job→Invoice lifecycle) before any UI was written.
+- **Closed a long-open TODO as a direct side effect**: `getAccountsKPIs()`
+  (Accounts Dashboard) still summed full invoiced/received amounts without
+  netting off real Payment/Receipt/Credit Note activity, flagged since
+  Batch 1/4. Building the Balance Sheet needed the correctly-netted figure
+  anyway, so fixed `getAccountsKPIs()` itself rather than shipping two
+  different Receivables numbers side by side. This item is now closed,
+  not just Balance-Sheet-scoped.
+- **Purchase Bill Outstanding's vendor-side mislabel (a confirmed spec
+  bug — cloned from Sales Bill Outstanding without relabeling "Client
+  Name"/"CLIENT") was fixed, not reproduced** — same "fix real bugs, don't
+  replicate them" precedent as Payment/Debit Note/Receipt/Credit Note.
+  Same call for Project wise Invoice & Receipt's "No Invoice List Exist"
+  bug (the same systemic issue already fixed 3 times over in earlier
+  batches) — `getProjectWiseInvoiceReceipt()` actually looks the job's
+  real invoices/receipts/credit notes up.
+- **Materials Issued/Returned on the Job report show as move counts, not
+  a currency value** — deliberate, not a gap: this app's Material
+  Issue/Return moves don't carry a rate/cost anywhere (confirmed existing
+  precedent in `getStockReport()`), so inventing a valuation here would be
+  a new, unverified methodology. Flagged in the report's own UI text.
+- **Verification:** full battery — `node --check` on all 7 modified files
+  individually and the full 12-file concatenation in load order; duplicate
+  top-level declaration scan across all 12 files (none found); onclick/
+  onchange/oninput cross-reference (all resolve); closure-variable-in-
+  inline-handler scan (none introduced). Full Playwright pass
+  (`e2e-batch6-reports.js`, committed, reusable) — seeded a real
+  Enquiry→Quotation→Job→Invoice→Sales Receipt→General Receipt chain
+  through the actual data-layer functions (not hand-typed forms, for
+  speed), opened all 5 touched modules via their real ecosystem-hub node
+  `launch()` (via the `window.__eco3d` debug handle established after the
+  earlier node-tap bug fix), then exercised every new report tab via real
+  DOM clicks. 7/7 checks passed, zero console/page errors. Screenshots
+  confirmed the numbers net correctly against the seeded data (e.g.
+  Balance Sheet: Accounts Receivable 170.000 = Invoice 220.000 − Receipt
+  50.000 paid; Job report matched the live spec's own verified example
+  shape exactly).
+- **Not done this session, still genuinely open:** Voucher Ledger Mapping
+  still isn't wired into Supplier Payment/Debit Note/Sales Receipt/Credit
+  Note/General Receipt/Payment — turns out this doesn't block Trial
+  Balance/Ledger Report/P&L from being useful after all (see above), so
+  it's now a "nice to have" rather than a blocker; `jobCards[]`/
+  `curtainJobs[]` unification remains deferred; `shell.js`'s `M` object
+  staleness (Purchaser/Storekeeper descriptions) is still unrefreshed;
+  Storekeeper's full device-test pass is still owed. With Batch 6 done,
+  every module the original Q-Pro trace called for is now built except
+  Upholstery/Joinery/Painting workshop modules, Owner Dashboard, and Tally
+  Bridge — those were never part of the 6-batch Q-Pro mapping exercise to
+  begin with (see §2's ecosystem-hub table), so "the Q-Pro trace list" is
+  now fully closed out; whether to build those 3 remaining ecosystem-hub
+  placeholders is a separate, new decision for Salman, not a continuation
+  of this work.

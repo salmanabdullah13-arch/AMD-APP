@@ -7,11 +7,9 @@
 // quotations[] for the division breakdown), since there is no accounts
 // data model to invent from scratch — this reads, it doesn't create.
 //
-// Biggest flagged assumption: this app has no payment/receipt tracking
-// anywhere yet, so every generated Tax Invoice and every received Purchase
-// Invoice is treated as fully outstanding (Receivables/Payables). That's an
-// overstatement once real payments exist — a real Accounts module would
-// need a receipts/payments ledger, which is out of scope for this pass.
+// Receivables/Payables net off real payment activity (Batch 4's Sales
+// Receipt/Credit Note, Batch 1's Supplier Payment) as of Batch 6 — see
+// getAccountsKPIs() below and getBalanceSheet() in data.js.
 // ══════════════════════════════════════════
 
 const accountsStyleTag = document.createElement('style');
@@ -55,8 +53,10 @@ accountsModuleWrap.innerHTML = `
 `;
 document.body.appendChild(accountsModuleWrap);
 
-let accountsView = 'dashboard'; // dashboard | invoices | purchases | coa | ledgers | ledger-new | receipts | receipt-new | payments | payment-new | journals | journal-new
+let accountsView = 'dashboard'; // dashboard | invoices | purchases | coa | ledgers | ledger-new | receipts | receipt-new | payments | payment-new | journals | journal-new | daybook | ledger-report | trial-balance | pl | balance-sheet
 let acVisibleLineRows = 1; // shared row-count for whichever line-entry form (Receipt/Payment/Journal) is currently open
+const acToday = new Date().toISOString().slice(0, 10);
+let acReportFilters = { dbFrom: acToday, dbTo: acToday, voucherType: 'All', glFrom: '2023-01-01', glTo: acToday, ledgerName: '', ledgerWise: true };
 
 function acEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function accountsAlert(msg) {
@@ -110,6 +110,11 @@ function renderAccountsBody() {
       ${tab('payments', 'General Payment')}
       ${tab('journals', 'Journal')}
       ${tab('voucher-map', 'Voucher Ledger Mapping')}
+      ${tab('daybook', 'Day Book')}
+      ${tab('ledger-report', 'Ledger Report')}
+      ${tab('trial-balance', 'Trial Balance')}
+      ${tab('pl', 'Profit & Loss')}
+      ${tab('balance-sheet', 'Balance Sheet')}
     </div>`;
   let content = '';
   if (accountsView === 'dashboard') content = renderAccountsDashboard();
@@ -125,6 +130,11 @@ function renderAccountsBody() {
   else if (accountsView === 'journals') content = renderJournals();
   else if (accountsView === 'journal-new') content = renderJournalForm();
   else if (accountsView === 'voucher-map') content = renderVoucherLedgerMapping();
+  else if (accountsView === 'daybook') content = renderDayBookReport();
+  else if (accountsView === 'ledger-report') content = renderLedgerReportView();
+  else if (accountsView === 'trial-balance') content = renderTrialBalanceView();
+  else if (accountsView === 'pl') content = renderProfitLossView();
+  else if (accountsView === 'balance-sheet') content = renderBalanceSheetView();
   body.innerHTML = tabsHtml + content;
 }
 
@@ -139,9 +149,15 @@ function accountsDivisionForInvoice(inv) {
 
 function getAccountsKPIs() {
   const revenue = taxInvoices.reduce((s, inv) => s + inv.totals.netTotal, 0);
-  const receivables = revenue; // no payments ledger yet — see file header note
+  // Nets off Batch 4's Sales Receipt/Credit Note activity and Batch 1's
+  // Supplier Payment paidAmount — closes the long-open TODO this file's
+  // header used to flag ("an overstatement once payments exist"). Building
+  // Batch 6's Balance Sheet needed the same real-balance computation, so
+  // fixed here rather than leaving two different Receivables/Payables
+  // figures (a stale Dashboard one, a correct Balance Sheet one) side by side.
+  const receivables = taxInvoices.reduce((s, inv) => s + invoiceBalance(inv), 0);
   const receivedPurchaseInvoices = purchaseInvoices.filter(inv => inv.status === 'received');
-  const payables = receivedPurchaseInvoices.reduce((s, inv) => s + (inv.totals ? inv.totals.netAmount : 0), 0);
+  const payables = receivedPurchaseInvoices.reduce((s, inv) => s + Math.max(0, (inv.totals ? inv.totals.netAmount : 0) - (inv.paidAmount || 0)), 0);
   const pendingPOValue = purchaseOrders.filter(po => po.status === 'issued')
     .reduce((s, po) => s + po.items.reduce((s2, it) => s2 + (it.netAmountBD || 0), 0), 0);
   const cashPosition = revenue - payables; // rough proxy, not a real cash-flow statement
@@ -178,7 +194,7 @@ function renderAccountsDashboard() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Note</p>
-      <p style="font-size:11.5px;color:#94a3b8;">This app has no payment/receipt ledger yet, so Receivables and Payables above are the full invoiced/received amounts, not a true outstanding balance. Tally bridge sync is not built.</p>
+      <p style="font-size:11.5px;color:#94a3b8;">Receivables/Payables above are true outstanding balances, netting off Sales Receipt/Credit Note and Supplier Payment activity. Tally bridge sync is not built.</p>
     </div>`;
 }
 
@@ -549,5 +565,161 @@ function renderVoucherLedgerMapping() {
           </select></td>
         </tr>`).join('')}
       </table>
+    </div>`;
+}
+
+// ══════════════════════════════════════════
+// BATCH 6 — REPORTS. Data/computation lives in data.js
+// (getDayBookRows/getGLPostings/getLedgerBalance/getTrialBalance/
+// getProfitAndLoss/getBalanceSheet) — this section is UI only, same split
+// as the Batch 3 GL layer above.
+// ══════════════════════════════════════════
+
+function acReportFilterChanged(key, val) {
+  acReportFilters[key] = key === 'ledgerWise' ? (val === 'true' || val === true) : val;
+  renderAccountsBody();
+}
+function acFilterDateField(label, key, value) {
+  return `<div style="flex:1;min-width:110px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">${label}</label><input type="date" value="${value}" onchange="acReportFilterChanged('${key}',this.value)" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box;"></div>`;
+}
+// Every report but Trial Balance defaults to the single real Division —
+// Trial Balance is the one exception the live spec calls out ("- Select
+// Division -" shown unselected by default), preserved here for fidelity.
+function acDivisionFieldHtml(unselected = false) {
+  return unselected
+    ? `<div style="flex:1;min-width:140px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">Division</label><select disabled style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#94a3b8;"><option>- Select Division -</option></select></div>`
+    : `<div style="flex:1;min-width:140px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">Division</label><input type="text" value="Al Maraya Decor" disabled style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box;color:#94a3b8;"></div>`;
+}
+
+function renderDayBookReport() {
+  const f = acReportFilters;
+  const rows = getDayBookRows({ voucherType: f.voucherType, from: f.dbFrom, to: f.dbTo });
+  return `
+    <div class="sales-card">
+      <p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">A consolidated transaction log spanning every voucher type across Sales, Purchases, and Accounts in one feed.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${acDivisionFieldHtml()}
+        <div style="flex:2;min-width:160px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">Voucher Type</label>
+          <select onchange="acReportFilterChanged('voucherType',this.value)" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
+            ${DAY_BOOK_VOUCHER_TYPES.map(t => `<option value="${t}" ${f.voucherType === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        ${acFilterDateField('From Date', 'dbFrom', f.dbFrom)}
+        ${acFilterDateField('To Date', 'dbTo', f.dbTo)}
+      </div>
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No vouchers match these filters.</p>` :
+        `<table class="sales-items"><tr><th>Voucher Type</th><th>Voucher No</th><th>Voucher Date</th><th>Client</th><th>Amount</th><th>Status</th></tr>
+        ${rows.map(r => `<tr><td>${acEsc(r.type)}</td><td>${acEsc(r.no)}</td><td>${r.date}</td><td>${acEsc(r.client)}</td><td>BD ${(r.amount || 0).toFixed(3)}</td><td>${acEsc(r.status)}</td></tr>`).join('')}
+        </table>`}
+    </div>`;
+}
+
+function renderLedgerReportView() {
+  const f = acReportFilters;
+  const postings = f.ledgerName ? getGLPostings().filter(p => p.ledgerName === f.ledgerName && (!f.glFrom || p.date >= f.glFrom) && (!f.glTo || p.date <= f.glTo)) : [];
+  return `
+    <div class="sales-card">
+      <p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">Standard general-ledger transaction printout. Only Journal/General Receipt/General Payment postings appear here — Supplier Payment, Debit Note, Sales Receipt/Credit Note and Tax/Purchase Invoices don't post to a Ledger yet (see the Voucher Ledger Mapping tab).</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${acDivisionFieldHtml()}
+        <div style="flex:2;min-width:160px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">Ledger Name</label>
+          <select onchange="acReportFilterChanged('ledgerName',this.value)" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
+            <option value="">- Select Ledger -</option>${ledgers.map(l => `<option value="${acEsc(l.name)}" ${f.ledgerName === l.name ? 'selected' : ''}>${acEsc(l.name)}</option>`).join('')}
+          </select>
+        </div>
+        ${acFilterDateField('From Date', 'glFrom', f.glFrom)}
+        ${acFilterDateField('To Date', 'glTo', f.glTo)}
+      </div>
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      ${!f.ledgerName ? `<p style="font-size:12px;color:#64748b;">Select a Ledger to view its transactions.</p>` :
+        postings.length === 0 ? `<p style="font-size:12px;color:#64748b;">No transactions posted to ${acEsc(f.ledgerName)} in this range.</p>` :
+        `<table class="sales-items"><tr><th>#</th><th>Date</th><th>Voucher</th><th>Voucher No</th><th>Voucher Ref</th><th>Debit</th><th>Credit</th><th>Narration</th></tr>
+        ${postings.map((p, i) => `<tr><td>${i + 1}</td><td>${p.date}</td><td>${acEsc(p.voucherType)}</td><td>${acEsc(p.voucherNo)}</td><td>${acEsc(p.voucherRef)}</td><td>${p.dr ? 'BD ' + p.dr.toFixed(3) : ''}</td><td>${p.cr ? 'BD ' + p.cr.toFixed(3) : ''}</td><td>${acEsc(p.narration) || '—'}</td></tr>`).join('')}
+        </table>`}
+    </div>`;
+}
+
+function renderTrialBalanceView() {
+  const f = acReportFilters;
+  const rows = getTrialBalance({ from: f.glFrom, to: f.glTo, ledgerWise: f.ledgerWise });
+  const fmt = n => (n < 0 ? '(' + Math.abs(n).toFixed(3) + ')' : n.toFixed(3));
+  const totals = rows.reduce((s, r) => ({ debit: s.debit + r.debit, credit: s.credit + r.credit }), { debit: 0, credit: 0 });
+  return `
+    <div class="sales-card">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${acDivisionFieldHtml(true)}
+        ${acFilterDateField('From Date', 'glFrom', f.glFrom)}
+        ${acFilterDateField('To Date', 'glTo', f.glTo)}
+        <div style="flex:1;min-width:140px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">&nbsp;</label>
+          <label style="font-size:12px;display:flex;align-items:center;gap:6px;padding:6px 0;"><input type="checkbox" ${f.ledgerWise ? 'checked' : ''} onchange="acReportFilterChanged('ledgerWise',this.checked)"> Ledger wise</label>
+        </div>
+      </div>
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No ledger activity in this range.</p>` :
+        `<table class="sales-items"><tr><th>Particulars</th><th>Opening Balance</th><th>Debit</th><th>Credit</th><th>Closing Balance</th></tr>
+        ${rows.map(r => `<tr><td>${acEsc(r.name)}</td><td>${fmt(r.opening)}</td><td>${r.debit.toFixed(3)}</td><td>${r.credit.toFixed(3)}</td><td>${fmt(r.closing)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td>Total</td><td></td><td>${totals.debit.toFixed(3)}</td><td>${totals.credit.toFixed(3)}</td><td></td></tr>
+        </table>`}
+    </div>`;
+}
+
+function renderProfitLossView() {
+  const f = acReportFilters;
+  const p = getProfitAndLoss({ from: f.glFrom, to: f.glTo });
+  const zeroRed = n => `style="color:${n <= 0 ? '#B91C1C' : 'inherit'};font-weight:700;"`;
+  return `
+    <div class="sales-card">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${acFilterDateField('From Date', 'glFrom', f.glFrom)}
+        ${acFilterDateField('To Date', 'glTo', f.glTo)}
+      </div>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Trading Account</p>
+      <table class="sales-items">
+        <tr><td>Direct Incomes</td><td>${p.directIncome.toFixed(3)}</td></tr>
+        <tr><td>Direct Expenses</td><td>${p.directExpense.toFixed(3)}</td></tr>
+        <tr><td style="font-weight:700;">Gross Profit</td><td ${zeroRed(p.grossProfit)}>${p.grossProfit.toFixed(3)}</td></tr>
+      </table>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Income Statement</p>
+      <table class="sales-items">
+        <tr><td>Gross Profit b/f</td><td>${p.grossProfit.toFixed(3)}</td></tr>
+        <tr><td>Indirect Incomes</td><td>${p.indirectIncome.toFixed(3)}</td></tr>
+        <tr><td>Indirect Expenses</td><td>${p.indirectExpense.toFixed(3)}</td></tr>
+        <tr><td style="font-weight:700;">Net Profit</td><td ${zeroRed(p.netProfit)}>${p.netProfit.toFixed(3)}</td></tr>
+      </table>
+    </div>
+    <div class="sales-card">
+      <p style="font-size:11px;color:#94a3b8;">Direct Income/Expense read straight from Tax Invoices and received Purchase Invoices. Indirect Income/Expense come from the Journal/General Receipt/General Payment ledger layer — see the Ledger Report tab's note on why Sales/Purchase vouchers don't post to a Ledger.</p>
+    </div>`;
+}
+
+function renderBalanceSheetView() {
+  const bs = getBalanceSheet();
+  return `
+    <div class="sales-card">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Assets</p>
+          ${bs.assets.length === 0 ? `<p style="font-size:12px;color:#64748b;">No asset balances.</p>` :
+            `<table class="sales-items">${bs.assets.map(a => `<tr><td>${acEsc(a.name)}</td><td>${a.amount.toFixed(3)}</td></tr>`).join('')}
+            <tr style="font-weight:700;"><td>Total</td><td>${bs.totalAssets.toFixed(3)}</td></tr></table>`}
+        </div>
+        <div>
+          <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Liabilities</p>
+          ${bs.liabilities.length === 0 ? `<p style="font-size:12px;color:#64748b;">No liability balances.</p>` :
+            `<table class="sales-items">${bs.liabilities.map(a => `<tr><td>${acEsc(a.name)}</td><td>${a.amount.toFixed(3)}</td></tr>`).join('')}
+            <tr style="font-weight:700;"><td>Total</td><td>${bs.totalLiabilities.toFixed(3)}</td></tr></table>`}
+        </div>
+      </div>
+    </div>
+    <div class="sales-card">
+      <p style="font-size:11px;color:#94a3b8;">As-of-today snapshot, no date filter (matches the live report). Capital/retained-earnings roll-up from Profit &amp; Loss is not folded in — a flagged simplification, not an oversight.</p>
     </div>`;
 }

@@ -44,6 +44,11 @@ purchStyleTag.textContent = `
 #purch-module-wrap .p-pill.rejected { background:#fee2e2; color:#991b1b; }
 #purch-module-wrap .p-pill.issued { background:#dbeafe; color:#1e40af; }
 #purch-module-wrap .p-pill.invoiced { background:#e0e7ff; color:#3730a3; }
+#purch-module-wrap .p-pill.unpaid { background:var(--bad-bg,#fdeceb); color:var(--bad,#d9342b); }
+#purch-module-wrap .p-pill.partial { background:var(--warn-bg,#fff6e3); color:var(--warn,#c47d00); }
+#purch-module-wrap .p-pill.full { background:var(--ok-bg,#eafaf1); color:var(--ok,#0f9d58); }
+#purch-module-wrap .p-pill.advance { background:#e0ecfb; color:var(--info,#2563eb); }
+#purch-module-wrap .p-pill.cancelled { background:#eef0f3; color:#64748b; }
 #purch-module-wrap .p-dept-filter {
   display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;
 }
@@ -83,6 +88,7 @@ let invoiceDraftActiveId = null;          // invoice id currently shown in the S
 let supplierFormReturnSelectId = null;    // select element id to refresh after "+ New Supplier…"
 let paymentFormDraft = null;              // { supplierId, division, methods, allocations, ledgerSplits }
 let debitNoteFormDraft = null;            // { supplierId, division }
+let purchBillOSFilters = { view: 'byparty', ageWise: false, ageBasis: 'bill', supplier: '' }; // Batch 6 — Purchase Bill Outstanding
 
 // ── Job / item picker helpers (shared by PR, direct-PO, direct-Invoice forms) ──
 // Combines projects[] (Carpentry/Painting/Upholstery/Metal Works — dept-% only,
@@ -212,6 +218,7 @@ function purchGoTo(pageId) {
   if (pageId === 'purch-suppliers') renderSuppliers();
   if (pageId === 'purch-payments')  renderSupplierPayments();
   if (pageId === 'purch-debitnotes') renderDebitNotes();
+  if (pageId === 'purch-billos') renderPurchaseBillOutstanding();
 }
 
 // ── Alert toast (mirrors curtAlert's fallback pattern) ──
@@ -1696,6 +1703,77 @@ function closeDebitNoteForm() {
   debitNoteFormDraft = null;
   const panel = document.getElementById('purch-debitnote-form');
   if (panel) panel.style.display = 'none';
+}
+
+// ═══════════════════════════════════════
+// BATCH 6 — PURCHASE BILL OUTSTANDING
+// Data/computation (getPurchaseBillOutstanding*) lives in data.js. Mirrors
+// Sales Bill Outstanding structurally, but every label below correctly
+// says Supplier/Vendor — the live spec's own "Client Name"/"CLIENT"
+// mislabel on this vendor-side report (a confirmed copy-paste-without-
+// relabeling bug) is fixed here, not reproduced.
+// ═══════════════════════════════════════
+function purchBillOSFilterChanged(key, val) { purchBillOSFilters[key] = val; renderPurchaseBillOutstanding(); }
+function purchBillPillClass(status) {
+  return status === 'Fully Paid' ? 'full' : status === 'Partially Paid' ? 'partial' : status === 'Advance' ? 'advance' : status === 'Cancelled' ? 'cancelled' : 'unpaid';
+}
+function purchBillOSLegendHtml() {
+  return `<p style="font-size:10.5px;color:#94a3b8;margin-top:8px;">Legend:
+    <span class="p-pill advance">Advance</span> <span class="p-pill unpaid">Unpaid</span>
+    <span class="p-pill partial">Partially Paid</span> <span class="p-pill full">Fully Paid</span>
+    <span class="p-pill cancelled">Cancelled</span></p>`;
+}
+
+function renderPurchaseBillOutstanding() {
+  const f = purchBillOSFilters;
+  const opts = { ageBasis: f.ageBasis };
+  const rows0 = f.view === 'all'
+    ? (f.ageWise ? getPurchaseBillOutstandingAllSuppliersAgeWise(opts) : getPurchaseBillOutstandingAllSuppliers())
+    : (f.ageWise ? getPurchaseBillOutstandingByPartyAgeWise(opts) : getPurchaseBillOutstandingByParty(opts));
+  const supplierName = r => r.supplierName || (r.supplierId ? ((suppliers.find(s => s.id === r.supplierId) || {}).name || '—') : '—');
+  const rows = f.supplier ? rows0.filter(r => supplierName(r).toLowerCase().includes(f.supplier.toLowerCase())) : rows0;
+  const outstandingTotal = rows.reduce((s, r) => s + r.balAmt, 0);
+
+  const filterHtml = `
+    <div class="p-card">
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button class="p-dept-filter-btn" style="font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:${f.view === 'byparty' ? 'var(--biz-primary)' : 'var(--biz-card-bg)'};color:${f.view === 'byparty' ? '#fff' : 'var(--biz-text-muted)'};cursor:pointer;" onclick="purchBillOSFilterChanged('view','byparty')">By Party</button>
+        <button style="font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:${f.view === 'all' ? 'var(--biz-primary)' : 'var(--biz-card-bg)'};color:${f.view === 'all' ? '#fff' : 'var(--biz-text-muted)'};cursor:pointer;" onclick="purchBillOSFilterChanged('view','all')">All</button>
+      </div>
+      <div class="p-field"><label>Division</label><input type="text" value="Al Maraya Decor" disabled></div>
+      <div class="p-field"><label>Supplier Name</label><input type="text" value="${f.supplier || ''}" oninput="purchBillOSFilterChanged('supplier',this.value)"></div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" ${f.ageWise ? 'checked' : ''} onchange="purchBillOSFilterChanged('ageWise',this.checked)"> Age-wise</label>
+        ${!f.ageWise ? `
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="radio" name="pAgeBasis" ${f.ageBasis === 'bill' ? 'checked' : ''} onchange="purchBillOSFilterChanged('ageBasis','bill')"> Age by Bill Date</label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="radio" name="pAgeBasis" ${f.ageBasis === 'due' ? 'checked' : ''} onchange="purchBillOSFilterChanged('ageBasis','due')"> Age by Due Date</label>` : ''}
+      </div>
+      ${purchBillOSLegendHtml()}
+    </div>
+    <div class="p-card"><p style="font-weight:700;font-size:13px;">Outstanding Amount: BD ${outstandingTotal.toFixed(3)}</p></div>`;
+
+  let tableHtml;
+  if (rows.length === 0) {
+    tableHtml = `<div class="p-card"><p style="font-size:12.5px;color:#64748b;">No outstanding bills match these filters.</p></div>`;
+  } else if (f.view === 'byparty' && !f.ageWise) {
+    tableHtml = `<div class="p-card" style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;"><th style="padding:6px;">#</th><th style="padding:6px;">Bill No</th><th style="padding:6px;">Date</th><th style="padding:6px;">Supplier Ref</th><th style="padding:6px;">Bill Amt</th><th style="padding:6px;">Paid Amt</th><th style="padding:6px;">Bal Amt</th><th style="padding:6px;">Age</th><th style="padding:6px;">Status</th></tr>
+      ${rows.map((r, i) => `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:6px;">${i + 1}</td><td style="padding:6px;">${r.invoiceId}</td><td style="padding:6px;">${r.date}</td><td style="padding:6px;">${r.poNo || '—'}</td><td style="padding:6px;">${r.billAmt.toFixed(3)}</td><td style="padding:6px;">${r.paidAmt.toFixed(3)}</td><td style="padding:6px;">${r.balAmt.toFixed(3)}</td><td style="padding:6px;">${r.age}</td><td style="padding:6px;"><span class="p-pill ${purchBillPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
+      </table></div>`;
+  } else if (f.view === 'byparty' && f.ageWise) {
+    tableHtml = `<div class="p-card" style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;"><th style="padding:6px;">#</th><th style="padding:6px;">Bill No</th><th style="padding:6px;">Supplier</th><th style="padding:6px;">Bal Amt</th>${BILL_AGE_BUCKETS.map(b => `<th style="padding:6px;">${b.label}</th>`).join('')}<th style="padding:6px;">Due On</th></tr>
+      ${rows.map((r, i) => `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:6px;">${i + 1}</td><td style="padding:6px;">${r.invoiceId}</td><td style="padding:6px;">${supplierName(r)}</td><td style="padding:6px;">${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td style="padding:6px;">${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}<td style="padding:6px;">${r.dueDate}</td></tr>`).join('')}
+      </table></div>`;
+  } else if (f.view === 'all' && !f.ageWise) {
+    tableHtml = `<div class="p-card" style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;"><th style="padding:6px;">#</th><th style="padding:6px;">Supplier</th><th style="padding:6px;">Bill Amt</th><th style="padding:6px;">Paid Amt</th><th style="padding:6px;">Bal Amt</th><th style="padding:6px;">Status</th></tr>
+      ${rows.map((r, i) => `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:6px;">${i + 1}</td><td style="padding:6px;">${supplierName(r)}</td><td style="padding:6px;">${r.billAmt.toFixed(3)}</td><td style="padding:6px;">${r.paidAmt.toFixed(3)}</td><td style="padding:6px;">${r.balAmt.toFixed(3)}</td><td style="padding:6px;"><span class="p-pill ${purchBillPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
+      </table></div>`;
+  } else {
+    tableHtml = `<div class="p-card" style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><tr style="text-align:left;color:#64748b;font-size:10.5px;text-transform:uppercase;"><th style="padding:6px;">#</th><th style="padding:6px;">Supplier</th><th style="padding:6px;">Bal Amt</th>${BILL_AGE_BUCKETS.map(b => `<th style="padding:6px;">${b.label}</th>`).join('')}</tr>
+      ${rows.map((r, i) => `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:6px;">${i + 1}</td><td style="padding:6px;">${supplierName(r)}</td><td style="padding:6px;">${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td style="padding:6px;">${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}</tr>`).join('')}
+      </table></div>`;
+  }
+
+  document.getElementById('purch-billos-body').innerHTML = filterHtml + tableHtml;
 }
 
 function closePurchasingModule() {

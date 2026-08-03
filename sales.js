@@ -85,6 +85,12 @@ salesStyleTag.textContent = `
 #sales-module-wrap .sales-tile.t-amber{background:linear-gradient(135deg,var(--biz-primary),var(--biz-primary2));}
 #sales-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),var(--biz-primary2));}
 #sales-module-wrap .sales-back{font-size:12px;color:var(--biz-primary);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
+#sales-module-wrap .bill-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+#sales-module-wrap .bill-pill.unpaid{background:var(--bad-bg,#fdeceb);color:var(--bad,#d9342b);}
+#sales-module-wrap .bill-pill.partial{background:var(--warn-bg,#fff6e3);color:var(--warn,#c47d00);}
+#sales-module-wrap .bill-pill.full{background:var(--ok-bg,#eafaf1);color:var(--ok,#0f9d58);}
+#sales-module-wrap .bill-pill.advance{background:#e0ecfb;color:var(--info,#2563eb);}
+#sales-module-wrap .bill-pill.cancelled{background:#eef0f3;color:#64748b;}
 `;
 document.head.appendChild(salesStyleTag);
 
@@ -121,6 +127,8 @@ let salesWizardStep = 1;
 let salesEnqFilters = { from: '', to: '', customer: '', salesPerson: '', unassigned: false, unattended: false, unquoted: false };
 let salesQtnFilters = { qtnNo: '', customer: '', project: '', tel: '', salesPerson: '' };
 let salesQtnListTab = 'all';           // draft | open | confirmed | closed | all
+let salesQtnRegFilters = { from: '', to: '', salesPerson: '', status: 'All' };
+let salesBillOSFilters = { view: 'byparty', ageWise: false, ageBasis: 'bill' };
 let salesDraft = null;                 // scratch object for create forms
 let salesEditingLineId = null;         // which item's inline edit panel is open on Wizard Step 2
 let salesCurrentUser = STAFF.find(s => s !== 'Operations') || STAFF[0]; // simulates the logged-in Salesman for the lock/banner rule
@@ -167,7 +175,7 @@ function launchSalesModule() { openSalesModule(); }
 const SALES_TOPVIEW_DEFAULTS = {
   dashboard: 'dashboard', enquiries: 'enq-list', quotations: 'qtn-list',
   proforma: 'proforma-list', receipts: 'receipt-list', creditnotes: 'creditnote-list',
-  custupdate: 'custupdate-tool'
+  custupdate: 'custupdate-tool', reports: 'qtn-register'
 };
 function salesSetTopView(v) {
   salesTopView = v;
@@ -187,6 +195,7 @@ function renderSalesBody() {
       <div class="sales-toptab ${salesTopView === 'receipts' ? 'active' : ''}" onclick="salesSetTopView('receipts')">Receipt</div>
       <div class="sales-toptab ${salesTopView === 'creditnotes' ? 'active' : ''}" onclick="salesSetTopView('creditnotes')">Credit Note</div>
       <div class="sales-toptab ${salesTopView === 'custupdate' ? 'active' : ''}" onclick="salesSetTopView('custupdate')">Customer Update</div>
+      <div class="sales-toptab ${salesTopView === 'reports' ? 'active' : ''}" onclick="salesSetTopView('reports')">Reports</div>
     </div>`;
 
   let content = '';
@@ -205,6 +214,8 @@ function renderSalesBody() {
     case 'creditnote-list': content = renderCreditNoteList(); break;
     case 'creditnote-create': content = renderCreditNoteCreate(); break;
     case 'custupdate-tool': content = renderCustomerUpdateTool(); break;
+    case 'qtn-register': content = renderSalesReports(); break;
+    case 'bill-os': content = renderSalesReports(); break;
     default: content = renderEnquiryList();
   }
   body.innerHTML = topTabs + content;
@@ -1348,4 +1359,142 @@ function custUpdateApplyVat() {
   if (result && result.error) { salesAlert(result.error); return; }
   salesAlert('✓ VAT updated.');
   renderSalesBody();
+}
+
+// ══════════════════════════════════════════
+// BATCH 6 — REPORTS (Quotation Register, Sales Bill Outstanding)
+// Data/computation lives in data.js — this section is UI only.
+// ══════════════════════════════════════════
+
+function billPillClass(status) {
+  return status === 'Fully Paid' ? 'full' : status === 'Partially Paid' ? 'partial' : status === 'Advance' ? 'advance' : status === 'Cancelled' ? 'cancelled' : 'unpaid';
+}
+function salesBillOSFilterChanged(key, val) { salesBillOSFilters[key] = val; renderSalesBody(); }
+function billOSLegendHtml() {
+  return `<p style="font-size:10.5px;color:#94a3b8;margin-top:8px;">Legend:
+    <span class="bill-pill advance">Advance</span> <span class="bill-pill unpaid">Unpaid</span>
+    <span class="bill-pill partial">Partially Paid</span> <span class="bill-pill full">Fully Paid</span>
+    <span class="bill-pill cancelled">Cancelled</span></p>`;
+}
+
+function renderSalesReports() {
+  const subTabs = `
+    <div class="sales-tabs">
+      <button class="sales-tabbtn ${salesView === 'bill-os' ? '' : 'active'}" onclick="salesView='qtn-register';renderSalesBody();">Quotation Register</button>
+      <button class="sales-tabbtn ${salesView === 'bill-os' ? 'active' : ''}" onclick="salesView='bill-os';renderSalesBody();">Sales Bill Outstanding</button>
+    </div>`;
+  return subTabs + (salesView === 'bill-os' ? renderSalesBillOutstanding() : renderQuotationRegisterReport());
+}
+
+function salesQtnRegFilterChanged(key, val) { salesQtnRegFilters[key] = val; renderSalesBody(); }
+
+function renderQuotationRegisterReport() {
+  const f = salesQtnRegFilters;
+  const rows = quotations.filter(q => {
+    if (f.from && q.date < f.from) return false;
+    if (f.to && q.date > f.to) return false;
+    if (f.status !== 'All' && q.lifecycleStatus !== f.status.toLowerCase()) return false;
+    if (f.salesPerson) {
+      const enq = enquiries.find(e => e.id === q.enquiryId);
+      if (!enq || enq.salesPerson !== f.salesPerson) return false;
+    }
+    return true;
+  }).slice().sort((a, b) => b.date.localeCompare(a.date));
+
+  return `
+    <div class="sales-card">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="sales-field" style="margin-bottom:0;"><label>Division</label><input type="text" value="Al Maraya Decor" disabled></div>
+        <div class="sales-field" style="margin-bottom:0;"><label>Status</label>
+          <select onchange="salesQtnRegFilterChanged('status',this.value)">
+            ${['All', 'Draft', 'Open', 'Closed', 'Confirmed'].map(s => `<option value="${s}" ${f.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div class="sales-field" style="margin-bottom:0;"><label>From Date</label><input type="date" value="${f.from}" onchange="salesQtnRegFilterChanged('from',this.value)"></div>
+        <div class="sales-field" style="margin-bottom:0;"><label>To Date</label><input type="date" value="${f.to}" onchange="salesQtnRegFilterChanged('to',this.value)"></div>
+      </div>
+      <div class="sales-field" style="margin-top:8px;margin-bottom:0;"><label>Select Salesman</label>
+        <select onchange="salesQtnRegFilterChanged('salesPerson',this.value)">
+          <option value="">All</option>${STAFF.map(s => `<option value="${s}" ${f.salesPerson === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <p style="font-size:10.5px;color:#94a3b8;margin-top:8px;">Legend: <span class="sales-pill draft">Draft</span> <span class="sales-pill open">Open</span> <span class="sales-pill confirmed">Confirmed</span> <span class="sales-pill closed">Closed</span></p>
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      ${rows.length === 0 ? `<p style="font-size:12.5px;color:#64748b;">No quotations match these filters.</p>` :
+        `<table class="sales-items"><tr><th>#</th><th>Qtn No</th><th>Date</th><th>Confirmed Date</th><th>Client</th><th>Project</th><th>Salesman</th><th>Amount</th><th>Status</th></tr>
+        ${rows.map((q, i) => {
+          const totals = computeQuotationTotals(q);
+          const enq = enquiries.find(e => e.id === q.enquiryId);
+          return `<tr><td>${i + 1}</td><td>${esc(q.id)}</td><td>${q.date}</td><td>${q.confirmDate || '—'}</td><td>${esc(custName(q.customerId))}</td><td>${esc(q.projectName)}</td><td>${esc(enq ? enq.salesPerson : '—')}</td><td>BD ${totals.netTotal.toFixed(3)}</td><td><span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span></td></tr>`;
+        }).join('')}
+        </table>`}
+    </div>`;
+}
+
+function renderSalesBillOutstanding() {
+  const f = salesBillOSFilters;
+  const opts = { ageBasis: f.ageBasis };
+  let rows, buckets = false;
+  if (f.view === 'all') {
+    rows = f.ageWise ? getSalesBillOutstandingAllCustomersAgeWise(opts) : getSalesBillOutstandingAllCustomers();
+    buckets = f.ageWise;
+  } else {
+    rows = f.ageWise ? getSalesBillOutstandingByPartyAgeWise(opts) : getSalesBillOutstandingByParty(opts);
+    buckets = f.ageWise;
+  }
+  if (f.client) rows = rows.filter(r => custName(r.customerId).toLowerCase().includes(f.client.toLowerCase()));
+  if (f.salesPerson && f.view === 'byparty') rows = rows.filter(r => r.salesPerson === f.salesPerson);
+  const outstandingTotal = rows.reduce((s, r) => s + r.balAmt, 0);
+
+  const filterHtml = `
+    <div class="sales-card">
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button class="sales-tabbtn ${f.view === 'byparty' ? 'active' : ''}" onclick="salesBillOSFilterChanged('view','byparty')">By Party</button>
+        <button class="sales-tabbtn ${f.view === 'all' ? 'active' : ''}" onclick="salesBillOSFilterChanged('view','all')">All</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="sales-field" style="margin-bottom:0;"><label>Division</label><input type="text" value="Al Maraya Decor" disabled></div>
+        <div class="sales-field" style="margin-bottom:0;"><label>Client Name</label><input type="text" value="${f.client || ''}" oninput="salesBillOSFilterChanged('client',this.value)"></div>
+      </div>
+      ${f.view === 'byparty' ? `
+      <div class="sales-field" style="margin-top:8px;margin-bottom:0;"><label>Select Salesman</label>
+        <select onchange="salesBillOSFilterChanged('salesPerson',this.value)">
+          <option value="">All</option>${STAFF.map(s => `<option value="${s}" ${f.salesPerson === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      <div style="display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" ${f.ageWise ? 'checked' : ''} onchange="salesBillOSFilterChanged('ageWise',this.checked)"> Age-wise</label>
+        ${!f.ageWise ? `
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="radio" name="ageBasis" ${f.ageBasis === 'bill' ? 'checked' : ''} onchange="salesBillOSFilterChanged('ageBasis','bill')"> Age by Bill Date</label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="radio" name="ageBasis" ${f.ageBasis === 'due' ? 'checked' : ''} onchange="salesBillOSFilterChanged('ageBasis','due')"> Age by Due Date</label>` : ''}
+      </div>
+      ${billOSLegendHtml()}
+    </div>
+    <div class="sales-card"><p style="font-weight:700;font-size:13px;">Outstanding Amount: BD ${outstandingTotal.toFixed(3)}</p></div>`;
+
+  let tableHtml;
+  if (rows.length === 0) {
+    tableHtml = `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No outstanding bills match these filters.</p></div>`;
+  } else if (f.view === 'byparty' && !buckets) {
+    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Bill No</th><th>Bill Type</th><th>Date</th><th>PO No</th><th>Salesman</th><th>Bill Amt</th><th>Paid Amt</th><th>Bal Amt</th><th>Age</th><th>Status</th></tr>
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.invoiceId)}</td><td>Tax Invoice</td><td>${r.date}</td><td>${esc(r.lpoNo) || '—'}</td><td>${esc(r.salesPerson) || '—'}</td><td>${r.billAmt.toFixed(3)}</td><td>${r.paidAmt.toFixed(3)}</td><td>${r.balAmt.toFixed(3)}</td><td>${r.age}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
+      </table></div>`;
+  } else if (f.view === 'byparty' && buckets) {
+    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Bill No</th><th>Date</th><th>Client</th><th>Bal Amt</th><th>${BILL_AGE_BUCKETS.map(b => b.label).join('</th><th>')}</th><th>Due On</th></tr>
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.invoiceId)}</td><td>${r.date}</td><td>${esc(custName(r.customerId))}</td><td>${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}<td>${r.dueDate}</td></tr>`).join('')}
+      </table></div>`;
+  } else if (f.view === 'all' && !buckets) {
+    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Client</th><th>Bill Amt</th><th>Paid Amt</th><th>Bal Amt</th><th>Status</th></tr>
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(custName(r.customerId))}</td><td>${r.billAmt.toFixed(3)}</td><td>${r.paidAmt.toFixed(3)}</td><td>${r.balAmt.toFixed(3)}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
+      </table></div>`;
+  } else {
+    tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Client</th><th>Bal Amt</th><th>${BILL_AGE_BUCKETS.map(b => b.label).join('</th><th>')}</th></tr>
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(custName(r.customerId))}</td><td>${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}</tr>`).join('')}
+      </table></div>`;
+  }
+
+  return filterHtml + tableHtml;
 }

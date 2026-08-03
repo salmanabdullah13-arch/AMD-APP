@@ -121,6 +121,8 @@ let jobsActiveJobId = null;
 let jobsActiveInvoiceId = null;
 let jobsListStatusFilter = null; // null | 'open' | 'completed' | 'cancelled'
 let jobsFilters = { jobNo: '', project: '', qtnNo: '', customer: '', salesPerson: '' };
+let jobsReportsTab = 'job-report'; // job-report | project-outstanding | proj-inv-receipt
+let jobsReportSearch = '';         // Job No typed into Job report / Project wise Invoice & Receipt
 
 function jEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function jobsAlert(msg) {
@@ -173,6 +175,7 @@ function renderJobsBody() {
     case 'labour': content = renderLabourCost(); break;
     case 'prjob': content = renderPurchaseRequestJob(); break;
     case 'invoice': content = renderInvoicePrint(); break;
+    case 'reports': content = renderJobsReports(); break;
     default: content = renderJobList();
   }
   body.innerHTML = content;
@@ -214,7 +217,8 @@ function renderJobList() {
       <button class="job-legend-pill open ${jobsListStatusFilter === 'open' ? 'active' : ''}" onclick="jobsToggleStatusFilter('open')"><span class="n">${k.open}</span> Open</button>
       <button class="job-legend-pill completed ${jobsListStatusFilter === 'completed' ? 'active' : ''}" onclick="jobsToggleStatusFilter('completed')"><span class="n">${k.completed}</span> Completed</button>
       <button class="job-legend-pill cancelled ${jobsListStatusFilter === 'cancelled' ? 'active' : ''}" onclick="jobsToggleStatusFilter('cancelled')"><span class="n">${k.cancelled}</span> Cancelled</button>
-    </div>`;
+    </div>
+    <button class="secondary" style="width:100%;margin-bottom:12px;" onclick="jobsView='reports';renderJobsBody();">📊 Reports</button>`;
 
   const filterHtml = `
     <div class="sales-card">
@@ -784,4 +788,97 @@ function renderInvoicePrint() {
       <button class="primary" style="flex:1;" onclick="jobsAlert('Print/PDF export not wired to a document generator yet.')">Print / Download PDF</button>
       <button class="secondary" style="flex:1;" onclick="openJobHub('${job.id}');">Exit</button>
     </div>`;
+}
+
+// ══════════════════════════════════════════
+// BATCH 6 — REPORTS (Job report, Project Outstanding, Project wise
+// Invoice & Receipt). Data/computation lives in data.js — UI only here.
+// ══════════════════════════════════════════
+
+function jobsSetReportsTab(t) { jobsReportsTab = t; jobsReportSearch = ''; renderJobsBody(); }
+function jobsReportSearchChanged(v) { jobsReportSearch = v; renderJobsBody(); }
+
+function renderJobsReports() {
+  const tabs = `
+    <span class="sales-back" onclick="jobsView='list';renderJobsBody();">‹ Back to Job Card List</span>
+    <div class="sales-tabs">
+      <button class="sales-tabbtn ${jobsReportsTab === 'job-report' ? 'active' : ''}" onclick="jobsSetReportsTab('job-report')">Job Report</button>
+      <button class="sales-tabbtn ${jobsReportsTab === 'project-outstanding' ? 'active' : ''}" onclick="jobsSetReportsTab('project-outstanding')">Project Outstanding</button>
+      <button class="sales-tabbtn ${jobsReportsTab === 'proj-inv-receipt' ? 'active' : ''}" onclick="jobsSetReportsTab('proj-inv-receipt')">Project wise Invoice &amp; Receipt</button>
+    </div>`;
+  let content = '';
+  if (jobsReportsTab === 'job-report') content = renderJobReportView();
+  else if (jobsReportsTab === 'project-outstanding') content = renderProjectOutstandingView();
+  else content = renderProjectWiseInvoiceReceiptView();
+  return tabs + content;
+}
+
+function jobsSearchBoxHtml(placeholder) {
+  return `
+    <div class="sales-card">
+      <div class="sales-field" style="margin-bottom:0;"><label>Job No</label>
+        <input type="text" placeholder="${placeholder}" value="${jEsc(jobsReportSearch)}" oninput="jobsReportSearchChanged(this.value)">
+      </div>
+    </div>`;
+}
+
+// ── Job Report — single Job No lookup, a per-job mini P&L ──
+function renderJobReportView() {
+  const search = jobsSearchBoxHtml('e.g. JB26AMD01000');
+  if (!jobsReportSearch) return search + `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">Enter a Job No to view its report.</p></div>`;
+  const job = jobCards.find(j => j.id.toLowerCase() === jobsReportSearch.trim().toLowerCase());
+  if (!job) return search + `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No Job Card found for "${jEsc(jobsReportSearch)}".</p></div>`;
+  const r = getJobReport(job.id);
+  const row = (label, val) => `<tr><td>${label}</td><td style="text-align:right;font-weight:600;">${val}</td></tr>`;
+  return search + `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:14px;">${jEsc(job.id)} <span style="font-weight:400;color:#94a3b8;">· ${r.date}</span></p>
+      <p style="font-size:12px;color:#64748b;">Client: ${jEsc(r.customer ? r.customer.name : '—')} · Project: ${jEsc(r.projectName)}</p>
+    </div>
+    <div class="sales-card">
+      <table class="sales-items">
+        ${row('Job Amount', 'BD ' + r.jobAmount.toFixed(3))}
+        ${row('Total Purchases', 'BD ' + r.totalPurchases.toFixed(3))}
+        ${row('Materials Issued', r.materialsIssuedCount + ' move(s)')}
+        ${row('Materials Returned', r.materialsReturnedCount + ' move(s)')}
+        ${row('PO Pending', 'BD ' + r.poPending.toFixed(3))}
+        ${row('Budget (Dry Cost)', 'BD ' + r.budgetDryCost.toFixed(3))}
+        ${row('Budget (with Overhead)', 'BD ' + r.budgetWithOH.toFixed(3))}
+        ${row('Total Cost', 'BD ' + r.totalCost.toFixed(3))}
+        ${row('Running Profit', 'BD ' + r.runningProfit.toFixed(3))}
+        ${row('Proforma', 'BD ' + r.proforma.toFixed(3))}
+        ${row('Invoiced', 'BD ' + r.invoiced.toFixed(3))}
+        ${row('Received', 'BD ' + r.received.toFixed(3))}
+      </table>
+      <p style="font-size:10.5px;color:#94a3b8;margin-top:6px;">Materials Issued/Returned are shown as move counts, not a currency value — this app doesn't carry a rate/cost on Material Issue/Return moves (same as the Stock Report). Budget comes from the Estimator's BOM cost-plus waterfall, where one was run; Total Cost is real incurred spend (received Purchase Invoices + logged Labour Cost) — the two are independent figures, not expected to match.</p>
+    </div>`;
+}
+
+// ── Project Outstanding — job-level receivables reconciliation ──
+function renderProjectOutstandingView() {
+  const rows = getProjectOutstanding().slice().sort((a, b) => b.date.localeCompare(a.date));
+  if (rows.length === 0) return `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No job cards yet.</p></div>`;
+  return `<div class="sales-card" style="overflow-x:auto;">
+    <table class="sales-items"><tr><th>Job No</th><th>Qtn No</th><th>Job Date</th><th>Client</th><th>Salesman</th><th>Job Amt</th><th>Inv Amt</th><th>Paid Amt</th><th>Cr Amt</th><th>Uninv Amt</th><th>Balance</th></tr>
+    ${rows.map(r => {
+      const s = jobRowSummary(r.job);
+      return `<tr><td>${jEsc(r.jobId)}</td><td>${jEsc(r.qtnId)}</td><td>${r.date}</td><td>${jEsc(s.client)}</td><td>${jEsc(s.salesman)}</td><td>${r.jobAmt.toFixed(3)}</td><td>${r.invAmt.toFixed(3)}</td><td>${r.paidAmt.toFixed(3)}</td><td>${r.crAmt.toFixed(3)}</td><td>${r.uninvAmt.toFixed(3)}</td><td>${r.balance.toFixed(3)}</td></tr>`;
+    }).join('')}
+    </table>
+  </div>`;
+}
+
+// ── Project wise Invoice & Receipt — single Job No lookup ──
+function renderProjectWiseInvoiceReceiptView() {
+  const search = jobsSearchBoxHtml('e.g. JB26AMD01000');
+  if (!jobsReportSearch) return search + `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">Enter a Job No to view its invoice/receipt ledger.</p></div>`;
+  const job = jobCards.find(j => j.id.toLowerCase() === jobsReportSearch.trim().toLowerCase());
+  if (!job) return search + `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No Job Card found for "${jEsc(jobsReportSearch)}".</p></div>`;
+  const rows = getProjectWiseInvoiceReceipt(job.id);
+  if (rows.length === 0) return search + `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No invoices or receipts recorded against ${jEsc(job.id)} yet.</p></div>`;
+  return search + `<div class="sales-card" style="overflow-x:auto;">
+    <table class="sales-items"><tr><th>#</th><th>Doc No.</th><th>Date</th><th>Debit Amount</th><th>Credit Amount</th></tr>
+    ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${jEsc(r.docNo)}</td><td>${r.date}</td><td>${r.debit ? r.debit.toFixed(3) : ''}</td><td>${r.credit ? r.credit.toFixed(3) : ''}</td></tr>`).join('')}
+    </table>
+  </div>`;
 }

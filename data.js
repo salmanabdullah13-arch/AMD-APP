@@ -2599,6 +2599,23 @@ function getHRKPIs(todayStr = new Date().toISOString().slice(0, 10)) {
   return tiles;
 }
 
+// Payroll Report (Batch 6) — Year/Month are decorative filters matching
+// the live spec's own finding: payroll has no separate "run" transaction
+// entity, it's purely a rollup of the static payHeads configuration on
+// each Employee record (Salary tab). GOSI 1% and the other Q-Pro pay-codes
+// this app deliberately didn't model (see EMP_RATE_DEPT_TO_REAL_DEPT/
+// PAY_HEADS comment above employees[]) simply don't appear here — the 6
+// Pay Heads this app actually has are the columns.
+function getPayrollReport() {
+  return employees.filter(e => e.status === "Active").map(e => {
+    const byHead = {};
+    PAY_HEADS.forEach(h => byHead[h] = 0);
+    e.payHeads.forEach(p => { if (byHead[p.head] !== undefined) byHead[p.head] += (p.amount || 0); });
+    const total = Math.round(Object.values(byHead).reduce((s, v) => s + v, 0) * 1000) / 1000;
+    return { id: e.id, name: e.name, byHead, total };
+  });
+}
+
 // ═══════════════════════════════════════
 // SALES MODULE DATA — Enquiry → Quotation
 // Rebuilt 25 Jul 2026 from a live reverse-engineered Q-Pro reference
@@ -3962,4 +3979,445 @@ function cancelJournal(journalId) {
   if (!j) return null;
   j.status = "cancelled";
   return j;
+}
+
+// ═══════════════════════════════════════
+// BATCH 6 — REPORTS
+// Traced from docs/qpro-mapping/batch6reports.txt. The spec's own
+// cross-cutting finding: reports are thin, read-only views over data
+// already mapped in Batches 1–5 — no new business entities. PO Register
+// (Batch 1) and Stock Ledger/Job Material Requirement/Item Summary
+// (Batch 2) were already built and aren't repeated here.
+//
+// Day Book is a pure metadata log across every voucher array — no ledger
+// posting involved.
+//
+// Ledger Report / Trial Balance / P&L / Balance Sheet all need a real
+// per-ledger Dr/Cr history. Only Journal, General Receipt, and General
+// Payment actually carry a ledgerId on their lines — Supplier Payment,
+// Debit Note, Sales Receipt, Sales Credit Note, Tax Invoice and Purchase
+// Invoice don't post to the GL at all (Voucher Ledger Mapping was built in
+// Batch 5 but deliberately never wired into those forms — see CLAUDE.md
+// §5). So getGLPostings() below is honestly partial: it reflects exactly
+// what's actually posted today, not an invented full double-entry system
+// retrofitted onto forms that don't call resolveVoucherLedger(). General
+// Receipt/Payment's payment-mode side (Cash/Bank/etc.) IS resolved through
+// resolveVoucherLedger() — the one place in the app that mapping is
+// actually consumed.
+// ═══════════════════════════════════════
+
+function getDayBookRows({ voucherType = "All", from = "", to = "" } = {}) {
+  const rows = [];
+  const custName = id => { const c = customers.find(x => x.id === id); return c ? c.name : "—"; };
+  const supName = id => { const s = suppliers.find(x => x.id === id); return s ? s.name : "—"; };
+  taxInvoices.forEach(inv => rows.push({ type: "Invoice", no: inv.id, date: inv.date, client: custName(inv.customerId), amount: inv.totals.netTotal, status: invoiceBalance(inv) <= 0.0005 ? "Settled" : "Open" }));
+  salesReceipts.forEach(r => rows.push({ type: "Receipt", no: r.id, date: r.receiptDate, client: custName(r.customerId), amount: r.amount, status: r.status }));
+  purchaseInvoices.forEach(inv => rows.push({ type: "Purchase Invoice", no: inv.id, date: inv.dateReceived, client: inv.supplierNameTel || (inv.supplierId ? supName(inv.supplierId) : "—"), amount: (inv.totals && inv.totals.netAmount) || 0, status: inv.status }));
+  payments.forEach(p => rows.push({ type: "Supplier Payment", no: p.id, date: p.paymentDate, client: supName(p.supplierId), amount: p.amount, status: p.status }));
+  salesCreditNotes.forEach(cn => rows.push({ type: "Credit Note", no: cn.id, date: cn.creditNoteDate, client: custName(cn.customerId), amount: cn.amount, status: cn.status }));
+  debitNotes.forEach(dn => rows.push({ type: "Debit Note", no: dn.id, date: dn.debitNoteDate, client: supName(dn.supplierId), amount: dn.amount, status: dn.status }));
+  generalReceipts.forEach(r => rows.push({ type: "General Receipt", no: r.id, date: r.date, client: "—", amount: r.amount, status: r.status }));
+  generalPayments.forEach(p => rows.push({ type: "General Payment", no: p.id, date: p.date, client: "—", amount: p.amount, status: p.status }));
+  journals.forEach(j => rows.push({ type: "Journal", no: j.id, date: j.date, client: "—", amount: j.drTotal, status: j.status }));
+
+  return rows
+    .filter(r => voucherType === "All" || r.type === voucherType)
+    .filter(r => !from || r.date >= from)
+    .filter(r => !to || r.date <= to)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+const DAY_BOOK_VOUCHER_TYPES = ["All", "Invoice", "Receipt", "Purchase Invoice", "Supplier Payment", "Credit Note", "Debit Note", "General Receipt", "General Payment", "Journal"];
+
+function getGLPostings() {
+  const rows = [];
+  journals.forEach(j => {
+    if (j.status === "cancelled") return;
+    j.lines.forEach(l => {
+      const ledger = ledgers.find(lg => lg.id === l.ledgerId);
+      if (!ledger) return;
+      rows.push({ date: j.date, voucherType: "Journal", voucherNo: j.id, voucherRef: j.id, ledgerName: ledger.name, dr: l.dr || 0, cr: l.cr || 0, narration: l.narration || "" });
+    });
+  });
+  generalReceipts.forEach(r => {
+    if (r.status === "cancelled") return;
+    ["cash", "bank", "cCard", "wallet", "cheque"].forEach(k => {
+      const m = r.methods[k];
+      if (m && m.enabled && Number(m.amount) > 0) {
+        const ledger = resolveVoucherLedger(k);
+        if (ledger) rows.push({ date: r.date, voucherType: "General Receipt", voucherNo: r.id, voucherRef: r.id, ledgerName: ledger.name, dr: Number(m.amount), cr: 0, narration: r.remarks || "" });
+      }
+    });
+    r.lines.forEach(l => {
+      const ledger = ledgers.find(lg => lg.id === l.ledgerId);
+      if (!ledger) return;
+      rows.push({ date: r.date, voucherType: "General Receipt", voucherNo: r.id, voucherRef: r.id, ledgerName: ledger.name, dr: 0, cr: l.amount || 0, narration: l.narration || "" });
+    });
+  });
+  generalPayments.forEach(p => {
+    if (p.status === "cancelled") return;
+    p.lines.forEach(l => {
+      const ledger = ledgers.find(lg => lg.id === l.ledgerId);
+      if (!ledger) return;
+      rows.push({ date: p.date, voucherType: "General Payment", voucherNo: p.id, voucherRef: l.jobId || p.id, ledgerName: ledger.name, dr: l.amount || 0, cr: 0, narration: l.narration || "" });
+    });
+    ["cash", "bank", "cCard", "wallet", "cheque"].forEach(k => {
+      const m = p.methods[k];
+      if (m && m.enabled && Number(m.amount) > 0) {
+        const ledger = resolveVoucherLedger(k);
+        if (ledger) rows.push({ date: p.date, voucherType: "General Payment", voucherNo: p.id, voucherRef: p.id, ledgerName: ledger.name, dr: 0, cr: Number(m.amount), narration: p.remarks || "" });
+      }
+    });
+  });
+  return rows.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Asset/Expense ledgers read Dr-positive, Liability/Income ledgers read
+// Cr-positive — standard accounting convention, needed so Trial Balance/
+// P&L/Balance Sheet totals net correctly rather than just summing raw Dr-Cr.
+function ledgerClassification(ledgerName) {
+  const ledger = ledgers.find(l => l.name === ledgerName);
+  if (!ledger) return null;
+  const group = accountsGroups.find(g => g.name === ledger.groupName);
+  return group ? group.classification : null;
+}
+
+function getLedgerBalance(ledgerName, { from = "", to = "" } = {}) {
+  const ledger = ledgers.find(l => l.name === ledgerName);
+  const baseOpening = ledger ? (ledger.openingBalance || 0) : 0;
+  const all = getGLPostings().filter(p => p.ledgerName === ledgerName);
+  const before = from ? all.filter(p => p.date < from) : [];
+  const inRange = all.filter(p => (!from || p.date >= from) && (!to || p.date <= to));
+  const opening = baseOpening + before.reduce((s, p) => s + p.dr - p.cr, 0);
+  const debit = inRange.reduce((s, p) => s + p.dr, 0);
+  const credit = inRange.reduce((s, p) => s + p.cr, 0);
+  const closing = Math.round((opening + debit - credit) * 1000) / 1000;
+  return { opening: Math.round(opening * 1000) / 1000, debit: Math.round(debit * 1000) / 1000, credit: Math.round(credit * 1000) / 1000, closing };
+}
+
+function getTrialBalance({ from = "", to = "", ledgerWise = true } = {}) {
+  if (ledgerWise) {
+    return ledgers.map(l => ({ name: l.name, ...getLedgerBalance(l.name, { from, to }) }))
+      .filter(r => r.opening !== 0 || r.debit !== 0 || r.credit !== 0);
+  }
+  const byGroup = {};
+  ledgers.forEach(l => {
+    const bal = getLedgerBalance(l.name, { from, to });
+    if (!byGroup[l.groupName]) byGroup[l.groupName] = { opening: 0, debit: 0, credit: 0, closing: 0 };
+    byGroup[l.groupName].opening += bal.opening;
+    byGroup[l.groupName].debit += bal.debit;
+    byGroup[l.groupName].credit += bal.credit;
+    byGroup[l.groupName].closing += bal.closing;
+  });
+  return Object.entries(byGroup).map(([name, v]) => ({
+    name, opening: Math.round(v.opening * 1000) / 1000, debit: Math.round(v.debit * 1000) / 1000,
+    credit: Math.round(v.credit * 1000) / 1000, closing: Math.round(v.closing * 1000) / 1000
+  })).filter(r => r.opening !== 0 || r.debit !== 0 || r.credit !== 0);
+}
+
+// Two-tier statement matching the live layout: Trading Account (Direct
+// Incomes/Expenses -> Gross Profit) then Income Statement (+/- Indirect
+// Incomes/Expenses -> Net Profit).
+//
+// Direct Income/Expense deliberately do NOT come from getGLPostings() —
+// a real finding while building this report: the seed Chart of Accounts
+// (Batch 3, from the live trace) files the "Sales" ledger group under
+// "Current Assets", not under "Direct Incomes"/"Sales Accounts", and no
+// custom group at all sits under "Direct Incomes" — so a pure ledger-
+// classification P&L would show zero Direct Income even with real
+// invoices posted. Reading "Sales" as a Current-Assets group is actually
+// standard (a Sales Ledger/Debtors-control account, distinct from a P&L
+// income account) — not a data bug to silently rewrite. The practical fix:
+// Direct Income/Expense read straight from the real transactional
+// documents (taxInvoices/purchaseInvoices), same source getAccountsKPIs()
+// already uses for Revenue/Payables. Indirect Income/Expense still come
+// from the GL layer (Journal/General Receipt/Payment) — genuinely correct
+// there, since Indirect Expenses' real custom groups (Printing &
+// Stationery, Air Ticket, Repair & Maintenance, Tools & Equipment...) are
+// exactly what that layer is for.
+function getProfitAndLoss({ from = "", to = "" } = {}) {
+  const inRange = d => (!from || d >= from) && (!to || d <= to);
+  const directIncome = Math.round(taxInvoices.filter(inv => inRange(inv.date)).reduce((s, inv) => s + (inv.totals.total || 0), 0) * 1000) / 1000;
+  const directExpense = Math.round(purchaseInvoices.filter(inv => inv.status === "received" && inRange(inv.dateReceived)).reduce((s, inv) => s + (inv.totals ? (inv.totals.total || 0) : 0), 0) * 1000) / 1000;
+  const grossProfit = Math.round((directIncome - directExpense) * 1000) / 1000;
+
+  const sumByPrimary = (primaryName, sign) => ledgers
+    .filter(l => {
+      const g = accountsGroups.find(x => x.name === l.groupName);
+      if (!g) return false;
+      return (g.isPrimary ? g.name : g.under) === primaryName;
+    })
+    .reduce((s, l) => s + sign * getLedgerBalance(l.name, { from, to }).closing, 0);
+  // Income ledgers post Credit-heavy (closing comes out negative under the
+  // Dr-positive convention above) — sign=-1 flips them to a positive revenue figure.
+  const indirectIncome = Math.round(sumByPrimary("Indirect Incomes", -1) * 1000) / 1000;
+  const indirectExpense = Math.round(sumByPrimary("Indirect Expenses", 1) * 1000) / 1000;
+  const netProfit = Math.round((grossProfit + indirectIncome - indirectExpense) * 1000) / 1000;
+  return { directIncome, directExpense, grossProfit, indirectIncome, indirectExpense, netProfit };
+}
+
+// No date filter, matching the live report (loads directly against
+// today's position). Same reasoning as getProfitAndLoss() above:
+// Receivables/Payables are computed straight from taxInvoices/
+// purchaseInvoices (real outstanding balances, netting Sales Receipt/
+// Credit Note and Supplier Payment activity via invoiceBalance()/
+// paidAmount) rather than relied on GL ledger postings that don't exist
+// for those transaction types yet. Cash/Bank/other real GL-ledger balances
+// from Journal/General Receipt/Payment are layered in underneath.
+// Capital/retained-earnings roll-up from P&L is NOT folded in — a known,
+// flagged simplification, not an oversight.
+function getBalanceSheet() {
+  const assets = [], liabilities = [];
+  const receivables = Math.round(taxInvoices.reduce((s, inv) => s + invoiceBalance(inv), 0) * 1000) / 1000;
+  if (Math.abs(receivables) > 0.0005) assets.push({ name: "Accounts Receivable (Sales Invoices)", amount: receivables });
+  const payables = Math.round(purchaseInvoices.filter(inv => inv.status === "received")
+    .reduce((s, inv) => s + Math.max(0, (inv.totals ? inv.totals.netAmount : 0) - (inv.paidAmount || 0)), 0) * 1000) / 1000;
+  if (Math.abs(payables) > 0.0005) liabilities.push({ name: "Accounts Payable (Purchase Invoices)", amount: payables });
+
+  ledgers.forEach(l => {
+    const bal = getLedgerBalance(l.name, {});
+    if (Math.abs(bal.closing) < 0.0005) return;
+    const cls = ledgerClassification(l.name);
+    if (cls === "Asset") assets.push({ name: l.name, amount: bal.closing });
+    else if (cls === "Liability") liabilities.push({ name: l.name, amount: -bal.closing });
+  });
+  const totalAssets = Math.round(assets.reduce((s, a) => s + a.amount, 0) * 1000) / 1000;
+  const totalLiabilities = Math.round(liabilities.reduce((s, a) => s + a.amount, 0) * 1000) / 1000;
+  return { assets, liabilities, totalAssets, totalLiabilities };
+}
+
+// ── QUOTATION REGISTER, PROJECT OUTSTANDING, JOB REPORT helpers ──
+// Salesperson for a Tax Invoice, traced Invoice -> Job -> Quotation ->
+// Enquiry — same trace pattern accountsDivisionForInvoice() (accounts.js)
+// and applyCustomerUpdate()'s Customer Update tool already use.
+function salesPersonForInvoice(inv) {
+  const job = getJobCard(inv.jobId);
+  if (!job) return null;
+  const qtn = quotations.find(q => q.id === job.quotationId);
+  const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
+  return enq ? enq.salesPerson : null;
+}
+
+// ── SALES / PURCHASE BILL OUTSTANDING (Batch 6) ──
+// Age basis "due" derives a due date from the customer/supplier's own
+// creditDays (Customer/Supplier master) — no separate per-invoice due-date
+// field exists, so this reuses the real credit-terms field already
+// captured on those masters, same spirit as accountsDivisionForInvoice()
+// reusing an existing trace rather than inventing a new field.
+function ageInDays(dateStr, asOf) { return Math.max(0, Math.round((new Date(asOf) - new Date(dateStr)) / 86400000)); }
+function billAgeBucket(age) { return age <= 30 ? "b30" : age <= 60 ? "b60" : age <= 90 ? "b90" : "b90p"; }
+const BILL_AGE_BUCKETS = [
+  { key: "b30", label: "<= 30 Days" }, { key: "b60", label: "31 to 60 Days" },
+  { key: "b90", label: "61 to 90 Days" }, { key: "b90p", label: "> 90 Days" }
+];
+// billAmt >= paidAmt (Fully Paid) / 0 < paidAmt < billAmt (Partially Paid) /
+// paidAmt === 0 (Unpaid). "Advance" (a receipt/payment with no invoice) and
+// "Cancelled" are real states in the live 5-state legend but have no
+// corresponding data path for a per-bill/per-party row in this app yet —
+// kept in the legend below for fidelity, simply unreachable today.
+function billOutstandingStatus(billAmt, paidAmt) {
+  if (paidAmt >= billAmt - 0.0005) return "Fully Paid";
+  if (paidAmt > 0.0005) return "Partially Paid";
+  return "Unpaid";
+}
+
+function salesInvoiceDueDate(inv) {
+  const c = customers.find(x => x.id === inv.customerId);
+  const days = c ? (c.creditDays || 0) : 0;
+  const d = new Date(inv.date);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+// "By party" — one row per Tax Invoice still carrying a balance.
+function getSalesBillOutstandingByParty({ ageBasis = "bill", asOf = new Date().toISOString().slice(0, 10) } = {}) {
+  return taxInvoices.map(inv => {
+    const paidAmt = (inv.paidAmount || 0) + (inv.creditedAmount || 0);
+    const balAmt = invoiceBalance(inv);
+    const ageDate = ageBasis === "due" ? salesInvoiceDueDate(inv) : inv.date;
+    return {
+      invoiceId: inv.id, date: inv.date, dueDate: salesInvoiceDueDate(inv), lpoNo: inv.lpoNo || "",
+      customerId: inv.customerId, salesPerson: salesPersonForInvoice(inv),
+      billAmt: inv.totals.netTotal, paidAmt, balAmt, age: ageInDays(ageDate, asOf)
+    };
+  }).filter(r => r.balAmt > 0.0005);
+}
+// "All" — client-summarized, no per-bill breakdown.
+function getSalesBillOutstandingAllCustomers() {
+  const byCustomer = {};
+  taxInvoices.forEach(inv => {
+    if (!byCustomer[inv.customerId]) byCustomer[inv.customerId] = { customerId: inv.customerId, billAmt: 0, paidAmt: 0 };
+    byCustomer[inv.customerId].billAmt += inv.totals.netTotal;
+    byCustomer[inv.customerId].paidAmt += (inv.paidAmount || 0) + (inv.creditedAmount || 0);
+  });
+  return Object.values(byCustomer).map(r => ({ ...r, balAmt: Math.round((r.billAmt - r.paidAmt) * 1000) / 1000 }));
+}
+// Age-wise variants replace the single AGE column with 4 aging buckets.
+function getSalesBillOutstandingByPartyAgeWise(opts = {}) {
+  return getSalesBillOutstandingByParty(opts).map(r => {
+    const buckets = { b30: 0, b60: 0, b90: 0, b90p: 0 };
+    buckets[billAgeBucket(r.age)] = r.balAmt;
+    return { ...r, buckets };
+  });
+}
+function getSalesBillOutstandingAllCustomersAgeWise(opts = {}) {
+  const rows = getSalesBillOutstandingByParty(opts);
+  const byCustomer = {};
+  rows.forEach(r => {
+    if (!byCustomer[r.customerId]) byCustomer[r.customerId] = { customerId: r.customerId, balAmt: 0, buckets: { b30: 0, b60: 0, b90: 0, b90p: 0 } };
+    byCustomer[r.customerId].balAmt += r.balAmt;
+    byCustomer[r.customerId].buckets[billAgeBucket(r.age)] += r.balAmt;
+  });
+  return Object.values(byCustomer);
+}
+
+// ── PURCHASE BILL OUTSTANDING — vendor-side mirror ──
+// Structurally identical to Sales Bill Outstanding above, but the live
+// system reuses the Sales report's template without relabeling — "Client
+// Name"/"CLIENT" leftovers even on the vendor-side variants (a confirmed
+// spec bug). Fixed here, not reproduced: every label below correctly says
+// Supplier/Vendor.
+function purchInvoiceDueDate(inv) {
+  const s = suppliers.find(x => x.id === inv.supplierId);
+  const days = s ? (s.creditDays || 0) : 0;
+  const d = new Date(inv.dateReceived);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function getPurchaseBillOutstandingByParty({ ageBasis = "bill", asOf = new Date().toISOString().slice(0, 10) } = {}) {
+  return purchaseInvoices.filter(inv => inv.status === "received").map(inv => {
+    const billAmt = (inv.totals && inv.totals.netAmount) || 0;
+    const paidAmt = inv.paidAmount || 0;
+    const balAmt = Math.round((billAmt - paidAmt) * 1000) / 1000;
+    const ageDate = ageBasis === "due" ? purchInvoiceDueDate(inv) : inv.dateReceived;
+    return {
+      invoiceId: inv.id, date: inv.dateReceived, dueDate: purchInvoiceDueDate(inv), poNo: inv.sourcePO || "",
+      supplierId: inv.supplierId, supplierName: inv.supplierNameTel || "",
+      billAmt, paidAmt, balAmt, age: ageInDays(ageDate, asOf)
+    };
+  }).filter(r => r.balAmt > 0.0005);
+}
+function getPurchaseBillOutstandingAllSuppliers() {
+  const bySupplier = {};
+  purchaseInvoices.filter(inv => inv.status === "received").forEach(inv => {
+    const key = inv.supplierId || inv.supplierNameTel || "—";
+    if (!bySupplier[key]) bySupplier[key] = { supplierId: inv.supplierId, supplierName: inv.supplierNameTel || "", billAmt: 0, paidAmt: 0 };
+    bySupplier[key].billAmt += (inv.totals && inv.totals.netAmount) || 0;
+    bySupplier[key].paidAmt += inv.paidAmount || 0;
+  });
+  return Object.values(bySupplier).map(r => ({ ...r, balAmt: Math.round((r.billAmt - r.paidAmt) * 1000) / 1000 }));
+}
+function getPurchaseBillOutstandingByPartyAgeWise(opts = {}) {
+  return getPurchaseBillOutstandingByParty(opts).map(r => {
+    const buckets = { b30: 0, b60: 0, b90: 0, b90p: 0 };
+    buckets[billAgeBucket(r.age)] = r.balAmt;
+    return { ...r, buckets };
+  });
+}
+function getPurchaseBillOutstandingAllSuppliersAgeWise(opts = {}) {
+  const rows = getPurchaseBillOutstandingByParty(opts);
+  const bySupplier = {};
+  rows.forEach(r => {
+    const key = r.supplierId || r.supplierName || "—";
+    if (!bySupplier[key]) bySupplier[key] = { supplierId: r.supplierId, supplierName: r.supplierName, balAmt: 0, buckets: { b30: 0, b60: 0, b90: 0, b90p: 0 } };
+    bySupplier[key].balAmt += r.balAmt;
+    bySupplier[key].buckets[billAgeBucket(r.age)] += r.balAmt;
+  });
+  return Object.values(bySupplier);
+}
+
+// ── JOB REPORT, PROJECT OUTSTANDING, PROJECT WISE INVOICE & RECEIPT ──
+// Job report is a per-job mini profit-and-loss, verified against the live
+// spec's own example (JB26AMD02319: Job Amount 322.080, Budget Dry Cost/
+// with Overhead both 170.800, Total Cost 0.000, Running Profit 322.080,
+// Proforma/Invoiced/Received all 322.080) — Budget comes from the
+// Estimator's BOM cost-plus waterfall (computeBOMTotals(), traced job item
+// -> its matching Quotation line -> that line's own .bom, same lineId
+// join refreshJobFromQuotation() already uses), Total Cost is REAL
+// incurred spend (received Purchase Invoices linked to the job + logged
+// Labour Cost), distinct from the planned Budget figure — the live
+// example's Total Cost of 0.000 alongside a real non-zero Budget confirms
+// these are two separate concepts, not a rounding coincidence.
+//
+// Materials Issued/Returned are reported as move COUNTS, not a currency
+// value — this app's Material Issue/Return moves don't carry a rate/cost
+// (confirmed existing precedent: getStockReport() above deliberately sets
+// rate:0/amount:0 for these voucher types), so inventing a valuation here
+// would be a new, unverified methodology used nowhere else in the app.
+function getJobReport(jobId) {
+  const job = getJobCard(jobId);
+  if (!job) return null;
+  const customer = customers.find(c => c.id === job.customerId);
+  const qtn = quotations.find(q => q.id === job.quotationId);
+
+  let dryCost = 0, withOH = 0;
+  job.items.forEach(item => {
+    const qItem = qtn ? qtn.items.find(it => it.lineId === item.lineId) : null;
+    if (qItem && qItem.bom) {
+      const t = computeBOMTotals(qItem.bom);
+      dryCost += t.totalCost;
+      withOH += t.totalCostInclOH;
+    }
+  });
+
+  const totalPurchases = purchaseInvoices.filter(inv => inv.linkedJobId === job.id && inv.status === "received")
+    .reduce((s, inv) => s + (inv.totals ? inv.totals.netAmount : 0), 0);
+  const totalLabour = job.labourCostEntries.reduce((s, e) => s + e.amount, 0);
+  const totalCost = Math.round((totalPurchases + totalLabour) * 1000) / 1000;
+  const poPending = purchaseOrders.filter(po => po.linkedJobId === job.id && po.status !== "invoiced")
+    .reduce((s, po) => s + po.items.reduce((s2, it) => s2 + (it.netAmountBD || 0), 0), 0);
+
+  const invoices = getInvoicesForJob(job.id);
+  const invoicedTotal = invoices.reduce((s, inv) => s + inv.totals.netTotal, 0);
+  const receivedTotal = invoices.reduce((s, inv) => s + (inv.paidAmount || 0), 0);
+  const proformaTotal = getProformasForJob(job.id).reduce((s, p) => s + p.totals.netTotal, 0);
+
+  return {
+    job, customer, date: job.date, projectName: job.projectName, jobAmount: job.amount,
+    totalPurchases: Math.round(totalPurchases * 1000) / 1000,
+    materialsIssuedCount: job.materialsIssues.filter(m => m.status !== "cancelled").length,
+    materialsReturnedCount: job.materialsReturns.filter(m => m.status !== "cancelled").length,
+    poPending: Math.round(poPending * 1000) / 1000,
+    budgetDryCost: Math.round(dryCost * 1000) / 1000,
+    budgetWithOH: Math.round(withOH * 1000) / 1000,
+    totalCost,
+    runningProfit: Math.round((job.amount - totalCost) * 1000) / 1000,
+    proforma: Math.round(proformaTotal * 1000) / 1000,
+    invoiced: Math.round(invoicedTotal * 1000) / 1000,
+    received: Math.round(receivedTotal * 1000) / 1000
+  };
+}
+
+// Job-level receivables reconciliation across every Job Card.
+function getProjectOutstanding() {
+  return jobCards.map(job => {
+    const invoices = getInvoicesForJob(job.id);
+    const invAmt = invoices.reduce((s, inv) => s + inv.totals.netTotal, 0);
+    const paidAmt = invoices.reduce((s, inv) => s + (inv.paidAmount || 0), 0);
+    const crAmt = invoices.reduce((s, inv) => s + (inv.creditedAmount || 0), 0);
+    return {
+      job, jobId: job.id, qtnId: job.quotationId, date: job.date,
+      jobAmt: job.amount, invAmt: Math.round(invAmt * 1000) / 1000, paidAmt: Math.round(paidAmt * 1000) / 1000,
+      crAmt: Math.round(crAmt * 1000) / 1000,
+      uninvAmt: Math.round((job.amount - invAmt) * 1000) / 1000,
+      balance: Math.round((invAmt - paidAmt - crAmt) * 1000) / 1000
+    };
+  });
+}
+
+// Single-job Invoice(Debit)/Receipt+CreditNote(Credit) ledger. The live
+// spec reports the same "No Invoice List Exist" bug here as Receipt/Credit
+// Note (Batch 4) and this report itself — per the established pattern,
+// fixed here, not reproduced.
+function getProjectWiseInvoiceReceipt(jobId) {
+  const invoices = getInvoicesForJob(jobId);
+  const rows = [];
+  invoices.forEach(inv => rows.push({ docNo: inv.id, date: inv.date, debit: inv.totals.netTotal, credit: 0 }));
+  getReceiptsForJob(jobId).forEach(r => {
+    const amt = r.allocations.filter(a => invoices.some(inv => inv.id === a.invoiceId)).reduce((s, a) => s + (Number(a.payingAmount) || 0), 0);
+    if (amt > 0.0005) rows.push({ docNo: r.id, date: r.receiptDate, debit: 0, credit: amt });
+  });
+  getCreditNotesForJob(jobId).forEach(cn => {
+    const amt = cn.allocations.filter(a => invoices.some(inv => inv.id === a.invoiceId)).reduce((s, a) => s + (Number(a.creditingAmount) || 0), 0);
+    if (amt > 0.0005) rows.push({ docNo: cn.id, date: cn.creditNoteDate, debit: 0, credit: amt });
+  });
+  return rows.sort((a, b) => a.date.localeCompare(b.date));
 }
