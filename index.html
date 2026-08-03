@@ -1507,7 +1507,7 @@ if (app) {
 
   const R_BRANCH = 2.0;
   const hub = makeNode(0.28, PURPLE);
-  hub.userData = { key: 'hub', isHub: true };
+  Object.assign(hub.userData, { key: 'hub', isHub: true });
   scene.add(hub);
 
   const branchGroup = new THREE.Group();
@@ -1515,7 +1515,7 @@ if (app) {
   const branches = NODES.map((n, i) => {
     const angle = (i / NODES.length) * Math.PI * 2;
     const mesh = makeNode(0.16, PURPLE);
-    mesh.userData = { node: n, baseAngle: angle, baseOpacity: statusOpacity(n) };
+    Object.assign(mesh.userData, { node: n, baseAngle: angle, baseOpacity: statusOpacity(n) });
     mesh.position.set(Math.cos(angle) * R_BRANCH, 0, Math.sin(angle) * R_BRANCH);
     mesh.material.opacity = statusOpacity(n);
     branchGroup.add(mesh);
@@ -1563,7 +1563,6 @@ if (app) {
 
   const raycaster = new THREE.Raycaster();
   const pointerNDC = new THREE.Vector2();
-  let downPos = null;
 
   function toNDC(e) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -1587,12 +1586,20 @@ if (app) {
     tooltipTimer = setTimeout(() => ecoTooltip.classList.remove('show'), 1200);
   }
 
-  renderer.domElement.addEventListener('pointerdown', (e) => { downPos = { x: e.clientX, y: e.clientY }; });
-  renderer.domElement.addEventListener('pointerup', (e) => {
-    if (!downPos) return;
-    const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
-    downPos = null;
-    if (dist > 6) return;
+  // Tap detection uses the browser's native 'click' event rather than the
+  // original design reference's hand-rolled pointerdown/pointerup distance
+  // check — 'click' is reliably synthesized only for a genuine
+  // tap-without-drag on every browser and needs no manual threshold.
+  // (The actual bug that made taps do nothing on a real iPhone — reported
+  // 3 Aug 2026 — turned out to be unrelated to event type: `hub.userData =
+  // {...}`/`mesh.userData = {...}` just below overwrote the `hitMesh`
+  // property makeNode() had set moments earlier, so every raycast ran
+  // against `undefined` and threw on the very first tap, every time, on
+  // every device — silently, since it's inside an event listener. Fixed
+  // via Object.assign(...userData, {...}) instead of reassigning it.
+  // Switching pointerdown/up to 'click' here is a smaller, separate
+  // robustness improvement made at the same time, not the actual fix.)
+  renderer.domElement.addEventListener('click', (e) => {
     toNDC(e);
     raycaster.setFromCamera(pointerNDC, camera);
 

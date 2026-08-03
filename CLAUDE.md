@@ -1217,3 +1217,64 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   locally (`a62427c`, `d259e59`, `6ff009a`, `e7bf7b2`, and this session's
   commit); not pushed yet at time of writing — push all together once
   reviewed.
+
+### 3 Aug 2026 (later same day) — Real-device bug: 3D hub node taps did nothing, root cause found + fixed
+
+- **Report from Salman, testing live on his iPhone (Safari, home-screen
+  bookmark) right after Chunk 4 shipped:** tapping any node in the new 3D
+  ecosystem hub did nothing — no navigation, no response (e.g. tapping
+  Sales never opened Sales). Scene rendering and `OrbitControls`
+  drag-to-rotate both worked fine, which narrowed it down to something
+  specific to the tap-to-select code path rather than the whole 3D scene
+  being broken.
+- **Root cause — nothing to do with touch/iOS at all:** in the hub/branch
+  node-creation code (`index.html`, the `<script type="module">` block
+  added in the 3 Aug "3D S.A ecosystem hub" session), `makeNode()` sets
+  `mesh.userData.hitMesh = hitMesh` internally (the invisible solid mesh
+  raycasting needs, since `LineSegments` wireframes alone don't reliably
+  raycast). Both call sites — `hub.userData = {...}` and
+  `mesh.userData = {...}` in the `branches` map — immediately
+  **reassigned** `.userData` to a brand-new object right after
+  `makeNode()` returned, silently wiping out the `hitMesh` property that
+  had just been set. Every `raycaster.intersectObjects(...)` call was
+  therefore run against an array of `undefined`, which throws
+  `Cannot read properties of undefined (reading 'layers')` — inside an
+  event listener, so the failure was completely silent to the user, and
+  it happened on literally the first tap, every time, on every device.
+  This is why it looked like an iOS-specific issue when reported: the
+  visible symptoms (render fine, drag fine, tap dead) are also consistent
+  with several touch-specific theories, and the earlier verification
+  pass never actually caught it because it called `n.launch()` directly
+  via `page.evaluate()` to confirm navigation wiring, which bypasses the
+  raycasting/click pipeline entirely — never exercising the actual code
+  path a real tap goes through. **Lesson for future 3D/canvas work:**
+  verifying "the function navigation calls works" is not the same as
+  verifying "tapping the visual element works" — the latter needs the
+  real event pipeline exercised, not a direct function call.
+- **Fix:** `Object.assign(hub.userData, {...})` /
+  `Object.assign(mesh.userData, {...})` instead of reassigning `.userData`
+  wholesale, so `hitMesh` survives. Also switched tap-detection from the
+  original design reference's hand-rolled `pointerdown`/`pointerup` +
+  manual pixel-distance check to the browser's native `click` event
+  (reliably synthesized only for a genuine tap-without-drag on every
+  browser, no manual threshold needed) — a smaller, separate robustness
+  improvement made at the same time, not the actual fix for this bug.
+  Removed the now-unused `downPos` variable.
+- **Verification — this time actually exercising the real tap pipeline,**
+  not calling `launch()` directly: Playwright with real iPhone 13 device
+  emulation (`devices['iPhone 13']`, `hasTouch` via the device preset) and
+  `page.touchscreen.tap(x, y)` (genuine touch events, not
+  `page.mouse.click()`) against the live screen-projected position of an
+  on-screen node (read directly from the app's own exposed
+  `window.__eco3d.branches` + camera projection, since the ring of 15
+  nodes means roughly half are off-screen at any moment during
+  auto-rotation — picked whichever built node was actually visible rather
+  than assuming a fixed one). Confirmed twice: a real touch tap on the
+  Storekeeper node's live position opened `#sk-module-wrap`
+  (`display:flex`) end-to-end through the actual raycasting/click code,
+  zero console errors. This is the verification method that should have
+  been used the first time — noted above as a lesson for next time.
+- **Not pushed by a background agent this time** — pushed directly after
+  manual verification, per the process gap flagged in the previous
+  session (background agents shouldn't be trusted to hold a "don't push"
+  instruction unsupervised).
