@@ -1555,6 +1555,7 @@ function raisePurchaseRequest({ department, raisedBy, linkedJobId = null, destin
     status: "open"         // open | converted | cancelled — PRs never require approval
   };
   purchaseRequests.push(pr);
+  logActivity({ type: "pr-raised", linkedType: pr.linkedJobId ? "job" : "pr", linkedId: pr.linkedJobId || pr.id, user: raisedBy, message: `Purchase Request ${pr.id} raised (${dc(department).n})${pr.linkedJobId ? ` for job ${pr.linkedJobId}` : ""}` });
   return pr;
 }
 
@@ -1709,6 +1710,7 @@ function createPurchaseOrderDirect({ department, linkedJobId = null, destination
     status: "draft"
   };
   purchaseOrders.push(po);
+  logActivity({ type: "po-created", linkedType: po.linkedJobId ? "job" : "po", linkedId: po.linkedJobId || po.id, user: po.preparedBy || "Purchasing", message: `PO ${po.id} created (${dc(po.department).n})${po.linkedJobId ? ` for job ${po.linkedJobId}` : ""}` });
   return po;
 }
 
@@ -1722,6 +1724,7 @@ function approvePO(poId, approvedBy) {
   po.approvedBy = approvedBy;
   po.approvalDate = new Date().toISOString().slice(0, 10);
   po.status = "issued";
+  logActivity({ type: "po-approved", linkedType: po.linkedJobId ? "job" : "po", linkedId: po.linkedJobId || po.id, user: approvedBy, message: `PO ${po.id} approved and issued` });
   return po;
 }
 function rejectPO(poId, rejectedBy, comment) {
@@ -1731,6 +1734,7 @@ function rejectPO(poId, rejectedBy, comment) {
   po.approvedBy = rejectedBy;
   po.approvalDate = new Date().toISOString().slice(0, 10);
   po.rejectionComment = comment;
+  logActivity({ type: "po-rejected", linkedType: po.linkedJobId ? "job" : "po", linkedId: po.linkedJobId || po.id, user: rejectedBy, message: `PO ${po.id} rejected — ${comment || "no comment"}` });
   return po;
 }
 function getPendingPOApprovals() {
@@ -1788,6 +1792,7 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
   };
   purchaseInvoices.push(inv);
   po.status = "invoiced";
+  logActivity({ type: "purchase-invoice-received", linkedType: inv.linkedJobId ? "job" : "purchase-invoice", linkedId: inv.linkedJobId || inv.id, user: "Purchasing", message: `Purchase Invoice ${inv.id} received against PO ${po.id}` });
 
   // If this order was Stock-type (not job-direct), the received items land
   // in the shared inventory pool, awaiting the (future) Storekeeper screen.
@@ -2123,6 +2128,7 @@ function releaseStockEntry(entryId, { department, jobId, qty, issuedBy, itemRef 
     itemRef
   });
 
+  logActivity({ type: "stock-released", linkedType: "job", linkedId: jobId, user: issuedBy, message: `${releaseQty} ${releasedEntry.unit || ""} ${releasedEntry.itemName} released to ${dc(department).n} for job ${jobId}` });
   return { stockEntry: releasedEntry, itemCard: card };
 }
 
@@ -2733,6 +2739,7 @@ function approveCustomer(customerId, approvedBy) {
   c.approvedBy = approvedBy;
   c.approvalDate = new Date().toISOString().slice(0, 10);
   c.rejectionComment = null;
+  logActivity({ type: "customer-approved", linkedType: "customer", linkedId: c.id, user: approvedBy, message: `Customer ${c.name} (${c.id}) approved` });
   return c;
 }
 function rejectCustomer(customerId, rejectedBy, comment) {
@@ -2743,6 +2750,7 @@ function rejectCustomer(customerId, rejectedBy, comment) {
   c.approvedBy = rejectedBy;
   c.approvalDate = new Date().toISOString().slice(0, 10);
   c.rejectionComment = comment.trim();
+  logActivity({ type: "customer-rejected", linkedType: "customer", linkedId: c.id, user: rejectedBy, message: `Customer ${c.name} (${c.id}) rejected — ${comment.trim()}` });
   return c;
 }
 
@@ -2761,6 +2769,7 @@ function createEnquiry({ division, customerId = null, prospectName = "", contact
     followUps: [], linkedQuotationId: null
   };
   enquiries.push(e);
+  logActivity({ type: "enquiry-created", linkedType: "enquiry", linkedId: e.id, user: salesPerson, message: `Enquiry ${e.id} created for ${customerId ? (customers.find(c => c.id === customerId) || {}).name || customerId : prospectName}` });
   return e;
 }
 // Notes must be at least 10 characters (live Q-Pro form validation).
@@ -2975,6 +2984,7 @@ function transferQuotationStage(qtnId, newStage, actorName) {
   if (!qtn) return { error: "Quotation not found." };
   qtn.stage = newStage;
   logQuotationAudit(qtn, { action: "Transfer", user: actorName, userType: newStage.toUpperCase() });
+  logActivity({ type: "quotation-transferred", linkedType: "quotation", linkedId: qtn.id, user: actorName, message: `${qtn.id} moved to ${newStage === "sales" ? "Sales" : newStage === "estimator" ? "Estimator" : "Approver"}` });
   return qtn;
 }
 
@@ -3246,7 +3256,7 @@ function computeBOMTotals(bom) {
 // (override if set, else the calculated figure) back onto the quotation
 // item's Rate, recomputing Amount/Net Amount with VAT applied on top, same
 // as the live-verified example (13.650 x 1.10 VAT = 15.015).
-function submitItemBOM(qtnId, lineId) {
+function submitItemBOM(qtnId, lineId, submittedBy = "Estimator") {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
   const totals = computeBOMTotals(item.bom);
@@ -3257,6 +3267,7 @@ function submitItemBOM(qtnId, lineId) {
   item.netAmount = (item.amount - item.discAmt) * (1 + (item.vatPercent || 0) / 100);
   item.bom.submitted = true;
   item.bom.qtyAtSubmit = item.qty; // lets the Estimation index flag "Copy BOM" if Sales changes Qty after this
+  logActivity({ type: "bom-submitted", linkedType: "quotation", linkedId: qtnId, user: submittedBy, message: `BOM submitted for ${item.product} — Selling Price BD ${sellingPrice.toFixed(3)}` });
   return { item, totals };
 }
 function clearItemBOM(qtnId, lineId) {
@@ -3357,6 +3368,7 @@ function approveQuotation(qtnId, approvedBy) {
   qtn.stage = "sales";
   qtn.lifecycleStatus = "open";
   logQuotationAudit(qtn, { action: "Transfer", user: approvedBy, userType: "SALES", status: "Open" });
+  logActivity({ type: "quotation-approved", linkedType: "quotation", linkedId: qtn.id, user: approvedBy, message: `${qtn.id} approved — Open` });
   return qtn;
 }
 
@@ -3410,6 +3422,7 @@ function approverCorrectItem(qtnId, lineId, patch, reason, approverName) {
   const qtn = quotations.find(q => q.id === qtnId);
   const fieldList = Object.keys(changes).join(", ");
   logQuotationAudit(qtn, { action: "Correct Item", user: approverName, userType: "APPROVER", status: `${item.product} — ${fieldList} corrected (${reason.trim()})` });
+  logActivity({ type: "item-corrected", linkedType: "quotation", linkedId: qtnId, user: approverName, message: `${item.product} — ${fieldList} corrected: ${reason.trim()}` });
   return item;
 }
 
@@ -3547,6 +3560,20 @@ function getJobCard(jobId) { return jobCards.find(j => j.id === jobId); }
 // empty/neutral defaults rather than invented percentages or costs no one
 // has actually entered — those get filled in by whoever actually works
 // the job, same as a fresh Q-Pro entry would start empty too.
+// jobCards[]/curtainJobs[]/projects[] unification (4 Aug 2026): rather
+// than a full data-model merge — curtain.js is ~5,900 lines, the largest
+// and most production-critical file, rewriting its internals to read a
+// different shape was judged too risky to do in one pass — the shared
+// VALUE fields (projects[].val/.budget.sell, curtainJobs[].val/.deptVal)
+// are now LIVE getters reading straight off the real jobCards[] entry's
+// .amount, not copied numbers. This closes the actual risk that was
+// flagged here before ("any other future path that mutates a Job Card's
+// amount should call this bridge too, or these will drift out of sync")
+// permanently — there's now exactly one stored value (jobCards[].amount)
+// and these are just windows onto it, so they literally cannot drift no
+// matter what code touches job.amount in the future. Confirmed via grep
+// that nothing anywhere ever assigns to .val/.budget.sell/.deptVal
+// directly outside this function, so defining them as getter-only is safe.
 function bridgeJobToOperationsAndCurtain(job) {
   const customer = customers.find(c => c.id === job.customerId);
   const clientName = customer ? customer.name : "—";
@@ -3557,24 +3584,25 @@ function bridgeJobToOperationsAndCurtain(job) {
   let proj = projects.find(p => p.id === job.id);
   if (!proj) {
     proj = {
-      id: job.id, name: job.projectName, client: clientName, val: job.amount, health: "ok",
-      depts: [], budget: { sell: job.amount, cost: 0, mat: 0, lab: 0, sub: 0, hir: 0, oth: 0 },
+      id: job.id, name: job.projectName, client: clientName, health: "ok",
+      depts: [], budget: { cost: 0, mat: 0, lab: 0, sub: 0, hir: 0, oth: 0 },
       actuals: { mat: 0, lab: 0, sub: 0, hir: 0, oth: 0 }, alerts: [], linkedJobCardId: job.id
     };
+    Object.defineProperty(proj, "val", { enumerable: true, get() { const j = getJobCard(proj.id); return j ? j.amount : 0; } });
+    Object.defineProperty(proj.budget, "sell", { enumerable: true, get() { const j = getJobCard(proj.id); return j ? j.amount : 0; } });
     projects.push(proj);
-  } else {
-    proj.val = job.amount;
-    proj.budget.sell = job.amount;
   }
 
   if (division === "Curtain & Blinds") {
     let cj = curtainJobs.find(j => j.id === job.id);
     if (!cj) {
       cj = {
-        id: job.id, name: job.projectName, client: clientName, val: job.amount, deptVal: job.amount,
+        id: job.id, name: job.projectName, client: clientName,
         status: "bom_pending", bomStatus: "bom_pending", budgetStatus: "pending", bomRejectionComment: null,
         wastageBuffer: 10, windowGroups: [], linkedJobCardId: job.id
       };
+      Object.defineProperty(cj, "val", { enumerable: true, get() { const j = getJobCard(cj.id); return j ? j.amount : 0; } });
+      Object.defineProperty(cj, "deptVal", { enumerable: true, get() { const j = getJobCard(cj.id); return j ? j.amount : 0; } });
       // curtain.js reads a flat job.windows[] (produced by flattenWindowGroups()
       // above) rather than windowGroups directly — the initial seed jobs get
       // this hydrated once at data.js load time (see the .forEach right below
@@ -3583,8 +3611,6 @@ function bridgeJobToOperationsAndCurtain(job) {
       // job.windows crashes (found via this exact bridge's own Playwright test).
       cj.windows = flattenWindowGroups(cj);
       curtainJobs.push(cj);
-    } else {
-      cj.val = job.amount;
     }
   }
 }
@@ -4367,6 +4393,7 @@ function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } =
   };
   taxInvoices.push(inv);
   job.linkedInvoiceIds.push(inv.id);
+  logActivity({ type: "invoice-generated", linkedType: "job", linkedId: jobId, user: "Accounts", message: `Tax Invoice ${inv.id} generated — BD ${netTotal.toFixed(3)}` });
   return inv;
 }
 

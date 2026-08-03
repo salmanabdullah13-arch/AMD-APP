@@ -1378,6 +1378,7 @@
 <script src="jobs.js"></script>
 <script src="accounts.js"></script>
 <script src="hr.js"></script>
+<script src="owner.js"></script>
 <script src="dept-pipeline-ui.js"></script>
 <script src="joinery.js"></script>
 <script src="upholstery.js"></script>
@@ -1439,7 +1440,7 @@ const NODES = [
   { id:'painting',    label:'Painting',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPaintingModule(),150); } },
   { id:'sales',        label:'Sales',            built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchSalesModule(),150); } },
   { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
-  { id:'owner',        label:'Owner Dashboard',  built:false },
+  { id:'owner',        label:'Owner Dashboard',  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchOwnerModule(),150); } },
   { id:'accounts',    label:'Accounts',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAccountsModule(),150); } },
   { id:'delivery',     label:'Jobs',             built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJobsModule(),150); } },
   { id:'hr',            label:'HR & Payroll',     built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchHRModule(),150); } },

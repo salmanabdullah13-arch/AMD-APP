@@ -117,7 +117,7 @@ function openEstimatorModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap'].forEach(id => {
+  ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap', 'owner-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -734,7 +734,7 @@ function estimatorSetProfit(val) { setBOMProfitPercent(estimatorActiveQtnId, est
 function estimatorSetOverride(val) { setBOMSellingOverride(estimatorActiveQtnId, estimatorActiveLineId, val); renderEstimatorBody(); }
 
 function estimatorSubmitBOM() {
-  const result = submitItemBOM(estimatorActiveQtnId, estimatorActiveLineId);
+  const result = submitItemBOM(estimatorActiveQtnId, estimatorActiveLineId, estimatorCurrentUser);
   if (result.error) { estimatorAlert(result.error); return; }
   estimatorAlert(`✓ BOM saved — Selling Price BD ${result.item.rate.toFixed(3)}, Quote Amount BD ${result.item.netAmount.toFixed(3)}.`);
   openEstimationIndex(estimatorActiveQtnId);

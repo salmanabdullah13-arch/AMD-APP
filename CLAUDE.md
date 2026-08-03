@@ -130,7 +130,8 @@ source of truth for built vs. planned):
 | Joinery (`joinery`) | ✓ built | Production pipeline + budget submission/approval — Batch 8, NOT a Q-Pro trace, see §3 |
 | Upholstery (`upholstery`) | ✓ built | Shares Joinery's production-pipeline primitive — Batch 8, see §3 |
 | Painting (`painting`) | ✓ built | Deliberately standalone, own budget form, no shared pipeline — Batch 8, see §3 |
-| Owner Dashboard, Tally Bridge | ✗ not started | Unchanged from original plan |
+| Owner Dashboard (`owner`) | ✓ built | Read-only cross-department view, reuses every module's own KPI functions — 4 Aug 2026, see Session Log |
+| Tally Bridge | ✗ not started | Unchanged from original plan |
 
 **Known staleness:** the `M` object in `shell.js` (drives the ecosystem
 tap-panel descriptions) still describes Purchaser and Storekeeper by their
@@ -2466,4 +2467,75 @@ something to just decide unilaterally.
   all 12 prior suites re-confirmed (138/138, `e2e-lifecycle.js` now
   removed from the count) plus this session's 15/15 — 153/153 total,
   back-button-check clean across all 12 modules, zero console/page
+  errors.
+
+### 4 Aug 2026 (later same day) — jobCards/curtainJobs/projects unification, Tasks/Activity Log retrofit, Owner Dashboard
+
+Salman asked for all three explicitly. The unification item had been
+deliberately left alone in the same day's earlier work (a real
+architectural decision, not mine to make unilaterally) — building it now
+that it was explicitly requested.
+
+- **jobCards[]/curtainJobs[]/projects[] unification — done via live
+  getters, not a full data-model merge.** A full merge was ruled out as
+  too risky in one pass (curtain.js is ~5,900 lines, the most
+  production-critical file). Instead, `bridgeJobToOperationsAndCurtain()`
+  (data.js) now defines `projects[].val`, `.budget.sell`, and
+  `curtainJobs[].val`/`.deptVal` as real JS getters
+  (`Object.defineProperty`) reading straight off the linked `jobCards[]`
+  entry's `.amount` — not copied numbers. This permanently closes the
+  actual risk that was flagged before ("any future path that mutates a
+  Job Card's amount also has to remember to re-sync, or these drift") —
+  there is now exactly one stored value, so nothing can ever drift from
+  it no matter what future code touches `job.amount`. Confirmed via grep
+  that nothing anywhere ever assigned to these fields directly outside
+  the bridge function, so defining them getter-only is safe. The 2
+  pre-existing hardcoded seed jobs (`AMD-15002` etc.) predate the Job
+  Card system entirely and never go through this bridge function, so
+  they're completely untouched — still plain hardcoded values, exactly as
+  before.
+- **Tasks/Activity Log retrofit** — the `tasks[]`/`activityLog[]`
+  primitive was previously only wired into the Job Card hub + Variation
+  Order flow (all job-linked department-pipeline events). Added
+  `logActivity()` calls to the front half of the business that had none:
+  Enquiry creation, Quotation stage transfers, Quotation approval, BOM
+  submission (`submitItemBOM()` gained a `submittedBy` param, threaded
+  from `estimatorCurrentUser`), Approver item corrections (now logged
+  both to the per-quote audit trail AND the global feed), Customer
+  approve/reject, Purchase Request/PO creation/PO approval/PO rejection,
+  Purchase Invoice receipt, and Storekeeper stock release. Scoped to
+  genuinely significant lifecycle transitions, not every click — matching
+  the existing job-pipeline logging's own granularity.
+- **Built the Owner Dashboard** (new `owner.js`, new ecosystem node
+  `owner`, flipped `built:false` → `built:true`) — read-only,
+  cross-department view for Salman. Deliberately reuses every module's
+  own existing KPI function rather than recomputing anything:
+  `getSalesKPIs()`, `getAccountsKPIs()`, `getJobCardKPIs()`,
+  `getPurchasingKPIs()`, `getStockPoolSummary()`, `getHRKPIs()`,
+  `getCurtainKPIs()`, `getDepartmentQueue()`/`getPaintingQueue()` for
+  Joinery/Upholstery/Painting queue depths, and `getJobsPendingRouting()`
+  for the Operations hand-off gap fixed earlier the same day. The Recent
+  Activity section is `getRecentActivity(20)` — a direct, immediate payoff
+  of the retrofit above: a real, no-extra-work company-wide feed. No
+  actions live here beyond quick-launch links into the real modules
+  (`ownerGoTo()`, same module-hop pattern as `jobsNewVariation()`/
+  `salesRequestPurchase()`) — this is a summary screen, not a management
+  screen. Added to all 12 other modules' mutual-exclusivity hide-lists
+  plus `shell.js`'s `goTo()`, matching the established integration
+  checklist for every new floating module.
+- **Verification:** three new suites. `e2e-jobcard-unification.js` (8/8)
+  — proves the getter really can't drift: mutates `job.amount` directly,
+  bypassing the bridge entirely, and confirms `projects[]`/`curtainJobs[]`
+  reflect it instantly anyway; also confirms the pre-existing seed jobs
+  are untouched. `e2e-activity-log-retrofit.js` (15/15) — walks one full
+  lifecycle (Enquiry → BOM → stages → approval → correction → customer
+  approve/reject → PR → PO → Invoice → stock release) and confirms every
+  new event type lands in `activityLog[]`, plus `getActivityFor()`
+  surfaces a single quotation's own events correctly.
+  `e2e-owner-dashboard.js` (12/12) — every section renders, the activity
+  feed shows real just-created data (not fake placeholder content), quick
+  links correctly hop modules, mutual exclusivity holds, and the back
+  button works. Full regression: all 13 prior suites re-confirmed
+  (153/153) plus this session's 8+15+12 — 188/188 total, back-button-check
+  clean across all 13 modules (now including `owner`), zero console/page
   errors.

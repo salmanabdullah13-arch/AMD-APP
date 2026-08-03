@@ -47,6 +47,8 @@ function goTo(p){
   if (upholsteryMod) upholsteryMod.style.cssText = 'display:none;';
   const paintingMod = document.getElementById('painting-module-wrap');
   if (paintingMod) paintingMod.style.cssText = 'display:none;';
+  const ownerMod = document.getElementById('owner-module-wrap');
+  if (ownerMod) ownerMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
