@@ -2007,3 +2007,58 @@ matching the "complete both together" precedent from Batch 7.
   (awaiting/ordered/arrived) is informational only, nothing gates
   production start on it besides the budget-approval check everyone
   shares.
+
+### 3 Aug 2026 (later same day) — 3 real bugs found using the app on an actual iPhone
+
+Salman reported these from real usage, not a design conversation — all
+three were genuine defects, fixed directly.
+
+- **Every floating module's header ignored the safe-area — the close/
+  back button bled under the iPhone notch/status bar, effectively
+  unreachable.** Root cause: `--safe-top`
+  (`env(safe-area-inset-top,0px)`) already exists and is used correctly
+  by the main app shell's own `.safe-top` spacer div, but every
+  full-screen overlay module (`position:fixed;top:0;...;z-index:100` —
+  Sales/Accounts/Purchasing/Storekeeper/Estimator/Approver/Jobs/HR/
+  Curtain/Joinery/Upholstery/Painting, 12 in total) escapes the normal
+  `.app` layout entirely and renders truly flush to the physical viewport
+  top, bypassing that spacer. Each one's own `.ops-header` rule had a
+  flat `padding:11px 18px` with no safe-area awareness. Fixed by changing
+  every one of the 12 (11 in their own JS files + Curtain's in
+  `styles.css`) to `padding:calc(11px + var(--safe-top,0px)) 18px 11px`.
+  Operations itself was NOT affected — it's a `.page` inside `#scroll`,
+  which already sits below the shell's `.safe-top`/`.topbar`, so this bug
+  was specific to the floating-overlay modules. Verified by overriding
+  `--safe-top` to a realistic 47px (a real notch/Dynamic Island value —
+  Chromium can't force `env()` directly, but this is exactly what it
+  resolves to on a real device) and confirming all 12 headers compute to
+  58px of top padding.
+- **No way to duplicate a quotation line item.** Added a "⧉ Duplicate"
+  action next to each item row in the Quotation Wizard's Product &
+  Services step (`sales.js`) — copies product/qty/unit/vat/discount/
+  description/internal comments into a new line via the existing
+  `addQuotationItem()`, same as typing it fresh (rate stays locked at 0,
+  same as any new item).
+- **Finishing the quotation wizard silently auto-transferred to the
+  Estimator, with no explicit action.** Real regression from this
+  session's own earlier pricing-lock change: `finaliseQuotation()`
+  (data.js) used to set `qtn.stage = qtn.withEstimation ? "estimator" :
+  "sales"` — back when `withEstimation` was a real Sales choice, this
+  correctly auto-routed only the "with estimation" quotes. Once Batch 7
+  made `withEstimation` unconditionally `true` (removing the editable-
+  price opt-out, a fraud-prevention fix), this same line started
+  auto-transferring EVERY quotation the instant "Update Quotation" was
+  clicked, silently bypassing the Quotation Hub's own explicit "Transfer
+  to Estimator" button. Fixed by having `finaliseQuotation()` no longer
+  touch `qtn.stage` at all — saving the covering letter/terms is now the
+  only thing it does; moving to Estimator is always the separate,
+  deliberate click. **Caught the regression test that had encoded the bug
+  as correct behavior**: `e2e-batch7-big-pieces.js`'s Variation Order test
+  asserted `stage === 'estimator'` right after finishing the wizard —
+  that assertion was itself validating the bug. Updated it to assert the
+  corrected behavior (`stage` stays `'sales'` until the explicit transfer
+  click) instead of just deleting the check.
+- **Verification:** new suite `e2e-bugfixes-iphone-dup-transfer.js`
+  (committed, reusable, 6/6) covering all three; updated
+  `e2e-batch7-big-pieces.js`'s now-corrected assertion; re-ran all 7
+  Playwright suites end to end — all pass clean, zero console/page errors.

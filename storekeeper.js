@@ -17,7 +17,7 @@
 const skStyleTag = document.createElement('style');
 skStyleTag.textContent = `
 #sk-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
-#sk-module-wrap .ops-header{background:var(--biz-teal);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#sk-module-wrap .ops-header{background:var(--biz-teal);padding:calc(11px + var(--safe-top,0px)) 18px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #sk-module-wrap .sk-nav{background:var(--biz-card-bg);border-bottom:1px solid var(--biz-border-light);overflow-x:auto;display:flex;padding:0 10px;flex:none;}
 #sk-module-wrap .sk-ntab{background:none;border:0;border-bottom:2.5px solid transparent;color:var(--biz-text-muted);padding:10px 10px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
 #sk-module-wrap .sk-ntab.active{color:var(--biz-teal);border-bottom-color:var(--biz-teal);font-weight:700;}

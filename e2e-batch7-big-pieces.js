@@ -95,8 +95,17 @@ async function openNode(page, nodeId, wrapId) {
   await page.click('#sales-body button:has-text("Update Quotation")');
   await page.waitForTimeout(150);
   await shot(page, 'variation-finalized-hub');
+  // Finishing the wizard must NOT auto-transfer to Estimator (a real bug
+  // Salman found and this session fixed — finaliseQuotation() used to
+  // auto-set stage based on withEstimation, which became always-true in
+  // Batch 7 and so silently auto-transferred every quotation). Moving to
+  // Estimator is always the explicit "Transfer to Estimator" click.
   const stageAfterFinalise = await page.evaluate((id) => quotations.find(q => q.id === id).stage, varQtnId);
-  record('Variation flows into stage=estimator via the real wizard (finaliseQuotation)', stageAfterFinalise === 'estimator' ? 'PASS' : 'FAIL', `stage=${stageAfterFinalise}`);
+  record('Finishing the wizard leaves stage as "sales" (no silent auto-transfer)', stageAfterFinalise === 'sales' ? 'PASS' : 'FAIL', `stage=${stageAfterFinalise}`);
+  await page.click('#sales-body button:has-text("Transfer to Estimator")');
+  await page.waitForTimeout(150);
+  const stageAfterExplicitTransfer = await page.evaluate((id) => quotations.find(q => q.id === id).stage, varQtnId);
+  record('Explicit Transfer to Estimator button moves the Variation to stage=estimator', stageAfterExplicitTransfer === 'estimator' ? 'PASS' : 'FAIL', `stage=${stageAfterExplicitTransfer}`);
 
   // Transfer estimator -> approver (data layer call is fine here, this exact
   // transition is already covered by e2e-lifecycle.js's real-UI test)

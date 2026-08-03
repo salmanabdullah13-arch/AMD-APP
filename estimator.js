@@ -16,7 +16,7 @@
 const estimatorStyleTag = document.createElement('style');
 estimatorStyleTag.textContent = `
 #estimator-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
-#estimator-module-wrap .ops-header{background:var(--biz-amber);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#estimator-module-wrap .ops-header{background:var(--biz-amber);padding:calc(11px + var(--safe-top,0px)) 18px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #estimator-module-wrap .estimator-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
 #estimator-module-wrap .estimator-userbar{background:#f4e6ec;border-bottom:1px solid #e0c2d0;padding:8px 18px;font-size:11.5px;color:var(--biz-primary-dark);display:flex;align-items:center;gap:8px;flex:none;}
 #estimator-module-wrap .estimator-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #e0c2d0;background:#fff;}

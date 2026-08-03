@@ -2902,7 +2902,15 @@ function finaliseQuotation(qtnId, { coveringLetterTemplate, termsTemplate }) {
     qtn.termsTemplate = termsTemplate;
     qtn.termsBody = TERMS_TEMPLATES[termsTemplate];
   }
-  qtn.stage = qtn.withEstimation ? "estimator" : "sales";
+  // Deliberately does NOT touch qtn.stage. Before Batch 7 locked pricing
+  // unconditionally, this used to auto-set stage to "estimator" when
+  // withEstimation was checked — a real bug once withEstimation became
+  // always-true (Batch 7): finishing the wizard started silently
+  // transferring every quotation to the Estimator with no explicit action,
+  // bypassing the Quotation Hub's own "Transfer to Estimator" button
+  // (salesTransferToEstimator() in sales.js). Finalizing the wizard should
+  // only ever save the covering letter/terms — moving to Estimator is
+  // always that separate, deliberate click.
   return qtn;
 }
 // A hand-off never clears estimatorPickedBy/approverPickedBy — those persist

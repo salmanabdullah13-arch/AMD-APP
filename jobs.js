@@ -19,7 +19,7 @@
 const jobsStyleTag = document.createElement('style');
 jobsStyleTag.textContent = `
 #jobs-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
-#jobs-module-wrap .ops-header{background:var(--biz-primary);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#jobs-module-wrap .ops-header{background:var(--biz-primary);padding:calc(11px + var(--safe-top,0px)) 18px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #jobs-module-wrap .jobs-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
 #jobs-module-wrap .sales-card{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px;margin-bottom:10px;box-shadow:var(--biz-shadow);}
 #jobs-module-wrap .sales-field{margin-bottom:10px;}

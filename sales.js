@@ -18,7 +18,7 @@
 const salesStyleTag = document.createElement('style');
 salesStyleTag.textContent = `
 #sales-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
-#sales-module-wrap .ops-header{background:var(--biz-purple);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#sales-module-wrap .ops-header{background:var(--biz-purple);padding:calc(11px + var(--safe-top,0px)) 18px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #sales-module-wrap .sales-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
 #sales-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
 #sales-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
@@ -834,7 +834,7 @@ function renderWizardStep2() {
     ? `<p style="font-size:12px;color:#64748b;margin-bottom:10px;">No items added yet.</p>`
     : `<table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th><th></th></tr>` +
       q.items.map(it => `<tr><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
-        <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})">✎</span><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})">✕</span></td></tr>` +
+        <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})" title="Edit">✎</span><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesDuplicateItem('${q.id}',${it.lineId})" title="Duplicate">⧉</span><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})" title="Remove">✕</span></td></tr>` +
         (salesEditingLineId === it.lineId ? `<tr><td colspan="6">${renderSalesItemEditPanel(q, it)}</td></tr>` : '')
       ).join('') +
       `</table>`;
@@ -843,7 +843,7 @@ function renderWizardStep2() {
     ${q.headerComment ? `<div class="sales-preview"><p style="font-weight:700;color:#1a1f2e;margin-bottom:4px;">Approver Comments</p><p>${esc(q.headerComment)}</p></div>` : ''}
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Item</p>
-      ${locked ? `<div class="sales-banner">With Estimation is checked — Rate/Amount/Net Amount are locked at 0.000 for Sales. Pricing will be completed by the Estimator.</div>` : ''}
+      ${locked ? `<div class="sales-banner">Rate/Amount/Net Amount are locked at 0.000 for Sales — pricing is always completed by the Estimator.</div>` : ''}
       <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div class="sales-field"><label>Qty</label><input type="number" id="it-qty" value="1"></div>
@@ -906,6 +906,24 @@ function salesAddItem(qtnId) {
   renderSalesBody();
 }
 function salesRemoveItem(qtnId, lineId) { removeQuotationItem(qtnId, lineId); renderSalesBody(); }
+
+// Duplicate — Salman's real ask: a way to copy an existing line item
+// (same product/qty/unit/description) as a starting point for a similar
+// one, rather than retyping everything from scratch. Rate/amount stay
+// locked at 0 like any new item (pricing is always Estimator-controlled),
+// same as addQuotationItem() already enforces.
+function salesDuplicateItem(qtnId, lineId) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  const item = qtn && qtn.items.find(it => it.lineId === lineId);
+  if (!item) return;
+  addQuotationItem(qtnId, {
+    product: item.product, qty: item.qty, unit: item.unit,
+    vatPercent: item.vatPercent, discPercent: item.discPercent,
+    description: item.description, internalComments: item.internalComments
+  });
+  salesAlert('✓ Item duplicated.');
+  renderSalesBody();
+}
 
 function renderWizardStep3() {
   const q = quotations.find(x => x.id === salesActiveQtnId);

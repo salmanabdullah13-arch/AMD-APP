@@ -14,7 +14,7 @@ purchStyleTag.textContent = `
    rejected/issued/invoiced) are true semantics, left as their own literal
    hex on purpose. */
 #purch-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
-#purch-module-wrap .ops-header{background:var(--biz-primary);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#purch-module-wrap .ops-header{background:var(--biz-primary);padding:calc(11px + var(--safe-top,0px)) 18px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #purch-module-wrap .nav{background:var(--biz-card-bg);border-bottom:1px solid var(--biz-border);overflow-x:auto;display:flex;padding:0 16px;flex:none;}
 #purch-module-wrap .ntab{background:none;border:0;border-bottom:2.5px solid transparent;color:var(--biz-text-muted);padding:10px 11px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;position:relative;}
 #purch-module-wrap .ntab.active{color:var(--biz-primary);border-bottom-color:var(--biz-primary2);font-weight:700;}

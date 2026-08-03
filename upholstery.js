@@ -15,7 +15,7 @@ const UPHOLSTERY_DEPT_KEY = 'uph';
 const upholsteryStyleTag = document.createElement('style');
 upholsteryStyleTag.textContent = `
 #upholstery-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
-#upholstery-module-wrap .ops-header{background:var(--biz-primary);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#upholstery-module-wrap .ops-header{background:var(--biz-primary);padding:calc(11px + var(--safe-top,0px)) 18px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #upholstery-module-wrap .upholstery-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
 #upholstery-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
 #upholstery-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
