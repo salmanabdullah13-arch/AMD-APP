@@ -856,3 +856,99 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   Purchasing) should need central-token updates plus per-file cleanup of
   whatever wasn't tokenized; Purchasing needs the token migration itself
   first, not just a recolor.
+
+
+### 3 Aug 2026 — 3D "S.A" ecosystem hub replaces the flat 2D SVG map
+
+- **Replaced the entire ecosystem hub visual** (the home-screen module map)
+  with a three.js orbiting node graph, adapted from a design reference
+  Salman uploaded ("Heartwood 3D Backend Wheel" — a wireframe-icosahedron
+  hub-and-branch graph with camera zoom-to-focus). The 2D SVG map
+  (`<svg class="eco-svg">`, ~295 lines) and its touch/click handling script
+  are both gone, replaced by a `<div id="eco3d">` canvas host and a new
+  `<script type="module">` block at the bottom of `index.html`.
+- **Real decisions behind this, from Salman directly:**
+  1. Replaces the main hub entirely — not a separate "Backend" section
+     (the reference's own framing, since it named its modules after a
+     generic SaaS admin panel — Billing/Database/Deployments/etc. — none
+     of which are real AMD modules; only the visual/interaction language
+     was reused, not the content).
+  2. **Pure black canvas is a deliberate, approved exception** to Chunk
+     1's "unify everything to light" rule — the orbiting-nodes-in-space
+     look genuinely depends on a black void to read well, treated like a
+     one-off planetarium-style hero screen rather than fought into the
+     light system.
+  3. **One purple accent (`0x9b5cff`), no per-status color.** Built vs
+     Planned (Building is a third tier, currently unused — 0 modules are
+     in that state — but the code supports it) is carried entirely by
+     opacity/radiance: built nodes render at ~0.95 opacity and glow
+     bright, planned nodes sit around 0.16 opacity as faint ghosts. No
+     green/amber/grey anywhere in this screen anymore.
+  4. Hub is labelled **"S.A"** (Salman's own initials, replacing the old
+     "MARAYA" center label — his call, not a placeholder).
+  5. **Hub + branches only, no leaf tier** in this version — the
+     reference supports a 3rd tier (leaves spawned around a focused
+     branch) but AMD's modules don't have natural sub-items yet except
+     Curtain & Blinds (Tracks/QC/Install), which stays excluded from the
+     3D graph for now per explicit scope-cut.
+- **All 15 real branch nodes** (Operations, Curtain & Blinds, Purchaser,
+  Storekeeper, Upholstery, Joinery, Painting, Sales, Estimator, Owner
+  Dashboard, Accounts, Jobs, HR & Payroll, Approver, Tally Bridge) reuse
+  the exact same `built`/`launch()` data the old SVG's `NODES` array
+  had — tapping a built node calls its real `launch()` (e.g.
+  `goTo('operations')`, `launchCurtainModule()`) exactly as before;
+  tapping a planned node shows the existing `#eco-tooltip` "Coming soon"
+  element positioned at the node's projected screen coordinates, instead
+  of the old SVG-coordinate-based positioning. The quick-stats tiles
+  (Built/Building/Planned counts) and the Roadmap/Notes/Checklist tabs
+  were untouched — they read from a separate data source (`M` in
+  shell.js) that this change never touched.
+- **Technical integration:** `three@0.184.0` loaded via a plain ES-module
+  import map (with the reference's own SRI integrity hashes) added to
+  `index.html`'s `<head>` — no bundler, drops straight into the existing
+  no-build-step setup the same way the Google Fonts `<link>` already
+  does. `OrbitControls` (touch-drag to rotate, auto-rotate when idle,
+  tap-to-focus a branch with camera FOV narrowing 46°→30°, tap again to
+  reset) reused near-verbatim from the reference — it already supports
+  touch out of the box, no separate mobile interaction layer needed.
+- **Verification:** Playwright screenshots at desktop (420×900) and
+  mobile (390×844, iPhone-sized) viewports, both read cleanly — bright
+  built nodes clearly distinct from dim planned ones, "S.A" hub visible
+  and pulsing, quick-stats/pipeline-banner chrome around the canvas
+  intact. Confirmed navigation still works end-to-end deterministically
+  (called a branch's real `launch()` via the new `window.__eco3d` debug
+  handle rather than trusting a screen-coordinate click on a
+  continuously-orbiting node, since the first attempt at that gave a
+  false-positive "module opened" read from checking `#ops-module-wrap`'s
+  own `display` — a child element's computed display isn't affected by
+  an ancestor's `.page{display:none}`, so that specific check was
+  meaningless; switched to asserting `#p-operations` actually gained the
+  `active` class, which is what `goTo()` really sets) — zero console
+  errors on that clean run. An earlier, messier test (8 rapid synthetic
+  clicks at different angles against continuously-orbiting nodes) did
+  throw one `Cannot read properties of undefined (reading 'layers')`
+  console error from `OrbitControls` — reproduced against the
+  *unmodified* reference file too during initial review, so it looks like
+  a pre-existing fragility in the reference's raycasting under rapid
+  synthetic clicks rather than a bug introduced here; a real user's
+  single tap doesn't hit this path. Not re-verified on real touch
+  hardware — Playwright's synthetic pointer events aren't a substitute
+  for an actual iPad/iPhone test.
+- **Known minor issue, not fixed this session:** at narrow (mobile)
+  viewports, node labels can briefly clip at the canvas edge or overlap
+  each other when two nodes' 2D projections land close together during
+  auto-rotation — cosmetic, self-corrects as rotation continues, not
+  something a tap can mis-target since hit-testing is 3D raycasting
+  against the actual node mesh, not the label text.
+- **Also noticed in passing, out of scope for this session:** the lock
+  screen's logo mark (`index.html`, the raw inline-styled div inside
+  `<div class="lock" id="lock">`) still uses a literal dark gradient
+  (`#1a0a14`→`#0a0a0f`) instead of the wine `--maraya`/`--maraya2`
+  gradient Chunk 1 applied everywhere else — it was missed because Chunk
+  1 only fixed the `.lock-logo` *class*, which turns out to be unused;
+  this specific element has no class attribute at all. Small, contained
+  fix for whoever picks up Chunk 2/3.
+- **Not touched:** Chunk 2 (Purchasing + Storekeeper) and Chunk 3 (Sales/
+  Estimator/Approver/Jobs/Accounts) remain exactly as documented in the
+  previous session log entry — still on old hardcoded colors, still
+  pending.

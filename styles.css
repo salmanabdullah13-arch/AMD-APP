@@ -90,9 +90,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-
 .bni.active .bni-label{color:var(--maraya);}
 .bni.active .bni-icon{transform:scale(1.12);}
 
-/* ECOSYSTEM */
-.eco-bg{background:var(--shell-bg);padding:8px 0 0;}
-.eco-svg{display:block;width:100%;height:auto;}
+/* ECOSYSTEM — 3D hub, deliberate dark exception to the light Shell (see
+   CLAUDE.md session log). Pure black canvas, one purple accent, status
+   carried by radiance/opacity rather than a second color. */
+.eco-bg{background:#000;padding:0;}
+#eco3d{position:relative;width:100%;aspect-ratio:380/500;overflow:hidden;background:#000;}
+#eco3d canvas{display:block;}
+.eco3d-lbl{position:absolute;transform:translate(6px,-50%);font-size:10px;color:rgba(200,180,255,.7);white-space:nowrap;pointer-events:none;left:-999px;top:-999px;letter-spacing:.02em;text-shadow:0 0 6px rgba(155,92,255,.5);transition:opacity .2s;}
+.eco3d-lbl.hub{font-size:13px;color:#fff;font-weight:700;text-shadow:0 0 10px rgba(155,92,255,.8);}
 .quick-stats{padding:10px 16px 6px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
 .qs{border-radius:var(--r2);padding:10px;text-align:center;background:var(--shell-surface);border:1px solid var(--shell-border);}
 .qs-v{font-size:22px;font-weight:800;color:var(--shell-ink);}

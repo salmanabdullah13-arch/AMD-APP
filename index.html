@@ -13,6 +13,20 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="styles.css">
 
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9"
+  }
+}
+</script>
+
 <style>/* ── Gantt chart ─────────────────── */
     .gantt-wrap { width:100%; overflow-x:auto; }
     .gantt-header { display:flex; margin-bottom:4px; }
@@ -193,300 +207,7 @@
     <!-- ECOSYSTEM -->
     <div class="page active" id="p-eco">
       <div class="eco-bg">
-        <svg class="eco-svg" viewBox="0 0 380 500" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="BG" cx="50%" cy="42%" r="65%">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="100%" stop-color="#f5f6f8"/>
-            </radialGradient>
-            <radialGradient id="CG" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#9c3d6c"/>
-              <stop offset="100%" stop-color="#600131"/>
-            </radialGradient>
-            <radialGradient id="OKG" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#1a6040"/>
-              <stop offset="100%" stop-color="#0a3820"/>
-            </radialGradient>
-            <radialGradient id="WNG" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#5c3a00"/>
-              <stop offset="100%" stop-color="#3a2400"/>
-            </radialGradient>
-            <radialGradient id="PUG" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#f4c430"/>
-              <stop offset="100%" stop-color="#8a6d00"/>
-            </radialGradient>
-            <filter id="glow-ok" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="4" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <filter id="glow-wn" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <filter id="glow-center" x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation="6" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <filter id="glow-touch" x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation="6" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
-
-          <rect width="380" height="500" fill="url(#BG)"/>
-          <!-- rings -->
-          <circle cx="190" cy="225" r="82" fill="none" stroke="rgba(16,24,40,.06)" stroke-width="1"/>
-          <circle cx="190" cy="225" r="145" fill="none" stroke="rgba(16,24,40,.045)" stroke-width="1"/>
-          <circle cx="190" cy="225" r="205" fill="none" stroke="rgba(16,24,40,.03)" stroke-width="1"/>
-
-          <!-- lines to ring1 -->
-          <line id="line-operations" class="eco-line" x1="190" y1="225" x2="190" y2="123" stroke="rgba(15,157,88,.45)" stroke-width="1.5" stroke-dasharray="4,4"/>
-          <!-- lines to ring2 -->
-          <line id="line-curtain"    class="eco-line" x1="190" y1="225" x2="316" y2="168" stroke="rgba(124,58,237,.2)"  stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-purchasing" class="eco-line" x1="190" y1="225" x2="270" y2="60"  stroke="rgba(212,160,23,.35)" stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-storekeeper" class="eco-line" x1="190" y1="225" x2="245" y2="25" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-upholstery" class="eco-line" x1="190" y1="225" x2="334" y2="268" stroke="rgba(214,51,108,.15)" stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-joinery"    class="eco-line" x1="190" y1="225" x2="258" y2="358" stroke="rgba(15,157,88,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-painting"   class="eco-line" x1="190" y1="225" x2="122" y2="358" stroke="rgba(196,125,0,.15)"  stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-sales"      class="eco-line" x1="190" y1="225" x2="46"  y2="268" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
-          <line id="line-estimation" class="eco-line" x1="190" y1="225" x2="64"  y2="168" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="3,5"/>
-          <!-- lines to ring3 -->
-          <line id="line-owner"      class="eco-line" x1="190" y1="225" x2="190" y2="32"  stroke="rgba(16,24,40,.12)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-accounts"   class="eco-line" x1="190" y1="225" x2="354" y2="85"  stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-delivery"   class="eco-line" x1="190" y1="225" x2="364" y2="385" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-hr"         class="eco-line" x1="190" y1="225" x2="190" y2="464" stroke="rgba(16,24,40,.12)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-approvals"  class="eco-line" x1="190" y1="225" x2="16"  y2="385" stroke="rgba(15,157,88,.35)" stroke-width="1" stroke-dasharray="2,6"/>
-          <line id="line-tally"      class="eco-line" x1="190" y1="225" x2="26"  y2="85"  stroke="rgba(16,24,40,.12)" stroke-width="1" stroke-dasharray="2,6"/>
-
-          <!-- ══ CENTER — MARAYA LOGO ══ -->
-          <g onclick="showPanel('center')" style="cursor:pointer;">
-            <circle cx="190" cy="225" r="58" fill="url(#CG)" opacity=".1" filter="url(#glow-center)"/>
-            <circle cx="190" cy="225" r="48" fill="url(#CG)"/>
-            <circle cx="190" cy="225" r="48" fill="none" stroke="rgba(154,53,96,.6)" stroke-width="1.5"/>
-            <!-- Maraya MA logo scaled and centered -->
-            <g transform="translate(163,198) scale(0.54)">
-              <rect x="4" y="4" width="92" height="92" rx="18" stroke="rgba(255,255,255,.95)" stroke-width="5" fill="none"/>
-              <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="white" stroke-width="6" stroke-linejoin="miter" stroke-linecap="square"/>
-              <polygon points="50,64 76,82 76,48" fill="none" stroke="white" stroke-width="5" stroke-linejoin="miter"/>
-              <line x1="57" y1="74" x2="76" y2="74" stroke="white" stroke-width="5"/>
-            </g>
-            <text x="190" y="258" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.55)" font-weight="700" letter-spacing="2.5">MARAYA</text>
-          </g>
-
-          <!-- RING 1 — OPERATIONS (built) -->
-          <g id="node-operations" class="eco-node eco-node-built" onclick="showPanel('operations')" style="cursor:pointer;">
-            <circle cx="190" cy="123" r="34" fill="rgba(15,157,88,.07)"/>
-            <circle cx="190" cy="123" r="28" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="190" cy="123" r="28" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
-            <text x="190" y="119" text-anchor="middle" font-size="15">⚙️</text>
-            <text x="190" y="131" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.85)" font-weight="700">OPERATIONS</text>
-            <circle cx="210" cy="103" r="8" fill="#0f9d58"/>
-            <text x="210" y="107" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
-          </g>
-
-          <!-- RING 2 CURTAIN (built) -->
-          <g id="node-curtain" class="eco-node eco-node-built" onclick="showPanel('curtain')" style="cursor:pointer;">
-            <circle cx="316" cy="168" r="28" fill="rgba(15,157,88,.07)"/>
-            <circle cx="316" cy="168" r="23" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="316" cy="168" r="23" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
-            <text x="316" y="164" text-anchor="middle" font-size="13">🪟</text>
-            <text x="316" y="176" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.85)" font-weight="700">CURTAIN</text>
-            <circle cx="330" cy="152" r="7" fill="#0f9d58"/>
-            <text x="330" y="156" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
-          </g>
-
-          <!-- RING 2 PURCHASER (built) -->
-          <g id="node-purchasing" class="eco-node eco-node-built" onclick="showPanel('purchasing')" style="cursor:pointer;">
-            <circle cx="270" cy="60" r="26" fill="rgba(212,160,23,.08)"/>
-            <circle cx="270" cy="60" r="21" fill="url(#PUG)" filter="url(#glow-ok)"/>
-            <circle cx="270" cy="60" r="21" fill="none" stroke="rgba(212,160,23,.6)" stroke-width="1.5"/>
-            <text x="270" y="56" text-anchor="middle" font-size="12">🛒</text>
-            <text x="270" y="68" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.85)" font-weight="700">PURCHASER</text>
-            <circle cx="283" cy="46" r="7" fill="#0f9d58"/>
-            <text x="283" y="50" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
-          </g>
-
-          <!-- RING 2 STOREKEEPER (built) -->
-          <g id="node-storekeeper" class="eco-node eco-node-built" onclick="showPanel('storekeeper')" style="cursor:pointer;">
-            <circle cx="245" cy="25" r="24" fill="rgba(15,157,88,.07)"/>
-            <circle cx="245" cy="25" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="245" cy="25" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
-            <text x="245" y="21" text-anchor="middle" font-size="11">📦</text>
-            <text x="245" y="32" text-anchor="middle" font-size="5.2" fill="rgba(255,255,255,.85)" font-weight="700">STOREKEEPER</text>
-            <circle cx="258" cy="11" r="7" fill="#0f9d58"/>
-            <text x="258" y="15" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
-          </g>
-
-          <!-- ══ CURTAIN SUB-BRANCHES ══ -->
-          <!-- Branch lines from Curtain (316,168) to sub-nodes -->
-          <line id="branch-tracks"  class="curt-branch" x1="316" y1="168" x2="355" y2="112" stroke="rgba(52,211,153,.28)" stroke-width="1" stroke-dasharray="3,4"/>
-          <line id="branch-qc"      class="curt-branch" x1="316" y1="168" x2="372" y2="168" stroke="rgba(52,211,153,.28)" stroke-width="1" stroke-dasharray="3,4"/>
-          <line id="branch-install" class="curt-branch" x1="316" y1="168" x2="355" y2="224" stroke="rgba(52,211,153,.28)" stroke-width="1" stroke-dasharray="3,4"/>
-
-          <!-- Sub-node: Tracks (355, 112) -->
-          <g id="sub-tracks" class="curt-subnode"
-            ontouchstart="subNodeTouch('tracks',true)"
-            ontouchend="subNodeTouch('tracks',false)"
-            ontouchcancel="subNodeTouch('tracks',false)"
-            onmousedown="subNodeTouch('tracks',true)"
-            onmouseup="subNodeTouch('tracks',false)"
-            onmouseleave="subNodeTouch('tracks',false)"
-            onclick="openTracksDashboard()">
-            <circle class="sub-glow" cx="355" cy="112" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
-            <circle class="sub-bg"   cx="355" cy="112" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
-            <text x="355" y="108" text-anchor="middle" font-size="9">🔩</text>
-            <text x="355" y="120" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.6)" font-weight="700">TRACKS</text>
-            <g id="badge-sub-tracks" style="display:none;">
-              <circle cx="364" cy="103" r="7" fill="#ef4444" stroke="#1e2a3b" stroke-width="1.5"/>
-              <text x="364" y="106" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
-            </g>
-          </g>
-
-          <!-- Sub-node: QC (372, 168) -->
-          <g id="sub-qc" class="curt-subnode"
-            ontouchstart="subNodeTouch('qc',true)"
-            ontouchend="subNodeTouch('qc',false)"
-            ontouchcancel="subNodeTouch('qc',false)"
-            onmousedown="subNodeTouch('qc',true)"
-            onmouseup="subNodeTouch('qc',false)"
-            onmouseleave="subNodeTouch('qc',false)"
-            onclick="openQCDashboard()">
-            <circle class="sub-glow" cx="372" cy="168" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
-            <circle class="sub-bg"   cx="372" cy="168" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
-            <text x="372" y="164" text-anchor="middle" font-size="9">🔍</text>
-            <text x="372" y="176" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.6)" font-weight="700">QC</text>
-            <g id="badge-sub-qc" style="display:none;">
-              <circle cx="381" cy="159" r="7" fill="#ef4444" stroke="#1e2a3b" stroke-width="1.5"/>
-              <text x="381" y="162" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
-            </g>
-          </g>
-
-          <!-- Sub-node: Installation (355, 224) -->
-          <g id="sub-install" class="curt-subnode"
-            ontouchstart="subNodeTouch('install',true)"
-            ontouchend="subNodeTouch('install',false)"
-            ontouchcancel="subNodeTouch('install',false)"
-            onmousedown="subNodeTouch('install',true)"
-            onmouseup="subNodeTouch('install',false)"
-            onmouseleave="subNodeTouch('install',false)"
-            onclick="openInstallCrewDashboard()">
-            <circle class="sub-glow" cx="355" cy="224" r="22" fill="rgba(52,211,153,.15)" opacity="0"/>
-            <circle class="sub-bg"   cx="355" cy="224" r="14" fill="rgba(15,157,88,.08)" stroke="rgba(52,211,153,.25)" stroke-width="1.2"/>
-            <text x="355" y="220" text-anchor="middle" font-size="9">🏠</text>
-            <text x="355" y="232" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.6)" font-weight="700">INSTALL</text>
-            <g id="badge-sub-install" style="display:none;">
-              <circle cx="364" cy="215" r="7" fill="#3b82f6" stroke="#1e2a3b" stroke-width="1.5"/>
-              <text x="364" y="218" text-anchor="middle" font-size="8" fill="#fff" font-weight="800">0</text>
-            </g>
-          </g>
-
-          <!-- RING 2 UPHOLSTERY (soon) -->
-          <g id="node-upholstery" class="eco-node" onclick="showPanel('upholstery')" style="cursor:pointer;opacity:.6;">
-            <circle cx="334" cy="268" r="23" fill="rgba(16,24,40,.03)"/>
-            <circle cx="334" cy="268" r="19" fill="#eef0f3"/>
-            <circle cx="334" cy="268" r="19" fill="none" stroke="rgba(16,24,40,.1)" stroke-width="1"/>
-            <text x="334" y="264" text-anchor="middle" font-size="12">🛋️</text>
-            <text x="334" y="276" text-anchor="middle" font-size="6" fill="rgba(16,24,40,.45)" font-weight="700">UPHOLSTERY</text>
-          </g>
-
-          <!-- RING 2 JOINERY (soon) -->
-          <g id="node-joinery" class="eco-node" onclick="showPanel('joinery')" style="cursor:pointer;opacity:.6;">
-            <circle cx="258" cy="358" r="23" fill="rgba(16,24,40,.03)"/>
-            <circle cx="258" cy="358" r="19" fill="#eef0f3"/>
-            <circle cx="258" cy="358" r="19" fill="none" stroke="rgba(16,24,40,.1)" stroke-width="1"/>
-            <text x="258" y="354" text-anchor="middle" font-size="12">🪵</text>
-            <text x="258" y="366" text-anchor="middle" font-size="6" fill="rgba(16,24,40,.45)" font-weight="700">JOINERY</text>
-          </g>
-
-          <!-- RING 2 PAINTING (soon) -->
-          <g id="node-painting" class="eco-node" onclick="showPanel('painting')" style="cursor:pointer;opacity:.6;">
-            <circle cx="122" cy="358" r="23" fill="rgba(16,24,40,.03)"/>
-            <circle cx="122" cy="358" r="19" fill="#eef0f3"/>
-            <circle cx="122" cy="358" r="19" fill="none" stroke="rgba(16,24,40,.1)" stroke-width="1"/>
-            <text x="122" y="354" text-anchor="middle" font-size="12">🎨</text>
-            <text x="122" y="366" text-anchor="middle" font-size="6" fill="rgba(16,24,40,.45)" font-weight="700">PAINTING</text>
-          </g>
-
-          <!-- RING 2 SALES (built) -->
-          <g id="node-sales" class="eco-node eco-node-built" onclick="showPanel('sales')" style="cursor:pointer;">
-            <circle cx="46" cy="268" r="24" fill="rgba(15,157,88,.07)"/>
-            <circle cx="46" cy="268" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="46" cy="268" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
-            <text x="46" y="264" text-anchor="middle" font-size="12">💼</text>
-            <text x="46" y="276" text-anchor="middle" font-size="6" fill="rgba(255,255,255,.85)" font-weight="700">SALES</text>
-            <circle cx="59" cy="254" r="7" fill="#0f9d58"/>
-            <text x="59" y="258" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
-            <circle cx="33" cy="282" r="7" fill="#0774F8"/>
-            <text x="33" y="286" text-anchor="middle" font-size="8.5" fill="white" font-weight="800">1</text>
-          </g>
-
-          <!-- RING 2 ESTIMATOR (built) -->
-          <g id="node-estimation" class="eco-node eco-node-built" onclick="showPanel('estimation')" style="cursor:pointer;">
-            <circle cx="64" cy="168" r="24" fill="rgba(15,157,88,.07)"/>
-            <circle cx="64" cy="168" r="19" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="64" cy="168" r="19" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.5"/>
-            <text x="64" y="164" text-anchor="middle" font-size="12">📐</text>
-            <text x="64" y="176" text-anchor="middle" font-size="5.2" fill="rgba(255,255,255,.85)" font-weight="700">ESTIMATOR</text>
-            <circle cx="77" cy="154" r="7" fill="#0f9d58"/>
-            <text x="77" y="158" text-anchor="middle" font-size="9" fill="white" font-weight="800">✓</text>
-            <circle cx="51" cy="182" r="7" fill="#0774F8"/>
-            <text x="51" y="186" text-anchor="middle" font-size="8.5" fill="white" font-weight="800">2</text>
-          </g>
-
-          <!-- RING 3 (outer, all soon) -->
-          <g id="node-owner" class="eco-node" onclick="showPanel('owner')" style="cursor:pointer;opacity:.55;">
-            <circle cx="190" cy="32" r="16" fill="rgba(16,24,40,.03)"/>
-            <circle cx="190" cy="32" r="12" fill="#eef0f3"/>
-            <text x="190" y="28" text-anchor="middle" font-size="9">👑</text>
-            <text x="190" y="38" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.4)" font-weight="700">OWNER</text>
-          </g>
-          <g id="node-accounts" class="eco-node eco-node-built" onclick="showPanel('accounts')" style="cursor:pointer;">
-            <circle cx="354" cy="85" r="17" fill="rgba(15,157,88,.07)"/>
-            <circle cx="354" cy="85" r="12" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="354" cy="85" r="12" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
-            <text x="354" y="81" text-anchor="middle" font-size="9">💰</text>
-            <text x="354" y="91" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.85)" font-weight="700">ACCOUNTS</text>
-            <circle cx="364" cy="75" r="6.5" fill="#0774F8"/>
-            <text x="364" y="78.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">5</text>
-          </g>
-          <g id="node-delivery" class="eco-node eco-node-built" onclick="showPanel('delivery')" style="cursor:pointer;">
-            <circle cx="364" cy="385" r="17" fill="rgba(15,157,88,.07)"/>
-            <circle cx="364" cy="385" r="12" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="364" cy="385" r="12" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
-            <text x="364" y="381" text-anchor="middle" font-size="9">🗂️</text>
-            <text x="364" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.85)" font-weight="700">JOBS</text>
-            <circle cx="374" cy="375" r="6.5" fill="#0774F8"/>
-            <text x="374" y="378.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">4</text>
-          </g>
-          <g id="node-hr" class="eco-node" onclick="showPanel('hr')" style="cursor:pointer;opacity:.55;">
-            <circle cx="190" cy="464" r="16" fill="rgba(16,24,40,.03)"/>
-            <circle cx="190" cy="464" r="12" fill="#eef0f3"/>
-            <text x="190" y="460" text-anchor="middle" font-size="9">👥</text>
-            <text x="190" y="470" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.4)" font-weight="700">HR</text>
-          </g>
-          <g id="node-approvals" class="eco-node eco-node-built" onclick="showPanel('approvals')" style="cursor:pointer;">
-            <circle cx="16" cy="385" r="17" fill="rgba(15,157,88,.07)"/>
-            <circle cx="16" cy="385" r="12" fill="url(#OKG)" filter="url(#glow-ok)"/>
-            <circle cx="16" cy="385" r="12" fill="none" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
-            <text x="16" y="381" text-anchor="middle" font-size="9">✅</text>
-            <text x="16" y="391" text-anchor="middle" font-size="5.5" fill="rgba(255,255,255,.85)" font-weight="700">APPROVER</text>
-            <circle cx="6" cy="395" r="6.5" fill="#0774F8"/>
-            <text x="6" y="398.5" text-anchor="middle" font-size="8" fill="white" font-weight="800">3</text>
-          </g>
-          <g id="node-tally" class="eco-node" onclick="showPanel('tally')" style="cursor:pointer;opacity:.55;">
-            <circle cx="26" cy="85" r="16" fill="rgba(16,24,40,.03)"/>
-            <circle cx="26" cy="85" r="12" fill="#eef0f3"/>
-            <text x="26" y="81" text-anchor="middle" font-size="9">🔗</text>
-            <text x="26" y="91" text-anchor="middle" font-size="5.5" fill="rgba(16,24,40,.4)" font-weight="700">TALLY</text>
-          </g>
-
-          <!-- LEGEND -->
-          <g transform="translate(10,482)">
-            <circle cx="7" cy="6" r="5" fill="#0f9d58"/><text x="16" y="10" font-size="8" fill="rgba(16,24,40,.5)">Built</text>
-            <circle cx="54" cy="6" r="5" fill="#c47d00"/><text x="63" y="10" font-size="8" fill="rgba(16,24,40,.5)">Building</text>
-            <circle cx="110" cy="6" r="5" fill="#d8dbe0"/><text x="119" y="10" font-size="8" fill="rgba(16,24,40,.4)">Planned</text>
-          </g>
-        </svg>
+        <div id="eco3d"></div>
       </div>
 
       <div class="quick-stats">
@@ -1705,232 +1426,255 @@ function subNodeTouch(id, active) {
 }
 </script>
 
-<script>
+<script type="module">
 // ═══════════════════════════════════════════════════════
-// ECOSYSTEM LIVE ANIMATION
-// Touch/glide — nodes light green, lines zap with electricity
-// Built nodes → direct launch   Soon nodes → tooltip flash
+// ECOSYSTEM 3D HUB — "S.A" purple constellation
+// Replaces the flat 2D SVG map. Hub + branch nodes only (no leaves yet).
+// Built modules glow bright; planned modules stay dim/faint — status is
+// carried entirely by radiance/opacity, one purple hue throughout, per
+// the redesign brief. Pure-black canvas is a deliberate exception to the
+// rest of the app's light system (see CLAUDE.md session log).
 // ═══════════════════════════════════════════════════════
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-(function() {
+// Same module registry/launch functions the old SVG hub used — reused
+// unchanged so tapping a branch still opens the real module.
+const NODES = [
+  { id:'operations',  label:'Operations',      built:true,  launch:()=>{ closePanel(); setTimeout(()=>goTo('operations'),150); } },
+  { id:'curtain',      label:'Curtain & Blinds', built:true, launch:()=>{ closePanel(); setTimeout(()=>launchCurtainModule(),150); } },
+  { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPurchasingModule(),150); } },
+  { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchStorekeeperModule(),150); } },
+  { id:'upholstery',  label:'Upholstery',       built:false },
+  { id:'joinery',      label:'Joinery',          built:false },
+  { id:'painting',    label:'Painting',         built:false },
+  { id:'sales',        label:'Sales',            built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchSalesModule(),150); } },
+  { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
+  { id:'owner',        label:'Owner Dashboard',  built:false },
+  { id:'accounts',    label:'Accounts',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAccountsModule(),150); } },
+  { id:'delivery',     label:'Jobs',             built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJobsModule(),150); } },
+  { id:'hr',            label:'HR & Payroll',     built:false },
+  { id:'approvals',    label:'Approver',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
+  { id:'tally',         label:'Tally Bridge',     built:false },
+];
 
-  // ── Node registry ──────────────────────────────────────
-  // cx/cy are SVG coordinates; hitRadius is the touch catch zone
-  const NODES = [
-    { id:'operations', cx:190, cy:123, built:true,  launch:()=>{ closePanel(); setTimeout(()=>goTo('operations'),150); } },
-    { id:'curtain',    cx:316, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchCurtainModule(),150); } },
-    { id:'purchasing', cx:270, cy:60,  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPurchasingModule(),150); } },
-    { id:'storekeeper', cx:245, cy:25, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchStorekeeperModule(),150); } },
-    // Sub-nodes (Curtain children — direct launch)
-    { id:'sub-tracks', cx:355, cy:112, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openTracksDashboard&&openTracksDashboard(),150); }, isSubNode:true },
-    { id:'sub-qc',     cx:372, cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openQCDashboard&&openQCDashboard(),150); },     isSubNode:true },
-    { id:'sub-install',cx:355, cy:224, built:true,  launch:()=>{ closePanel(); setTimeout(()=>openInstallCrewDashboard&&openInstallCrewDashboard(),150); }, isSubNode:true },
-    // Ring 2 soon
-    { id:'upholstery', cx:334, cy:268, built:false },
-    { id:'joinery',    cx:258, cy:358, built:false },
-    { id:'painting',   cx:122, cy:358, built:false },
-    { id:'sales',      cx:46,  cy:268, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchSalesModule(),150); } },
-    { id:'estimation', cx:64,  cy:168, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
-    // Ring 3 soon
-    { id:'owner',      cx:190, cy:32,  built:false },
-    { id:'accounts',   cx:354, cy:85,  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAccountsModule(),150); } },
-    { id:'delivery',   cx:364, cy:385, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJobsModule(),150); } },
-    { id:'hr',         cx:190, cy:464, built:false },
-    { id:'approvals',  cx:16,  cy:385, built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
-    { id:'tally',      cx:26,  cy:85,  built:false },
-  ];
+const PURPLE = 0x9b5cff;       // one accent, all nodes
+const BUILT_OPACITY = 0.95;
+const BUILDING_OPACITY = 0.55; // unused today (0 modules), kept for later
+const PLANNED_OPACITY = 0.16;
 
-  // Hit radii per ring
-  const HIT = { 'operations':36, 'curtain':30, default:26, subNode:20 };
+function statusOpacity(n) {
+  if (n.built) return BUILT_OPACITY;
+  if (n.building) return BUILDING_OPACITY;
+  return PLANNED_OPACITY;
+}
 
-  function getHit(n) {
-    if (n.isSubNode) return HIT.subNode;
-    return HIT[n.id] || HIT.default;
+const app = document.getElementById('eco3d');
+if (app) {
+  const scene = new THREE.Scene();
+  const BASE_FOV = 46, FOCUS_FOV = 30;
+  let w = app.clientWidth || 380, h = app.clientHeight || 500;
+  const camera = new THREE.PerspectiveCamera(BASE_FOV, w / h, 0.1, 100);
+  camera.position.set(0, 1.6, 5.6);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h);
+  app.appendChild(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.35;
+  controls.minDistance = 2;
+  controls.maxDistance = 10;
+  controls.target.set(0, 0, 0);
+  let idleTimer = null;
+  controls.addEventListener('start', () => { controls.autoRotate = false; if (idleTimer) clearTimeout(idleTimer); });
+  controls.addEventListener('end', () => { idleTimer = setTimeout(() => { controls.autoRotate = true; }, 3500); });
+
+  function makeNode(radius, color) {
+    const geo = new THREE.IcosahedronGeometry(radius, 1);
+    const wireGeo = new THREE.WireframeGeometry(geo);
+    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
+    const mesh = new THREE.LineSegments(wireGeo, mat);
+    const hitMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ visible: false }));
+    mesh.add(hitMesh);
+    mesh.userData.hitMesh = hitMesh;
+    return mesh;
   }
 
-  // ── State ──────────────────────────────────────────────
-  let litNodes = new Set();
+  const R_BRANCH = 2.0;
+  const hub = makeNode(0.28, PURPLE);
+  hub.userData = { key: 'hub', isHub: true };
+  scene.add(hub);
+
+  const branchGroup = new THREE.Group();
+  scene.add(branchGroup);
+  const branches = NODES.map((n, i) => {
+    const angle = (i / NODES.length) * Math.PI * 2;
+    const mesh = makeNode(0.16, PURPLE);
+    mesh.userData = { node: n, baseAngle: angle, baseOpacity: statusOpacity(n) };
+    mesh.position.set(Math.cos(angle) * R_BRANCH, 0, Math.sin(angle) * R_BRANCH);
+    mesh.material.opacity = statusOpacity(n);
+    branchGroup.add(mesh);
+    return mesh;
+  });
+
+  const linkLines = branches.map((b) => {
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), b.position.clone()]);
+    const mat = new THREE.LineBasicMaterial({ color: PURPLE, transparent: true, opacity: b.userData.baseOpacity * 0.3 });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    return line;
+  });
+
+  let selectedBranch = null;
+
+  const labelsLayer = document.createElement('div');
+  labelsLayer.style.position = 'absolute';
+  labelsLayer.style.inset = '0';
+  labelsLayer.style.pointerEvents = 'none';
+  app.style.position = 'relative';
+  app.appendChild(labelsLayer);
+
+  function makeLabel(text, isHub) {
+    const el = document.createElement('div');
+    el.className = 'eco3d-lbl' + (isHub ? ' hub' : '');
+    el.textContent = text;
+    labelsLayer.appendChild(el);
+    return el;
+  }
+  const hubLabelEl = makeLabel('S.A', true);
+  const branchLabels = branches.map(b => makeLabel(b.userData.node.label, false));
+
+  function updateLabel(el, obj3d, dim) {
+    const v = new THREE.Vector3();
+    obj3d.getWorldPosition(v);
+    v.project(camera);
+    if (v.z > 1) { el.style.left = '-999px'; return; }
+    const x = (v.x * 0.5 + 0.5) * app.clientWidth;
+    const y = (-v.y * 0.5 + 0.5) * app.clientHeight;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.opacity = dim;
+  }
+
+  const raycaster = new THREE.Raycaster();
+  const pointerNDC = new THREE.Vector2();
+  let downPos = null;
+
+  function toNDC(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  const ecoTooltip = document.getElementById('eco-tooltip');
   let tooltipTimer = null;
-  const tooltip   = document.getElementById('eco-tooltip');
-
-  // ── Helpers ────────────────────────────────────────────
-  function getNodeEl(n) {
-    return document.getElementById('node-' + n.id) || document.getElementById(n.id);
-  }
-  function getLineEl(n) {
-    if (n.isSubNode) return document.getElementById('branch-' + n.id.replace('sub-',''));
-    return document.getElementById('line-' + n.id);
-  }
-
-  function litNode(n, on) {
-    const el = getNodeEl(n);
-    if (!el) return;
-    const lineEl = getLineEl(n);
-    if (on) {
-      el.classList.add(n.built ? 'eco-lit' : 'eco-soon-lit');
-      if (lineEl) lineEl.classList.add('eco-zap');
-    } else {
-      el.classList.remove('eco-lit', 'eco-soon-lit');
-      if (lineEl) lineEl.classList.remove('eco-zap');
-    }
-  }
-
-  function clearAll() {
-    litNodes.forEach(n => litNode(n, false));
-    litNodes.clear();
-  }
-
-  // Show "Coming soon" tooltip near SVG node
-  function showTooltip(n, svgEl) {
-    if (!tooltip || !svgEl) return;
-    const rect   = svgEl.getBoundingClientRect();
-    const vb     = svgEl.viewBox.baseVal; // 0 0 380 500
-    const scaleX = rect.width  / vb.width;
-    const scaleY = rect.height / vb.height;
-    const x = rect.left + n.cx * scaleX;
-    const y = rect.top  + n.cy * scaleY;
-
-    tooltip.style.left = x + 'px';
-    tooltip.style.top  = y + 'px';
-    tooltip.classList.add('show');
+  function showPlannedTooltip(branch) {
+    if (!ecoTooltip) return;
+    const v = new THREE.Vector3();
+    branch.getWorldPosition(v);
+    v.project(camera);
+    const x = (v.x * 0.5 + 0.5) * app.clientWidth + app.getBoundingClientRect().left;
+    const y = (-v.y * 0.5 + 0.5) * app.clientHeight + app.getBoundingClientRect().top;
+    ecoTooltip.style.left = x + 'px';
+    ecoTooltip.style.top = y + 'px';
+    ecoTooltip.classList.add('show');
     if (tooltipTimer) clearTimeout(tooltipTimer);
-    tooltipTimer = setTimeout(() => tooltip.classList.remove('show'), 1200);
+    tooltipTimer = setTimeout(() => ecoTooltip.classList.remove('show'), 1200);
   }
 
-  // ── SVG coordinate from pointer event ─────────────────
-  function svgPoint(svg, e) {
-    const pt = svg.createSVGPoint();
-    const touch = e.touches ? e.touches[0] : e;
-    pt.x = touch.clientX;
-    pt.y = touch.clientY;
-    return pt.matrixTransform(svg.getScreenCTM().inverse());
-  }
+  renderer.domElement.addEventListener('pointerdown', (e) => { downPos = { x: e.clientX, y: e.clientY }; });
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!downPos) return;
+    const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+    downPos = null;
+    if (dist > 6) return;
+    toNDC(e);
+    raycaster.setFromCamera(pointerNDC, camera);
 
-  // ── Find nodes under SVG point ─────────────────────────
-  function nodesAt(svgPt) {
-    return NODES.filter(n => {
-      const dx = svgPt.x - n.cx;
-      const dy = svgPt.y - n.cy;
-      return Math.sqrt(dx*dx + dy*dy) <= getHit(n);
-    });
-  }
-
-  // ── Debounce for tap vs glide distinction ──────────────
-  let tapStart = null;
-  let tapMoved = false;
-
-  // ── Wire up events on the SVG ─────────────────────────
-  function initEco() {
-    const svg = document.querySelector('.eco-svg');
-    if (!svg) { setTimeout(initEco, 200); return; }
-
-    // Touch start — record position, begin lighting
-    svg.addEventListener('touchstart', function(e) {
-      tapStart  = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      tapMoved  = false;
-      const pt  = svgPoint(svg, e);
-      const hit = nodesAt(pt);
-      clearAll();
-      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
-    }, { passive:true });
-
-    // Touch move — glide lights up nodes as finger passes
-    svg.addEventListener('touchmove', function(e) {
-      if (tapStart) {
-        const dx = e.touches[0].clientX - tapStart.x;
-        const dy = e.touches[0].clientY - tapStart.y;
-        if (Math.sqrt(dx*dx + dy*dy) > 6) tapMoved = true;
+    if (selectedBranch) {
+      const hubHit = raycaster.intersectObject(hub.userData.hitMesh);
+      const branchHit = raycaster.intersectObjects(branches.map(m => m.userData.hitMesh));
+      if (hubHit.length || (branchHit.length && branchHit[0].object.parent === selectedBranch)) {
+        selectedBranch = null;
+        return;
       }
-      const pt  = svgPoint(svg, e);
-      const hit = nodesAt(pt);
-
-      // Light new hits, keep previously lit for 400ms fade
-      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
-    }, { passive:true });
-
-    // Touch end — if short tap (no move) trigger action
-    svg.addEventListener('touchend', function(e) {
-      if (!tapMoved && litNodes.size > 0) {
-        const firstNode = [...litNodes][0];
-        handleNodeTap(firstNode, svg);
-      }
-      // Fade out all lit nodes after brief hold
-      setTimeout(clearAll, 350);
-      tapStart = null; tapMoved = false;
-    }, { passive:true });
-
-    svg.addEventListener('touchcancel', function() {
-      setTimeout(clearAll, 200);
-      tapStart = null;
-    }, { passive:true });
-
-    // Mouse equivalents for desktop testing
-    let mouseDown = false;
-    svg.addEventListener('mousedown', function(e) {
-      mouseDown = true;
-      tapMoved  = false;
-      tapStart  = { x: e.clientX, y: e.clientY };
-      const pt  = svgPoint(svg, e);
-      const hit = nodesAt(pt);
-      clearAll();
-      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
-    });
-    svg.addEventListener('mousemove', function(e) {
-      if (!mouseDown) return;
-      if (tapStart) {
-        const dx = e.clientX - tapStart.x;
-        const dy = e.clientY - tapStart.y;
-        if (Math.sqrt(dx*dx + dy*dy) > 6) tapMoved = true;
-      }
-      const pt  = svgPoint(svg, e);
-      const hit = nodesAt(pt);
-      hit.forEach(n => { litNodes.add(n); litNode(n, true); });
-    });
-    svg.addEventListener('mouseup', function(e) {
-      if (!tapMoved && litNodes.size > 0) {
-        const firstNode = [...litNodes][0];
-        handleNodeTap(firstNode, svg);
-      }
-      mouseDown = false;
-      setTimeout(clearAll, 350);
-      tapStart = null;
-    });
-    svg.addEventListener('mouseleave', function() {
-      mouseDown = false;
-      setTimeout(clearAll, 200);
-    });
-  }
-
-  // ── Handle a confirmed tap on a node ──────────────────
-  function handleNodeTap(n, svg) {
-    if (n.built && n.launch) {
-      // Prevent the SVG onclick from also firing showPanel
-      // by intercepting — the onclick on the <g> still fires
-      // but we override: for built nodes we call launch directly.
-      // We need to suppress showPanel for built nodes.
-      // Strategy: set a flag that showPanel checks.
-      window._ecoDirectLaunch = true;
-      n.launch();
-      setTimeout(() => { window._ecoDirectLaunch = false; }, 500);
-    } else {
-      // Soon node — show tooltip only, no panel
-      window._ecoDirectLaunch = true;
-      showTooltip(n, svg);
-      setTimeout(() => { window._ecoDirectLaunch = false; }, 500);
     }
+    const hit = raycaster.intersectObjects(branches.map(m => m.userData.hitMesh));
+    if (hit.length) {
+      const branch = hit[0].object.parent;
+      const n = branch.userData.node;
+      if (n.built) {
+        n.launch();
+      } else {
+        selectedBranch = branch;
+        showPlannedTooltip(branch);
+        setTimeout(() => { if (selectedBranch === branch) selectedBranch = null; }, 1200);
+      }
+    }
+  });
+
+  function resize() {
+    if (!app.clientWidth || !app.clientHeight) return;
+    camera.aspect = app.clientWidth / app.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(app.clientWidth, app.clientHeight);
   }
+  window.addEventListener('resize', resize);
 
-  // ── Patch showPanel to respect direct-launch flag ─────
-  const _origShowPanel = window.showPanel;
-  window.showPanel = function(id) {
-    if (window._ecoDirectLaunch) return; // suppress panel on direct launch
-    _origShowPanel && _origShowPanel(id);
-  };
+  const clock = new THREE.Clock();
+  function animate() {
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
 
-  // ── Init ───────────────────────────────────────────────
-  initEco();
+    branches.forEach(b => {
+      if (b === selectedBranch) return;
+      const a = b.userData.baseAngle + t * 0.06;
+      b.position.set(Math.cos(a) * R_BRANCH, 0, Math.sin(a) * R_BRANCH);
+      b.rotation.y += 0.002;
+      b.rotation.x += 0.001;
+    });
 
-})();
+    hub.rotation.y += 0.0015;
+    const pulse = 0.85 + Math.sin(t * 2.0) * 0.15;
+    hub.scale.setScalar(pulse);
+
+    branches.forEach((b, i) => {
+      const isFocused = b === selectedBranch;
+      const base = b.userData.baseOpacity;
+      const dim = selectedBranch ? base * 0.25 : base;
+      b.material.opacity = isFocused ? Math.max(base, 0.9) : dim;
+      linkLines[i].material.opacity = selectedBranch
+        ? (isFocused ? base * 0.6 : base * 0.08)
+        : (base * 0.25 + Math.sin(t * 1.6 - i * 0.4) * base * 0.08);
+    });
+    hub.material.opacity = selectedBranch ? 0.4 : 0.95;
+
+    const desiredTarget = selectedBranch ? selectedBranch.position : new THREE.Vector3(0, 0, 0);
+    controls.target.lerp(desiredTarget, 0.06);
+    const desiredFov = selectedBranch ? FOCUS_FOV : BASE_FOV;
+    camera.fov += (desiredFov - camera.fov) * 0.06;
+    camera.updateProjectionMatrix();
+
+    controls.update();
+    renderer.render(scene, camera);
+
+    updateLabel(hubLabelEl, hub, selectedBranch ? '0.3' : '1');
+    branches.forEach((b, i) => {
+      const base = b.userData.baseOpacity;
+      const labelOpacity = selectedBranch
+        ? (b === selectedBranch ? '1' : String(base * 0.2))
+        : String(Math.min(base + 0.35, 1));
+      updateLabel(branchLabels[i], b, labelOpacity);
+    });
+  }
+  animate();
+  window.__eco3d = { scene, camera, renderer, hub, branches, NODES };
+}
 </script>
 </body>
 </html>
