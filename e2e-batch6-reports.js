@@ -72,6 +72,7 @@ async function openNode(page, nodeId, wrapId, label) {
       addQuotationItem(qtn.id, { product: 'Curtain Set', qty: 2, unit: 'Nos', rate: 100, vatPercent: 10, discPercent: 0 });
       approveQuotation(qtn.id, 'Salman Abdullah');
       const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
+      confirmJobRouting(job.id, {}, 'Operations Manager'); // Generate Invoice requires routing to be confirmed (4 Aug 2026 audit fix)
       const inv = generateInvoiceFromJob(job.id);
       createSalesReceipt({ customerId: cust.id, methods: { cash: { enabled: true, amount: 50 } }, amount: 50, allocations: [{ invoiceId: inv.id, payingAmount: 50 }] });
       const ledgerSales = ledgers.find(l => l.name === 'Sales');

@@ -1068,7 +1068,7 @@ function renderSalesMyJobs() {
         <p style="font-size:11.5px;color:#64748b;">${esc(j.id)} · BD ${j.amount.toFixed(3)} · Confirmed ${j.confirmDate}</p>
         <p style="font-size:11px;color:#94a3b8;">${esc(j.deptProgress)}</p>
         <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="secondary" style="flex:1;font-size:11.5px;padding:6px 10px;" onclick="jobsNewVariation('${j.id}')">+ Add Variation</button>
+          <button class="secondary" style="flex:1;font-size:11.5px;padding:6px 10px;${j.status === 'cancelled' ? 'opacity:.5;cursor:not-allowed;' : ''}" onclick="${j.status === 'cancelled' ? `salesAlert('This job is cancelled.')` : `jobsNewVariation('${j.id}')`}">+ Add Variation</button>
           <button class="secondary" style="flex:1;font-size:11.5px;padding:6px 10px;" onclick="salesRequestPurchase('${j.id}')">+ Request Purchase</button>
         </div>
       </div>`).join('');

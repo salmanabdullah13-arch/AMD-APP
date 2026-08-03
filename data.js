@@ -4136,6 +4136,7 @@ function nextVariationRev(jobId) { return quotations.filter(q => q.parentJobId =
 function createVariationForJob(jobId, { notes = "" } = {}) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
+  if (job.status === "cancelled") return { error: "This job is cancelled — a Variation can't be added to it." };
   const origQtn = quotations.find(q => q.id === job.quotationId);
   const rev = nextVariationRev(jobId);
   const baseId = job.quotationId.replace(/-\d+$/, "");
@@ -4221,9 +4222,22 @@ function refreshJobFromQuotation(jobId) {
 function nextDeliveryNoteId(job) { return "DN-" + job.id + "-" + (job.deliveryNotes.length + 1); }
 // entries: [{ lineId, requiredQty }] — increments deliveredQty on each line,
 // capped at the line's own Qty (can't over-deliver).
+// routingConfirmed guard (4 Aug 2026 audit finding): this and the 3
+// functions below were only gated at the UI level (jobs.js disabled the
+// tiles/button) — a real loophole, since nothing stopped these from being
+// called directly, bypassing the "Awaiting Operations Routing" lock
+// entirely. Enforced here now too, matching how every other real gate in
+// this app validates at the data layer, not just the UI. Also blocks a
+// cancelled job regardless of its routing status — a job routed before
+// being cancelled previously stayed fully invoiceable/issuable forever,
+// since nothing here ever checked job.status (the department production
+// queues already excluded cancelled jobs — getJobsPendingRouting()/
+// getDepartmentQueue() — this was the one place that didn't).
 function addDeliveryNote(jobId, entries) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
+  if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
+  if (job.status === "cancelled") return { error: "This job is cancelled." };
   const lines = entries.map(e => {
     const item = job.items.find(it => it.lineId === e.lineId);
     if (!item) return null;
@@ -4247,6 +4261,8 @@ function nextMaterialsMoveId(job, kind) { return kind + "-" + job.id + "-" + (jo
 function addMaterialsIssue(jobId, { location, items }) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
+  if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
+  if (job.status === "cancelled") return { error: "This job is cancelled." };
   if (!location) return { error: "Location is required." };
   const move = { id: nextMaterialsMoveId(job, "MI"), date: new Date().toISOString().slice(0, 10), location, items, status: "confirmed" };
   job.materialsIssues.push(move);
@@ -4261,6 +4277,8 @@ function addMaterialsIssue(jobId, { location, items }) {
 function addMaterialsReturn(jobId, { location, items }) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
+  if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
+  if (job.status === "cancelled") return { error: "This job is cancelled." };
   if (!location) return { error: "Location is required." };
   const move = { id: nextMaterialsMoveId(job, "MR"), date: new Date().toISOString().slice(0, 10), location, items, status: "confirmed" };
   job.materialsReturns.push(move);
@@ -4380,6 +4398,8 @@ function getInvoicesForJob(jobId) { return taxInvoices.filter(inv => inv.jobId =
 function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } = {}) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
+  if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
+  if (job.status === "cancelled") return { error: "This job is cancelled." };
   const total = job.items.reduce((s, it) => s + it.amount, 0);
   const vat = job.items.reduce((s, it) => s + (it.amount * (it.vatPercent || 0) / 100), 0) * (invoicedPercent / 100);
   const invoicedTotal = total * (invoicedPercent / 100);

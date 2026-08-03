@@ -65,6 +65,22 @@ async function openNode(page, nodeId, wrapId) {
   });
   record('Freshly confirmed job starts with routingConfirmed=false', seed.routingConfirmed === false ? 'PASS' : 'FAIL', JSON.stringify(seed));
 
+  // ── Data-layer enforcement, not just UI decoration (4 Aug 2026 audit
+  // finding: the gate was originally only a disabled tile in jobs.js —
+  // nothing stopped these being called directly, bypassing the lock
+  // entirely). Confirms the real guard now lives in data.js itself. ──
+  currentStep = 'data-layer-guard-not-just-ui';
+  const directCallResults = await page.evaluate((jobId) => ({
+    invoice: generateInvoiceFromJob(jobId),
+    deliveryNote: addDeliveryNote(jobId, [{ lineId: 1, requiredQty: 1 }]),
+    materialsIssue: addMaterialsIssue(jobId, { location: 'Main Store', items: [] }),
+    materialsReturn: addMaterialsReturn(jobId, { location: 'Main Store', items: [] })
+  }), seed.jobId);
+  record('generateInvoiceFromJob() rejects directly when unrouted (not just the UI button)', directCallResults.invoice && directCallResults.invoice.error ? 'PASS' : 'FAIL', JSON.stringify(directCallResults.invoice));
+  record('addDeliveryNote() rejects directly when unrouted', directCallResults.deliveryNote && directCallResults.deliveryNote.error ? 'PASS' : 'FAIL', JSON.stringify(directCallResults.deliveryNote));
+  record('addMaterialsIssue() rejects directly when unrouted', directCallResults.materialsIssue && directCallResults.materialsIssue.error ? 'PASS' : 'FAIL', JSON.stringify(directCallResults.materialsIssue));
+  record('addMaterialsReturn() rejects directly when unrouted', directCallResults.materialsReturn && directCallResults.materialsReturn.error ? 'PASS' : 'FAIL', JSON.stringify(directCallResults.materialsReturn));
+
   // ── Pre-routing: production actions locked, Tasks/Variations open ──
   currentStep = 'pre-routing-hub';
   await openNode(page, 'delivery', 'jobs-module-wrap');
@@ -140,6 +156,50 @@ async function openNode(page, nodeId, wrapId) {
     matchesJob: prFormDraft && prFormDraft.linkedJobId === jobId
   }), seed.jobId);
   record('Request Purchase opens Purchasing\'s real PR form pre-filled with this job', prFormState.purchWrapVisible && prFormState.panelVisible && prFormState.matchesJob ? 'PASS' : 'FAIL', JSON.stringify(prFormState));
+
+  // ── A job routed then CANCELLED must re-lock (4 Aug 2026 audit finding:
+  // a job routed before cancellation previously stayed fully invoiceable/
+  // issuable forever, since nothing checked job.status — the department
+  // production queues already excluded cancelled jobs, this hub didn't).
+  // Uses its own fresh job so it doesn't disturb the checks above. ──
+  currentStep = 'cancelled-job-relocks';
+  const cancelSeed = await page.evaluate(() => {
+    const cust = createCustomer({ name: 'CancelGate Client', contactPerson: 'Zara', tel: '39776611', address: 'Manama' });
+    const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Zara', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
+    const q = convertEnquiryToQuotation(enq.id, { projectName: 'CancelGate Project', taxPercent: 10, contactPerson: 'Zara' });
+    addQuotationItem(q.id, { product: 'Test Cabinet', qty: 1, unit: 'Nos' });
+    approveQuotation(q.id, 'Salman Abdullah');
+    const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
+    confirmJobRouting(job.id, {}, 'Operations Manager');
+    jobsSetStatus(job.id, 'cancelled');
+    return { jobId: job.id };
+  });
+  await page.evaluate((jobId) => { openJobHub(jobId); }, cancelSeed.jobId);
+  await page.waitForTimeout(200);
+  await shot(page, 'job-hub-cancelled');
+  const cancelledState = await page.evaluate(() => {
+    const html = document.getElementById('jobs-body').innerHTML;
+    return {
+      bannerShown: html.includes('This job is cancelled'),
+      deliveryLocked: !/onclick="openDeliveryNote\(/.test(html),
+      invoiceLocked: !/onclick="jobsGenerateInvoice\(/.test(html)
+    };
+  });
+  record('Cancelled-job banner shown even though it was already routed', cancelledState.bannerShown ? 'PASS' : 'FAIL', JSON.stringify(cancelledState));
+  record('Delivery Note re-locks once the (already-routed) job is cancelled', cancelledState.deliveryLocked ? 'PASS' : 'FAIL');
+  record('Generate Invoice re-locks once the (already-routed) job is cancelled', cancelledState.invoiceLocked ? 'PASS' : 'FAIL');
+
+  const cancelledDirectCalls = await page.evaluate((jobId) => ({
+    invoice: generateInvoiceFromJob(jobId),
+    materialsIssue: addMaterialsIssue(jobId, { location: 'Main Store', items: [] })
+  }), cancelSeed.jobId);
+  record('generateInvoiceFromJob() rejects directly for a cancelled job (data-layer, not just UI)', cancelledDirectCalls.invoice && cancelledDirectCalls.invoice.error ? 'PASS' : 'FAIL', JSON.stringify(cancelledDirectCalls.invoice));
+  record('addMaterialsIssue() rejects directly for a cancelled job', cancelledDirectCalls.materialsIssue && cancelledDirectCalls.materialsIssue.error ? 'PASS' : 'FAIL', JSON.stringify(cancelledDirectCalls.materialsIssue));
+
+  const newVariationLockedInHub = await page.evaluate(() => document.getElementById('jobs-body').innerHTML.includes('This job is cancelled') && !/onclick="jobsNewVariation\(/.test(document.getElementById('jobs-body').innerHTML));
+  record('New Variation tile is also locked in the Job Card hub for a cancelled job', newVariationLockedInHub ? 'PASS' : 'FAIL');
+  const createVariationRejected = await page.evaluate((jobId) => createVariationForJob(jobId), cancelSeed.jobId);
+  record('createVariationForJob() rejects directly for a cancelled job (data-layer)', createVariationRejected && createVariationRejected.error ? 'PASS' : 'FAIL', JSON.stringify(createVariationRejected));
 
   await browser.close();
   printReport();

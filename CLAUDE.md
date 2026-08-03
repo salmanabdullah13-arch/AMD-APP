@@ -2590,3 +2590,68 @@ follow-up ask, with findings written up for him to review.
   anywhere in `sw.js`. Full regression: all 16 prior suites re-confirmed
   (188/188) plus this session's 9/9 — 197/197 total, back-button-check
   clean across all 13 modules, zero console/page errors.
+
+### 4 Aug 2026 (late night, continued) — Full audit pass: real loopholes found and closed
+
+Per Salman's ask, ran a systematic audit across the whole app rather than
+just the newest features: a full cross-codebase duplicate-declaration
+sweep (clean, zero found), a full onclick/onchange handler cross-reference
+across all 18 modules + index.html (clean, zero dangling handlers), a
+re-verification of the pricing-lock chain end to end (still solid —
+`withEstimation` is unconditionally `true` at every quotation-creation
+site, `updateQuotationItemFields()` doesn't even accept a `rate` param,
+`addQuotationItem()` zeroes rate regardless of what a caller passes), and
+then a focused pass on the routing gate built earlier the same night,
+which is where the real findings were.
+
+- **The routing gate built earlier tonight was UI decoration only —
+  the data layer never enforced it.** `addDeliveryNote()`,
+  `addMaterialsIssue()`, `addMaterialsReturn()`, and
+  `generateInvoiceFromJob()` (data.js) had zero awareness of
+  `job.routingConfirmed` — only `jobs.js` disabled the tiles/button.
+  Anything that called these functions directly (a future UI, a script,
+  even careless test code) bypassed the lock entirely. Confirmed this
+  wasn't hypothetical: `e2e-batch6-reports.js`'s own seed step was
+  already doing exactly this — generating an invoice on a freshly
+  confirmed, never-routed job, which happened to still pass because nothing
+  was checking. Added the real guard to all 4 functions; fixed the test
+  to route the job first (its actual purpose is testing Reports, not the
+  gate, so this doesn't change what it verifies).
+- **A cancelled job stayed fully invoiceable/issuable forever if it had
+  been routed before cancellation** — a second, related gap: none of the
+  4 functions above, nor `createVariationForJob()`, ever checked
+  `job.status`. The department production queues (`getJobsPendingRouting()`,
+  `getDepartmentQueue()`) already correctly excluded cancelled jobs; this
+  was the one place that didn't. Added a `job.status === "cancelled"`
+  check to all 5 functions, plus matching UI locks: the Job Card hub's
+  Delivery Note/Material Issue/Return/Generate Invoice/New Variation tiles
+  and Sales' My Jobs "+ Add Variation" button now all grey out and show
+  "This job is cancelled" once a job is cancelled, regardless of its prior
+  routing state. `setJobStatus()` has no restriction on reversing a
+  cancellation back to "open", and since every gate here reads the
+  *current* status/routing state live (not a "was ever cancelled" flag),
+  un-cancelling a job correctly re-enables everything automatically with
+  no separate fix needed.
+- **Verification:** extended `e2e-job-routing-gate-sales-purchase.js`
+  in place (13→24 checks) rather than a new file, since these are the
+  same gate's own edge cases: direct data-layer calls now rejected
+  pre-routing (proving the guard isn't just cosmetic), a fresh routed job
+  cancelled mid-test correctly re-locks Delivery Note/Invoice with the
+  right banner, direct calls rejected for the cancelled case too, the
+  Job Card hub's New Variation tile locks for a cancelled job, and
+  `createVariationForJob()` rejects directly. Fixed
+  `e2e-batch6-reports.js`'s seed step (routes the job before invoicing).
+  Full regression: all 15 other suites re-confirmed (188/188, `e2e-pwa-
+  offline.js` counted separately since it needs a real HTTP server) plus
+  the extended routing-gate suite's 24/24 — 212/212 total, back-button-
+  check clean across all 13 modules, zero console/page errors.
+- **Not chased further, flagged for later if wanted:** whether Approver
+  could theoretically revisit and correct an item on a quotation whose
+  Job Card has *already* been confirmed (a correction at that point would
+  silently edit an orphaned quotation record with no effect on the real
+  Job Card, since `confirmQuotationToJobCard()` copies item values at
+  confirm time rather than keeping a live reference) — the normal flow
+  makes this unreachable (corrections happen before `approveQuotation()`,
+  which is before the job even exists), so this is a narrow theoretical
+  edge case, not a live bug, and wasn't pursued further given the time
+  available tonight.

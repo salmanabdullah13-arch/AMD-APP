@@ -276,14 +276,19 @@ function openJobHub(jobId) {
 // "live on its own" fully operable the instant it was created, completely
 // decoupled from the Operations hand-off. Tasks/Activity Log/Variations
 // stay open immediately — they don't presuppose production has started.
-function jobsLockedTile(cls, icon, label) {
-  return `<div class="sales-tile ${cls}" style="opacity:.5;cursor:not-allowed;" onclick="jobsAlert('Locked until Operations routes this job to a department.')"><span class="sales-tile-icon">${icon}</span>${label}</div>`;
+function jobsLockedTile(cls, icon, label, reason) {
+  return `<div class="sales-tile ${cls}" style="opacity:.5;cursor:not-allowed;" onclick="jobsAlert('${reason}')"><span class="sales-tile-icon">${icon}</span>${label}</div>`;
 }
 function renderJobHub() {
   const job = getJobCard(jobsActiveJobId);
   if (!job) return `<p style="font-size:12.5px;color:#64748b;">Job Card not found.</p>`;
   const c = customers.find(x => x.id === job.customerId);
-  const routed = !!job.routingConfirmed;
+  const cancelled = job.status === 'cancelled';
+  // A job routed before being cancelled previously stayed fully
+  // invoiceable/issuable forever — the department production queues
+  // already excluded cancelled jobs, this hub didn't (4 Aug 2026 audit
+  // finding, matches the same fix in data.js's own guards).
+  const routed = !!job.routingConfirmed && !cancelled;
 
   return `
     <span class="sales-back" onclick="jobsView='list';renderJobsBody();">‹ Back to Job Card List</span>
@@ -293,14 +298,15 @@ function renderJobHub() {
       <p style="font-size:12px;color:#64748b;">Job Date: ${job.date} · Amount: BD ${job.amount.toFixed(3)} · Confirm Date: ${job.confirmDate || '—'}</p>
       <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Quotation: ${jEsc(job.quotationId)}</p>
     </div>
-    ${!routed ? `<div class="sales-banner">Awaiting Operations Routing — Delivery Note, Material Issue/Return, and Invoice generation unlock once the Operations Manager confirms department routing for this job.</div>` : ''}
+    ${cancelled ? `<div class="sales-banner">This job is cancelled — Delivery Note, Material Issue/Return, and Invoice generation are locked permanently.</div>`
+      : !routed ? `<div class="sales-banner">Awaiting Operations Routing — Delivery Note, Material Issue/Return, and Invoice generation unlock once the Operations Manager confirms department routing for this job.</div>` : ''}
     <div class="sales-tile-row">
       <div class="sales-tile t-blue" onclick="jobsAlert('Print Job — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Job</div>
       <div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>
-      ${routed ? `<div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>` : jobsLockedTile('t-teal', '🚚', 'Delivery Note')}
-      ${routed ? `<div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>` : jobsLockedTile('t-amber', '📦', 'Material Issue')}
-      ${routed ? `<div class="sales-tile t-magenta" onclick="openMaterialsMove('${job.id}','return')"><span class="sales-tile-icon">↩</span>Material Return</div>` : jobsLockedTile('t-magenta', '↩', 'Material Return')}
-      <div class="sales-tile t-cyan" onclick="jobsNewVariation('${job.id}')"><span class="sales-tile-icon">➕</span>New Variation</div>
+      ${routed ? `<div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>` : jobsLockedTile('t-teal', '🚚', 'Delivery Note', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}
+      ${routed ? `<div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>` : jobsLockedTile('t-amber', '📦', 'Material Issue', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}
+      ${routed ? `<div class="sales-tile t-magenta" onclick="openMaterialsMove('${job.id}','return')"><span class="sales-tile-icon">↩</span>Material Return</div>` : jobsLockedTile('t-magenta', '↩', 'Material Return', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}
+      ${cancelled ? jobsLockedTile('t-cyan', '➕', 'New Variation', 'This job is cancelled.') : `<div class="sales-tile t-cyan" onclick="jobsNewVariation('${job.id}')"><span class="sales-tile-icon">➕</span>New Variation</div>`}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Job Actions</p>
@@ -325,7 +331,7 @@ function renderJobHub() {
       ${getInvoicesForJob(job.id).length === 0
         ? `<p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">No invoice generated yet.</p>`
         : `<table class="sales-items"><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th>Received</th><th>Balance</th></tr>${getInvoicesForJob(job.id).map(inv => `<tr style="cursor:pointer;" onclick="openInvoicePrint('${inv.id}')"><td>${jEsc(inv.id)}</td><td>${inv.date}</td><td>${inv.totals.netTotal.toFixed(3)}</td><td>${(inv.paidAmount || 0).toFixed(3)}</td><td>${invoiceBalance(inv).toFixed(3)}</td></tr>`).join('')}</table>`}
-      <button class="secondary" style="width:100%;margin-top:6px;${routed ? '' : 'opacity:.5;cursor:not-allowed;'}" onclick="${routed ? `jobsGenerateInvoice('${job.id}')` : `jobsAlert('Locked until Operations routes this job to a department.')`}">Generate Invoice</button>
+      <button class="secondary" style="width:100%;margin-top:6px;${routed ? '' : 'opacity:.5;cursor:not-allowed;'}" onclick="${routed ? `jobsGenerateInvoice('${job.id}')` : `jobsAlert('${cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'}')`}">Generate Invoice</button>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Related records</p>
