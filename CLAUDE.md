@@ -1588,3 +1588,54 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   now fully closed out; whether to build those 3 remaining ecosystem-hub
   placeholders is a separate, new decision for Salman, not a continuation
   of this work.
+
+### 3 Aug 2026 (later same day) — Fixed: no visible way back to the ecosystem from Operations/Curtain/Purchasing
+
+- **Salman reported:** once inside a module, no way back to the ecosystem
+  hub. Root cause, confirmed with a Playwright diagnostic
+  (`e2e-back-button-check.js`, committed): every back/close button's
+  `onclick` handler was actually firing correctly (`goTo('eco')` /
+  `closeXModule()` all functionally worked, confirmed via automated click +
+  state check) — the bug was pure CSS legibility, not broken logic:
+  - **Operations' "‹ Ecosystem" bar** (`index.html`) still had
+    `background:var(--dark2)` from before the 2 Aug redesign renamed
+    `--dark2` → `--shell-surface`. The undefined variable resolved to
+    transparent, so a `rgba(255,255,255,.08)` button with white text sat
+    on Operations' own light `#f7f9fc` page background — effectively
+    invisible. This is almost certainly the actual bug Salman hit, since
+    Operations has no other way back and the persistent bottom nav, while
+    still visible underneath (z-index 50, not covered — Operations is a
+    `.page` inside `#scroll`, not a `z-index:100` overlay), might not have
+    registered as "the way back" if he was looking for a button inside the
+    module itself. Fixed: bar → `var(--shell-surface)`, button → solid
+    `var(--maraya)` wine pill, title text → `var(--shell-ink)`, "✓ Built"
+    badge → `var(--ok-bg)`/`var(--ok)` (all real, defined tokens now).
+  - **Curtain's ✕** was `rgba(255,255,255,.4)` at 18px (a pre-redesign
+    leftover) vs. every other module's `#fff` at 22px — technically
+    visible against Curtain's wine header but noticeably fainter/smaller
+    than the established pattern. Bumped to match.
+  - **Purchasing's ✕** was `rgba(255,255,255,.7)` at 18px — same story,
+    slightly under the standard. Bumped to match.
+  - The other 7 modules (Sales/Accounts/Storekeeper/Estimator/Approver/
+    Jobs/HR) were already consistent (`color:#fff;font-size:22px`) and
+    confirmed working — not touched.
+- **A related, larger finding, NOT fixed this pass (flagged for Salman,
+  out of scope for a "fix the back button" ask):** Curtain's header icon
+  badge (`rgba(124,58,237,.15)`/`rgba(124,58,237,.3)`) is the old purple
+  accent expressed as decimal `rgba()` rather than hex `#7c3aed` — every
+  prior redesign chunk's "final sweep" grepped for the hex string only, so
+  this and at least 6 more `rgba(124,58,237,...)` instances across
+  `index.html` (Curtain's Windows/BOM screens) and `curtain.js` were never
+  caught. A real gap in the redesign, worth its own small sweep, distinct
+  from today's fix.
+- **Verification:** `e2e-back-button-check.js` (committed, reusable) —
+  opens Operations directly, confirms the bottom nav is visible/z-indexed
+  correctly underneath, clicks both the bottom-nav Ecosystem button and
+  Operations' own internal back button (each from a fresh Operations
+  visit) and confirms `#p-eco` becomes the active page both times; then
+  opens all 9 remaining modules via their real ecosystem-hub node
+  `launch()`, clicks each one's own close button, and confirms the wrap
+  hides, `#p-eco` is active, and `#scroll` is visible. All 9 + both
+  Operations paths pass. Re-ran `e2e-batch6-reports.js` afterward too (no
+  JS changed, `index.html` inline-style edits only, but re-verified
+  nothing regressed) — 7/7, zero console errors.
