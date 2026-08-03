@@ -621,12 +621,13 @@ function renderQuotationHub() {
       <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${q.parentJobId ? `Variation for Job <b>${esc(q.parentJobId)}</b>` : `Linked Enquiry: ${esc(q.enquiryId)} · Salesman: ${esc(enq ? enq.salesPerson : '—')}`}</p>
     </div>
     <div class="sales-tile-row">
-      <div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>
+      ${q.stage === 'sales' ? `<div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>` : ''}
       ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile t-purple" onclick="salesAlert('Print Quote — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
       <div class="sales-tile t-teal" onclick="salesAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
       <div class="sales-tile t-magenta" onclick="salesAlert('Discount — apply from the Product & Services step.')"><span class="sales-tile-icon">%</span>Discount</div>
     </div>
-    ${q.lifecycleStatus === 'draft' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Print Quote becomes available once the Approver has approved this quote.</p>` : ''}
+    ${q.stage !== 'sales' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Edit Quote is locked while this is with the ${q.stage === 'estimator' ? 'Estimator' : 'Approver'} — it reopens once they send it back to Sales.</p>` : ''}
+    ${q.lifecycleStatus === 'draft' && q.stage === 'sales' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Print Quote becomes available once the Approver has approved this quote.</p>` : ''}
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
       ${q.stage === 'sales' && q.lifecycleStatus === 'draft'
