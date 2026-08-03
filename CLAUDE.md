@@ -1051,3 +1051,102 @@ Flagging these explicitly per Salman's request — confirm which reading is corr
   remains on its own old hardcoded colors (partially improved for free by
   the central `--biz-*` token change, as noted above, but still needs its
   own dedicated pass for the literal hex each of those 5 files carries).
+
+### 3 Aug 2026 (later same day) — Chunk 3: Sales/Estimator/Approver/Jobs/Accounts, redesign complete
+
+- **Fixed the one module missed by the central token cascade:**
+  `approver.js`'s `.ops-header` was hardcoded literally (`#9f1239`, not a
+  variable) so it never picked up Chunk 2's `--biz-crimson` retone — now
+  `var(--biz-crimson)`. Also gave `#approver-module-wrap`'s base rule the
+  `font-family: var(--font-biz); background: var(--biz-page-bg);` the
+  other 4 modules already had (it only had `font-family: inherit`).
+- **Swept all 5 files' literal hex for brand-accent leftovers** — the
+  gradient tile classes (`.sales-tile.t-purple/.t-teal/.t-magenta/
+  .t-amber/.t-cyan`) in `sales.js` and `jobs.js` had one token stop
+  (e.g. `var(--biz-purple)`, already wine) paired with a literal bright
+  second stop (`#8B5FE8`, `#3FCBB5`, `#E876B0`) or, for `.t-amber`, both
+  stops literal (`#c47d00`/`#e0a530`) — all now `var(--biz-primary)`/
+  `var(--biz-primary2))`. Preview/highlight panels (`sales-preview`,
+  `sales-wizard-step.done`) and the Purchase-Request-from-Job header
+  (`jobs.js` `.prjob-header` — previously its own deliberate lavender
+  zone color, per an explicit code comment from the original per-module
+  era) all folded to a shared pale-wine tint (`#f4e6ec` bg / `#e0c2d0`
+  border), matching the tint Chunk 1 established for Curtain. Header
+  subtitle text (the small caption under each module's white title, e.g.
+  "Enquiry → Quotation") was a pale module-colored literal
+  (`#ede9fe`/`#fef3c7`/`#fecdd3`/`#DAEEFC`/`#d1fae5`) in all 5 files —
+  now `rgba(255,255,255,.7)` everywhere, so it reads as "dimmed white on
+  a colored bar" regardless of which bar color a module has. Two more
+  old-brand-hex-as-literal instances turned up mid-sweep in
+  `estimator.js` (a quotation-ID color and a "CREATE NEW PRODUCT" link,
+  both `#b45309`) and one in `approver.js` (a quotation-ID color,
+  `#9f1239`) — all now `var(--biz-primary)`.
+- **Also aligned:** each module's open-state inline background
+  (`moduleWrap.style.cssText = '...background:#f7f9fc;'`, set in JS when
+  the module opens, present identically in all 5 files) was a literal
+  slightly-off neutral that also silently overrode the CSS rule's
+  `background: var(--biz-page-bg)` via inline-style precedence — swapped
+  to `var(--biz-page-bg)` directly so it's one source of truth and
+  actually reflects token changes going forward.
+- **Judgment call, flagged per instruction rather than applied silently:**
+  the Estimator and Approver "logged in as" userbars were amber-tinted
+  and rose-tinted respectively (`#fffbeb`/`#fde68a`/`#92400e` and
+  `#fff1f2`/`#fecdd3`) — a distinct-from-header color, seemingly meant to
+  read as "a different role indicator." Given "one accent everywhere" was
+  explicit and unambiguous in every prior chunk (even Curtain's purple
+  and Operations' info-blue got folded), retinted both to the same pale
+  wine tint used elsewhere (`#f4e6ec`/`#e0c2d0`/`var(--biz-primary-dark)`)
+  rather than preserving them as a role-color exception. If that reads as
+  the wrong call once seen live — the userbar losing its distinct color
+  meant something was worth double-checking — this is the one place to
+  revisit.
+- **True semantics left alone, same policy as every prior chunk:** the
+  three `sales-pill.stage-*` colors (Sales/Estimator/Approver — which
+  stage a quotation is currently at, present in all 5 files identically)
+  stay their three distinct colors, since collapsing them to one wine
+  tone would destroy the thing they exist to show. Lifecycle pills
+  (draft/open/confirmed/closed), the Jobs status legend
+  (open/completed/cancelled — blue/green/red), warning banners, and the
+  Tax Invoice's deliberately-distinct formal-document styling (`jobs.js`
+  `.invoice-paper` and everything under it — black ink, serif type, no
+  brand color at all, per the standing design note that transactional
+  documents should read as printed paper, not app chrome) were all left
+  exactly as they were.
+- **Verification:** Playwright (PIN `1994`), opened all 5 modules via
+  their real `launch*Module()` functions, screenshotted each dashboard —
+  wine accent consistent throughout every header/tab/KPI-number/button,
+  both userbars now wine-tinted, Jobs' status pills still distinct
+  blue/green/red, zero console errors across all 5.
+- **Repo-wide grep sweep (the full old-accent-hex list, all chunks'
+  values) turned up a real, out-of-scope finding:** `curtain.js` still
+  has roughly 19 literal `#7c3aed` (the old Curtain-module purple) in
+  inline `style=` strings inside its render functions — KPI numbers,
+  status dots, assignment-selection highlights, a few buttons, turnaround
+  labels. `operations.js` has one more (`color:#7c3aed`, a "filling
+  directly" label). **Chunk 1 only retoned the CSS-based
+  `#curt-module-wrap` token block** (`styles.css`) — it never swept
+  `curtain.js`'s own ~5,900 lines of inline literal colors the way each
+  subsequent chunk swept its own files. This is the same category of gap
+  Chunk 2 found and fixed in Purchasing, just never caught for Curtain
+  because Curtain was assumed "done" after Chunk 1. **Not fixed this
+  session** — out of Chunk 3's scope (Sales/Estimator/Approver/Jobs/
+  Accounts only) and `curtain.js` is the single largest file in the repo,
+  deserves its own dedicated sweep-and-verify pass rather than a
+  bolted-on fix here. Flagging as the one real piece of unfinished work
+  from the whole redesign initiative.
+  `data.js`'s `DEPTS` array (5-color department-tagging registry used
+  for category badges across modules, including a purple entry for
+  Curtain) was checked and deliberately left alone — same call Chunk 1
+  made for Operations' `--carp`/`--paint`/`--uph`/`--metal`: genuine
+  categorical/departmental color-coding, not brand identity, folding it
+  to one color would remove real information.
+- **Redesign initiative wrap-up:** with Chunk 3 done, the Heartwood-
+  reference-derived redesign (single wine accent `#600131`, light
+  `#f5f6f8`/`#ffffff` system, 14/10/999px radius scale, subtle card
+  shadows) now covers the Shell, all 11 business modules, and the 3D
+  ecosystem hub (deliberately dark, per its own explicit exception) —
+  except for the `curtain.js` inline-color gap noted directly above,
+  which is real remaining work, not a rounding error. Next session on
+  this thread of work should be a dedicated `curtain.js` sweep, verified
+  the same way as every other file, before calling the whole initiative
+  actually complete.

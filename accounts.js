@@ -30,7 +30,7 @@ accountsStyleTag.textContent = `
 #accounts-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;}
 #accounts-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
 #accounts-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);}
-#accounts-module-wrap table.sales-items tr:hover td{background:#F4FBF8;}
+#accounts-module-wrap table.sales-items tr:hover td{background:#FAFBFD;}
 #accounts-module-wrap .sales-back{font-size:12px;color:var(--biz-emerald);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
 `;
 document.head.appendChild(accountsStyleTag);
@@ -44,7 +44,7 @@ accountsModuleWrap.innerHTML = `
       <span style="font-size:20px;">💰</span>
       <div>
         <div style="color:#fff;font-weight:700;font-size:15px;">Accounts</div>
-        <div style="color:#d1fae5;font-size:11px;">Revenue · Receivables · Payables</div>
+        <div style="color:rgba(255,255,255,.7);font-size:11px;">Revenue · Receivables · Payables</div>
       </div>
     </div>
     <button onclick="closeAccountsModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
@@ -82,7 +82,7 @@ function openAccountsModule() {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
-  accountsModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  accountsModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   accountsView = 'dashboard';
   renderAccountsBody();
 }

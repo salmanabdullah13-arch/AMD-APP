@@ -62,13 +62,13 @@ salesStyleTag.textContent = `
 #sales-module-wrap .sales-field input:focus, #sales-module-wrap .sales-field select:focus, #sales-module-wrap .sales-field textarea:focus{outline:none;border-color:var(--biz-primary);background:var(--biz-card-bg);}
 #sales-module-wrap .sales-field textarea{min-height:70px;resize:vertical;}
 #sales-module-wrap .sales-banner{background:#fff6e3;color:#92400e;font-size:12px;padding:9px 12px;border-radius:var(--biz-r-sm);margin-bottom:12px;font-weight:600;}
-#sales-module-wrap .sales-preview{background:#F5F0FE;border:1px solid #E3D5FC;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
+#sales-module-wrap .sales-preview{background:#f4e6ec;border:1px solid #e0c2d0;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
 #sales-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:var(--biz-text-muted);}
 #sales-module-wrap .sales-preview b{color:var(--biz-text);}
 #sales-module-wrap .sales-wizard-steps{display:flex;gap:4px;margin-bottom:16px;}
 #sales-module-wrap .sales-wizard-step{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:8px 4px;border-radius:var(--biz-r-sm);background:var(--biz-input-bg);color:var(--biz-text-faint);}
 #sales-module-wrap .sales-wizard-step.active{background:var(--biz-purple);color:#fff;}
-#sales-module-wrap .sales-wizard-step.done{background:#ede9fe;color:#5b21b6;}
+#sales-module-wrap .sales-wizard-step.done{background:#f4e6ec;color:var(--biz-primary-dark);}
 #sales-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;}
 #sales-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
 #sales-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);}
@@ -79,11 +79,11 @@ salesStyleTag.textContent = `
 #sales-module-wrap .sales-tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px 0 rgba(37,37,42,.14);}
 #sales-module-wrap .sales-tile .sales-tile-icon{font-size:18px;display:block;margin-bottom:6px;}
 #sales-module-wrap .sales-tile.t-blue{background:linear-gradient(135deg,var(--biz-primary),var(--biz-primary2));}
-#sales-module-wrap .sales-tile.t-purple{background:linear-gradient(135deg,var(--biz-purple),#8B5FE8);}
-#sales-module-wrap .sales-tile.t-teal{background:linear-gradient(135deg,var(--biz-teal),#3FCBB5);}
-#sales-module-wrap .sales-tile.t-magenta{background:linear-gradient(135deg,var(--biz-magenta),#E876B0);}
-#sales-module-wrap .sales-tile.t-amber{background:linear-gradient(135deg,#c47d00,#e0a530);}
-#sales-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),#3FB4D8);}
+#sales-module-wrap .sales-tile.t-purple{background:linear-gradient(135deg,var(--biz-purple),var(--biz-primary2));}
+#sales-module-wrap .sales-tile.t-teal{background:linear-gradient(135deg,var(--biz-teal),var(--biz-primary2));}
+#sales-module-wrap .sales-tile.t-magenta{background:linear-gradient(135deg,var(--biz-magenta),var(--biz-primary2));}
+#sales-module-wrap .sales-tile.t-amber{background:linear-gradient(135deg,var(--biz-primary),var(--biz-primary2));}
+#sales-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),var(--biz-primary2));}
 #sales-module-wrap .sales-back{font-size:12px;color:var(--biz-primary);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
 `;
 document.head.appendChild(salesStyleTag);
@@ -98,7 +98,7 @@ salesModuleWrap.innerHTML = `
       <span style="font-size:20px;">💼</span>
       <div>
         <div style="color:#fff;font-weight:700;font-size:15px;">Sales</div>
-        <div style="color:#ede9fe;font-size:11px;">Enquiry → Quotation</div>
+        <div style="color:rgba(255,255,255,.7);font-size:11px;">Enquiry → Quotation</div>
       </div>
     </div>
     <button onclick="closeSalesModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
@@ -151,7 +151,7 @@ function openSalesModule() {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
-  salesModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  salesModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   salesTopView = 'dashboard';
   salesView = 'dashboard';
   renderSalesBody();
@@ -829,7 +829,7 @@ function renderWizardStep2() {
     ? `<p style="font-size:12px;color:#64748b;margin-bottom:10px;">No items added yet.</p>`
     : `<table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th><th></th></tr>` +
       q.items.map(it => `<tr><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
-        <td><span style="cursor:pointer;color:#7c3aed;margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})">✎</span><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})">✕</span></td></tr>` +
+        <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})">✎</span><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})">✕</span></td></tr>` +
         (salesEditingLineId === it.lineId ? `<tr><td colspan="6">${renderSalesItemEditPanel(q, it)}</td></tr>` : '')
       ).join('') +
       `</table>`;
@@ -871,7 +871,7 @@ function renderWizardStep2() {
 
 function renderSalesItemEditPanel(qtn, item) {
   return `
-    <div style="background:#faf5ff;border-radius:8px;padding:10px;margin:4px 0;">
+    <div style="background:#f4e6ec;border-radius:8px;padding:10px;margin:4px 0;">
       ${item.approverComment ? `<p style="font-size:11px;color:#92400e;margin-bottom:8px;"><b>Approver comment on this line:</b> ${esc(item.approverComment)}</p>` : ''}
       <div class="sales-field"><label>Qty</label><input type="number" value="${item.qty}" onchange="salesUpdateItemField(${item.lineId},'qty',Number(this.value))"></div>
       <div class="sales-field"><label>Description</label><textarea onchange="salesUpdateItemField(${item.lineId},'description',this.value)">${esc(item.description)}</textarea></div>

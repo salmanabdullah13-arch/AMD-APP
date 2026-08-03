@@ -18,8 +18,8 @@ estimatorStyleTag.textContent = `
 #estimator-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
 #estimator-module-wrap .ops-header{background:var(--biz-amber);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #estimator-module-wrap .estimator-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
-#estimator-module-wrap .estimator-userbar{background:#fffbeb;border-bottom:1px solid #fde68a;padding:8px 18px;font-size:11.5px;color:#92400e;display:flex;align-items:center;gap:8px;flex:none;}
-#estimator-module-wrap .estimator-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #fde68a;background:#fff;}
+#estimator-module-wrap .estimator-userbar{background:#f4e6ec;border-bottom:1px solid #e0c2d0;padding:8px 18px;font-size:11.5px;color:var(--biz-primary-dark);display:flex;align-items:center;gap:8px;flex:none;}
+#estimator-module-wrap .estimator-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #e0c2d0;background:#fff;}
 #estimator-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
 #estimator-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
 #estimator-module-wrap .sales-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-amber);}
@@ -34,7 +34,7 @@ estimatorStyleTag.textContent = `
 #estimator-module-wrap .sales-pill.stage-estimator{background:#fef3c7;color:#92400e;}
 #estimator-module-wrap .sales-pill.stage-approver{background:#fee2e2;color:#991b1b;}
 #estimator-module-wrap button.primary{background:var(--biz-amber);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s;}
-#estimator-module-wrap button.primary:hover{background:#92400e;}
+#estimator-module-wrap button.primary:hover{background:var(--biz-primary-dark);}
 #estimator-module-wrap button.secondary{background:var(--biz-card-bg);border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);color:var(--biz-text-muted);font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
 #estimator-module-wrap .sales-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
 #estimator-module-wrap .sales-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:var(--biz-card-bg);color:var(--biz-text-muted);cursor:pointer;font-family:inherit;}
@@ -43,13 +43,13 @@ estimatorStyleTag.textContent = `
 #estimator-module-wrap .sales-field label{font-size:10.5px;font-weight:700;color:var(--biz-text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
 #estimator-module-wrap .sales-field input, #estimator-module-wrap .sales-field select, #estimator-module-wrap .sales-field textarea{width:100%;padding:9px 11px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;box-sizing:border-box;font-family:inherit;background:var(--biz-input-bg);color:var(--biz-text);transition:border-color .12s;}
 #estimator-module-wrap .sales-field input:focus, #estimator-module-wrap .sales-field select:focus, #estimator-module-wrap .sales-field textarea:focus{outline:none;border-color:var(--biz-amber);background:var(--biz-card-bg);}
-#estimator-module-wrap .sales-preview{background:#fffbeb;border:1px solid #fde68a;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
+#estimator-module-wrap .sales-preview{background:#f4e6ec;border:1px solid #e0c2d0;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
 #estimator-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:var(--biz-text-muted);}
 #estimator-module-wrap .sales-preview b{color:var(--biz-text);}
 #estimator-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;}
 #estimator-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
 #estimator-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);}
-#estimator-module-wrap table.sales-items tr:hover td{background:#FFFBF5;}
+#estimator-module-wrap table.sales-items tr:hover td{background:#FAFBFD;}
 #estimator-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
 #estimator-module-wrap .sales-tile{border:0;border-radius:var(--biz-r);padding:14px 10px;text-align:center;font-size:11.5px;font-weight:700;color:#fff;cursor:pointer;box-shadow:var(--biz-shadow);transition:transform .12s,box-shadow .12s;text-transform:uppercase;letter-spacing:.2px;background:linear-gradient(135deg,var(--biz-amber),var(--biz-amber2));}
 #estimator-module-wrap .sales-tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px 0 rgba(37,37,42,.14);}
@@ -74,7 +74,7 @@ estimatorModuleWrap.innerHTML = `
       <span style="font-size:20px;">📐</span>
       <div>
         <div style="color:#fff;font-weight:700;font-size:15px;">Estimator</div>
-        <div style="color:#fef3c7;font-size:11px;">Pick → BOM → Selling Price</div>
+        <div style="color:rgba(255,255,255,.7);font-size:11px;">Pick → BOM → Selling Price</div>
       </div>
     </div>
     <button onclick="closeEstimatorModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
@@ -121,7 +121,7 @@ function openEstimatorModule() {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
-  estimatorModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  estimatorModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   const sel = document.getElementById('estimator-user-select');
   if (sel) sel.innerHTML = ESTIMATOR_USERS.map(u => `<option value="${u}" ${u === estimatorCurrentUser ? 'selected' : ''}>${u}</option>`).join('');
   estimatorView = 'dashboard';
@@ -214,7 +214,7 @@ function renderEstimatorDashboard() {
         k.myActionsList.map(q => {
           const s = estimatorQtnRowSummary(q);
           return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openEstimatorQuoteHub('${q.id}')">
-            <p style="font-weight:700;font-size:12.5px;color:#b45309;">${q.id}</p>
+            <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id}</p>
             <p style="font-size:11px;color:#64748b;">${eEsc(s.client)} · ${eEsc(q.projectName)} · ${eEsc(s.salesman)}</p>
           </div>`;
         }).join('')) + `</div>`;
@@ -400,7 +400,7 @@ function renderBomMaterialsTab(item) {
       <input type="text" id="mat-name" list="item-master-list" oninput="estimatorMaterialAutofill(this.value)">
       <datalist id="item-master-list">${ITEM_MASTER.map(it => `<option value="${it.name}">`).join('')}</datalist>
     </div>
-    <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Type to search the item master, or enter a new name — <a href="#" onclick="estimatorAlert('CREATE NEW PRODUCT — not wired to a real item master yet.');return false;" style="color:#b45309;">CREATE NEW PRODUCT</a></p>
+    <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Type to search the item master, or enter a new name — <a href="#" onclick="estimatorAlert('CREATE NEW PRODUCT — not wired to a real item master yet.');return false;" style="color:var(--biz-primary);">CREATE NEW PRODUCT</a></p>
     <div class="sales-field"><label>Description</label><input type="text" id="mat-desc"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="sales-field"><label>Qty</label><input type="number" id="mat-qty" value="1"></div>

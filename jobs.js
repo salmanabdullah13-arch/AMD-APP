@@ -52,20 +52,20 @@ jobsStyleTag.textContent = `
 #jobs-module-wrap .sales-tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px 0 rgba(37,37,42,.14);}
 #jobs-module-wrap .sales-tile .sales-tile-icon{font-size:18px;display:block;margin-bottom:6px;}
 #jobs-module-wrap .sales-tile.t-blue{background:linear-gradient(135deg,var(--biz-primary),var(--biz-primary2));}
-#jobs-module-wrap .sales-tile.t-purple{background:linear-gradient(135deg,var(--biz-purple),#8B5FE8);}
-#jobs-module-wrap .sales-tile.t-teal{background:linear-gradient(135deg,var(--biz-teal),#3FCBB5);}
-#jobs-module-wrap .sales-tile.t-magenta{background:linear-gradient(135deg,var(--biz-magenta),#E876B0);}
-#jobs-module-wrap .sales-tile.t-amber{background:linear-gradient(135deg,#c47d00,#e0a530);}
-#jobs-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),#3FB4D8);}
+#jobs-module-wrap .sales-tile.t-purple{background:linear-gradient(135deg,var(--biz-purple),var(--biz-primary2));}
+#jobs-module-wrap .sales-tile.t-teal{background:linear-gradient(135deg,var(--biz-teal),var(--biz-primary2));}
+#jobs-module-wrap .sales-tile.t-magenta{background:linear-gradient(135deg,var(--biz-magenta),var(--biz-primary2));}
+#jobs-module-wrap .sales-tile.t-amber{background:linear-gradient(135deg,var(--biz-primary),var(--biz-primary2));}
+#jobs-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),var(--biz-primary2));}
 #jobs-module-wrap .sales-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
 #jobs-module-wrap .sales-tabbtn{font-size:11px;padding:5px 10px;border-radius:16px;border:1px solid var(--biz-border);background:var(--biz-card-bg);color:var(--biz-text-muted);cursor:pointer;font-family:inherit;}
 #jobs-module-wrap .sales-tabbtn.active{background:var(--biz-primary);border-color:var(--biz-primary);color:#fff;}
 #jobs-module-wrap .job-row-add{display:flex;gap:6px;margin-bottom:8px;}
-/* Purchase Request (Job) — its own lavender/mauve accent, matching Q-Pro's
-   per-transaction-area color convention (Sales/Estimator/Approver/Jobs all
-   blue-family; Purchases gets its own zone color). */
-#jobs-module-wrap .prjob-header{background:#D8BFD8;}
-#jobs-module-wrap .prjob-header h2, #jobs-module-wrap .prjob-header small{color:#4a1f4a;}
+/* Purchase Request (Job) header — was its own lavender/mauve zone color
+   (Q-Pro per-transaction-area convention); folded into the shared wine
+   accent 3 Aug 2026, same as every other module's zone color. */
+#jobs-module-wrap .prjob-header{background:#f4e6ec;}
+#jobs-module-wrap .prjob-header h2, #jobs-module-wrap .prjob-header small{color:var(--biz-primary-dark);}
 
 /* ── TAX INVOICE — print/PDF register ──
    Deliberately NOT dense-ERP styled like the rest of the app — a clean,
@@ -105,7 +105,7 @@ jobsModuleWrap.innerHTML = `
       <span style="font-size:20px;">🗂️</span>
       <div>
         <div style="color:#fff;font-weight:700;font-size:15px;">Jobs</div>
-        <div style="color:#DAEEFC;font-size:11px;">Job Card — post-Approval production</div>
+        <div style="color:rgba(255,255,255,.7);font-size:11px;">Job Card — post-Approval production</div>
       </div>
     </div>
     <button onclick="closeJobsModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
@@ -147,7 +147,7 @@ function openJobsModule(jumpToJobId) {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
-  jobsModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  jobsModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   if (jumpToJobId) { openJobHub(jumpToJobId); }
   else { jobsView = 'list'; renderJobsBody(); }
 }

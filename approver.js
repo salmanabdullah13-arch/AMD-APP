@@ -11,11 +11,11 @@
 
 const approverStyleTag = document.createElement('style');
 approverStyleTag.textContent = `
-#approver-module-wrap { font-family: inherit; }
-#approver-module-wrap .ops-header{background:#9f1239;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
+#approver-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
+#approver-module-wrap .ops-header{background:var(--biz-crimson);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #approver-module-wrap .approver-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
-#approver-module-wrap .approver-userbar{background:#fff1f2;border-bottom:1px solid #fecdd3;padding:8px 18px;font-size:11.5px;color:var(--biz-crimson);display:flex;align-items:center;gap:8px;flex:none;}
-#approver-module-wrap .approver-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #fecdd3;background:#fff;}
+#approver-module-wrap .approver-userbar{background:#f4e6ec;border-bottom:1px solid #e0c2d0;padding:8px 18px;font-size:11.5px;color:var(--biz-primary-dark);display:flex;align-items:center;gap:8px;flex:none;}
+#approver-module-wrap .approver-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #e0c2d0;background:#fff;}
 #approver-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
 #approver-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
 #approver-module-wrap .sales-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-crimson);}
@@ -30,20 +30,20 @@ approverStyleTag.textContent = `
 #approver-module-wrap .sales-pill.stage-estimator{background:#fef3c7;color:#92400e;}
 #approver-module-wrap .sales-pill.stage-approver{background:#fee2e2;color:#991b1b;}
 #approver-module-wrap button.primary{background:var(--biz-crimson);color:#fff;border:0;border-radius:var(--biz-r-sm);padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s;}
-#approver-module-wrap button.primary:hover{background:#881337;}
+#approver-module-wrap button.primary:hover{background:var(--biz-primary-dark);}
 #approver-module-wrap button.secondary{background:var(--biz-card-bg);border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);color:var(--biz-text-muted);font-size:13px;padding:9px 18px;cursor:pointer;font-family:inherit;}
 #approver-module-wrap .sales-field{margin-bottom:10px;}
 #approver-module-wrap .sales-field label{font-size:10.5px;font-weight:700;color:var(--biz-text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
 #approver-module-wrap .sales-field input, #approver-module-wrap .sales-field select, #approver-module-wrap .sales-field textarea{width:100%;padding:9px 11px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);font-size:13px;box-sizing:border-box;font-family:inherit;background:var(--biz-input-bg);color:var(--biz-text);transition:border-color .12s;}
 #approver-module-wrap .sales-field input:focus, #approver-module-wrap .sales-field select:focus, #approver-module-wrap .sales-field textarea:focus{outline:none;border-color:var(--biz-crimson);background:var(--biz-card-bg);}
-#approver-module-wrap .sales-preview{background:#fff1f2;border:1px solid #fecdd3;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
+#approver-module-wrap .sales-preview{background:#f4e6ec;border:1px solid #e0c2d0;border-radius:var(--biz-r);padding:12px;margin-bottom:14px;}
 #approver-module-wrap .sales-preview p{font-size:12px;margin:2px 0;color:var(--biz-text-muted);}
 #approver-module-wrap .sales-preview b{color:var(--biz-text);}
 #approver-module-wrap .sales-back{font-size:12px;color:var(--biz-crimson);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
 #approver-module-wrap table.sales-items{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;}
 #approver-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
 #approver-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);vertical-align:top;}
-#approver-module-wrap table.sales-items tr:hover td{background:#FFF5F7;}
+#approver-module-wrap table.sales-items tr:hover td{background:#FAFBFD;}
 #approver-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
 #approver-module-wrap .sales-tile{border:0;border-radius:var(--biz-r);padding:14px 10px;text-align:center;font-size:11.5px;font-weight:700;color:#fff;cursor:pointer;box-shadow:var(--biz-shadow);transition:transform .12s,box-shadow .12s;text-transform:uppercase;letter-spacing:.2px;background:linear-gradient(135deg,var(--biz-crimson),var(--biz-crimson2));}
 #approver-module-wrap .sales-tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px 0 rgba(37,37,42,.14);}
@@ -68,7 +68,7 @@ approverModuleWrap.innerHTML = `
       <span style="font-size:20px;">✅</span>
       <div>
         <div style="color:#fff;font-weight:700;font-size:15px;">Approver</div>
-        <div style="color:#fecdd3;font-size:11px;">Pick → Review → Approve</div>
+        <div style="color:rgba(255,255,255,.7);font-size:11px;">Pick → Review → Approve</div>
       </div>
     </div>
     <button onclick="closeApproverModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
@@ -117,7 +117,7 @@ function openApproverModule() {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
-  approverModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  approverModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   const sel = document.getElementById('approver-user-select');
   if (sel) sel.innerHTML = APPROVER_USERS.map(u => `<option value="${u}" ${u === approverCurrentUser ? 'selected' : ''}>${u}</option>`).join('');
   approverView = 'dashboard';
@@ -218,7 +218,7 @@ function renderApproverDashboard() {
         k.forApprovalList.map(q => {
           const s = approverQtnRowSummary(q);
           return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openApproverReview('${q.id}')">
-            <p style="font-weight:700;font-size:12.5px;color:#9f1239;">${q.id}</p>
+            <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id}</p>
             <p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p>
           </div>`;
         }).join('')) + `</div>`;
