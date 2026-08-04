@@ -2887,3 +2887,74 @@ server-side rule enforcement; Phase 4 — desktop layout.
   allow-listed, then (3) do the one test only a human can do — sign in
   with a real email end to end. Phase 2 (migrating jobs/quotes/
   customers/etc. to Supabase) not started.
+
+### 4 Aug 2026 (evening) — Cloud migration Phase 1, continued: custom SMTP, exact CDN version pin, swapped magic link for email+password
+
+Salman actually ran the real end-to-end test today, which surfaced two
+real issues no amount of code review would have caught, then decided
+magic link wasn't the login *feel* he wanted after all.
+
+- **Supabase's free-tier default mailer caps at 2 auth emails/hour** —
+  hit live (my own earlier testing used up the quota). Fixed by
+  setting up Resend as a custom SMTP provider (free tier, 3,000
+  emails/month) — sandbox mode for now (only delivers to Salman's own
+  verified address), full domain verification deferred since the
+  domain is managed by a third party (qpro team) and that's not worth
+  blocking on today.
+- **"Couldn't load the login library" on a real device** — the CDN
+  script tag used a loose `@2` version tag that resolves to whatever
+  the latest 2.x.x release is at request time; a new release had gone
+  out ~21 hours before this happened. The CDN was reachable when
+  checked directly from here, so the real root cause may just as
+  likely have been a transient network hiccup or a content blocker on
+  that specific device — either way, pinned to an exact version
+  (2.112.0) to remove the whole "latest tag changed under us" class of
+  risk regardless. Bumped `CACHE_VERSION` to v3.
+- **Swapped magic link for email + password** — Salman's call: magic
+  link meant checking email on every single login, which didn't feel
+  like "a real app with a real login." Sign-up still needs one
+  one-time confirm-email click (standard, stops fake registrations),
+  but every login after that is just email + password, no email step
+  at all. The name picked at sign-up now travels in Supabase auth's
+  own user metadata (`options.data.intended_identity` on `signUp()`)
+  so it survives the confirm-email round trip without needing a
+  session to write to `profiles` early — auto-claimed the moment the
+  account is confirmed, no separate "pick your name" screen on the
+  happy path (the old manual roster-picker still exists as a fallback
+  for the rare case that metadata is missing, e.g. two people
+  confirming for the same name in a race). Added a real forgot-
+  password flow (`resetPasswordForEmail()` + a set-new-password screen
+  triggered by Supabase's `PASSWORD_RECOVERY` auth event) — a
+  password-based system with zero recovery path would have been a real
+  support headache waiting to happen.
+- **Real schema change this required**: the sign-up form needs to show
+  the roster (`allowed_identities`) *before* anyone has an account —
+  the old policy only allowed `authenticated` readers, which the old
+  magic-link flow never hit (you were already signed in by the time
+  you picked your name). Widened to `to public` — still just a list of
+  role names, nothing sensitive.
+- **Also discussed and resolved: offboarding.** Salman asked how to
+  revoke access for someone who leaves, given self-signup means he
+  doesn't know their password. Answer: he doesn't need it — deleting
+  or banning a user from Authentication → Users is an admin privilege
+  independent of that user's password, and `profiles` references
+  `auth.users` with `on delete cascade`, so deleting someone also frees
+  their claimed name for a replacement hire. No building needed for
+  this; flagged a future "Manage Team" in-app screen (would need a
+  Supabase Edge Function to safely wrap the admin API, since the
+  `service_role` key that action needs can never touch client-side
+  code) as a nice-to-have, not urgent.
+- **Verification**: rewrote `e2e-cloud-login.js` for the new tabbed
+  sign-in/sign-up UI — confirms the Sign In form shows by default, the
+  Sign Up tab loads the real roster live from Supabase (this one
+  correctly fails until the roster-policy SQL above is run against the
+  live project — expected, not a bug), a live `signUp()` call reaches
+  Supabase's real Auth API, a live `resetPasswordForEmail()` call does
+  too, and the CDN-failure fallback still works. Full regression
+  (back-button-check, team-comms-dashboard, owner-dashboard, pwa-
+  offline) re-confirmed clean — the auth.js rewrite didn't touch the
+  file://+localhost test bypass, so none of the other ~20 suites
+  needed changes.
+- **Still open**: Salman needs to run the widened roster policy SQL,
+  then do the real human test (sign up with his own email, confirm,
+  sign in with password). Phase 2 not started.

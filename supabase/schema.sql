@@ -52,10 +52,15 @@ on conflict (display_name) do nothing;
 -- the identity-claim screen can populate its picker.
 alter table public.allowed_identities enable row level security;
 
+-- `to public` (not just `authenticated`) — the email+password sign-up
+-- form (auth.js) needs to show this roster BEFORE anyone has an
+-- account yet, so a not-yet-signed-in visitor must be able to read it
+-- too. Still just a list of role names, nothing sensitive.
 drop policy if exists "roster is readable by any signed-in user" on public.allowed_identities;
-create policy "roster is readable by any signed-in user"
+drop policy if exists "roster is readable by anyone" on public.allowed_identities;
+create policy "roster is readable by anyone"
   on public.allowed_identities for select
-  to authenticated
+  to public
   using (true);
 
 -- ── Profiles — one row per real login, claims exactly one identity ──
