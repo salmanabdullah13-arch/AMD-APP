@@ -3313,3 +3313,88 @@ credential decision this session; he chose to hand one over.
   record race) to 10/10. Full offline regression re-confirmed clean.
 - **Phase 2 slice 2 (enquiries + quotations) is now fully proven
   live**, not just built. Next: `jobCards[]`.
+
+### 4-5 Aug 2026 — Phase 2 slice 3: jobCards[] migrated to Supabase
+- **Scope decision, asked rather than assumed**: `jobCards[]` (Job No,
+  amount, department routing, 3-tier budget approval, deliveries/
+  materials/labour, linked invoices) is cleanly centralized in data.js
+  and migrated in this slice. `curtainJobs[]`/`projects[]` — the
+  pre-existing Curtain production tracker (windows, install scheduling,
+  QC, BOM) and the Operations rollup array — hold real independent
+  state written directly across curtain.js's ~5,900 lines with no
+  central persist path. Salman's explicit call: scope this slice to
+  `jobCards[]` only; leave curtainJobs[]/projects[] unification as its
+  own dedicated slice. Accepted consequence: Curtain's window/install/
+  QC/BOM progress still resets to the two frozen fixture jobs on every
+  reload; everything jobCards[] itself owns now persists and syncs live.
+- **Full scope sweep before writing code** (same discipline as the
+  enquiries/quotations surprise): found ~20 functions mutating
+  jobCards[] — confirmQuotationToJobCard, confirmJobRouting, the shared
+  Joinery/Upholstery pipeline (startLineProduction/submitLineForQC/
+  recordLineQCResult/reworkLineBackToProduction/handOffLine), Painting's
+  standalone mirror of the same five, the budget-gate family
+  (submitDepartmentBudget/approveDepartmentBudget/
+  rejectDepartmentBudget/recordDepartmentActual), confirmVariationToJobCard,
+  refreshJobFromQuotation, addDeliveryNote/addMaterialsIssue/
+  addMaterialsReturn/cancelMaterialsMove, updateJobLineStatus,
+  addLabourCostEntry, setJobStatus, generateInvoiceFromJob. Every one
+  now ends with `persistJobCardUpdate(job)`; creation calls
+  `persistNewJobCard(job)`. `items`, `departmentBudgets`,
+  `deliveryNotes`, `materialsIssues`, `materialsReturns`, and
+  `labourCostEntries` all travel as jsonb, same reasoning as
+  quotations.items.
+- **Real gap found and fixed: cache-hydration bridging.** Before this
+  slice, jobCards[] was purely in-memory — a Job Card only ever existed
+  for one browser session, so `bridgeJobToOperationsAndCurtain()` only
+  ever had to run once, at creation. Now that jobs persist and reload,
+  every job hydrated from Supabase needed the same bridge call, or
+  Operations' `projects[]` rollup and Curtain's `curtainJobs[]` list
+  would silently stop showing any job older than the current page load.
+  Split into `initCloudJobCardsCache()` (loads the array, sets up
+  realtime) and a separate `bridgeAllJobCards()` (re-creates the
+  proj/cj entries — idempotent, safe to call again for an already-
+  bridged job), called once customers/enquiries/quotations/jobCards
+  have all loaded. Realtime INSERTs from another device also bridge
+  inline, so a job confirmed on one device shows up correctly in
+  Operations/Curtain on another without a reload.
+- **Real bug found and fixed live: `nextJobCardNo()` id collisions.**
+  First test run hit a 409 on the job_cards insert. Root cause:
+  `nextJobCardNo()` reads `jobCards.length` synchronously the instant
+  a quote is confirmed — harmless before this slice (every session
+  started empty, nothing ever persisted), but with real persistence
+  now in place, an initial cache-load sequencing choice (jobCards
+  deliberately fired *after* customers/enquiries/quotations, so
+  bridging would have their data ready) meant jobCards[] was almost
+  always still empty when a job got confirmed shortly after login,
+  making `nextJobCardNo()` return the same id on essentially every
+  run. Fixed by decoupling load from bridge: `initCloudJobCardsCache()`
+  now fires in parallel with the other three (restoring the original
+  timing, minimizing the race window), and only `bridgeAllJobCards()`
+  waits on all four. Documented the residual (now genuinely narrow)
+  id-collision window as the same accepted tradeoff as
+  `nextCustomerCode()` — primary key fails loudly via a surfaced toast,
+  not a silent overwrite.
+- **Second real bug, same test, next symptom**: after the sequencing
+  fix, a 409 still hit — this time a genuine foreign-key race, not an
+  id collision (confirmed by querying the live `job_cards` table
+  directly via the Management API mid-run: it was empty, ruling out a
+  PK conflict). `job_cards.customer_id`/`.quotation_id` are real
+  foreign keys, and the test's own create→enquiry→quotation→confirm
+  chain ran with zero gaps between steps. Same narrow, accepted
+  cross-record race as the customer→enquiry one documented in Phase 2
+  slice 2 — fixed the test (added realistic 1s gaps between each
+  foreign-key-dependent step), not the app.
+- **Verification**: new `e2e-cloud-jobcards.js` (8/8) covers job
+  creation reaching the live table, `confirmJobRouting()`'s nested
+  `department_budgets` jsonb persisting, `addDeliveryNote()`'s jsonb +
+  line-level `deliveredQty` persisting, and cross-device sync
+  including the re-bridged `projects[]` entry on a second session. All
+  four prior live-cloud suites re-verified passing (login 6/6,
+  messages+presence 8/8 — one pre-existing live-network timing flake
+  on markMessageRead unrelated to this slice's changes, confirmed via
+  diff — customers 9/9, enquiries+quotations 10/10). Full offline
+  regression (batch8 routing/phase2-4, jobcard-unification, job-routing
+  gate, plus a broader spot-check across reports/approvals/team-comms/
+  PWA/owner-dashboard) all clean, matching prior counts.
+- Phase 2 slice 3 (jobCards) is now fully proven live. Remaining Phase 2
+  work: curtainJobs[]/projects[] (deliberately deferred, see above).

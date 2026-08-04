@@ -3789,12 +3789,123 @@ const JOB_LINE_STATUSES = ["Pending", "In Progress", "Delivered"];
 const jobCards = [];
 // Shape roughly matches the real qproJobCardNo values already seeded on
 // curtainJobs[] (e.g. "JB26AMD01863") — not the real sequence, just the format.
+// Client-generated from jobCards.length, unchanged since before Phase 2
+// slice 3 (4 Aug 2026) — same accepted tradeoff as nextCustomerCode()
+// (customers, above): two Confirm Quote clicks landing in the same narrow
+// window right after login (before initCloudJobCardsCache() finishes
+// populating jobCards[] — deliberately fired in parallel with, not after,
+// customers/enquiries/quotations, to keep that window as small as
+// possible) could compute the same id. The job_cards primary key makes
+// that fail loudly (persistNewJobCard() surfaces a toast) rather than
+// silently overwrite another job — not worth a server-side reservation
+// scheme for an 11-person team; revisit if it ever actually fires in
+// practice.
 function nextJobCardNo() {
   const yy = new Date().getFullYear().toString().slice(-2);
   return "JB" + yy + "AMD" + String(1000 + jobCards.length).padStart(5, "0");
 }
 
 function getJobCard(jobId) { return jobCards.find(j => j.id === jobId); }
+
+// ── Cloud-backed job cards (4 Aug 2026, Phase 2 slice 3) ─────────────
+// Same local-cache pattern as customers/enquiries/quotations. Scoped to
+// jobCards[] only — curtainJobs[]/projects[] deliberately stay local-only
+// for now, see the design note in supabase/schema.sql. `items`,
+// `departmentBudgets`, `deliveryNotes`, `materialsIssues`,
+// `materialsReturns`, and `labourCostEntries` travel as plain jsonb, same
+// reasoning as quotations.items — each is already one mutable object
+// graph the app's JS reads/writes directly. Every mutation function below
+// this point (confirmJobRouting, the Joinery/Upholstery/Painting pipeline,
+// the budget-gate functions, addDeliveryNote/addMaterialsIssue/
+// addMaterialsReturn/cancelMaterialsMove, updateJobLineStatus,
+// addLabourCostEntry, setJobStatus, confirmVariationToJobCard,
+// refreshJobFromQuotation, generateInvoiceFromJob) ends with the same
+// one-line persistJobCardUpdate(job) call.
+function jobCardRowToObj(row) {
+  return {
+    id: row.id, quotationId: row.quotation_id, customerId: row.customer_id, projectName: row.project_name,
+    date: row.date, amount: row.amount, status: row.status, confirmDate: row.confirm_date,
+    items: row.items || [], poNo: row.po_no, poDate: row.po_date, vendor: row.vendor,
+    deliveryNotes: row.delivery_notes || [], materialsIssues: row.materials_issues || [],
+    materialsReturns: row.materials_returns || [], labourCostEntries: row.labour_cost_entries || [],
+    linkedInvoiceIds: row.linked_invoice_ids || [], variationIds: row.variation_ids || [],
+    routingConfirmed: row.routing_confirmed, routingConfirmedBy: row.routing_confirmed_by,
+    routingConfirmedDate: row.routing_confirmed_date, departmentBudgets: row.department_budgets || {}
+  };
+}
+function jobCardObjToRow(job) {
+  return {
+    id: job.id, quotation_id: job.quotationId || null, customer_id: job.customerId || null, project_name: job.projectName,
+    date: job.date, amount: job.amount || 0, status: job.status, confirm_date: job.confirmDate,
+    items: job.items || [], po_no: job.poNo || null, po_date: job.poDate || null, vendor: job.vendor || null,
+    delivery_notes: job.deliveryNotes || [], materials_issues: job.materialsIssues || [],
+    materials_returns: job.materialsReturns || [], labour_cost_entries: job.labourCostEntries || [],
+    linked_invoice_ids: job.linkedInvoiceIds || [], variation_ids: job.variationIds || [],
+    routing_confirmed: !!job.routingConfirmed, routing_confirmed_by: job.routingConfirmedBy || null,
+    routing_confirmed_date: job.routingConfirmedDate || null, department_budgets: job.departmentBudgets || {}
+  };
+}
+let cloudJobCardsCacheInitialized = false;
+// Loads jobCards[] as soon as possible after login, in PARALLEL with
+// customers/enquiries/quotations (not sequenced after them) — deliberately
+// NOT blocked on those, because nextJobCardNo() (below) reads jobCards.length
+// synchronously the moment "Confirm Quote" is clicked, and the longer this
+// cache takes to populate, the wider the window for that id scheme to
+// collide with an already-persisted job (see nextJobCardNo()'s own note).
+// The BRIDGE step (re-creating projects[]/curtainJobs[] entries for each
+// hydrated job) genuinely does need customers/enquiries/quotations already
+// loaded to resolve the right client name/division, so it's split out into
+// bridgeAllJobCards() below and called separately, once those are ready —
+// see finishCloudLogin() in auth.js.
+async function initCloudJobCardsCache() {
+  if (!window.__realCloudSession || !sb || cloudJobCardsCacheInitialized) return;
+  cloudJobCardsCacheInitialized = true;
+  const { data, error } = await sb.from("job_cards").select("*").order("created_at", { ascending: true });
+  if (!error && data) { jobCards.length = 0; data.forEach(row => jobCards.push(jobCardRowToObj(row))); }
+  sb.channel("job-cards-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "job_cards" }, (payload) => {
+      const row = payload.new; if (!row) return;
+      const mapped = jobCardRowToObj(row);
+      const idx = jobCards.findIndex(j => String(j.id) === String(row.id));
+      // Same reasoning as the initial hydration above, but for a job
+      // created on ANOTHER device after this one is already logged in —
+      // without this, that job would sync into jobCards[] here but never
+      // get a projects[]/curtainJobs[] entry on this device at all.
+      if (payload.eventType === "INSERT") { if (idx < 0) { jobCards.push(mapped); bridgeJobToOperationsAndCurtain(mapped); } else jobCards[idx] = mapped; }
+      else if (payload.eventType === "UPDATE") { if (idx >= 0) jobCards[idx] = mapped; }
+      notifyLiveUpdateListeners();
+    })
+    .subscribe();
+}
+// Called once from finishCloudLogin() (auth.js) after customers/enquiries/
+// quotations AND jobCards have all finished their initial load — see the
+// note on initCloudJobCardsCache() above for why this is split out rather
+// than run inline as part of that cache's own load. Before this slice,
+// jobCards[] was purely in-memory — a Job Card only ever existed for the
+// lifetime of one browser session, so bridgeJobToOperationsAndCurtain()
+// only ever had to run once, at the moment confirmQuotationToJobCard()/
+// confirmVariationToJobCard() created it. Now that jobs persist and reload
+// from Supabase, every job hydrated here needs the SAME bridge call, or
+// Operations' projects[] rollup and Curtain's curtainJobs[] list would
+// silently stop showing any job that existed before the current page load.
+// bridgeJobToOperationsAndCurtain() is idempotent (checks for an existing
+// proj/cj first), so calling it again for an already-bridged job is a safe
+// no-op.
+function bridgeAllJobCards() {
+  jobCards.forEach(job => bridgeJobToOperationsAndCurtain(job));
+}
+function persistNewJobCard(job) {
+  if (!window.__realCloudSession || !sb) return;
+  serializedPersist("jobcards:" + job.id, () => sb.from("job_cards").insert(jobCardObjToRow(job)).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't save Job Card ${job.id} to the cloud: ${error.message}`);
+  }));
+}
+function persistJobCardUpdate(job) {
+  if (!window.__realCloudSession || !sb) return;
+  serializedPersist("jobcards:" + job.id, () => sb.from("job_cards").update(jobCardObjToRow(job)).eq("id", job.id).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't sync Job Card ${job.id} to the cloud: ${error.message}`);
+  }));
+}
 
 // "Confirm Quote" — the action that actually creates the Job Card. Only
 // available once Approver has moved a quotation to "Open" (see
@@ -3895,11 +4006,8 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
   qtn.lifecycleStatus = "confirmed";
   qtn.confirmDate = job.confirmDate;
   logQuotationAudit(qtn, { action: "Transfer", user: confirmedBy, userType: "SALES", status: "Confirmed" });
-  // Persists the quotation side of this transition (Phase 2 slice 2).
-  // jobCards[] itself is NOT yet migrated to Supabase — that's Phase 2's
-  // next slice — so the actual Job Card this creates stays local-only
-  // for now, same as before this session's changes.
   persistQuotationUpdate(qtn);
+  persistNewJobCard(job);
   bridgeJobToOperationsAndCurtain(job);
   logActivity({ type: "job-created", linkedType: "job", linkedId: job.id, user: confirmedBy, message: `Job Card ${job.id} created from Quotation ${qtn.id}` });
   return job;
@@ -3944,6 +4052,7 @@ function confirmJobRouting(jobId, lineOverrides = {}, confirmedBy) {
     type: "job-routed", linkedType: "job", linkedId: job.id, user: confirmedBy,
     message: `Routing confirmed — ${job.items.length} line(s) dispatched to ${deptNames.length ? deptNames.join(', ') : 'no department'}`
   });
+  persistJobCardUpdate(job);
   return job;
 }
 
@@ -4004,6 +4113,7 @@ function startLineProduction(jobId, lineId, deptKey) {
   if (entry.status !== "queued") return { error: "Line must be Queued before starting production." };
   if (!isDepartmentBudgetApproved(job, deptKey)) return { error: "Department budget must be approved before production can start." };
   entry.status = "in-production";
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4015,6 +4125,7 @@ function submitLineForQC(jobId, lineId, deptKey) {
   if (!entry) return { error: "Line not found for that department." };
   if (entry.status !== "in-production") return { error: "Line must be In Production before it can go to QC." };
   entry.status = "qc";
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4032,10 +4143,12 @@ function recordLineQCResult(jobId, lineId, deptKey, pass, user) {
     entry.status = "rework";
     entry.reworkCount = (entry.reworkCount || 0) + 1;
     logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: deptKey, message: `${item.product} failed QC at ${dc(deptKey).n} (rework #${entry.reworkCount})` });
+    persistJobCardUpdate(job);
     return item;
   }
   entry.status = "ready-for-handoff";
   logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: deptKey, message: `${item.product} passed QC at ${dc(deptKey).n}` });
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4046,6 +4159,7 @@ function reworkLineBackToProduction(jobId, lineId, deptKey) {
   if (!entry) return { error: "Line not found for that department." };
   if (entry.status !== "rework") return { error: "Line isn't in rework." };
   entry.status = "in-production";
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4074,6 +4188,7 @@ function handOffLine(jobId, lineId, deptKey, user) {
   } else {
     logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
   }
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4116,6 +4231,7 @@ function setPaintingMaterialStatus(jobId, lineId, materialStatus, eta = null) {
   if (!entry) return { error: "Line not routed to Painting." };
   entry.materialStatus = materialStatus;
   entry.materialETA = eta;
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4128,6 +4244,7 @@ function startPaintingWork(jobId, lineId) {
   if (entry.status !== "queued") return { error: "Line must be Queued before starting." };
   if (!isDepartmentBudgetApproved(job, PAINT_DEPT_KEY)) return { error: "Department budget must be approved before production can start." };
   entry.status = "in-production";
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4139,6 +4256,7 @@ function submitPaintingForQC(jobId, lineId) {
   if (!entry) return { error: "Line not routed to Painting." };
   if (entry.status !== "in-production") return { error: "Line must be In Production before it can go to QC." };
   entry.status = "qc";
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4153,10 +4271,12 @@ function recordPaintingQCResult(jobId, lineId, pass, user) {
     entry.status = "rework";
     entry.reworkCount = (entry.reworkCount || 0) + 1;
     logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, message: `${item.product} failed QC at Painting (rework #${entry.reworkCount})` });
+    persistJobCardUpdate(job);
     return item;
   }
   entry.status = "ready-for-handoff";
   logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, message: `${item.product} passed QC at Painting` });
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4167,6 +4287,7 @@ function reworkPaintingBackToProduction(jobId, lineId) {
   if (!entry) return { error: "Line not routed to Painting." };
   if (entry.status !== "rework") return { error: "Line isn't in rework." };
   entry.status = "in-production";
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4190,6 +4311,7 @@ function handOffPaintingLine(jobId, lineId, user) {
   } else {
     logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
   }
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4294,6 +4416,7 @@ function submitDepartmentBudget(jobId, deptKey, categoryAmounts, submittedBy) {
   entry.rejectionComment = null;
   recomputeJobBudgetRollup(job);
   logActivity({ type: "budget-submitted", linkedType: "job", linkedId: job.id, user: submittedBy, message: `${dc(deptKey).n} budget submitted for approval` });
+  persistJobCardUpdate(job);
   return entry;
 }
 
@@ -4306,6 +4429,7 @@ function approveDepartmentBudget(jobId, deptKey, approvedBy) {
   entry.approvedBy = approvedBy;
   entry.approvedDate = new Date().toISOString().slice(0, 10);
   logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget approved — production can start` });
+  persistJobCardUpdate(job);
   return entry;
 }
 function rejectDepartmentBudget(jobId, deptKey, rejectedBy, comment) {
@@ -4318,6 +4442,7 @@ function rejectDepartmentBudget(jobId, deptKey, rejectedBy, comment) {
   entry.approvedDate = new Date().toISOString().slice(0, 10);
   entry.rejectionComment = comment;
   logActivity({ type: "budget-rejected", linkedType: "job", linkedId: job.id, user: rejectedBy, message: `${dc(deptKey).n} budget rejected — ${comment || "no comment"}` });
+  persistJobCardUpdate(job);
   return entry;
 }
 function getPendingBudgetApprovalsFor(approverName) {
@@ -4392,6 +4517,7 @@ function recordDepartmentActual(jobId, deptKey, categoryAmounts, recordedBy) {
   recomputeJobBudgetRollup(job);
   const overBudget = isDepartmentOverBudget(jobId, deptKey);
   logActivity({ type: "actual-recorded", linkedType: "job", linkedId: job.id, user: recordedBy, message: `${dc(deptKey).n} actual cost recorded${overBudget ? " — OVER BUDGET" : ""}` });
+  persistJobCardUpdate(job);
   return entry;
 }
 
@@ -4490,9 +4616,8 @@ function confirmVariationToJobCard(qtnId, confirmedBy) {
   job.variationIds.push(qtn.id);
   qtn.lifecycleStatus = "confirmed";
   qtn.confirmDate = new Date().toISOString().slice(0, 10);
-  // jobCards[] itself isn't migrated yet (a later slice) — this persists
-  // just the variation quotation's side of the transition.
   persistQuotationUpdate(qtn);
+  persistJobCardUpdate(job);
   bridgeJobToOperationsAndCurtain(job);
   logActivity({ type: "variation-merged", linkedType: "job", linkedId: job.id, user: confirmedBy, message: `Variation ${qtn.id} approved and merged — +BD ${totals.netTotal.toFixed(3)}` });
   return job;
@@ -4518,6 +4643,7 @@ function refreshJobFromQuotation(jobId) {
       item.amount = src.amount; item.vatPercent = src.vatPercent; item.netAmount = src.netAmount;
     }
   });
+  persistJobCardUpdate(job);
   return job;
 }
 
@@ -4549,6 +4675,7 @@ function addDeliveryNote(jobId, entries) {
   }).filter(Boolean);
   const note = { id: nextDeliveryNoteId(job), date: new Date().toISOString().slice(0, 10), lines };
   job.deliveryNotes.push(note);
+  persistJobCardUpdate(job);
   return note;
 }
 
@@ -4573,6 +4700,7 @@ function addMaterialsIssue(jobId, { location, items }) {
     const item = itemMaster.find(i => i.id === it.itemId);
     if (item) item.closingStock = (item.closingStock || 0) - (Number(it.qty) || 0);
   });
+  persistJobCardUpdate(job);
   return move;
 }
 // Mirrors addMaterialsIssue() exactly — a reversal of stock issued to a job.
@@ -4589,6 +4717,7 @@ function addMaterialsReturn(jobId, { location, items }) {
     const item = itemMaster.find(i => i.id === it.itemId);
     if (item) item.closingStock = (item.closingStock || 0) + (Number(it.qty) || 0);
   });
+  persistJobCardUpdate(job);
   return move;
 }
 
@@ -4626,6 +4755,7 @@ function cancelMaterialsMove(jobId, kind, moveId) {
     if (item) item.closingStock = (item.closingStock || 0) + sign * (Number(it.qty) || 0);
   });
   move.status = "cancelled";
+  persistJobCardUpdate(job);
   return move;
 }
 
@@ -4639,6 +4769,7 @@ function updateJobLineStatus(jobId, lineId, department, status) {
   const existing = item.departmentStatuses.find(d => d.department === department);
   if (existing) existing.status = status;
   else item.departmentStatuses.push({ department, status });
+  persistJobCardUpdate(job);
   return item;
 }
 
@@ -4651,6 +4782,7 @@ function addLabourCostEntry(jobId, { employee, jobItemLineId, normalHrs = 0, otH
   const amount = normalHrs * normalRate + otHrs * otRate * 1.5;
   const entry = { id: job.labourCostEntries.length + 1, employee, jobItemLineId, normalHrs, otHrs, normalRate, otRate, amount, date: new Date().toISOString().slice(0, 10) };
   job.labourCostEntries.push(entry);
+  persistJobCardUpdate(job);
   return entry;
 }
 
@@ -4658,6 +4790,7 @@ function setJobStatus(jobId, status) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   job.status = status;
+  persistJobCardUpdate(job);
   return job;
 }
 
@@ -4716,6 +4849,7 @@ function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } =
   taxInvoices.push(inv);
   job.linkedInvoiceIds.push(inv.id);
   logActivity({ type: "invoice-generated", linkedType: "job", linkedId: jobId, user: "Accounts", message: `Tax Invoice ${inv.id} generated — BD ${netTotal.toFixed(3)}` });
+  persistJobCardUpdate(job);
   return inv;
 }
 

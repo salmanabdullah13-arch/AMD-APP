@@ -347,3 +347,83 @@ begin
     alter publication supabase_realtime add table public.quotations;
   end if;
 end $$;
+
+-- ══════════════════════════════════════════════════════════════
+-- Phase 2, slice 3 (4 Aug 2026) — jobCards, Q-Pro's commercial Job Card
+-- wrapper (Job No, linked Quotation, delivery/materials/labour tracking,
+-- department routing + 3-tier budget approval). Same shared-company-
+-- resource RLS pattern as customers/enquiries/quotations.
+--
+-- Deliberately SCOPED OUT of this slice: curtainJobs[]/projects[] — the
+-- pre-existing Curtain workshop production tracker (windows, install
+-- scheduling, QC, BOM, wastage) and the Operations dashboard's rollup
+-- array. Those hold real independent state written directly across
+-- curtain.js's ~5,900 lines with no central persist path today; Salman's
+-- explicit call (4 Aug 2026) was to migrate jobCards[] alone now and
+-- leave that unification as a separate, dedicated slice — same
+-- "bridge, not merge" discipline as bridgeJobToOperationsAndCurtain()
+-- itself already applies in data.js. Consequence, accepted: Curtain's
+-- window/install/QC/BOM progress still resets to the two frozen fixture
+-- jobs on every reload after this slice ships; everything jobCards[]
+-- itself owns (amount, routing, department budgets, deliveries,
+-- materials moves, labour cost entries, linked invoices) now persists
+-- and syncs live across devices.
+--
+-- `items` (per-line qty/rate/amount plus nested departmentStatuses[]),
+-- `department_budgets` (per-department nested BOM + approval + actual),
+-- `delivery_notes`, `materials_issues`, `materials_returns`, and
+-- `labour_cost_entries` are jsonb for the same reason quotations.items
+-- is — the app's own JS already treats each as one mutable object graph
+-- it reads/writes directly, and supabase-js round-trips a JS
+-- object/array to jsonb with zero mapping code.
+--
+-- No delete policy — a Job Card is never deleted in this app, only
+-- cancelled via job.status (see setJobStatus() in data.js).
+-- ══════════════════════════════════════════════════════════════
+create table if not exists public.job_cards (
+  id text primary key,
+  quotation_id text references public.quotations (id),
+  customer_id text references public.customers (id),
+  project_name text,
+  date date,
+  amount numeric not null default 0,
+  status text not null default 'open',
+  confirm_date date,
+  items jsonb not null default '[]'::jsonb,
+  po_no text,
+  po_date date,
+  vendor text,
+  delivery_notes jsonb not null default '[]'::jsonb,
+  materials_issues jsonb not null default '[]'::jsonb,
+  materials_returns jsonb not null default '[]'::jsonb,
+  labour_cost_entries jsonb not null default '[]'::jsonb,
+  linked_invoice_ids jsonb not null default '[]'::jsonb,
+  variation_ids jsonb not null default '[]'::jsonb,
+  routing_confirmed boolean not null default false,
+  routing_confirmed_by text,
+  routing_confirmed_date date,
+  department_budgets jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.job_cards enable row level security;
+
+drop policy if exists "job_cards readable by any signed-in user" on public.job_cards;
+create policy "job_cards readable by any signed-in user"
+  on public.job_cards for select to authenticated using (true);
+drop policy if exists "job_cards insertable by any signed-in user" on public.job_cards;
+create policy "job_cards insertable by any signed-in user"
+  on public.job_cards for insert to authenticated with check (true);
+drop policy if exists "job_cards updatable by any signed-in user" on public.job_cards;
+create policy "job_cards updatable by any signed-in user"
+  on public.job_cards for update to authenticated using (true) with check (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'job_cards'
+  ) then
+    alter publication supabase_realtime add table public.job_cards;
+  end if;
+end $$;

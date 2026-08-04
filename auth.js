@@ -267,9 +267,22 @@ function finishCloudLogin(displayName, isRealSession = true) {
     // notifyLiveUpdateListeners() (data.js) once ready.
     if (typeof initCloudMessagesCache === 'function') initCloudMessagesCache();
     if (typeof initPresence === 'function') initPresence();
-    if (typeof initCloudCustomersCache === 'function') initCloudCustomersCache();
-    if (typeof initCloudEnquiriesCache === 'function') initCloudEnquiriesCache();
-    if (typeof initCloudQuotationsCache === 'function') initCloudQuotationsCache();
+    // All four business-data caches load in parallel, same timing as
+    // before jobCards existed — jobCards[] deliberately is NOT sequenced
+    // behind the others (see initCloudJobCardsCache()'s own note in
+    // data.js): nextJobCardNo() reads jobCards.length synchronously the
+    // moment a quote is confirmed, so delaying this load would only widen
+    // the window for that id scheme to collide with an already-persisted
+    // job. Only the BRIDGE step (re-creating projects[]/curtainJobs[]
+    // entries) genuinely needs customers/enquiries/quotations/jobCards all
+    // loaded first, so that alone waits on all four here.
+    const businessDataReady = Promise.all([
+      typeof initCloudCustomersCache === 'function' ? initCloudCustomersCache() : Promise.resolve(),
+      typeof initCloudEnquiriesCache === 'function' ? initCloudEnquiriesCache() : Promise.resolve(),
+      typeof initCloudQuotationsCache === 'function' ? initCloudQuotationsCache() : Promise.resolve(),
+      typeof initCloudJobCardsCache === 'function' ? initCloudJobCardsCache() : Promise.resolve()
+    ]);
+    businessDataReady.then(() => { if (typeof bridgeAllJobCards === 'function') bridgeAllJobCards(); });
   }
   if (typeof updCP === 'function') updCP();
   if (typeof updateHubBadges === 'function') updateHubBadges();
