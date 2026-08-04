@@ -46,6 +46,18 @@ insert into public.allowed_identities (display_name) values
   ('HR')
 on conflict (display_name) do nothing;
 
+-- The project's "auto-enable RLS on new tables" setting locks this
+-- table down by default with zero policies — meaning nobody, not even
+-- a signed-in user, could read the roster to claim a name. Needed so
+-- the identity-claim screen can populate its picker.
+alter table public.allowed_identities enable row level security;
+
+drop policy if exists "roster is readable by any signed-in user" on public.allowed_identities;
+create policy "roster is readable by any signed-in user"
+  on public.allowed_identities for select
+  to authenticated
+  using (true);
+
 -- ── Profiles — one row per real login, claims exactly one identity ──
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
