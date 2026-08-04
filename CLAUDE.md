@@ -3129,3 +3129,76 @@ the plan agreed a message earlier.
   `e2e-cloud-messages-presence.js`, `e2e-cloud-customers.js`) should go
   fully green. Next slice after that: enquiries/quotations (Sales
   pipeline), same pattern.
+
+### 4 Aug 2026 (late night) — All three live-cloud test suites go fully green; two real app bugs found and fixed along the way
+
+Salman ran the pending SQL and turned off "Confirm email" himself.
+Once both were live, ran the full three-suite live verification for
+real, which surfaced real bugs no amount of static review would have
+caught — exactly the point of testing against the actual project
+instead of just reading the code.
+
+- **Salman asked why every schema change needed manual copy-paste** —
+  answered honestly: only the publishable key was in hand, deliberately,
+  since it's the one safe credential for a key sitting in chat history
+  (RLS-restricted, can't run DDL). Running SQL directly needs either the
+  DB password or the `service_role` key, both far more powerful (bypass
+  RLS entirely). Salman chose to hand over `service_role` for
+  convenience going forward — used it to look up and delete a stale
+  `E2E Test Account` auth user via the Admin API, kept strictly to
+  ephemeral Bash commands and confirmed via grep it never touched any
+  file that gets committed. One specific admin API call was blocked by
+  an automatic safety classifier on a highly-privileged-secret-in-a-
+  network-call pattern; retried once with the user's explicit
+  confirmation and it went through.
+- **Real test-fixture bug**: `e2e-cloud-login.js`'s own sign-up test
+  used a random per-run password for the shared `'E2E Test Account'`
+  roster identity, while the other two live suites used one fixed
+  password — meaning whichever ran first "won" and the others could
+  never sign in again. Standardized all three on the same fixed
+  constant.
+- **Real bug: ambiguous button selector.** `button:has-text("Sign In")`
+  matched BOTH the tab labeled "Sign In" and the actual submit button
+  (also labeled "Sign In") — Playwright's click landed on the tab (a
+  harmless re-render no-op) instead of the submit button, so sign-in
+  silently never actually attempted. This produced a very convincing
+  false trail (looked exactly like a wrong/stale password) before the
+  actual cause — clicking the wrong element entirely — was found by
+  dumping the live DOM state at each step rather than continuing to
+  guess. Fixed by targeting `button[onclick="handleSignIn()"]`
+  directly, unambiguous regardless of visible text.
+- **Real app bug (not just a test bug): `finishCloudLogin()` firing
+  twice for one real login.** A genuine race exists between the direct
+  call chain (`handleSignIn -> afterSignedIn -> finishCloudLogin`) and
+  Supabase's own `onAuthStateChange` listener independently reaching
+  the same function for the same `SIGNED_IN` event. Second call tried
+  to attach realtime listeners to channels already subscribed, which
+  supabase-js rejects outright — a real uncaught page error a real
+  user could hit, not a test artifact. Fixed with idempotency guards
+  on all three init functions (`initCloudMessagesCache`,
+  `initPresence`, `initCloudCustomersCache`).
+- **Real app bug: string/number id mismatch in realtime patching.**
+  Postgres bigint ids often serialize as strings over the wire, while
+  a freshly-inserted row's id (from `sendMessage()`'s own
+  `.select().single()` response, held in the local cache) is a JS
+  number. The realtime UPDATE handler's `m.id === row.id` comparison
+  silently never matched, meaning `markMessageRead()`'s live patch
+  never actually landed via the realtime path — confirmed live via a
+  direct REST insert (fresh row correctly `read:false`) followed by
+  the app showing it as already `true` moments later with no code path
+  that should have changed it. Fixed by comparing `String(m.id) ===
+  String(row.id)` everywhere an id comparison touches a realtime
+  payload.
+- **Verification**: all three live suites now pass in full —
+  `e2e-cloud-login.js` (6/6), `e2e-cloud-messages-presence.js` (8/8,
+  including a live send/receive/mark-read/presence round trip against
+  the real Supabase project), `e2e-cloud-customers.js` (9/9, including
+  a real second-session cross-device realtime sync check). Full
+  regression across the rest of the repo (team-comms-dashboard, back-
+  button-check, pwa-offline, owner-dashboard, dashboard-enhancements,
+  job-routing-gate, activity-log-retrofit, customer-approval) stays
+  clean — none of the data.js hardening touched the in-memory fallback
+  path.
+- **Phase 1 and Phase 2 slice 1 are now both fully proven live**, not
+  just built. Next: enquiries/quotations (Sales pipeline) as Phase 2's
+  second slice, same local-cache pattern.

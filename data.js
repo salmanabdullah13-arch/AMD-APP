@@ -2741,8 +2741,16 @@ function customerObjToRow(c) {
     rejection_comment: c.rejectionComment || null, possible_duplicate_of: c.possibleDuplicateOf || null
   };
 }
+// Idempotency guard — finishCloudLogin() can genuinely fire twice for
+// one real login (the direct call chain AND Supabase's own
+// onAuthStateChange listener both independently reach it for the same
+// SIGNED_IN event, a real race, not a hypothetical). Without this,
+// the second call tries to attach realtime listeners to a channel
+// that's already subscribed, which supabase-js rejects outright.
+let cloudCustomersCacheInitialized = false;
 async function initCloudCustomersCache() {
-  if (!window.__realCloudSession || !sb) return;
+  if (!window.__realCloudSession || !sb || cloudCustomersCacheInitialized) return;
+  cloudCustomersCacheInitialized = true;
   const { data, error } = await sb.from("customers").select("*").order("created_at", { ascending: true });
   if (!error && data) { customers.length = 0; data.forEach(row => customers.push(customerRowToObj(row))); }
   sb.channel("customers-sync")
@@ -5521,8 +5529,13 @@ function cloudRowToMessage(row) {
 // Called once from auth.js's finishCloudLogin() on a real login (never
 // in test-bypass mode). Fetches the current identity's inbox+sent once,
 // then keeps cloudMessagesCache live via realtime.
+// Idempotency guard — see the identical note on
+// cloudCustomersCacheInitialized above; finishCloudLogin() can
+// genuinely fire twice for one real login.
+let cloudMessagesCacheInitialized = false;
 async function initCloudMessagesCache() {
-  if (!window.__realCloudSession || !window.cloudIdentity || !sb) return;
+  if (!window.__realCloudSession || !window.cloudIdentity || !sb || cloudMessagesCacheInitialized) return;
+  cloudMessagesCacheInitialized = true;
   const me = window.cloudIdentity;
   const { data, error } = await sb.from("messages").select("*")
     .or(`sender_name.eq.${me},recipient_name.eq.${me}`)
@@ -5533,8 +5546,13 @@ async function initCloudMessagesCache() {
       const row = payload.new || payload.old;
       if (!row || (row.sender_name !== me && row.recipient_name !== me)) return; // RLS already prevents seeing others' anyway
       const mapped = cloudRowToMessage(row);
-      if (payload.eventType === "INSERT") cloudMessagesCache.unshift(mapped);
-      else if (payload.eventType === "UPDATE") { const i = cloudMessagesCache.findIndex((m) => m.id === row.id); if (i >= 0) cloudMessagesCache[i] = mapped; }
+      // Compare ids as strings — Postgres bigint often serializes as a
+      // string over the wire, while a freshly-inserted row's id (from
+      // sendMessage()'s own .select().single() response) is a JS
+      // number; a strict === here would silently never match.
+      const existingIdx = cloudMessagesCache.findIndex((m) => String(m.id) === String(row.id));
+      if (payload.eventType === "INSERT") { if (existingIdx < 0) cloudMessagesCache.unshift(mapped); else cloudMessagesCache[existingIdx] = mapped; }
+      else if (payload.eventType === "UPDATE") { if (existingIdx >= 0) cloudMessagesCache[existingIdx] = mapped; }
       notifyLiveUpdateListeners();
     })
     .subscribe();
@@ -5573,7 +5591,7 @@ function getUnreadCountFor(person) {
 async function markMessageRead(id) {
   if (window.__realCloudSession && sb) {
     const { error } = await sb.from("messages").update({ read: true }).eq("id", id);
-    if (!error) { const m = cloudMessagesCache.find((x) => x.id === id); if (m) m.read = true; }
+    if (!error) { const m = cloudMessagesCache.find((x) => String(x.id) === String(id)); if (m) m.read = true; }
     return;
   }
   const m = messages.find(x => x.id === id);
@@ -5588,8 +5606,13 @@ function markAllMessagesReadFor(person) {
 // ── Presence ("who's online") — Supabase Realtime Presence ──────────
 let onlineIdentities = new Set();
 function isOnline(person) { return onlineIdentities.has(person); }
+// Idempotency guard — see the identical note on
+// cloudCustomersCacheInitialized above; finishCloudLogin() can
+// genuinely fire twice for one real login.
+let presenceInitialized = false;
 function initPresence() {
-  if (!window.__realCloudSession || !window.cloudIdentity || !sb) return;
+  if (!window.__realCloudSession || !window.cloudIdentity || !sb || presenceInitialized) return;
+  presenceInitialized = true;
   const channel = sb.channel("online-users", { config: { presence: { key: window.cloudIdentity } } });
   channel.on("presence", { event: "sync" }, () => {
     onlineIdentities = new Set(Object.keys(channel.presenceState()));

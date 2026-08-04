@@ -39,7 +39,13 @@ const TEST_PASSWORD = 'E2eFixedTestPassword1234!';
 
 async function signInOrUp(page, fileUrl) {
   await page.goto(fileUrl);
-  await page.waitForTimeout(700);
+  // Wait for the roster fetch to actually populate the <select> rather
+  // than a fixed delay — interacting too early looked like a wrong
+  // password in an earlier run; it was really an empty dropdown.
+  await page.waitForFunction(() => {
+    const s = document.getElementById('auth-identity-select');
+    return s && s.options.length > 1;
+  }, { timeout: 10000 }).catch(() => null);
   const hasSelect = await page.evaluate((name) => {
     const s = document.getElementById('auth-identity-select');
     return !!s && Array.from(s.options).some(o => o.value === name);
@@ -47,17 +53,21 @@ async function signInOrUp(page, fileUrl) {
   if (!hasSelect) return { ok: false, reason: 'roster-missing' };
   await page.selectOption('#auth-identity-select', TEST_IDENTITY);
   await page.fill('#auth-password-input', TEST_PASSWORD);
-  await page.click('#cloud-login-body button:has-text("Sign In")');
-  await page.waitForTimeout(1500);
+  await page.click('#cloud-login-body button[onclick="handleSignIn()"]');
+  await page.waitForFunction(() => {
+    const appVisible = getComputedStyle(document.getElementById('app')).display !== 'none';
+    const stillOnSigningIn = document.getElementById('cloud-login-body')?.textContent.includes('Signing in');
+    return appVisible || !stillOnSigningIn;
+  }, { timeout: 15000 }).catch(() => null);
   let inApp = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
   if (inApp) return { ok: true, via: 'signin' };
   await page.click('#cloud-login-body button:nth-of-type(2)');
-  await page.waitForTimeout(700);
+  await page.waitForSelector('#auth-password-confirm-input', { state: 'visible', timeout: 10000 }).catch(() => null);
   await page.selectOption('#auth-identity-select', TEST_IDENTITY).catch(() => null);
   await page.fill('#auth-password-input', TEST_PASSWORD).catch(() => null);
   await page.fill('#auth-password-confirm-input', TEST_PASSWORD).catch(() => null);
   await page.click('#cloud-login-body button:has-text("Create Account")');
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(5000);
   inApp = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
   return inApp ? { ok: true, via: 'signup' } : { ok: false, reason: (await page.evaluate(() => document.getElementById('cloud-login-body')?.innerHTML || '')).slice(0, 300) };
 }

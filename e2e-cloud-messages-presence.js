@@ -41,28 +41,45 @@ const TEST_PASSWORD = 'E2eFixedTestPassword1234!';
 
 async function signInOrUp(page, fileUrl) {
   await page.goto(fileUrl);
-  await page.waitForTimeout(700);
+  // Wait for the roster fetch (renderAuthForms('signin')) to actually
+  // populate the <select>, not just a fixed delay — interacting before
+  // it's ready silently no-ops under .catch() below, which was the
+  // real cause of an earlier confusing failure here (looked like a
+  // wrong password; was actually an empty, never-selected dropdown).
+  await page.waitForFunction(() => {
+    const s = document.getElementById('auth-identity-select');
+    return s && s.options.length > 1;
+  }, { timeout: 10000 }).catch(() => null);
   // Try Sign In first (covers the common case: this account already
   // exists from a prior run).
-  await page.selectOption('#auth-identity-select', TEST_IDENTITY).catch(() => null);
-  await page.fill('#auth-password-input', TEST_PASSWORD).catch(() => null);
   const hasSelect = await page.evaluate((name) => {
     const s = document.getElementById('auth-identity-select');
     return !!s && Array.from(s.options).some(o => o.value === name);
   }, TEST_IDENTITY);
   if (!hasSelect) return { ok: false, reason: 'roster-missing' };
-  await page.click('#cloud-login-body button:has-text("Sign In")');
-  await page.waitForTimeout(1500);
+  await page.selectOption('#auth-identity-select', TEST_IDENTITY);
+  await page.fill('#auth-password-input', TEST_PASSWORD);
+  await page.click('#cloud-login-body button[onclick="handleSignIn()"]');
+  // Wait for the actual outcome (either #app appears, or an error
+  // renders back into the login form) rather than guessing a fixed
+  // delay — signInWithPassword() + the profile check afterward is a
+  // real multi-step network round trip that has taken anywhere from
+  // under a second to several seconds elsewhere in this session.
+  await page.waitForFunction(() => {
+    const appVisible = getComputedStyle(document.getElementById('app')).display !== 'none';
+    const stillOnSigningIn = document.getElementById('cloud-login-body')?.textContent.includes('Signing in');
+    return appVisible || !stillOnSigningIn;
+  }, { timeout: 15000 }).catch(() => null);
   let inApp = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
   if (inApp) return { ok: true, via: 'signin' };
   // Doesn't exist yet — sign up instead.
   await page.click('#cloud-login-body button:nth-of-type(2)'); // Sign Up tab
-  await page.waitForTimeout(700);
+  await page.waitForSelector('#auth-password-confirm-input', { state: 'visible', timeout: 10000 }).catch(() => null);
   await page.selectOption('#auth-identity-select', TEST_IDENTITY).catch(() => null);
   await page.fill('#auth-password-input', TEST_PASSWORD).catch(() => null);
   await page.fill('#auth-password-confirm-input', TEST_PASSWORD).catch(() => null);
   await page.click('#cloud-login-body button:has-text("Create Account")');
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(5000);
   inApp = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
   if (inApp) return { ok: true, via: 'signup' };
   const bodyHtml = await page.evaluate(() => document.getElementById('cloud-login-body')?.innerHTML || '');

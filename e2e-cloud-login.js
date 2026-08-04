@@ -88,11 +88,17 @@ function printReport() {
   // a real person's identity. Signing up as a real name here would
   // permanently consume it with a throwaway test password nobody
   // knows, locking out whoever that real person is.
+  // Same fixed identity+password used by e2e-cloud-messages-presence.js
+  // and e2e-cloud-customers.js — must match exactly, since all three
+  // tests share this one dedicated account and only the first run ever
+  // actually sets its password (subsequent runs correctly hit "already
+  // registered" below and move on without re-testing the create path).
   const testIdentity = 'E2E Test Account';
+  const testPassword = 'E2eFixedTestPassword1234!';
 
   currentStep = 'switch-to-signup';
   await page.click('#cloud-login-body button:nth-of-type(2)');
-  await page.waitForTimeout(700);
+  await page.waitForSelector('#auth-password-confirm-input', { state: 'visible', timeout: 10000 });
   const signupFormShown = await page.evaluate(() => !!document.getElementById('auth-identity-select') && !!document.getElementById('auth-password-confirm-input'));
   record('Sign Up tab shows the roster picker + password + confirm-password (no email field)', signupFormShown ? 'PASS' : 'FAIL');
   await shot(page, 'signup-form');
@@ -108,12 +114,11 @@ function printReport() {
     );
     currentStep = 'cdn-failure-fallback';
   } else {
-  const testPassword = 'E2eTest' + Date.now();
   await page.selectOption('#auth-identity-select', testIdentity);
   await page.fill('#auth-password-input', testPassword);
   await page.fill('#auth-password-confirm-input', testPassword);
   await page.click('#cloud-login-body button:has-text("Create Account")');
-  await page.waitForTimeout(2500); // real network round trip
+  await page.waitForTimeout(5000); // real network round trip — signUp() + immediately checking/claiming the profile row
   await shot(page, 'after-signup');
   const afterSignupHtml = await page.evaluate(() => document.body.innerHTML);
   const landedInApp = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
@@ -130,17 +135,28 @@ function printReport() {
 
   if (landedInApp) {
     currentStep = 'signout-and-signin';
-    await page.evaluate(() => cloudSignOut());
-    await page.waitForTimeout(1000);
+    // cloudSignOut() calls location.reload() — wait for that actual
+    // navigation to finish rather than a fixed timeout, so the next
+    // interactions can't land mid-reload (which was silently wiping
+    // them out: the reload completing just after a race is what
+    // produced an unexplained-looking failure here first pass).
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'load' }),
+      page.evaluate(() => cloudSignOut())
+    ]);
+    await page.waitForSelector('#auth-identity-select', { state: 'visible' });
     await shot(page, 'after-signout');
     const backAtLogin = await page.evaluate(() => getComputedStyle(document.getElementById('cloud-login')).display !== 'none' && getComputedStyle(document.getElementById('app')).display === 'none');
     record('cloudSignOut() returns to the login screen', backAtLogin ? 'PASS' : 'FAIL');
 
-    await page.waitForTimeout(500);
     await page.selectOption('#auth-identity-select', testIdentity);
     await page.fill('#auth-password-input', testPassword);
-    await page.click('#cloud-login-body button:has-text("Sign In")');
-    await page.waitForTimeout(1500);
+    await page.click('#cloud-login-body button[onclick="handleSignIn()"]');
+    await page.waitForFunction(() => {
+      const appVisible = getComputedStyle(document.getElementById('app')).display !== 'none';
+      const stillOnSigningIn = document.getElementById('cloud-login-body')?.textContent.includes('Signing in');
+      return appVisible || !stillOnSigningIn;
+    }, { timeout: 15000 }).catch(() => null);
     await shot(page, 'after-signin');
     const signedBackIn = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
     record('Signing back in with the same name + password (no email step at all) works', signedBackIn ? 'PASS' : 'FAIL');
@@ -167,7 +183,12 @@ function printReport() {
 
   currentStep = 'final';
   await shot(page, 'final-state');
-  const critical = consoleErrors.filter(e => !e.text.includes('favicon'));
+  // The 422 from signup-live is Supabase correctly rejecting a
+  // duplicate registration once "E2E Test Account" already exists
+  // (expected on any run after the first) — the app handles it
+  // gracefully (see the PASS above), Chrome just also logs the
+  // underlying failed fetch as a console error regardless.
+  const critical = consoleErrors.filter(e => !e.text.includes('favicon') && !(e.step === 'signup-live' && e.text.includes('422')));
   record('No unexpected console errors', critical.length === 0 ? 'PASS' : 'FAIL', critical.map(e => e.text).join(' | '));
   record('No uncaught page errors', pageErrors.length === 0 ? 'PASS' : 'FAIL', pageErrors.map(e => e.text).join(' | '));
 
