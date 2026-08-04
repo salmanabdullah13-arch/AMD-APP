@@ -3010,3 +3010,66 @@ type/remember an email just to log into an internal tool.
   do the real human test: sign up with his own name, no email
   anywhere, sign in again with just name+password. Phase 2 not
   started.
+
+### 4 Aug 2026 (night) — Phase 1 complete: Messages + presence on the real login
+
+Salman: "Proceed with phase 1 and 2." Finished Phase 1 (Messages +
+presence, both well-bounded) and started Phase 2 scoping — flagged
+clearly that Phase 2 is a fundamentally different risk class (rewrites
+how every module reads/writes its actual business data, not additive
+like everything so far) rather than silently attempting the whole
+thing in one pass.
+
+- **Messages now backed by the real login, not simulated
+  currentUser.** `data.js`: added `cloudMessagesCache` (a local mirror
+  of the live `messages` table, kept fresh via Supabase Realtime),
+  `initCloudMessagesCache()`, presence (`initPresence()`/
+  `isOnline()`/`onlineIdentities`), and a `notifyLiveUpdateListeners()`
+  hook. `sendMessage()`/`markMessageRead()` are genuinely async now
+  (their only call sites are button clicks — safe to await);
+  `getInboxFor()`/`getUnreadCountFor()` deliberately stay synchronous,
+  reading the local cache instead, because they're called inline
+  inside dozens of *other* modules' own synchronous render functions
+  (`renderJoineryDashboard()` etc. return a template string with
+  `${renderInboxWidget(...)}` embedded) — making them truly async would
+  cascade through every one of those chains. `window.__realCloudSession`
+  (set only on a genuine Supabase login, never in the e2e test bypass)
+  gates which path runs; the in-memory fallback stays byte-for-byte
+  the same as before, so all ~20 other test suites needed zero
+  changes.
+- **Real identity is now authoritative for who's actually sending** —
+  `sendMessage()`'s cloud path always uses `window.cloudIdentity`,
+  ignoring whatever `from`/`asUser` a module passes in (every module
+  still passes its own simulated currentUser — that's Phase 2/3 to
+  fix per-module, not urgent to block on here since the real security
+  boundary is already Supabase's RLS, not what the client claims).
+- **Caught mid-build**: the one existing test that called
+  `sendMessage()` directly (`e2e-team-comms-dashboard.js`, the
+  data-layer check) broke immediately once it became async — a
+  concrete example of why "does this async migration cascade" is the
+  right question to ask before touching a function's call signature.
+  Fixed by awaiting it; 24/24 still passes, exercising the in-memory
+  fallback path exactly as before.
+- **New `e2e-cloud-messages-presence.js`** — goes through the REAL
+  cloud-login flow (not the bypass) as the dedicated 'E2E Test
+  Account', confirms `window.__realCloudSession`/`window.cloudIdentity`
+  are set correctly (not the bypass's fake "E2E Test User"), sends a
+  real message to itself via the live `messages` table, confirms it
+  lands in `getInboxFor()` through the realtime cache with no extra
+  await needed, confirms `markMessageRead()` updates both the live row
+  and the cache, and confirms Presence tracks the session
+  (`isOnline()` sees itself). Currently blocked on the same pending
+  SQL/setting as e2e-cloud-login.js — correctly identified as
+  "action needed," not a code defect.
+- **Phase 2 scoping, not yet building**: told Salman directly that
+  migrating the actual business data (jobs/quotes/customers/invoices)
+  is a different order of risk than anything built so far — it
+  rewrites *existing, working* functionality across nearly every one
+  of the ~19 module files (every `data.js` function that any module
+  calls synchronously today would need to become async, cascading
+  through render chains the same way Messages' `getInboxFor()` would
+  have without the local-cache pattern). Have not started touching
+  live business logic; next session should open with a concrete first
+  slice (likely `customers`, since it's referenced by nearly
+  everything else) and the same local-cache pattern proven here, not
+  an attempt at all of Phase 2 at once.

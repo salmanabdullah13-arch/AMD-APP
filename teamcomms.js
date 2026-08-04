@@ -50,14 +50,20 @@ function openComposeMessage(asUser, toDefault, linkedType, linkedId, onSent) {
 function closeCommsModal() { commsModalWrap.style.display = 'none'; }
 
 function renderComposeMessage(asUser, linkedType, linkedId, onSent) {
+  // Real login (window.cloudIdentity) is authoritative once it exists —
+  // asUser is each module's own simulated currentUser, still used for
+  // display/exclusion until Phase 2/3 migrate every module off it, but
+  // never trusted as WHO actually sends (sendMessage() in data.js
+  // enforces this server-side too, via Supabase's real auth + RLS).
+  const realFrom = (window.__realCloudSession && window.cloudIdentity) ? window.cloudIdentity : asUser;
   const inner = document.getElementById('comms-modal-inner');
   inner.innerHTML = `
     <p style="font-weight:700;font-size:15px;margin-bottom:10px;color:#1a1f2e;">Message a teammate</p>
-    <p style="font-size:11px;color:#94a3b8;margin:-4px 0 10px;">From ${commsEsc(asUser)}</p>
+    <p style="font-size:11px;color:#94a3b8;margin:-4px 0 10px;">From ${commsEsc(realFrom)}</p>
     <div class="sales-field"><label>To</label>
       <select id="comms-to" onchange="commsComposeTo=this.value;">
         <option value="">— Select —</option>
-        ${REACHABLE_PEOPLE.filter(p => p !== asUser).map(p => `<option value="${p}" ${commsComposeTo === p ? 'selected' : ''}>${p}</option>`).join('')}
+        ${REACHABLE_PEOPLE.filter(p => p !== realFrom).map(p => `<option value="${p}" ${commsComposeTo === p ? 'selected' : ''}>${p}${typeof isOnline === 'function' && isOnline(p) ? ' 🟢' : ''}</option>`).join('')}
       </select>
     </div>
     <div class="sales-field"><label>Message</label><textarea id="comms-body" placeholder="What do they need to know?"></textarea></div>
@@ -67,11 +73,13 @@ function renderComposeMessage(asUser, linkedType, linkedId, onSent) {
     </div>`;
 }
 
-function commsSend(asUser, linkedType, linkedId, onSent) {
+async function commsSend(asUser, linkedType, linkedId, onSent) {
   const to = document.getElementById('comms-to').value;
   const body = document.getElementById('comms-body').value;
-  const result = sendMessage({ from: asUser, to, body, linkedType: linkedType || null, linkedId: linkedId || null });
-  if (result.error) { commsToast(result.error); return; }
+  const sendBtn = document.querySelector('#comms-modal-inner button.primary');
+  if (sendBtn) sendBtn.textContent = 'Sending…';
+  const result = await sendMessage({ from: asUser, to, body, linkedType: linkedType || null, linkedId: linkedId || null });
+  if (result.error) { commsToast(result.error); if (sendBtn) sendBtn.textContent = 'Send'; return; }
   closeCommsModal();
   commsToast(`✓ Sent to ${to}.`);
   if (onSent && typeof window[onSent] === 'function') window[onSent]();
@@ -87,20 +95,29 @@ function notifyStorekeeper(asUser, linkedType, linkedId, onSent) {
 // called after marking a message read so the unread badge updates in place.
 function renderInboxWidget(person, onReadRerender, limit) {
   limit = limit || 5;
+  // Realtime message/presence events (data.js) replay whichever
+  // rerender function was last used to draw an inbox — this records
+  // that on every draw, so live updates land wherever the user is
+  // actually looking.
+  window.__lastInboxRerenderFn = onReadRerender || null;
   const inbox = getInboxFor(person);
   const unread = inbox.filter(m => !m.read).length;
   const rows = inbox.slice(0, limit).map(m => `
-    <div style="padding:8px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);cursor:pointer;${m.read ? '' : 'background:#fef9f0;'}" onclick="markMessageRead('${m.id}');${onReadRerender ? onReadRerender + '();' : ''}">
+    <div style="padding:8px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);cursor:pointer;${m.read ? '' : 'background:#fef9f0;'}" onclick="markMessageRead('${m.id}').then(()=>{${onReadRerender ? onReadRerender + '();' : ''}})">
       <p style="font-size:12px;margin:0;"><b>${commsEsc(m.from)}</b>${m.read ? '' : ' <span style="color:var(--warn,#c47d00);font-size:9px;font-weight:700;">● NEW</span>'}</p>
       <p style="font-size:12.5px;margin:2px 0 0;color:#334155;">${commsEsc(m.body)}</p>
       <p style="font-size:10px;color:#94a3b8;margin:2px 0 0;">${m.date}</p>
     </div>`).join('');
+  const onlineOthers = (typeof onlineIdentities !== 'undefined' ? [...onlineIdentities] : []).filter(p => p !== window.cloudIdentity);
+  const presenceLine = (window.__realCloudSession && onlineOthers.length > 0)
+    ? `<p style="font-size:10.5px;color:#0f9d58;margin:0 0 8px;">🟢 Online now: ${onlineOthers.map(commsEsc).join(', ')}</p>` : '';
   return `
     <div class="sales-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <p style="font-weight:700;font-size:13px;margin:0;">Messages ${unread ? `<span style="background:var(--warn,#c47d00);color:#fff;font-size:10px;padding:1px 7px;border-radius:20px;">${unread}</span>` : ''}</p>
         <span style="font-size:11px;color:var(--biz-primary,#600131);cursor:pointer;font-weight:600;" onclick="openComposeMessage('${person}','',null,null,'${onReadRerender || ''}')">+ New</span>
       </div>
+      ${presenceLine}
       ${inbox.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No messages yet.</p>` : rows}
     </div>`;
 }

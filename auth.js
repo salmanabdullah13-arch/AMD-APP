@@ -90,7 +90,7 @@ function cloudLoginStart() {
   const isLocalTestOrigin = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   const testingCloudLoginItself = new URLSearchParams(location.search).get('test_cloud_login') === '1';
   if (isLocalTestOrigin && !testingCloudLoginItself) {
-    finishCloudLogin('E2E Test User');
+    finishCloudLogin('E2E Test User', false);
     return;
   }
   checkCloudSession();
@@ -255,11 +255,19 @@ async function claimIdentity() {
   finishCloudLogin(displayName);
 }
 
-function finishCloudLogin(displayName) {
+function finishCloudLogin(displayName, isRealSession = true) {
   window.cloudIdentity = displayName;
+  window.__realCloudSession = isRealSession;
   cloudLoginActive = false;
   document.getElementById('cloud-login').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  if (isRealSession) {
+    // Fire-and-forget — the app shouldn't wait on these to unlock, they
+    // populate/subscribe in the background and re-render via
+    // notifyLiveUpdateListeners() (data.js) once ready.
+    if (typeof initCloudMessagesCache === 'function') initCloudMessagesCache();
+    if (typeof initPresence === 'function') initPresence();
+  }
   if (typeof updCP === 'function') updCP();
   if (typeof updateHubBadges === 'function') updateHubBadges();
 }

@@ -5413,9 +5413,72 @@ const REACHABLE_PEOPLE = [
 ];
 const messages = [];
 function nextMessageId() { return "MSG-" + String(messages.length + 1).padStart(5, "0"); }
-function sendMessage({ from, to, body, linkedType = null, linkedId = null }) {
+
+// ── Cloud-backed messages (4 Aug 2026, Phase 1 continued) ────────────
+// window.__realCloudSession is set true by auth.js only on a genuine
+// Supabase login — never in the e2e test bypass (file:///localhost),
+// which has no real authenticated session for RLS to accept writes
+// under. Every function below branches on that flag: real login ->
+// read/write the live `messages` table in Supabase; anything else
+// (tests, or Supabase/network genuinely unreachable) -> the original
+// in-memory array above, unchanged. This is deliberate graceful
+// degradation, the same offline-first spirit as the rest of this app,
+// not a half-finished migration.
+//
+// getInboxFor()/getUnreadCountFor() MUST stay synchronous — they're
+// called inline inside dozens of other modules' own synchronous
+// render functions (e.g. renderJoineryDashboard() returning a template
+// string with ${renderInboxWidget(...)} embedded). Making them truly
+// async would cascade through every one of those call chains. Instead
+// they read from cloudMessagesCache, a local mirror kept fresh by
+// initCloudMessagesCache()'s realtime subscription — the standard
+// pattern for pairing a realtime backend with synchronous UI code.
+let cloudMessagesCache = [];
+
+function cloudRowToMessage(row) {
+  return {
+    id: row.id, from: row.sender_name, to: row.recipient_name, body: row.body,
+    linkedType: row.linked_type, linkedId: row.linked_id, read: row.read,
+    date: row.created_at.slice(0, 10), time: row.created_at
+  };
+}
+
+// Called once from auth.js's finishCloudLogin() on a real login (never
+// in test-bypass mode). Fetches the current identity's inbox+sent once,
+// then keeps cloudMessagesCache live via realtime.
+async function initCloudMessagesCache() {
+  if (!window.__realCloudSession || !window.cloudIdentity || !sb) return;
+  const me = window.cloudIdentity;
+  const { data, error } = await sb.from("messages").select("*")
+    .or(`sender_name.eq.${me},recipient_name.eq.${me}`)
+    .order("created_at", { ascending: false });
+  if (!error) cloudMessagesCache = (data || []).map(cloudRowToMessage);
+  sb.channel("messages-" + me)
+    .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
+      const row = payload.new || payload.old;
+      if (!row || (row.sender_name !== me && row.recipient_name !== me)) return; // RLS already prevents seeing others' anyway
+      const mapped = cloudRowToMessage(row);
+      if (payload.eventType === "INSERT") cloudMessagesCache.unshift(mapped);
+      else if (payload.eventType === "UPDATE") { const i = cloudMessagesCache.findIndex((m) => m.id === row.id); if (i >= 0) cloudMessagesCache[i] = mapped; }
+      notifyLiveUpdateListeners();
+    })
+    .subscribe();
+}
+
+// sendMessage()/markMessageRead() ARE genuinely async in cloud mode —
+// their only real call sites are button clicks / onclick handlers
+// (teamcomms.js), already fine to await, unlike the render functions
+// above.
+async function sendMessage({ from, to, body, linkedType = null, linkedId = null }) {
   if (!to) return { error: "Choose who to send this to." };
   if (!body || !body.trim()) return { error: "Message can't be empty." };
+  if (window.__realCloudSession && sb) {
+    const { data, error } = await sb.from("messages")
+      .insert({ sender_name: window.cloudIdentity, recipient_name: to, body: body.trim(), linked_type: linkedType, linked_id: linkedId })
+      .select().single();
+    if (error) return { error: error.message };
+    return cloudRowToMessage(data);
+  }
   const msg = {
     id: nextMessageId(), from, to, body: body.trim(),
     linkedType, linkedId, date: new Date().toISOString().slice(0, 10),
@@ -5425,16 +5488,51 @@ function sendMessage({ from, to, body, linkedType = null, linkedId = null }) {
   return msg;
 }
 function getInboxFor(person) {
+  if (window.__realCloudSession) return cloudMessagesCache.filter((m) => m.to === window.cloudIdentity).sort((a, b) => b.time.localeCompare(a.time));
   return messages.filter(m => m.to === person).sort((a, b) => b.time.localeCompare(a.time));
 }
 function getUnreadCountFor(person) {
+  if (window.__realCloudSession) return cloudMessagesCache.filter((m) => m.to === window.cloudIdentity && !m.read).length;
   return messages.filter(m => m.to === person && !m.read).length;
 }
-function markMessageRead(id) {
+async function markMessageRead(id) {
+  if (window.__realCloudSession && sb) {
+    const { error } = await sb.from("messages").update({ read: true }).eq("id", id);
+    if (!error) { const m = cloudMessagesCache.find((x) => x.id === id); if (m) m.read = true; }
+    return;
+  }
   const m = messages.find(x => x.id === id);
   if (m) m.read = true;
   return m;
 }
 function markAllMessagesReadFor(person) {
+  if (window.__realCloudSession) { cloudMessagesCache.forEach((m) => { if (m.to === window.cloudIdentity) m.read = true; }); return; }
   messages.forEach(m => { if (m.to === person) m.read = true; });
+}
+
+// ── Presence ("who's online") — Supabase Realtime Presence ──────────
+let onlineIdentities = new Set();
+function isOnline(person) { return onlineIdentities.has(person); }
+function initPresence() {
+  if (!window.__realCloudSession || !window.cloudIdentity || !sb) return;
+  const channel = sb.channel("online-users", { config: { presence: { key: window.cloudIdentity } } });
+  channel.on("presence", { event: "sync" }, () => {
+    onlineIdentities = new Set(Object.keys(channel.presenceState()));
+    notifyLiveUpdateListeners();
+  });
+  channel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") await channel.track({ online_at: new Date().toISOString() });
+  });
+}
+
+// ── Live-update hook ──────────────────────────────────────────────
+// Realtime message/presence events arrive async and need to re-render
+// whatever's currently on screen — but each module has its own
+// renderXBody(), no single global "re-render everything." Pragmatic
+// fix: renderInboxWidget() (teamcomms.js) records the caller's own
+// rerender function name every time it's drawn; live events just
+// replay whichever one was drawn most recently.
+window.__lastInboxRerenderFn = null;
+function notifyLiveUpdateListeners() {
+  if (window.__lastInboxRerenderFn && typeof window[window.__lastInboxRerenderFn] === "function") window[window.__lastInboxRerenderFn]();
 }

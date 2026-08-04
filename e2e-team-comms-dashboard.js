@@ -53,12 +53,12 @@ async function openNode(page, nodeId, wrapId) {
 
   // ── Data-layer primitives ──────────────────────────────
   currentStep = 'data-layer';
-  const dataLayer = await page.evaluate(() => {
+  const dataLayer = await page.evaluate(async () => {
     const before = messages.length;
-    const sent = sendMessage({ from: 'Joinery Production Manager', to: 'Storekeeper', body: 'Need 4x8 ply sheets moved to the cutting bay.' });
+    const sent = await sendMessage({ from: 'Joinery Production Manager', to: 'Storekeeper', body: 'Need 4x8 ply sheets moved to the cutting bay.' });
     const unreadBefore = getUnreadCountFor('Storekeeper');
     const inbox = getInboxFor('Storekeeper');
-    const emptyErr = sendMessage({ from: 'Joinery Production Manager', to: '', body: 'x' });
+    const emptyErr = await sendMessage({ from: 'Joinery Production Manager', to: '', body: 'x' });
     return {
       grewByOne: messages.length === before + 1,
       hasId: !!sent.id,
