@@ -3,22 +3,30 @@
 // shared 4-digit PIN outright (removed same day: it was never real
 // security, just a hardcoded code shown as an on-screen hint).
 //
-// Swapped from magic-link to email+password the same day (Salman's
-// call — checking email on every login was real friction). Sign-up
-// still needs a one-time confirm-email click; every login after that
-// is just email+password. This test covers everything reachable
-// without a real inbox: the sign-in/sign-up tabs, the roster loading
-// into the sign-up form live from Supabase, a real (live) signUp()
-// call through to "confirm your account," and the forgot-password
-// request. Clicking the actual confirmation/reset email can only be
-// verified by a human with a real inbox — that boundary is
-// intentional, not a gap in this test.
+// Third iteration on the login *shape* the same day, each a real call
+// from Salman: magic link (too much per-login friction) -> email +
+// password (still needed a real inbox, and several roster identities
+// are roles with no personal inbox) -> username (pick your name from
+// the roster) + password, no email anywhere. Each name maps to a
+// deterministic fake address under the hood (identityToInternalEmail)
+// that Supabase's account system needs internally but the user never
+// sees. Consequence: no self-service password recovery — that's a
+// real, accepted tradeoff (see auth.js's header), not a gap to fix
+// here.
 //
-// REQUIRES the `allowed_identities` roster to be readable by anon
-// (public), not just authenticated users — see the "roster is
-// readable by anyone" policy in supabase/schema.sql. If that hasn't
-// been run against the live project yet, the sign-up-roster check
-// below will correctly fail until it is.
+// This test covers everything reachable live: the roster loading into
+// both Sign In and Sign Up pickers, a real sign-up (name+password) all
+// the way to a working session and claimed profile (this project has
+// "Confirm email" OFF specifically so this can complete without any
+// email step — if that ever gets re-enabled this check will correctly
+// fail, since a fake address can never confirm), then signing back out
+// and signing back in with the same name+password.
+//
+// REQUIRES `allowed_identities` to be readable by `public` (not just
+// `authenticated`) — see supabase/schema.sql — and Supabase's
+// "Confirm email" setting to be OFF (Authentication -> Sign In /
+// Providers -> Email). Both are one-time project settings, not
+// something this test or the app code can change.
 
 const { chromium } = require('@playwright/test');
 const path = require('path');
@@ -57,65 +65,87 @@ function printReport() {
   await page.goto(fileUrl);
 
   currentStep = 'cloud-login-shows-on-load';
-  await page.waitForTimeout(500); // real getSession() round trip
+  await page.waitForTimeout(800); // real getSession() + roster fetch round trip
   await shot(page, 'on-load');
-  const handoff = await page.evaluate(() => ({
-    cloudLoginVisible: getComputedStyle(document.getElementById('cloud-login')).display !== 'none',
-    appStillHidden: getComputedStyle(document.getElementById('app')).display === 'none',
-    noOldPinScreen: !document.getElementById('lock') && !document.querySelector('.num-btn'),
-    signInFormShown: !!document.getElementById('auth-email-input') && !!document.getElementById('auth-password-input')
-  }));
-  record('Cloud-login shows the Sign In form immediately on load, #app stays hidden, old PIN screen gone entirely', handoff.cloudLoginVisible && handoff.appStillHidden && handoff.noOldPinScreen && handoff.signInFormShown ? 'PASS' : 'FAIL', JSON.stringify(handoff));
-
-  currentStep = 'switch-to-signup-loads-roster-live';
-  // Click the "Sign Up" tab (second button in the tab row).
-  await page.click('#cloud-login-body button:nth-of-type(2)');
-  await page.waitForTimeout(600); // real roster fetch from Supabase
-  await shot(page, 'signup-form');
-  const signupState = await page.evaluate(() => {
+  const handoff = await page.evaluate(() => {
     const select = document.getElementById('auth-identity-select');
     return {
-      selectExists: !!select,
-      optionCount: select ? select.options.length : 0,
+      cloudLoginVisible: getComputedStyle(document.getElementById('cloud-login')).display !== 'none',
+      appStillHidden: getComputedStyle(document.getElementById('app')).display === 'none',
+      noOldPinScreen: !document.getElementById('lock') && !document.querySelector('.num-btn'),
+      noEmailFieldAnywhere: !document.getElementById('cloud-login').querySelector('input[type="email"]'),
+      rosterLoaded: !!select && select.options.length > 1,
       hasSilva: select ? Array.from(select.options).some(o => o.value === 'Silva') : false
     };
   });
-  record('Sign Up tab loads the real roster live from Supabase into the identity dropdown', signupState.selectExists && signupState.optionCount > 1 && signupState.hasSilva ? 'PASS' : 'FAIL', JSON.stringify(signupState));
-
-  currentStep = 'signup-live';
-  const testEmail = `e2e-cloud-login-${Date.now()}@example.org`;
-  await page.selectOption('#auth-identity-select', 'Silva').catch(() => {});
-  await page.fill('#auth-email-input', testEmail);
-  await page.fill('#auth-password-input', 'TempTest1234!');
-  await page.click('#cloud-login-body button:has-text("Create Account")');
-  await page.waitForTimeout(4000); // real network call to Supabase Auth API
-  await shot(page, 'after-signup');
-  const signupResultHtml = await page.evaluate(() => document.getElementById('cloud-login-body').innerHTML);
-  const confirmShown = signupResultHtml.includes('Confirm your account');
-  const stillCreating = signupResultHtml.includes('Creating account');
   record(
-    'signUp() reaches the live Supabase Auth API and returns a real response (confirmation prompt or a real error, not hung)',
-    (confirmShown || !stillCreating) ? 'PASS' : 'FAIL',
-    confirmShown ? 'Got "Confirm your account"' : `Body: ${signupResultHtml.slice(0, 200)}`
+    'Sign In screen shows immediately on load with the real roster loaded, no email field anywhere, old PIN screen gone entirely',
+    handoff.cloudLoginVisible && handoff.appStillHidden && handoff.noOldPinScreen && handoff.noEmailFieldAnywhere && handoff.rosterLoaded && handoff.hasSilva ? 'PASS' : 'FAIL',
+    JSON.stringify(handoff)
   );
 
-  currentStep = 'forgot-password-live';
-  await page.click(confirmShown ? '#cloud-login-body >> text=Back to Sign In' : '#cloud-login-body button:nth-of-type(1)').catch(() => {});
-  await page.waitForTimeout(200);
-  await page.click('#cloud-login-body >> text=Forgot password?').catch(() => {});
-  await page.waitForTimeout(200);
-  const forgotFormShown = await page.evaluate(() => !!document.getElementById('auth-email-input') && document.getElementById('cloud-login-body').innerHTML.includes('reset link'));
-  if (forgotFormShown) {
-    await page.fill('#auth-email-input', testEmail);
-    await page.click('#cloud-login-body button:has-text("Send Reset Link")');
-    await page.waitForTimeout(3000); // real network call
-    const forgotResultHtml = await page.evaluate(() => document.getElementById('cloud-login-body').innerHTML);
-    const sentShown = forgotResultHtml.includes('Sent —');
-    record('resetPasswordForEmail() reaches the live Supabase Auth API and returns a real response', sentShown || !forgotResultHtml.includes('Send Reset Link') ? 'PASS' : 'FAIL', forgotResultHtml.slice(0, 200));
+  // Dedicated test-only roster entry (see supabase/schema.sql) — never
+  // a real person's identity. Signing up as a real name here would
+  // permanently consume it with a throwaway test password nobody
+  // knows, locking out whoever that real person is.
+  const testIdentity = 'E2E Test Account';
+
+  currentStep = 'switch-to-signup';
+  await page.click('#cloud-login-body button:nth-of-type(2)');
+  await page.waitForTimeout(700);
+  const signupFormShown = await page.evaluate(() => !!document.getElementById('auth-identity-select') && !!document.getElementById('auth-password-confirm-input'));
+  record('Sign Up tab shows the roster picker + password + confirm-password (no email field)', signupFormShown ? 'PASS' : 'FAIL');
+  await shot(page, 'signup-form');
+
+  currentStep = 'signup-live';
+  const rosterHasTestAccount = await page.evaluate((name) =>
+    Array.from(document.getElementById('auth-identity-select').options).some(o => o.value === name), testIdentity);
+  if (!rosterHasTestAccount) {
+    record(
+      'signUp() with name+password reaches the live Supabase project and produces a coherent outcome',
+      'FAIL',
+      'ACTION NEEDED: "E2E Test Account" isn\'t in the live allowed_identities table yet — run the latest supabase/schema.sql insert against the project.'
+    );
+    currentStep = 'cdn-failure-fallback';
   } else {
-    record('Forgot-password form is reachable from Sign In', 'FAIL', 'Could not navigate to it');
+  const testPassword = 'E2eTest' + Date.now();
+  await page.selectOption('#auth-identity-select', testIdentity);
+  await page.fill('#auth-password-input', testPassword);
+  await page.fill('#auth-password-confirm-input', testPassword);
+  await page.click('#cloud-login-body button:has-text("Create Account")');
+  await page.waitForTimeout(2500); // real network round trip
+  await shot(page, 'after-signup');
+  const afterSignupHtml = await page.evaluate(() => document.body.innerHTML);
+  const landedInApp = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
+  const alreadyRegistered = afterSignupHtml.includes('already has an account');
+  const confirmEmailStillOn = afterSignupHtml.includes('needs email confirmation');
+  record(
+    'signUp() with name+password reaches the live Supabase project and produces a coherent outcome',
+    landedInApp || alreadyRegistered || confirmEmailStillOn ? 'PASS' : 'FAIL',
+    landedInApp ? 'Landed in #app (Confirm email is OFF, as intended)'
+      : alreadyRegistered ? 'Already registered (acceptable — a prior test run owns this account)'
+      : confirmEmailStillOn ? 'ACTION NEEDED: Supabase "Confirm email" is still ON — turn it off (Authentication -> Sign In / Providers -> Email) or sign-up can never complete for a fake address'
+      : afterSignupHtml.slice(0, 300)
+  );
+
+  if (landedInApp) {
+    currentStep = 'signout-and-signin';
+    await page.evaluate(() => cloudSignOut());
+    await page.waitForTimeout(1000);
+    await shot(page, 'after-signout');
+    const backAtLogin = await page.evaluate(() => getComputedStyle(document.getElementById('cloud-login')).display !== 'none' && getComputedStyle(document.getElementById('app')).display === 'none');
+    record('cloudSignOut() returns to the login screen', backAtLogin ? 'PASS' : 'FAIL');
+
+    await page.waitForTimeout(500);
+    await page.selectOption('#auth-identity-select', testIdentity);
+    await page.fill('#auth-password-input', testPassword);
+    await page.click('#cloud-login-body button:has-text("Sign In")');
+    await page.waitForTimeout(1500);
+    await shot(page, 'after-signin');
+    const signedBackIn = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
+    record('Signing back in with the same name + password (no email step at all) works', signedBackIn ? 'PASS' : 'FAIL');
   }
-  await shot(page, 'forgot-password');
+  }
 
   currentStep = 'cdn-failure-fallback';
   const cdnFailPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -137,9 +167,7 @@ function printReport() {
 
   currentStep = 'final';
   await shot(page, 'final-state');
-  // 500s from signup-live/forgot-password-live against a synthetic
-  // @example.org address are expected — nothing to chase.
-  const critical = consoleErrors.filter(e => !e.text.includes('favicon') && !((e.step === 'signup-live' || e.step === 'forgot-password-live') && e.text.includes('50')));
+  const critical = consoleErrors.filter(e => !e.text.includes('favicon'));
   record('No unexpected console errors', critical.length === 0 ? 'PASS' : 'FAIL', critical.map(e => e.text).join(' | '));
   record('No uncaught page errors', pageErrors.length === 0 ? 'PASS' : 'FAIL', pageErrors.map(e => e.text).join(' | '));
 

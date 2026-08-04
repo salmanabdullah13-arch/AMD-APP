@@ -2958,3 +2958,55 @@ magic link wasn't the login *feel* he wanted after all.
 - **Still open**: Salman needs to run the widened roster policy SQL,
   then do the real human test (sign up with his own email, confirm,
   sign in with password). Phase 2 not started.
+
+### 4 Aug 2026 (evening, continued) — Third login iteration: username (name) + password, no email at all
+
+Salman, immediately after the email+password version landed: "It would
+be ideal if they signed up with their name instead of email id." Real
+tradeoff surfaced and agreed explicitly before building — several
+roster identities are ROLES ("Storekeeper", "Accounts") with no
+personal inbox at all, and even the real people didn't want to
+type/remember an email just to log into an internal tool.
+
+- **`identityToInternalEmail()` (auth.js)**: Supabase's account system
+  still needs some unique string under the hood; each roster name now
+  deterministically slugifies to a fake address ("Karthik Silva" ->
+  `karthik-silva@amd-app.internal`) the user never sees or types. Both
+  Sign In and Sign Up are now just a roster picker + password — zero
+  email fields anywhere in the UI.
+- **Real, accepted tradeoff**: a fake address can never receive mail,
+  so (a) Supabase's "Confirm email" setting has to be OFF for this
+  project — probed live via curl and confirmed it was still ON,
+  meaning sign-up would otherwise fail outright trying to send an
+  undeliverable confirmation — and (b) self-service "forgot password"
+  is gone entirely, replaced with "ask your admin." Salman's explicit
+  call for an 11-person roster where he's directly reachable; already
+  covered in the same day's earlier offboarding discussion (delete +
+  resign-up via the dashboard, no password needed for that).
+- **Caught a real bug in my own test before running it**: the first
+  draft of the live sign-up test used the real "Silva" identity —
+  which, if it actually completed, would have permanently claimed that
+  real person's identity with a randomly generated test password
+  nobody knows, locking them out. Added a dedicated `'E2E Test
+  Account'` row to `allowed_identities` (schema.sql) purely for
+  automated testing, never a real person, and pointed the test at that
+  instead. Worth calling out as a case where the test itself needed a
+  safety review, not just the app code.
+- **Verification**: rewrote `e2e-cloud-login.js` for the roster-picker
+  UI — confirms no email field exists anywhere in the login screen,
+  the roster loads live into both Sign In and Sign Up, and (once the
+  pending SQL/setting below are done) a live sign-up as the dedicated
+  test account lands in the real app, sign-out returns to the login
+  screen, and signing back in with the same name+password works with
+  no email step at all. Currently 5/6 — the one failure is `'E2E Test
+  Account'` not existing in the live roster yet, correctly identified
+  as "run the schema update," not a code defect. CDN-failure fallback
+  and full regression (back-button-check, team-comms-dashboard, owner-
+  dashboard, pwa-offline, job-routing-gate) all re-confirmed clean.
+- **Still open**: Salman needs to (1) run the latest schema.sql insert
+  (adds the E2E test row, on top of the still-pending roster-policy
+  widening from the email+password iteration), (2) turn OFF "Confirm
+  email" in Authentication -> Sign In / Providers -> Email, then (3)
+  do the real human test: sign up with his own name, no email
+  anywhere, sign in again with just name+password. Phase 2 not
+  started.

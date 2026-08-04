@@ -7,16 +7,27 @@
 // with a real per-person login, replacing the old dropdown-picks-your-
 // name simulation every module used until now.
 //
-// Email + password (not magic link — swapped same day after Salman's
-// call: checking email on every single login is real friction, and it
-// didn't match "a real app with a real login"). Sign-up still requires
-// a one-time email confirmation click (standard, prevents fake
-// registrations), but every login AFTER that first confirm is just
-// email + password, no email step at all. The name you pick at sign-up
-// is stored in Supabase auth's own user metadata and auto-claimed the
-// moment your account is confirmed — no separate "pick your name"
-// screen needed on the happy path (still exists as a fallback, see
-// renderIdentityClaim, for the rare case metadata is missing).
+// Username (your name, picked from the roster) + password — no real
+// email anywhere in the flow. Went through two earlier iterations
+// same day: magic link (checking email every login was too much
+// friction), then email+password (still required typing/remembering
+// an email address, and several roster identities are ROLES —
+// "Storekeeper", "Accounts" — that don't have a real personal inbox
+// at all). Supabase's accounts still need SOME unique string under the
+// hood, so each name gets a deterministic synthetic address (e.g.
+// "Karthik Silva" -> "karthik-silva@amd-app.internal") that's never
+// shown to the user and never receives real mail.
+//
+// Real consequence of that: nothing can be emailed to a fake address,
+// so there's no self-service "forgot password" anymore, and email
+// confirmation on sign-up MUST be turned off in Supabase's dashboard
+// (Authentication -> Sign In / Providers -> Email -> "Confirm email"),
+// otherwise signUp() fails outright trying to send a confirmation mail
+// that can never be delivered. Password recovery is manual now: an
+// employee who's locked out gets their account deleted (Authentication
+// -> Users) and signs up again — which conveniently also frees their
+// name to reclaim. Salman's explicit call, given an 11-person roster
+// where he's directly reachable.
 //
 // Depends on the supabase-js CDN script tag (index.html, loads right
 // before this file) and the schema in supabase/schema.sql already
@@ -45,6 +56,14 @@ let cloudLoginActive = false;
 
 function authEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 
+// Deterministic — the same name always maps to the same fake address,
+// so sign-in can derive it fresh from the picked name without ever
+// storing or displaying it anywhere.
+function identityToInternalEmail(displayName) {
+  const slug = displayName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `${slug}@amd-app.internal`;
+}
+
 const authFieldStyle = 'width:100%;padding:13px 14px;border:1px solid var(--shell-border);border-radius:10px;font-size:15px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;';
 const authBtnStyle = 'width:100%;padding:13px;background:var(--maraya);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;';
 const authLinkStyle = 'font-size:12px;color:var(--maraya);text-align:center;margin-top:14px;cursor:pointer;font-weight:600;';
@@ -61,14 +80,13 @@ function cloudLoginStart() {
   }
   // Automated tests (this repo's e2e-*.js suite) open index.html either
   // directly via a file:// URL or via a local http server (needed for
-  // service-worker tests — e2e-pwa-offline.js) and can't complete a real
-  // email round trip either way. The real deployed app is only ever
-  // reached over https://salmanabdullah13-arch.github.io or as an
-  // installed PWA — never file:// or localhost — so this can't activate
-  // for a real user; it exists purely so the existing test suite doesn't
-  // stall forever waiting on an email nobody can click. e2e-cloud-login.js
-  // opts back OUT of the bypass (via ?test_cloud_login=1) since that's the
-  // one suite actually testing this screen for real.
+  // service-worker tests — e2e-pwa-offline.js). The real deployed app is
+  // only ever reached over https://salmanabdullah13-arch.github.io or as
+  // an installed PWA — never file:// or localhost — so this can't
+  // activate for a real user; it exists purely so the existing test
+  // suite doesn't stall on this screen. e2e-cloud-login.js opts back OUT
+  // (via ?test_cloud_login=1) since that's the one suite testing this
+  // screen for real.
   const isLocalTestOrigin = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   const testingCloudLoginItself = new URLSearchParams(location.search).get('test_cloud_login') === '1';
   if (isLocalTestOrigin && !testingCloudLoginItself) {
@@ -95,76 +113,79 @@ function renderAuthForms(mode, message) {
   const tabsHtml = `<div style="display:flex;gap:4px;background:var(--shell-tint);border-radius:10px;padding:3px;margin-bottom:18px;">${tab('signin', 'Sign In')}${tab('signup', 'Sign Up')}</div>`;
   const messageHtml = message ? `<p style="font-size:12.5px;color:var(--bad);text-align:center;margin-bottom:10px;">${authEsc(message)}</p>` : '';
 
-  if (mode === 'signup') {
-    body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--shell-ink-muted);">Loading…</p>`;
-    sb.from('allowed_identities').select('display_name').order('display_name').then(({ data: roster, error }) => {
-      if (error) { body.innerHTML = tabsHtml + `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the roster: ${authEsc(error.message)}</p>`; return; }
+  body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--shell-ink-muted);">Loading…</p>`;
+  sb.from('allowed_identities').select('display_name').order('display_name').then(({ data: roster, error }) => {
+    if (error) { body.innerHTML = tabsHtml + `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the roster: ${authEsc(error.message)}</p>`; return; }
+    const rosterOptions = roster.map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('');
+
+    if (mode === 'signup') {
       body.innerHTML = tabsHtml + `
         ${messageHtml}
         <select id="auth-identity-select" style="${authFieldStyle}">
           <option value="">— Which of these are you? —</option>
-          ${roster.map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('')}
+          ${rosterOptions}
         </select>
-        <input id="auth-email-input" type="email" placeholder="Email" autocapitalize="off" autocorrect="off" spellcheck="false" style="${authFieldStyle}">
         <input id="auth-password-input" type="password" placeholder="Choose a password (6+ characters)" style="${authFieldStyle}">
+        <input id="auth-password-confirm-input" type="password" placeholder="Confirm password" style="${authFieldStyle}">
         <button onclick="handleSignUp()" style="${authBtnStyle}">Create Account</button>
+        <p style="font-size:11px;color:var(--shell-ink-faint);text-align:center;margin-top:10px;line-height:1.4;">No email needed — just remember your password, since only your admin can reset it.</p>
       `;
-    });
-    return;
-  }
+      return;
+    }
 
-  // mode === 'signin'
-  body.innerHTML = tabsHtml + `
-    ${messageHtml}
-    <input id="auth-email-input" type="email" placeholder="Email" autocapitalize="off" autocorrect="off" spellcheck="false" style="${authFieldStyle}">
-    <input id="auth-password-input" type="password" placeholder="Password" style="${authFieldStyle}">
-    <button onclick="handleSignIn()" style="${authBtnStyle}">Sign In</button>
-    <p style="${authLinkStyle}" onclick="renderForgotPassword()">Forgot password?</p>
-  `;
+    // mode === 'signin'
+    body.innerHTML = tabsHtml + `
+      ${messageHtml}
+      <select id="auth-identity-select" style="${authFieldStyle}">
+        <option value="">— Which of these are you? —</option>
+        ${rosterOptions}
+      </select>
+      <input id="auth-password-input" type="password" placeholder="Password" style="${authFieldStyle}">
+      <button onclick="handleSignIn()" style="${authBtnStyle}">Sign In</button>
+      <p style="font-size:11px;color:var(--shell-ink-faint);text-align:center;margin-top:14px;line-height:1.4;">Forgot your password? Ask your admin to reset your account.</p>
+    `;
+  });
 }
 
 async function handleSignIn() {
-  const email = (document.getElementById('auth-email-input').value || '').trim();
+  const displayName = document.getElementById('auth-identity-select').value;
   const password = document.getElementById('auth-password-input').value || '';
-  if (!email || !password) { renderAuthForms('signin', 'Enter your email and password.'); return; }
+  if (!displayName) { renderAuthForms('signin', 'Pick which of the names you are.'); return; }
+  if (!password) { renderAuthForms('signin', 'Enter your password.'); return; }
   const body = document.getElementById('cloud-login-body');
   body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--shell-ink-muted);">Signing in…</p>`;
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) { renderAuthForms('signin', error.message); return; }
+  const { error } = await sb.auth.signInWithPassword({ email: identityToInternalEmail(displayName), password });
+  if (error) { renderAuthForms('signin', error.message.includes('Invalid') ? 'Wrong name or password.' : error.message); return; }
   await afterSignedIn();
 }
 
 async function handleSignUp() {
   const displayName = document.getElementById('auth-identity-select').value;
-  const email = (document.getElementById('auth-email-input').value || '').trim();
   const password = document.getElementById('auth-password-input').value || '';
+  const confirmPassword = document.getElementById('auth-password-confirm-input').value || '';
   if (!displayName) { renderAuthForms('signup', 'Pick which of the names you are.'); return; }
-  if (!email || !email.includes('@')) { renderAuthForms('signup', 'Enter a valid email address.'); return; }
   if (password.length < 6) { renderAuthForms('signup', 'Password needs to be at least 6 characters.'); return; }
+  if (password !== confirmPassword) { renderAuthForms('signup', "Passwords don't match."); return; }
   const body = document.getElementById('cloud-login-body');
   body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--shell-ink-muted);">Creating account…</p>`;
-  const redirectTo = window.location.href.split('#')[0].split('?')[0];
-  // The chosen name travels in Supabase's own user metadata (not this
-  // app's DB) so it survives the confirm-email round trip even though
-  // no session exists yet to write to `profiles` directly — RLS
-  // requires `authenticated`, and signUp() with confirmation required
-  // returns no session, only a pending user.
   const { data, error } = await sb.auth.signUp({
-    email, password,
-    options: { data: { intended_identity: displayName }, emailRedirectTo: redirectTo }
+    email: identityToInternalEmail(displayName), password,
+    options: { data: { intended_identity: displayName } }
   });
-  if (error) { renderAuthForms('signup', error.message); return; }
-  if (data.session) {
-    // Confirmation isn't actually required on this project — got a
-    // real session immediately, so just finish claiming right now.
-    await afterSignedIn();
+  if (error) {
+    if (error.message.includes('already registered')) { renderAuthForms('signup', `"${displayName}" already has an account — try Sign In instead.`); return; }
+    renderAuthForms('signup', error.message);
     return;
   }
-  body.innerHTML = `
-    <p style="font-size:14px;color:var(--shell-ink);text-align:center;margin-bottom:8px;font-weight:600;">Confirm your account</p>
-    <p style="font-size:12.5px;color:var(--shell-ink-muted);text-align:center;line-height:1.4;">We sent a confirmation link to <b>${authEsc(email)}</b>. Open it on this device — after that, you can sign in with your password any time, no email needed.</p>
-    <p style="${authLinkStyle}" onclick="renderAuthForms('signin')">Back to Sign In</p>
-  `;
+  if (!data.session) {
+    // Only reachable if "Confirm email" is still on in Supabase — with
+    // a fake address, that confirmation mail can never arrive, so this
+    // account would be permanently stuck pending. Point at the fix
+    // rather than leave a silent dead end.
+    renderAuthForms('signup', 'Account created but needs email confirmation, which is off for this app — ask your admin to disable "Confirm email" in Supabase, then try Sign In.');
+    return;
+  }
+  await afterSignedIn();
 }
 
 async function afterSignedIn() {
@@ -181,9 +202,9 @@ async function afterSignedIn() {
     finishCloudLogin(existingProfile.display_name);
     return;
   }
-  // First login after confirming sign-up — auto-claim the name picked
-  // at sign-up time, no extra screen needed. Falls back to the manual
-  // picker only if that metadata is somehow missing.
+  // First login right after sign-up — claim the name picked at
+  // sign-up time immediately, no extra screen needed. Falls back to
+  // the manual picker only if that metadata is somehow missing.
   const intended = user.user_metadata && user.user_metadata.intended_identity;
   if (intended) {
     const { error: claimError } = await sb.from('profiles').insert({ id: user.id, display_name: intended });
@@ -234,47 +255,6 @@ async function claimIdentity() {
   finishCloudLogin(displayName);
 }
 
-// ── Forgot password / set new password ──────────────────────────────
-function renderForgotPassword(message) {
-  const body = document.getElementById('cloud-login-body');
-  if (!body) return;
-  body.innerHTML = `
-    <p style="font-size:13px;color:var(--shell-ink-muted);text-align:center;margin-bottom:16px;line-height:1.4;">Enter your email and we'll send you a reset link.</p>
-    ${message ? `<p style="font-size:12.5px;color:${message.startsWith('Sent') ? 'var(--ok)' : 'var(--bad)'};text-align:center;margin-bottom:10px;">${authEsc(message)}</p>` : ''}
-    <input id="auth-email-input" type="email" placeholder="Email" autocapitalize="off" autocorrect="off" spellcheck="false" style="${authFieldStyle}">
-    <button onclick="handleForgotPassword()" style="${authBtnStyle}">Send Reset Link</button>
-    <p style="${authLinkStyle}" onclick="renderAuthForms('signin')">Back to Sign In</p>
-  `;
-}
-
-async function handleForgotPassword() {
-  const email = (document.getElementById('auth-email-input').value || '').trim();
-  if (!email || !email.includes('@')) { renderForgotPassword('Enter a valid email address.'); return; }
-  const redirectTo = window.location.href.split('#')[0].split('?')[0];
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-  if (error) { renderForgotPassword(error.message); return; }
-  renderForgotPassword(`Sent — check ${email} for a reset link.`);
-}
-
-function renderSetNewPassword(message) {
-  const body = document.getElementById('cloud-login-body');
-  if (!body) return;
-  body.innerHTML = `
-    <p style="font-size:13px;color:var(--shell-ink-muted);text-align:center;margin-bottom:16px;">Choose a new password.</p>
-    ${message ? `<p style="font-size:12.5px;color:var(--bad);text-align:center;margin-bottom:10px;">${authEsc(message)}</p>` : ''}
-    <input id="auth-new-password-input" type="password" placeholder="New password (6+ characters)" style="${authFieldStyle}">
-    <button onclick="handleSetNewPassword()" style="${authBtnStyle}">Set Password</button>
-  `;
-}
-
-async function handleSetNewPassword() {
-  const password = document.getElementById('auth-new-password-input').value || '';
-  if (password.length < 6) { renderSetNewPassword('Password needs to be at least 6 characters.'); return; }
-  const { error } = await sb.auth.updateUser({ password });
-  if (error) { renderSetNewPassword(error.message); return; }
-  await afterSignedIn();
-}
-
 function finishCloudLogin(displayName) {
   window.cloudIdentity = displayName;
   cloudLoginActive = false;
@@ -290,14 +270,9 @@ async function cloudSignOut() {
   location.reload();
 }
 
-// Catches the confirm-email / password-recovery redirect completing
-// while this screen is already showing (supabase-js parses the URL's
-// auth tokens on load and fires this).
 if (sb) {
   sb.auth.onAuthStateChange((event, session) => {
-    if (!cloudLoginActive) return;
-    if (event === 'PASSWORD_RECOVERY') { renderSetNewPassword(); return; }
-    if (session && event === 'SIGNED_IN') { afterSignedIn(); }
+    if (cloudLoginActive && session && event === 'SIGNED_IN') { afterSignedIn(); }
   });
 }
 

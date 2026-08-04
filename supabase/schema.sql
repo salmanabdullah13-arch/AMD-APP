@@ -43,7 +43,12 @@ insert into public.allowed_identities (display_name) values
   ('Painting Lead / Work Supervisor'),
   ('Storekeeper'),
   ('Accounts'),
-  ('HR')
+  ('HR'),
+  -- Dedicated slot for e2e-cloud-login.js's live sign-up test — never
+  -- a real person. Without this, an automated test run would
+  -- permanently consume one of the 11 real identities above with a
+  -- throwaway password nobody knows.
+  ('E2E Test Account')
 on conflict (display_name) do nothing;
 
 -- The project's "auto-enable RLS on new tables" setting locks this
