@@ -48,9 +48,8 @@ function startServer(root, port) {
 
   currentStep = 'initial-load-and-sw-register';
   await page.goto(`http://localhost:${PORT}/index.html`);
-  for (const d of ['1', '9', '9', '4']) { await page.click(`.num-btn[onclick="pt('${d}')"]`); await page.waitForTimeout(120); }
   await page.waitForSelector('#app', { state: 'visible' });
-  record('PIN unlock (served over real HTTP, not file://)', 'PASS');
+  record('App loads (served over real HTTP, not file:// — real Supabase login replaced the old PIN, 4 Aug 2026)', 'PASS');
 
   // Wait for the service worker to actually activate, not just register.
   const swActivated = await page.evaluate(() => new Promise((resolve) => {
@@ -75,11 +74,10 @@ function startServer(root, port) {
   await context.setOffline(true);
   await page.reload();
   await page.waitForTimeout(500);
-  const offlineLoadOk = await page.evaluate(() => !!document.getElementById('lock') || !!document.querySelector('.num-btn'));
-  record('Page still loads (PIN lock screen renders) with the network fully offline', offlineLoadOk ? 'PASS' : 'FAIL');
+  const offlineLoadOk = await page.evaluate(() => !!document.getElementById('cloud-login'));
+  record('Page still loads (cloud-login entry gate renders) with the network fully offline', offlineLoadOk ? 'PASS' : 'FAIL');
 
   if (offlineLoadOk) {
-    for (const d of ['1', '9', '9', '4']) { await page.click(`.num-btn[onclick="pt('${d}')"]`); await page.waitForTimeout(120); }
     const appVisibleOffline = await page.evaluate(() => {
       const app = document.getElementById('app');
       return app && getComputedStyle(app).display !== 'none';
@@ -104,8 +102,11 @@ function startServer(root, port) {
   currentStep = 'back-online-refreshes-cache';
   await context.setOffline(false);
   await page.reload();
-  await page.waitForTimeout(300);
-  const backOnlineOk = await page.evaluate(() => !!document.querySelector('.num-btn'));
+  await page.waitForTimeout(500);
+  const backOnlineOk = await page.evaluate(() => {
+    const app = document.getElementById('app');
+    return !!document.getElementById('cloud-login') && app && getComputedStyle(app).display !== 'none';
+  });
   record('Coming back online and reloading works normally (network-first, not stuck on cache)', backOnlineOk ? 'PASS' : 'FAIL');
 
   await browser.close();

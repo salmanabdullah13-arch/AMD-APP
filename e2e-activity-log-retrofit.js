@@ -31,10 +31,9 @@ function printReport() {
   const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/');
   await page.goto(fileUrl);
 
-  currentStep = 'pin-unlock';
-  for (const d of ['1', '9', '9', '4']) { await page.click(`.num-btn[onclick="pt('${d}')"]`); await page.waitForTimeout(120); }
+  currentStep = 'app-loads';
   await page.waitForSelector('#app', { state: 'visible' });
-  record('PIN unlock', 'PASS');
+  record('App loads (real Supabase login replaced the old PIN, 4 Aug 2026)', 'PASS');
 
   currentStep = 'full-lifecycle-activity-check';
   const result = await page.evaluate(() => {

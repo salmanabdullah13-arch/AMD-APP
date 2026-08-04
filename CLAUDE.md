@@ -2805,3 +2805,85 @@ him things," "want everyone to have system to reach their teammates."
   modules close cleanly), `e2e-job-routing-gate-sales-purchase.js`
   (24/24, confirms Sales' pre-existing per-job Request Purchase button
   still works untouched) — zero console/page errors throughout.
+
+### 4 Aug 2026 (afternoon) — Cloud migration Phase 1: real Supabase login, then removed the PIN entirely
+
+Salman asked to look into converting the PWA into a real cloud-backed
+app with a real login, usable from desktop and phone, with messaging
+built in — a much bigger scope than the Messages-only work from
+earlier the same day. Agreed a phased plan (Supabase chosen over
+Firebase for the relational data fit and no vendor lock-in): Phase 1 —
+real login + Messages; Phase 2 — migrate core business data; Phase 3 —
+server-side rule enforcement; Phase 4 — desktop layout.
+
+- **`supabase/schema.sql`** (new): `allowed_identities` (mirrors
+  `REACHABLE_PEOPLE`, gates which names can be claimed),
+  `profiles` (one real login → exactly one claimed identity, unique
+  constraint prevents two logins claiming the same name — the actual
+  fix for "anyone can pick any name from a dropdown"), and `messages`
+  (cloud-backed, same shape as today's in-memory `messages[]`). Full
+  RLS: send only as your own claimed identity, read only your own
+  inbox + sent. Script is idempotent (safe to paste and run repeatedly)
+  after the first live run hit a partial-success state with no clean
+  way to tell what had landed.
+- **Caught two real bugs by directly querying the live project** (the
+  publishable key can reach Supabase from this environment) rather
+  than only reading code: `allowed_identities` had zero read policies
+  at all — the project's auto-RLS-on-new-tables setting had silently
+  locked it down, meaning nobody, not even a signed-in user, could see
+  the roster to claim a name. Fixed with a follow-up migration.
+- **`auth.js`** (new): `signInWithOtp()` magic-link flow, session
+  check on load, identity-claim picker backed by the live roster,
+  unique-constraint handling when a name's already taken. Originally
+  layered behind the existing PIN as a rollout safety net (in case the
+  new flow had bugs I couldn't fully verify without a real email
+  inbox) — **removed the PIN entirely the same day** once Salman
+  pointed out it added no real security to layer behind in the first
+  place: the PIN was hardcoded in the page source and shown as an
+  on-screen hint ("Default PIN: 1994"), so it was never actually
+  secret. `cloudLoginStart()` now fires automatically on page load and
+  is the app's only entry gate. Added a defensive fallback (try/catch
+  around `createClient`, clear on-screen error) for the one real risk
+  that removing PIN's "at least something shows" behavior created: a
+  CDN outage silently leaving a blank screen forever.
+- **Real live verification, not just code review**: confirmed via
+  direct REST calls that `profiles`/`messages` correctly reject
+  anonymous requests, and that a live `signInWithOtp()` call reaches
+  Supabase's real Auth API. Also discovered live (by triggering it)
+  that Supabase's free-tier default mailer caps at **2 auth emails/
+  hour** — both my own test emails used up the quota, so the real
+  human end-to-end test (Salman's own email) has to wait for the reset
+  or a custom SMTP provider later. Full magic-link click-through can
+  only ever be verified by a human with a real inbox — that boundary
+  is called out explicitly in `e2e-cloud-login.js`.
+- **Regression fallout from removing PIN, all fixed**: every one of
+  the ~20 other `e2e-*.js` suites unlocks via PIN and expects `#app`
+  to appear directly — replacing that gate with a real cloud-login
+  screen would have stalled every one of them forever waiting on an
+  email nobody can click. Added a bypass in `auth.js` scoped to
+  `file://`/`localhost`/`127.0.0.1` origins only — the real deployed
+  app is only ever reached over `https://salmanabdullah13-arch.
+  github.io`, so this can't activate for a real user.
+  `e2e-cloud-login.js` opts back OUT via `?test_cloud_login=1` since
+  it's the one suite testing the real screen. Bulk-removed the now-
+  dead PIN-click step from all ~20 other test files (verified each
+  still passes). Also: `auth.js` and the Supabase CDN script weren't
+  in `sw.js`'s offline cache list — fixed (CDN script cached
+  separately, best-effort, so a CORS/CDN hiccup can't take down
+  offline caching for the rest of the app), bumped `CACHE_VERSION` to
+  v2. Also folded in a pre-existing gap from the prior session:
+  `teamcomms.js` was missing from the cache list too.
+- **Verification**: every `e2e-*.js` suite in the repo re-run after
+  the PIN removal — all pass (the only non-pass anywhere is
+  `e2e-cloud-login.js`'s live-email check, blocked by the rate limit
+  above, not a code defect). New checks added to `e2e-cloud-login.js`
+  for the CDN-failure fallback (blocks the CDN request via Playwright
+  route interception, confirms the error message shows with zero
+  uncaught page errors) and for the PIN screen being structurally gone
+  from the DOM, not just hidden.
+- **Still open**: Salman needs to (1) wait out the email rate limit or
+  add custom SMTP, (2) set Authentication → URL Configuration → Site
+  URL to the real GitHub Pages URL so the magic-link redirect is
+  allow-listed, then (3) do the one test only a human can do — sign in
+  with a real email end to end. Phase 2 (migrating jobs/quotes/
+  customers/etc. to Supabase) not started.

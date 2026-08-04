@@ -1,23 +1,12 @@
 // ═══════════════════════════════════════
 // AL MARAYA — shell.js
-// PIN lock, main nav, dev checklist,
-// notes, ecosystem panel, service worker.
+// Main nav, dev checklist, notes, ecosystem
+// panel, service worker.
+// (The old shared 4-digit PIN lock was removed 4 Aug 2026 — it was
+// never real security, just a hardcoded code shown as an on-screen
+// hint. Real per-person login now lives in auth.js/cloudLoginStart(),
+// which fires on page load instead.)
 // ═══════════════════════════════════════
-
-// PIN
-const PIN='1994';let entered='';
-function pt(v){
-  if(v==='DEL'){entered=entered.slice(0,-1);}
-  else if(entered.length>=4)return;
-  else entered+=v;
-  for(let i=0;i<4;i++){const d=document.getElementById('d'+i);d.classList.toggle('filled',i<entered.length);}
-  if(entered.length===4){
-    setTimeout(()=>{
-      if(entered===PIN){document.getElementById('lock').style.display='none';if(typeof cloudLoginStart==='function'){cloudLoginStart();}else{document.getElementById('app').style.display='flex';updCP();updateHubBadges();}}
-      else{document.querySelectorAll('.pin-dot').forEach(d=>d.classList.add('error'));setTimeout(()=>{entered='';for(let i=0;i<4;i++)document.getElementById('d'+i).classList.remove('filled','error');},700);}
-    },100);
-  }
-}
 
 // NAV
 const TT={eco:'Ecosystem',roadmap:'Roadmap',notes:'Notes',checklist:'Checklist',operations:'Operations',curtain:'Curtain & Blinds'};

@@ -1,12 +1,11 @@
 // ══════════════════════════════════════════
-// AUTH — real Supabase login layered on top of the existing PIN gate
-// (4 Aug 2026, Phase 1 of the cloud migration). PIN still gates "is
-// this a company device"; this gates "who specifically are you" with
-// a real per-person cloud account, replacing the old dropdown-picks-
-// your-name simulation every module used until now. Phase 3 retires
-// the PIN once the rest of the app's business rules are server-
-// enforced too — see CLAUDE.md / task tracker. Until then both gates
-// stay, PIN first then this.
+// AUTH — real Supabase login, the app's entry gate (4 Aug 2026, Phase 1
+// of the cloud migration). Replaces the old shared 4-digit PIN outright
+// (removed same day) — that PIN was never real security, just a
+// hardcoded code shown as an on-screen hint, so it added friction
+// without adding protection. This gates "who specifically are you"
+// with a real per-person login, replacing the old dropdown-picks-your-
+// name simulation every module used until now.
 //
 // Depends on the supabase-js CDN script tag (index.html, loads right
 // before this file) and the schema in supabase/schema.sql already
@@ -15,7 +14,16 @@
 
 const SUPABASE_URL = 'https://rwbxycxrrslgxskoufxo.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_-ksrLB1Xw8DiHeVH3EpkDQ_SolsWr7t';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// Defensive: if the CDN script failed to load (network/CDN outage),
+// `supabase` is undefined and this would otherwise throw, silently
+// killing every function below and leaving a blank screen forever.
+let sb = null;
+try {
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+} catch (e) {
+  sb = null;
+}
 
 // Set once real login completes — the rest of the app doesn't read
 // this yet (that's Phase 2/3, migrating each module's own simulated
@@ -26,11 +34,16 @@ let cloudLoginActive = false;
 
 function authEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 
-// Called from shell.js's pt() once the PIN is correct, instead of
-// unlocking #app directly.
+// The app's entry point — called once, automatically, at the bottom of
+// this file when the page loads.
 function cloudLoginStart() {
   cloudLoginActive = true;
   document.getElementById('cloud-login').style.display = 'flex';
+  if (!sb) {
+    document.getElementById('cloud-login-body').innerHTML =
+      `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the login library. Check your connection and reload.</p>`;
+    return;
+  }
   // Automated tests (this repo's e2e-*.js suite) open index.html either
   // directly via a file:// URL or via a local http server (needed for
   // service-worker tests — e2e-pwa-offline.js) and can't complete a real
@@ -161,8 +174,13 @@ async function cloudSignOut() {
 // Catches the magic-link redirect completing while this screen is
 // already showing (supabase-js parses the URL's auth tokens on load
 // and fires this).
-sb.auth.onAuthStateChange((event, session) => {
-  if (cloudLoginActive && session && event === 'SIGNED_IN') {
-    afterSignedIn();
-  }
-});
+if (sb) {
+  sb.auth.onAuthStateChange((event, session) => {
+    if (cloudLoginActive && session && event === 'SIGNED_IN') {
+      afterSignedIn();
+    }
+  });
+}
+
+// Entry point — the app now starts here instead of behind a PIN.
+cloudLoginStart();

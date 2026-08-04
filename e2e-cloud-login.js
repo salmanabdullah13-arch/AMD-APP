@@ -1,11 +1,12 @@
-// Verification for the new cloud-login layer (4 Aug 2026, Phase 1 of
-// the Supabase migration): PIN still gates first, then a real
-// Supabase-backed login screen takes over instead of unlocking #app
-// directly. This test covers everything reachable without a real
-// email inbox: the PIN->cloud-login handoff, the email form, and the
-// real (live) network call to Supabase's Auth API through to "check
-// your email." Clicking the actual magic link can only be verified by
-// a human with a real inbox — that boundary is intentional, not a gap
+// Verification for the cloud-login layer (4 Aug 2026, Phase 1 of the
+// Supabase migration) — the app's real entry gate, replacing the old
+// shared 4-digit PIN outright (removed same day: it was never real
+// security, just a hardcoded code shown as an on-screen hint). This
+// test covers everything reachable without a real email inbox: the
+// cloud-login screen rendering on load, the email form, and the real
+// (live) network call to Supabase's Auth API through to "check your
+// email." Clicking the actual magic link can only be verified by a
+// human with a real inbox — that boundary is intentional, not a gap
 // in this test.
 
 const { chromium } = require('@playwright/test');
@@ -44,16 +45,14 @@ function printReport() {
   const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/') + '?test_cloud_login=1';
   await page.goto(fileUrl);
 
-  currentStep = 'pin-unlock';
-  for (const d of ['1', '9', '9', '4']) { await page.click(`.num-btn[onclick="pt('${d}')"]`); await page.waitForTimeout(120); }
-  await shot(page, 'after-pin');
-
+  currentStep = 'cloud-login-shows-on-load';
+  await shot(page, 'on-load');
   const handoff = await page.evaluate(() => ({
-    lockHidden: document.getElementById('lock').style.display === 'none',
     cloudLoginVisible: getComputedStyle(document.getElementById('cloud-login')).display !== 'none',
-    appStillHidden: getComputedStyle(document.getElementById('app')).display === 'none'
+    appStillHidden: getComputedStyle(document.getElementById('app')).display === 'none',
+    noOldPinScreen: !document.getElementById('lock') && !document.querySelector('.num-btn')
   }));
-  record('Correct PIN hides the PIN screen and shows cloud-login (not #app directly)', handoff.lockHidden && handoff.cloudLoginVisible && handoff.appStillHidden ? 'PASS' : 'FAIL', JSON.stringify(handoff));
+  record('Cloud-login shows immediately on load, #app stays hidden until it completes, and the old PIN screen is gone entirely', handoff.cloudLoginVisible && handoff.appStillHidden && handoff.noOldPinScreen ? 'PASS' : 'FAIL', JSON.stringify(handoff));
 
   currentStep = 'email-form-render';
   await page.waitForTimeout(500); // real getSession() round trip
@@ -84,6 +83,24 @@ function printReport() {
     const backToForm = await page.evaluate(() => !!document.getElementById('cloud-email-input'));
     record('"Use a different email" returns to the email form', backToForm ? 'PASS' : 'FAIL');
   }
+
+  currentStep = 'cdn-failure-fallback';
+  const cdnFailPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const cdnFailPageErrors = [];
+  cdnFailPage.on('pageerror', err => cdnFailPageErrors.push(err.message));
+  await cdnFailPage.route('**/supabase-js@2**', route => route.abort());
+  await cdnFailPage.goto(fileUrl);
+  await cdnFailPage.waitForTimeout(300);
+  const fallbackState = await cdnFailPage.evaluate(() =>
+    document.getElementById('cloud-login-body')?.innerHTML.includes("Couldn't load the login library")
+  );
+  record(
+    'If the Supabase CDN script fails to load, cloud-login shows a clear error instead of a silent blank screen (no uncaught error)',
+    fallbackState && cdnFailPageErrors.length === 0 ? 'PASS' : 'FAIL',
+    JSON.stringify({ fallbackShown: fallbackState, pageErrors: cdnFailPageErrors })
+  );
+  await shot(cdnFailPage, 'cdn-failure-fallback');
+  await cdnFailPage.close();
 
   currentStep = 'final';
   await shot(page, 'final-state');

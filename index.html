@@ -148,48 +148,15 @@
 </head>
 <body>
 
-<!-- LOCK SCREEN -->
-<div class="lock" id="lock">
-  <div style="width:80px;height:80px;border-radius:20px;border:1px solid var(--shell-border);background:linear-gradient(135deg,var(--maraya),var(--maraya2));display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 8px 20px -8px rgba(96,1,49,.35);">
-    <svg width="58" height="58" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="4" y="4" width="92" height="92" rx="18" stroke="white" stroke-width="4.5" fill="none"/>
-      <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="white" stroke-width="5.5" stroke-linejoin="miter" stroke-linecap="square"/>
-      <polygon points="50,64 76,82 76,48" fill="none" stroke="white" stroke-width="4.5" stroke-linejoin="miter"/>
-      <line x1="57" y1="74" x2="76" y2="74" stroke="white" stroke-width="4.5"/>
-    </svg>
-  </div>
-  <h1>Al Maraya Dev</h1>
-  <p>Personal developer dashboard<br>Enter PIN to continue</p>
-  <div class="pin-dots" id="pin-dots">
-    <div class="pin-dot" id="d0"></div>
-    <div class="pin-dot" id="d1"></div>
-    <div class="pin-dot" id="d2"></div>
-    <div class="pin-dot" id="d3"></div>
-  </div>
-  <div class="numpad">
-    <button class="num-btn" onclick="pt('1')">1</button>
-    <button class="num-btn" onclick="pt('2')">2</button>
-    <button class="num-btn" onclick="pt('3')">3</button>
-    <button class="num-btn" onclick="pt('4')">4</button>
-    <button class="num-btn" onclick="pt('5')">5</button>
-    <button class="num-btn" onclick="pt('6')">6</button>
-    <button class="num-btn" onclick="pt('7')">7</button>
-    <button class="num-btn" onclick="pt('8')">8</button>
-    <button class="num-btn" onclick="pt('9')">9</button>
-    <button class="num-btn empty"></button>
-    <button class="num-btn" onclick="pt('0')">0</button>
-    <button class="num-btn" onclick="pt('DEL')" style="font-size:16px;">⌫</button>
-  </div>
-  <p class="lock-hint">Default PIN: 1994</p>
-</div>
-
-<!-- CLOUD LOGIN — shown after PIN, before the app unlocks (4 Aug 2026,
-     Phase 1). PIN still gates "is this a company device"; this gates
-     "who specifically are you" with a real per-person Supabase login,
-     replacing the old dropdown-picks-your-name simulation. Both stay
-     until Phase 3 retires the PIN once business rules are server-
-     enforced too — see CLAUDE.md. -->
-<div class="lock" id="cloud-login" style="display:none;">
+<!-- CLOUD LOGIN — the app's real entry gate (4 Aug 2026). Replaces the
+     old shared 4-digit PIN outright: that PIN was never real security
+     (it was hardcoded in the page source and shown as an on-screen
+     hint), so layering a real per-person Supabase login behind it
+     added friction without adding protection. This gates "who
+     specifically are you" with a real login, replacing the old
+     dropdown-picks-your-name simulation. See CLAUDE.md / task tracker
+     for the rest of the cloud migration this is Phase 1 of. -->
+<div class="lock" id="cloud-login">
   <div style="width:80px;height:80px;border-radius:20px;border:1px solid var(--shell-border);background:linear-gradient(135deg,var(--maraya),var(--maraya2));display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 8px 20px -8px rgba(96,1,49,.35);">
     <svg width="58" height="58" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="4" y="4" width="92" height="92" rx="18" stroke="white" stroke-width="4.5" fill="none"/>

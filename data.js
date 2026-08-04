@@ -2464,8 +2464,10 @@ const EMPLOYEE_RATES = {
 // SCOPE CUT, DELIBERATE: the live spec's Masters -> Administration section
 // (Users / User Group / Default Controller / role flags / Quick Menu) models
 // Q-Pro's own multi-user login+permission system. This app has no such
-// login system — it's a PIN-lock entry plus per-module "simulated identity"
-// pickers (Estimator/Approver already work this way). Building a parallel
+// login system — it's real per-person Supabase login (auth.js, added
+// 4 Aug 2026) plus per-module "simulated identity" pickers for
+// everything not yet migrated onto it (Estimator/Approver work this
+// way today). Building a parallel
 // real user/permission system here would be substantial effort for
 // something this app's actual architecture doesn't need — not built, same
 // spirit as skipping Q-Pro's vestigial Inventory->Vendor list in Batch 1/2.

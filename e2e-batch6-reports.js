@@ -52,15 +52,11 @@ async function openNode(page, nodeId, wrapId, label) {
   const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/');
   await page.goto(fileUrl);
 
-  currentStep = 'pin-unlock';
+  currentStep = 'app-loads';
   try {
-    for (const digit of ['1', '9', '9', '4']) {
-      await page.click(`.num-btn[onclick="pt('${digit}')"]`);
-      await page.waitForTimeout(150);
-    }
     await page.waitForSelector('#app', { state: 'visible', timeout: 3000 });
-    record('PIN unlock', 'PASS');
-  } catch (e) { record('PIN unlock', 'FAIL', e.message); await shot(page, 'FAILED'); await browser.close(); printReport(); return; }
+    record('App loads (real Supabase login replaced the old PIN, 4 Aug 2026)', 'PASS');
+  } catch (e) { record('App loads', 'FAIL', e.message); await shot(page, 'FAILED'); await browser.close(); printReport(); return; }
 
   // ── Seed real data through the actual data-layer functions ──
   currentStep = 'seed-data';

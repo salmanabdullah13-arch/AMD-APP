@@ -10,7 +10,6 @@ for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/');
   await page.goto(fileUrl);
-  for (const d of ['1', '9', '9', '4']) { await page.click(`.num-btn[onclick="pt('${d}')"]`); await page.waitForTimeout(120); }
   await page.waitForSelector('#app', { state: 'visible' });
   await page.waitForTimeout(500);
 
