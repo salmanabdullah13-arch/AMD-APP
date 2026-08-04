@@ -39,7 +39,9 @@ function printReport() {
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push({ step: currentStep, text: msg.text() }); });
   page.on('pageerror', err => pageErrors.push({ step: currentStep, text: err.message }));
   page.on('dialog', async d => { await d.accept(); });
-  const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/');
+  // Opts OUT of the auto-bypass auth.js grants every other file:// test —
+  // this is the one suite that needs the real cloud-login screen to show.
+  const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/') + '?test_cloud_login=1';
   await page.goto(fileUrl);
 
   currentStep = 'pin-unlock';

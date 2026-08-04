@@ -31,6 +31,22 @@ function authEsc(s) { return (s === null || s === undefined) ? '' : String(s).re
 function cloudLoginStart() {
   cloudLoginActive = true;
   document.getElementById('cloud-login').style.display = 'flex';
+  // Automated tests (this repo's e2e-*.js suite) open index.html either
+  // directly via a file:// URL or via a local http server (needed for
+  // service-worker tests — e2e-pwa-offline.js) and can't complete a real
+  // magic-link email round trip either way. The real deployed app is only
+  // ever reached over https://salmanabdullah13-arch.github.io or as an
+  // installed PWA — never file:// or localhost — so this can't activate
+  // for a real user; it exists purely so the existing test suite doesn't
+  // stall forever waiting on an email nobody can click. e2e-cloud-login.js
+  // opts back OUT of the bypass (via ?test_cloud_login=1) since that's the
+  // one suite actually testing this screen for real.
+  const isLocalTestOrigin = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const testingCloudLoginItself = new URLSearchParams(location.search).get('test_cloud_login') === '1';
+  if (isLocalTestOrigin && !testingCloudLoginItself) {
+    finishCloudLogin('E2E Test User');
+    return;
+  }
   checkCloudSession();
 }
 
