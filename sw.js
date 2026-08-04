@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v2";
+const CACHE_VERSION = "amd-app-v3";
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
@@ -36,7 +36,7 @@ const CORE_ASSETS = [
 // caching for the entire rest of the app, which is why it's not in
 // CORE_ASSETS above.
 const OPTIONAL_ASSETS = [
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0"
 ];
 
 self.addEventListener("install", (event) => {
