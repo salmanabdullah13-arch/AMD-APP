@@ -2706,6 +2706,78 @@ function nextCustomerCode() { return "C" + (1508 + customers.length); }
 function customerTelExists(tel, excludeId = null) {
   return customers.some(c => c.id !== excludeId && c.tel === tel);
 }
+
+// ── Cloud-backed customers (4 Aug 2026, Phase 2 slice 1) ─────────────
+// Same local-cache pattern as Messages (data.js, earlier same day):
+// `customers` stays a plain array every existing .find()/.filter() call
+// site across every module already uses — nothing else in the app
+// changes. In real-cloud mode it's populated from Supabase at login and
+// kept live via realtime; createCustomer()/approveCustomer()/
+// rejectCustomer() stay synchronous (optimistic local write first, so
+// every existing caller — sales.js, accounts.js, ~20 e2e tests — keeps
+// working unchanged) and fire a background async write to persist it
+// for real, for other devices to see.
+function customerRowToObj(row) {
+  return {
+    id: row.id, name: row.name, contactPerson: row.contact_person, tel: row.tel, tel2: row.tel2,
+    email: row.email, fax: row.fax, vatName: row.vat_name, vatNo: row.vat_no, taxPercent: row.tax_percent,
+    isCredit: row.is_credit, creditLimit: row.credit_limit, creditDays: row.credit_days,
+    bankAccountNumber: row.bank_account_number, bankAccountHolderName: row.bank_account_holder_name,
+    ibanNumber: row.iban_number, bankSwift: row.bank_swift, bankName: row.bank_name, bankBranch: row.bank_branch,
+    address: row.address, crNo: row.cr_no, country: row.country, openingBalance: row.opening_balance,
+    salesMan: row.sales_man, status: row.status, approvedBy: row.approved_by, approvalDate: row.approval_date,
+    rejectionComment: row.rejection_comment, possibleDuplicateOf: row.possible_duplicate_of
+  };
+}
+function customerObjToRow(c) {
+  return {
+    id: c.id, name: c.name, contact_person: c.contactPerson, tel: c.tel, tel2: c.tel2 || "",
+    email: c.email || "", fax: c.fax || "", vat_name: c.vatName || "", vat_no: c.vatNo || "", tax_percent: c.taxPercent || 0,
+    is_credit: !!c.isCredit, credit_limit: c.creditLimit || 0, credit_days: c.creditDays || 0,
+    bank_account_number: c.bankAccountNumber || "", bank_account_holder_name: c.bankAccountHolderName || "",
+    iban_number: c.ibanNumber || "", bank_swift: c.bankSwift || "", bank_name: c.bankName || "", bank_branch: c.bankBranch || "",
+    address: c.address, cr_no: c.crNo || "", country: c.country || "Bahrain", opening_balance: c.openingBalance || 0,
+    sales_man: c.salesMan || null, status: c.status, approved_by: c.approvedBy || null, approval_date: c.approvalDate || null,
+    rejection_comment: c.rejectionComment || null, possible_duplicate_of: c.possibleDuplicateOf || null
+  };
+}
+async function initCloudCustomersCache() {
+  if (!window.__realCloudSession || !sb) return;
+  const { data, error } = await sb.from("customers").select("*").order("created_at", { ascending: true });
+  if (!error && data) { customers.length = 0; data.forEach(row => customers.push(customerRowToObj(row))); }
+  sb.channel("customers-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, (payload) => {
+      const row = payload.new || payload.old;
+      if (!row) return;
+      if (payload.eventType === "INSERT") { if (!customers.some(c => c.id === row.id)) customers.push(customerRowToObj(row)); }
+      else if (payload.eventType === "UPDATE") { const i = customers.findIndex(c => c.id === row.id); if (i >= 0) customers[i] = customerRowToObj(row); }
+      notifyLiveUpdateListeners();
+    })
+    .subscribe();
+}
+// Background persist for a locally-created customer. Deliberately does
+// NOT auto-retry a 23505 id collision with a regenerated id — the
+// caller already captured and may have used the original id
+// synchronously (e.g. linking it to an enquiry in the same call chain),
+// so silently changing it after the fact would orphan that reference.
+// Surfaced as a toast instead — a real but extremely rare edge case
+// (two devices creating a customer in the same instant off a stale
+// local count) that needs a person to notice and recreate the record,
+// not a silent auto-fix that could break a different reference.
+function persistNewCustomer(c) {
+  if (!window.__realCloudSession || !sb) return;
+  sb.from("customers").insert(customerObjToRow(c)).then(({ error }) => {
+    if (!error) return;
+    const reason = error.code === "23505" ? "id conflict with another device — please recreate this customer" : error.message;
+    if (typeof commsToast === "function") commsToast(`Couldn't save customer ${c.name} (${c.id}) to the cloud: ${reason}`);
+  });
+}
+function persistCustomerUpdate(c) {
+  if (!window.__realCloudSession || !sb) return;
+  sb.from("customers").update(customerObjToRow(c)).eq("id", c.id).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't sync customer ${c.name} to the cloud: ${error.message}`);
+  });
+}
 // Soft duplicate detection for Accounts' approval queue — Salman's call,
 // from a real past incident: duplicate client records slipped through and
 // caused problems downstream in Accounts. Flags a likely match on phone OR
@@ -2732,6 +2804,7 @@ function createCustomer({ name, contactPerson, tel, tel2 = "", email = "", fax =
   const dup = findPossibleDuplicateCustomer(tel, email);
   const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, address, crNo, country, openingBalance, salesMan, status: "pending", approvedBy: null, approvalDate: null, rejectionComment: null, possibleDuplicateOf: dup ? dup.id : null };
   customers.push(c);
+  persistNewCustomer(c);
   return c;
 }
 function approveCustomer(customerId, approvedBy) {
@@ -2742,6 +2815,7 @@ function approveCustomer(customerId, approvedBy) {
   c.approvalDate = new Date().toISOString().slice(0, 10);
   c.rejectionComment = null;
   logActivity({ type: "customer-approved", linkedType: "customer", linkedId: c.id, user: approvedBy, message: `Customer ${c.name} (${c.id}) approved` });
+  persistCustomerUpdate(c);
   return c;
 }
 function rejectCustomer(customerId, rejectedBy, comment) {
@@ -2753,6 +2827,7 @@ function rejectCustomer(customerId, rejectedBy, comment) {
   c.approvalDate = new Date().toISOString().slice(0, 10);
   c.rejectionComment = comment.trim();
   logActivity({ type: "customer-rejected", linkedType: "customer", linkedId: c.id, user: rejectedBy, message: `Customer ${c.name} (${c.id}) rejected — ${comment.trim()}` });
+  persistCustomerUpdate(c);
   return c;
 }
 

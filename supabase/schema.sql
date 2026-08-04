@@ -158,3 +158,81 @@ begin
     alter publication supabase_realtime add table public.messages;
   end if;
 end $$;
+
+-- ══════════════════════════════════════════════════════════════
+-- Phase 2, slice 1 (4 Aug 2026) — customers, the first real business
+-- data table. Mirrors data.js's createCustomer()/approveCustomer()/
+-- rejectCustomer() field-for-field. Unlike profiles/messages, this is
+-- a shared company resource with no per-person restriction today (any
+-- module can create/approve a customer) — RLS here matches that
+-- exactly rather than inventing new restrictions; real role-based
+-- rules are explicitly Phase 3 work, not bundled in here.
+--
+-- id stays client-generated ("C1508" style, unchanged from today) —
+-- not moved to a server sequence. Accepted, documented tradeoff: two
+-- devices creating a customer in the same instant could theoretically
+-- both compute the same next code from a slightly stale local count.
+-- The primary key below makes that fail loudly (a real insert
+-- conflict) rather than silently corrupt data — data.js's insert
+-- retries once with a fresh code if that ever happens. Not worth a
+-- full server-side reservation scheme for an 11-person team; revisit
+-- if it ever actually fires in practice.
+-- ══════════════════════════════════════════════════════════════
+create table if not exists public.customers (
+  id text primary key,
+  name text not null,
+  contact_person text not null,
+  tel text not null,
+  tel2 text not null default '',
+  email text not null default '',
+  fax text not null default '',
+  vat_name text not null default '',
+  vat_no text not null default '',
+  tax_percent numeric not null default 0,
+  is_credit boolean not null default false,
+  credit_limit numeric not null default 0,
+  credit_days integer not null default 0,
+  bank_account_number text not null default '',
+  bank_account_holder_name text not null default '',
+  iban_number text not null default '',
+  bank_swift text not null default '',
+  bank_name text not null default '',
+  bank_branch text not null default '',
+  address text not null,
+  cr_no text not null default '',
+  country text not null default 'Bahrain',
+  opening_balance numeric not null default 0,
+  sales_man text,
+  status text not null default 'pending',
+  approved_by text,
+  approval_date date,
+  rejection_comment text,
+  possible_duplicate_of text references public.customers (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.customers enable row level security;
+
+-- Every logged-in user can read/create/update — matches today's app
+-- exactly (no per-role restriction exists yet anywhere in this data).
+drop policy if exists "customers readable by any signed-in user" on public.customers;
+create policy "customers readable by any signed-in user"
+  on public.customers for select to authenticated using (true);
+
+drop policy if exists "customers insertable by any signed-in user" on public.customers;
+create policy "customers insertable by any signed-in user"
+  on public.customers for insert to authenticated with check (true);
+
+drop policy if exists "customers updatable by any signed-in user" on public.customers;
+create policy "customers updatable by any signed-in user"
+  on public.customers for update to authenticated using (true) with check (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'customers'
+  ) then
+    alter publication supabase_realtime add table public.customers;
+  end if;
+end $$;

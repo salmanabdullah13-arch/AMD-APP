@@ -267,6 +267,7 @@ function finishCloudLogin(displayName, isRealSession = true) {
     // notifyLiveUpdateListeners() (data.js) once ready.
     if (typeof initCloudMessagesCache === 'function') initCloudMessagesCache();
     if (typeof initPresence === 'function') initPresence();
+    if (typeof initCloudCustomersCache === 'function') initCloudCustomersCache();
   }
   if (typeof updCP === 'function') updCP();
   if (typeof updateHubBadges === 'function') updateHubBadges();

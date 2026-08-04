@@ -3073,3 +3073,59 @@ thing in one pass.
   slice (likely `customers`, since it's referenced by nearly
   everything else) and the same local-cache pattern proven here, not
   an attempt at all of Phase 2 at once.
+
+### 4 Aug 2026 (night, continued) — Phase 2 slice 1: customers, live on Supabase
+
+Salman: "Proceed with phase 1 and 2." Phase 1 was already done; started
+Phase 2 with `customers` as the first real business-data table, per
+the plan agreed a message earlier.
+
+- **Found the real blocker immediately**: `createCustomer()` is called
+  synchronously by ~20 different e2e test files (many building long
+  synchronous setup chains — customer -> enquiry -> quotation -> job —
+  inside a single `page.evaluate()`) plus `sales.js`/`accounts.js`
+  directly. Making it genuinely async, the "obvious" move, would have
+  required touching every one of those ~20 files. Reused the exact
+  local-cache pattern proven for Messages instead, but extended to
+  writes: `createCustomer()`/`approveCustomer()`/`rejectCustomer()`
+  stay fully synchronous — validate, mutate the local `customers`
+  array immediately (optimistic), return synchronously exactly like
+  today — and fire a background async write (`persistNewCustomer()`/
+  `persistCustomerUpdate()`) to actually save it to Supabase. Every
+  existing call site across the whole app needed zero changes.
+- **Caught and reversed a real bug in my own first draft**: initially
+  had a 23505 (id conflict) auto-retry that regenerated the customer's
+  id and mutated the object in place. Realized this was wrong before
+  shipping it — callers already capture and often immediately reuse
+  the original id synchronously (e.g. `createCustomer({...}).id` fed
+  straight into `createEnquiry()`), so silently changing the id later
+  would orphan that reference. Replaced with a surfaced toast instead
+  — an honest "this needs a person to notice," not a silent fix that
+  could break something else.
+- **`customers` table + RLS in `supabase/schema.sql`**: no per-role
+  restriction (matches today's app exactly — any module can create/
+  approve a customer; real role rules are Phase 3, not bundled here).
+  id stays client-generated ("C1508" style) rather than moved to a
+  server sequence — an accepted, documented tradeoff for an
+  11-person team rather than over-engineering a distributed-id scheme
+  for a collision that's very unlikely to ever actually happen.
+- **Verification**: full regression across all ~20 createCustomer-
+  dependent e2e suites plus the rest of the repo — every single one
+  passes unchanged, confirming the optimistic-local-write pattern
+  preserved 100% backward compatibility. New `e2e-cloud-customers.js`
+  goes through the real cloud-login flow and verifies createCustomer's
+  synchronous return, the local cache, the background persist actually
+  landing in the live table, approveCustomer's update persisting, and
+  — using a second signed-in session — that a customer created on one
+  device actually appears on another via realtime, not just per-tab
+  state. Currently blocked on the same pending SQL/setting as the
+  other two live-cloud tests.
+- **Still open**: the pending SQL has grown across several increments
+  (roster policy, E2E Test Account, now customers) — told Salman to
+  just re-run the entire `supabase/schema.sql` from scratch instead of
+  tracking a diff, since every statement in it is idempotent by
+  design. Still also needs "Confirm email" OFF. Once both are done, all
+  three live-cloud test suites (`e2e-cloud-login.js`,
+  `e2e-cloud-messages-presence.js`, `e2e-cloud-customers.js`) should go
+  fully green. Next slice after that: enquiries/quotations (Sales
+  pipeline), same pattern.
