@@ -2839,7 +2839,67 @@ function rejectCustomer(customerId, rejectedBy, comment) {
   return c;
 }
 
-// ── ENQUIRIES ──
+// ── Cloud-backed enquiries (4 Aug 2026, Phase 2 slice 2) ─────────────
+// Same local-cache + optimistic-write pattern as customers.
+function enquiryRowToObj(row) {
+  return {
+    id: row.id, division: row.division, customerId: row.customer_id, prospectName: row.prospect_name,
+    contactPerson: row.contact_person, tel: row.tel, email: row.email, requirements: row.requirements,
+    source: row.source, salesPerson: row.sales_person, dateCreated: row.date_created,
+    followUps: row.follow_ups || [], linkedQuotationId: row.linked_quotation_id
+  };
+}
+function enquiryObjToRow(e) {
+  return {
+    id: e.id, division: e.division, customer_id: e.customerId, prospect_name: e.prospectName || "",
+    contact_person: e.contactPerson, tel: e.tel, email: e.email || "", requirements: e.requirements || "",
+    source: e.source, sales_person: e.salesPerson, date_created: e.dateCreated,
+    follow_ups: e.followUps || [], linked_quotation_id: e.linkedQuotationId
+  };
+}
+let cloudEnquiriesCacheInitialized = false;
+async function initCloudEnquiriesCache() {
+  if (!window.__realCloudSession || !sb || cloudEnquiriesCacheInitialized) return;
+  cloudEnquiriesCacheInitialized = true;
+  const { data, error } = await sb.from("enquiries").select("*").order("created_at", { ascending: true });
+  if (!error && data) { enquiries.length = 0; data.forEach(row => enquiries.push(enquiryRowToObj(row))); }
+  sb.channel("enquiries-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "enquiries" }, (payload) => {
+      if (payload.eventType === "DELETE") {
+        const oldRow = payload.old; if (!oldRow) return;
+        const i = enquiries.findIndex(e => String(e.id) === String(oldRow.id));
+        if (i >= 0) enquiries.splice(i, 1);
+        notifyLiveUpdateListeners();
+        return;
+      }
+      const row = payload.new; if (!row) return;
+      const mapped = enquiryRowToObj(row);
+      const idx = enquiries.findIndex(e => String(e.id) === String(row.id));
+      if (payload.eventType === "INSERT") { if (idx < 0) enquiries.push(mapped); else enquiries[idx] = mapped; }
+      else if (payload.eventType === "UPDATE") { if (idx >= 0) enquiries[idx] = mapped; }
+      notifyLiveUpdateListeners();
+    })
+    .subscribe();
+}
+function persistNewEnquiry(e) {
+  if (!window.__realCloudSession || !sb) return;
+  sb.from("enquiries").insert(enquiryObjToRow(e)).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't save enquiry ${e.id} to the cloud: ${error.message}`);
+  });
+}
+function persistEnquiryUpdate(e) {
+  if (!window.__realCloudSession || !sb) return;
+  sb.from("enquiries").update(enquiryObjToRow(e)).eq("id", e.id).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't sync enquiry ${e.id} to the cloud: ${error.message}`);
+  });
+}
+function persistEnquiryDelete(id) {
+  if (!window.__realCloudSession || !sb) return;
+  sb.from("enquiries").delete().eq("id", id).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't delete enquiry ${id} from the cloud: ${error.message}`);
+  });
+}
+
 // Enq No format matches the live reference (ENQ04061AMD).
 function nextEnquiryNo() { return "ENQ" + String(4061 + enquiries.length).padStart(5, "0") + "AMD"; }
 // "Basic" tab (all fields below except followUps) is editable only by the
@@ -2855,6 +2915,7 @@ function createEnquiry({ division, customerId = null, prospectName = "", contact
   };
   enquiries.push(e);
   logActivity({ type: "enquiry-created", linkedType: "enquiry", linkedId: e.id, user: salesPerson, message: `Enquiry ${e.id} created for ${customerId ? (customers.find(c => c.id === customerId) || {}).name || customerId : prospectName}` });
+  persistNewEnquiry(e);
   return e;
 }
 // Notes must be at least 10 characters (live Q-Pro form validation).
@@ -2863,6 +2924,7 @@ function addFollowUp(enquiryId, { date, meetingType, outcome, notes }) {
   if (!e) return { error: "Enquiry not found." };
   if (!notes || notes.trim().length < 10) return { error: "Notes must be at least 10 characters." };
   e.followUps.push({ date: date || new Date().toISOString().slice(0, 10), meetingType, outcome, notes: notes.trim() });
+  persistEnquiryUpdate(e);
   return e;
 }
 // "Cancel" on the live Enquiry List is a real permanent delete, not a status
@@ -2871,11 +2933,76 @@ function cancelEnquiry(enquiryId) {
   const idx = enquiries.findIndex(e => e.id === enquiryId);
   if (idx === -1) return { error: "Enquiry not found." };
   enquiries.splice(idx, 1);
+  persistEnquiryDelete(enquiryId);
   return { ok: true };
 }
 // Only available once the Enquiry is linked to a real Customer — reproduces
 // the live "Please Select Customer To Proceed!!!" error for prospect-only enquiries.
 function canConvertToQuotation(enquiry) { return !!(enquiry && enquiry.customerId); }
+
+// ── Cloud-backed quotations (4 Aug 2026, Phase 2 slice 2) ────────────
+// `items`/`auditLog` travel as plain jsonb — see the design note in
+// supabase/schema.sql. Every one of quotations' ~10 mutation functions
+// below (addQuotationItem, the addBOM* family, submitItemBOM,
+// transferQuotationStage, approveQuotation, approverCorrectItem) ends
+// with the same one-line persistQuotationUpdate(qtn) call — since the
+// whole nested structure is one jsonb column, there's no per-field
+// patching needed, just "save the whole row as it stands now."
+function quotationRowToObj(row) {
+  return {
+    id: row.id, rev: row.rev, enquiryId: row.enquiry_id, parentJobId: row.parent_job_id, customerId: row.customer_id,
+    projectName: row.project_name, taxPercent: row.tax_percent, contactPerson: row.contact_person,
+    withEstimation: row.with_estimation, notes: row.notes, items: row.items || [],
+    coveringLetterTemplate: row.covering_letter_template, coveringLetterBody: row.covering_letter_body,
+    termsTemplate: row.terms_template, termsBody: row.terms_body,
+    lifecycleStatus: row.lifecycle_status, stage: row.stage,
+    estimatorPickedBy: row.estimator_picked_by, approverPickedBy: row.approver_picked_by,
+    headerComment: row.header_comment, date: row.date, confirmDate: row.confirm_date,
+    auditLog: row.audit_log || []
+  };
+}
+function quotationObjToRow(q) {
+  return {
+    id: q.id, rev: q.rev, enquiry_id: q.enquiryId || null, parent_job_id: q.parentJobId || null, customer_id: q.customerId,
+    project_name: q.projectName, tax_percent: q.taxPercent, contact_person: q.contactPerson,
+    with_estimation: !!q.withEstimation, notes: q.notes || "", items: q.items || [],
+    covering_letter_template: q.coveringLetterTemplate, covering_letter_body: q.coveringLetterBody || "",
+    terms_template: q.termsTemplate, terms_body: q.termsBody || "",
+    lifecycle_status: q.lifecycleStatus, stage: q.stage,
+    estimator_picked_by: q.estimatorPickedBy, approver_picked_by: q.approverPickedBy,
+    header_comment: q.headerComment || "", date: q.date, confirm_date: q.confirmDate,
+    audit_log: q.auditLog || []
+  };
+}
+let cloudQuotationsCacheInitialized = false;
+async function initCloudQuotationsCache() {
+  if (!window.__realCloudSession || !sb || cloudQuotationsCacheInitialized) return;
+  cloudQuotationsCacheInitialized = true;
+  const { data, error } = await sb.from("quotations").select("*").order("created_at", { ascending: true });
+  if (!error && data) { quotations.length = 0; data.forEach(row => quotations.push(quotationRowToObj(row))); }
+  sb.channel("quotations-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "quotations" }, (payload) => {
+      const row = payload.new; if (!row) return;
+      const mapped = quotationRowToObj(row);
+      const idx = quotations.findIndex(q => String(q.id) === String(row.id));
+      if (payload.eventType === "INSERT") { if (idx < 0) quotations.push(mapped); else quotations[idx] = mapped; }
+      else if (payload.eventType === "UPDATE") { if (idx >= 0) quotations[idx] = mapped; }
+      notifyLiveUpdateListeners();
+    })
+    .subscribe();
+}
+function persistNewQuotation(q) {
+  if (!window.__realCloudSession || !sb) return;
+  sb.from("quotations").insert(quotationObjToRow(q)).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't save quotation ${q.id} to the cloud: ${error.message}`);
+  });
+}
+function persistQuotationUpdate(q) {
+  if (!window.__realCloudSession || !sb) return;
+  sb.from("quotations").update(quotationObjToRow(q)).eq("id", q.id).then(({ error }) => {
+    if (error && typeof commsToast === "function") commsToast(`Couldn't sync quotation ${q.id} to the cloud: ${error.message}`);
+  });
+}
 
 // ── QUOTATIONS ──
 // Qtn No format matches the live reference (AMD-15350-0) — "-0" is revision 0.
@@ -2916,6 +3043,8 @@ function convertEnquiryToQuotation(enquiryId, { projectName, taxPercent, contact
   quotations.push(qtn);
   enq.linkedQuotationId = qtn.id;
   logQuotationAudit(qtn, { action: "Create", user: enq.salesPerson, userType: "SALES", status: "Draft" });
+  persistNewQuotation(qtn);
+  persistEnquiryUpdate(enq);
   return qtn;
 }
 function nextQuotationItemId(qtn) { return qtn.items.length + 1; }
@@ -2946,6 +3075,7 @@ function addQuotationItem(qtnId, item) {
     corrections: [], priceManuallyOverridden: false
   };
   qtn.items.push(row);
+  persistQuotationUpdate(qtn);
   return row;
 }
 // Copies every item under a Group (or a specific Sub Group within one) as
@@ -2991,12 +3121,14 @@ function setItemDepartmentSequence(qtnId, lineId, sequence) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
   item.departmentSequence = sequence || [];
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item;
 }
 function removeQuotationItem(qtnId, lineId) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
   qtn.items = qtn.items.filter(it => it.lineId !== lineId);
+  persistQuotationUpdate(qtn);
   return { ok: true };
 }
 
@@ -3023,12 +3155,13 @@ function applyCustomerUpdate(qtnId, { customerId, contactPerson, salesPerson, ta
   }
   if (salesPerson !== undefined) {
     const enq = enquiries.find(e => e.id === qtn.enquiryId);
-    if (enq) enq.salesPerson = salesPerson;
+    if (enq) { enq.salesPerson = salesPerson; persistEnquiryUpdate(enq); }
   }
   if (taxPercent !== undefined) {
     qtn.taxPercent = Number(taxPercent);
   }
   logQuotationAudit(qtn, { action: "Customer Update", user: "Admin", userType: "SALES", status: qtn.lifecycleStatus });
+  persistQuotationUpdate(qtn);
   return qtn;
 }
 // Step 3 of the wizard — "Update Quotation" on the live system. Stays
@@ -3046,6 +3179,7 @@ function finaliseQuotation(qtnId, { coveringLetterTemplate, termsTemplate }) {
     qtn.termsTemplate = termsTemplate;
     qtn.termsBody = TERMS_TEMPLATES[termsTemplate];
   }
+  persistQuotationUpdate(qtn);
   // Deliberately does NOT touch qtn.stage. Before Batch 7 locked pricing
   // unconditionally, this used to auto-set stage to "estimator" when
   // withEstimation was checked — a real bug once withEstimation became
@@ -3070,6 +3204,7 @@ function transferQuotationStage(qtnId, newStage, actorName) {
   qtn.stage = newStage;
   logQuotationAudit(qtn, { action: "Transfer", user: actorName, userType: newStage.toUpperCase() });
   logActivity({ type: "quotation-transferred", linkedType: "quotation", linkedId: qtn.id, user: actorName, message: `${qtn.id} moved to ${newStage === "sales" ? "Sales" : newStage === "estimator" ? "Estimator" : "Approver"}` });
+  persistQuotationUpdate(qtn);
   return qtn;
 }
 
@@ -3201,6 +3336,7 @@ function pickQuotation(qtnId, personName, expectedStage) {
   if (qtn[field]) return { error: "This quotation has already been picked." };
   qtn[field] = personName;
   logQuotationAudit(qtn, { action: "Pick", user: personName, userType: expectedStage.toUpperCase() });
+  persistQuotationUpdate(qtn);
   return qtn;
 }
 
@@ -3234,6 +3370,7 @@ function addBOMMaterial(qtnId, lineId, { name, description = "", qty, unit, rate
   // Material Requirement (Inventory report) see real demand for the item.
   const master = itemMaster.find(it => it.name === name);
   bom.materials.push({ id: bom.materials.length + 1, itemId: master ? master.id : null, name, description, qty: qty || 0, unit, rate: rate || 0, amount });
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return bom;
 }
 // calcMode 'hours' (PPL x Hrs x hourly Rate) or 'days' (PPL x Days x daily
@@ -3249,6 +3386,7 @@ function addBOMLabour(qtnId, lineId, { department, empCategory, calcMode = "hour
   const manQty = (noOfPpl || 0) * (qty || 0);
   const amount = manQty * rate;
   bom.labour.push({ id: bom.labour.length + 1, department, empCategory, calcMode, noOfPpl: noOfPpl || 0, qty: qty || 0, manQty, rate, amount });
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return bom;
 }
 // Department production-floor averages from real payroll (EMPLOYEE_RATES)
@@ -3273,6 +3411,7 @@ function addBOMSubcontract(qtnId, lineId, { vendor, workType, amount }) {
   if (!item) return { error: "Item not found." };
   const bom = ensureItemBOM(item);
   bom.subcontract.push({ id: bom.subcontract.length + 1, vendor, workType, amount: amount || 0 });
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return bom;
 }
 function addBOMHiring(qtnId, lineId, { vendor, workType, amount }) {
@@ -3280,6 +3419,7 @@ function addBOMHiring(qtnId, lineId, { vendor, workType, amount }) {
   if (!item) return { error: "Item not found." };
   const bom = ensureItemBOM(item);
   bom.hiring.push({ id: bom.hiring.length + 1, vendor, workType, amount: amount || 0 });
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return bom;
 }
 function addBOMOther(qtnId, lineId, { party, details, amount }) {
@@ -3287,30 +3427,35 @@ function addBOMOther(qtnId, lineId, { party, details, amount }) {
   if (!item) return { error: "Item not found." };
   const bom = ensureItemBOM(item);
   bom.others.push({ id: bom.others.length + 1, party, details, amount: amount || 0 });
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return bom;
 }
 function removeBOMEntry(qtnId, lineId, category, entryId) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
   item.bom[category] = item.bom[category].filter(r => r.id !== entryId);
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
 }
 function setBOMOHPercent(qtnId, lineId, category, val) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
   item.bom.ohPercents[category] = val;
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
 }
 function setBOMProfitPercent(qtnId, lineId, val) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
   item.bom.profitPercent = val;
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
 }
 function setBOMSellingOverride(qtnId, lineId, val) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
   item.bom.sellingPriceOverride = (val === null || val === "") ? null : Number(val);
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
 }
 
@@ -3353,6 +3498,7 @@ function submitItemBOM(qtnId, lineId, submittedBy = "Estimator") {
   item.bom.submitted = true;
   item.bom.qtyAtSubmit = item.qty; // lets the Estimation index flag "Copy BOM" if Sales changes Qty after this
   logActivity({ type: "bom-submitted", linkedType: "quotation", linkedId: qtnId, user: submittedBy, message: `BOM submitted for ${item.product} — Selling Price BD ${sellingPrice.toFixed(3)}` });
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return { item, totals };
 }
 function clearItemBOM(qtnId, lineId) {
@@ -3360,6 +3506,7 @@ function clearItemBOM(qtnId, lineId) {
   if (!item) return { error: "Item not found." };
   item.bom = null;
   item.rate = 0; item.amount = 0; item.discAmt = 0; item.netAmount = 0;
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return { ok: true };
 }
 // Clone another line item's full BOM (materials/labour/subcontract/hiring/
@@ -3377,6 +3524,7 @@ function cloneBOMToItem(qtnId, sourceLineId, targetLineId) {
   target.bom = JSON.parse(JSON.stringify(source.bom));
   target.bom.submitted = false;
   target.bom.qtyAtSubmit = null;
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return target.bom;
 }
 
@@ -3454,6 +3602,7 @@ function approveQuotation(qtnId, approvedBy) {
   qtn.lifecycleStatus = "open";
   logQuotationAudit(qtn, { action: "Transfer", user: approvedBy, userType: "SALES", status: "Open" });
   logActivity({ type: "quotation-approved", linkedType: "quotation", linkedId: qtn.id, user: approvedBy, message: `${qtn.id} approved — Open` });
+  persistQuotationUpdate(qtn);
   return qtn;
 }
 
@@ -3463,6 +3612,7 @@ function setQuotationHeaderComment(qtnId, text) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
   qtn.headerComment = text;
+  persistQuotationUpdate(qtn);
   return qtn;
 }
 // Per-line comment — Approver-authored, surfaced to the Estimator via the
@@ -3471,6 +3621,7 @@ function setLineApproverComment(qtnId, lineId, text) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
   item.approverComment = text;
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item;
 }
 
@@ -3508,6 +3659,7 @@ function approverCorrectItem(qtnId, lineId, patch, reason, approverName) {
   const fieldList = Object.keys(changes).join(", ");
   logQuotationAudit(qtn, { action: "Correct Item", user: approverName, userType: "APPROVER", status: `${item.product} — ${fieldList} corrected (${reason.trim()})` });
   logActivity({ type: "item-corrected", linkedType: "quotation", linkedId: qtnId, user: approverName, message: `${item.product} — ${fieldList} corrected: ${reason.trim()}` });
+  persistQuotationUpdate(qtn);
   return item;
 }
 
@@ -3523,6 +3675,7 @@ function updateQuotationItemFields(qtnId, lineId, { qty, description, internalCo
   item.amount = item.qty * item.rate;
   item.discAmt = item.amount * (item.discPercent || 0) / 100;
   item.netAmount = (item.amount - item.discAmt) * (1 + (item.vatPercent || 0) / 100);
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item;
 }
 
@@ -3725,6 +3878,11 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
   qtn.lifecycleStatus = "confirmed";
   qtn.confirmDate = job.confirmDate;
   logQuotationAudit(qtn, { action: "Transfer", user: confirmedBy, userType: "SALES", status: "Confirmed" });
+  // Persists the quotation side of this transition (Phase 2 slice 2).
+  // jobCards[] itself is NOT yet migrated to Supabase — that's Phase 2's
+  // next slice — so the actual Job Card this creates stays local-only
+  // for now, same as before this session's changes.
+  persistQuotationUpdate(qtn);
   bridgeJobToOperationsAndCurtain(job);
   logActivity({ type: "job-created", linkedType: "job", linkedId: job.id, user: confirmedBy, message: `Job Card ${job.id} created from Quotation ${qtn.id}` });
   return job;
@@ -4276,6 +4434,7 @@ function createVariationForJob(jobId, { notes = "" } = {}) {
   };
   quotations.push(qtn);
   logActivity({ type: "variation-created", linkedType: "job", linkedId: jobId, user: "Sales", message: `Variation ${qtn.id} created` });
+  persistNewQuotation(qtn);
   return qtn;
 }
 
@@ -4314,6 +4473,9 @@ function confirmVariationToJobCard(qtnId, confirmedBy) {
   job.variationIds.push(qtn.id);
   qtn.lifecycleStatus = "confirmed";
   qtn.confirmDate = new Date().toISOString().slice(0, 10);
+  // jobCards[] itself isn't migrated yet (a later slice) — this persists
+  // just the variation quotation's side of the transition.
+  persistQuotationUpdate(qtn);
   bridgeJobToOperationsAndCurtain(job);
   logActivity({ type: "variation-merged", linkedType: "job", linkedId: job.id, user: confirmedBy, message: `Variation ${qtn.id} approved and merged — +BD ${totals.netTotal.toFixed(3)}` });
   return job;

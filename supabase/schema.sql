@@ -236,3 +236,114 @@ begin
     alter publication supabase_realtime add table public.customers;
   end if;
 end $$;
+
+-- ══════════════════════════════════════════════════════════════
+-- Phase 2, slice 2 (4 Aug 2026) — enquiries + quotations, the Sales
+-- pipeline. Same shared-company-resource RLS as customers (any signed-
+-- in user reads/writes/deletes — no per-role restriction yet, that's
+-- Phase 3). Quotations' `items` (each with nested BOM: materials/
+-- labour/subcontract/hiring/other) and `audit_log` are stored as
+-- plain jsonb rather than fully normalized into a dozen related
+-- tables — the app's own JS code already treats them as a single
+-- nested object it mutates directly, and supabase-js serializes a JS
+-- object to jsonb with zero mapping code needed. Full normalization
+-- would be substantial extra schema/mapping work for a structure
+-- that's still evolving in the app itself; jsonb gets the real win
+-- (persistence, cross-device sync) without that cost.
+-- ══════════════════════════════════════════════════════════════
+create table if not exists public.enquiries (
+  id text primary key,
+  division text not null,
+  customer_id text references public.customers (id),
+  prospect_name text not null default '',
+  contact_person text not null,
+  tel text not null,
+  email text not null default '',
+  requirements text not null default '',
+  source text,
+  sales_person text,
+  date_created date not null default current_date,
+  follow_ups jsonb not null default '[]'::jsonb,
+  linked_quotation_id text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.enquiries enable row level security;
+
+drop policy if exists "enquiries readable by any signed-in user" on public.enquiries;
+create policy "enquiries readable by any signed-in user"
+  on public.enquiries for select to authenticated using (true);
+drop policy if exists "enquiries insertable by any signed-in user" on public.enquiries;
+create policy "enquiries insertable by any signed-in user"
+  on public.enquiries for insert to authenticated with check (true);
+drop policy if exists "enquiries updatable by any signed-in user" on public.enquiries;
+create policy "enquiries updatable by any signed-in user"
+  on public.enquiries for update to authenticated using (true) with check (true);
+-- Cancelling an enquiry is a real permanent delete in this app (not a
+-- status flag) — see cancelEnquiry() in data.js.
+drop policy if exists "enquiries deletable by any signed-in user" on public.enquiries;
+create policy "enquiries deletable by any signed-in user"
+  on public.enquiries for delete to authenticated using (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'enquiries'
+  ) then
+    alter publication supabase_realtime add table public.enquiries;
+  end if;
+end $$;
+
+create table if not exists public.quotations (
+  id text primary key,
+  rev integer not null default 0,
+  enquiry_id text references public.enquiries (id),
+  -- Variations (createVariationForJob() in data.js) are quotations[]
+  -- entries with enquiry_id null and this set instead — jobCards
+  -- itself isn't migrated yet (a later slice), so this is just a plain
+  -- text id, not a foreign key to a table that doesn't exist here.
+  parent_job_id text,
+  customer_id text references public.customers (id),
+  project_name text,
+  tax_percent numeric,
+  contact_person text,
+  with_estimation boolean not null default true,
+  notes text default '',
+  items jsonb not null default '[]'::jsonb,
+  covering_letter_template text,
+  covering_letter_body text default '',
+  terms_template text,
+  terms_body text default '',
+  lifecycle_status text not null default 'draft',
+  stage text,
+  estimator_picked_by text,
+  approver_picked_by text,
+  header_comment text default '',
+  date date,
+  confirm_date date,
+  audit_log jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.quotations enable row level security;
+
+drop policy if exists "quotations readable by any signed-in user" on public.quotations;
+create policy "quotations readable by any signed-in user"
+  on public.quotations for select to authenticated using (true);
+drop policy if exists "quotations insertable by any signed-in user" on public.quotations;
+create policy "quotations insertable by any signed-in user"
+  on public.quotations for insert to authenticated with check (true);
+drop policy if exists "quotations updatable by any signed-in user" on public.quotations;
+create policy "quotations updatable by any signed-in user"
+  on public.quotations for update to authenticated using (true) with check (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'quotations'
+  ) then
+    alter publication supabase_realtime add table public.quotations;
+  end if;
+end $$;

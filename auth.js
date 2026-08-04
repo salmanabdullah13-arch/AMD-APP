@@ -268,6 +268,8 @@ function finishCloudLogin(displayName, isRealSession = true) {
     if (typeof initCloudMessagesCache === 'function') initCloudMessagesCache();
     if (typeof initPresence === 'function') initPresence();
     if (typeof initCloudCustomersCache === 'function') initCloudCustomersCache();
+    if (typeof initCloudEnquiriesCache === 'function') initCloudEnquiriesCache();
+    if (typeof initCloudQuotationsCache === 'function') initCloudQuotationsCache();
   }
   if (typeof updCP === 'function') updCP();
   if (typeof updateHubBadges === 'function') updateHubBadges();

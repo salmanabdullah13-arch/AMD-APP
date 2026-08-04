@@ -3202,3 +3202,63 @@ instead of just reading the code.
 - **Phase 1 and Phase 2 slice 1 are now both fully proven live**, not
   just built. Next: enquiries/quotations (Sales pipeline) as Phase 2's
   second slice, same local-cache pattern.
+
+### 4 Aug 2026 (very late night) — Phase 2 slice 2: enquiries + quotations
+
+Salman: "Keep building." Continued Phase 2 with the Sales pipeline.
+
+- **Real scope check before writing any code**: grepping for every
+  function touching `quotations[]` found ~25, not the ~10 initially
+  assumed — items, BOM (materials/labour/subcontract/hiring/others),
+  group/sub-group copy, stage transfers, approvals, item corrections,
+  and the bridge into `jobCards[]`. Decided explicitly to migrate
+  enquiries + quotations fully in this slice, but leave `jobCards[]`
+  itself out of scope (a later slice) — `confirmQuotationToJobCard()`/
+  `confirmVariationToJobCard()` still create a job locally exactly as
+  before, but now ALSO persist the quotation-side fields they touch
+  (`lifecycleStatus`, `confirmDate`) so the quotation record itself
+  stays accurate in the cloud even though the job it creates doesn't
+  yet exist there.
+- **Key design choice: quotations' nested `items` (each with its own
+  BOM) and `auditLog` are stored as plain `jsonb`**, not normalized
+  into a dozen related tables. The app's own JS code already treats
+  this whole structure as one object it mutates directly — a jsonb
+  column matches that shape exactly, and supabase-js serializes a JS
+  object to jsonb with zero mapping code. This is what made ~25
+  mutation functions tractable: every one of them ends with the exact
+  same one-line `persistQuotationUpdate(qtn)` (save the whole row as
+  it stands now), rather than needing bespoke per-field patch logic
+  for each function the way `customers` needed.
+- **Real bug caught while wiring `createVariationForJob()`**: a
+  Variation is a `quotations[]` entry with an extra `parentJobId`
+  field (no `enquiryId`) that the schema/mapper didn't have room for —
+  would have silently dropped that field on every persist, breaking
+  `nextVariationRev()`'s cross-session accuracy the moment two devices
+  needed to agree on the next revision number. Added `parent_job_id`
+  to the table and both mapper directions before it ever got written.
+- **`enquiries`**: mirrors `createEnquiry()`/`addFollowUp()`/
+  `cancelEnquiry()` exactly. `cancelEnquiry()` is a real permanent
+  delete in this app (not a status flag) — needed an actual DELETE RLS
+  policy, the first one any table in this schema has needed.
+- **Verification**: full regression across every e2e-*.js suite that
+  touches enquiries/quotations (batch6/7/8/9, customer-approval, edit-
+  quote-lock, estimator-material-search, job-routing-gate, jobcard-
+  unification, labour-copybom-approver, owner-dashboard, print-
+  preview, activity-log-retrofit, dashboard-enhancements, back-button-
+  check, pwa-offline) — all pass completely unchanged, confirming the
+  optimistic-local-write pattern held even across ~25 touched
+  functions. New `e2e-cloud-enquiries-quotations.js` covers the real
+  Supabase path: enquiry creation, a follow-up persisting into the
+  jsonb `follow_ups` array, enquiry-to-quotation conversion updating
+  BOTH tables live, an item + nested BOM material persisting into the
+  jsonb `items` column, cross-device realtime sync via a second
+  session, and a real delete (`cancelEnquiry`) actually removing the
+  row from the live table. Currently blocked on the new schema not
+  being run against the live project yet (correctly identified as
+  404s, not a code defect).
+- **Still open**: Salman needs to run the latest `supabase/schema.sql`
+  (adds `enquiries` + `quotations` on top of everything from before).
+  Next slice after that: `jobCards[]` itself — the natural next step,
+  though a bigger one, since it's what the whole department-routing/
+  budgeting/production pipeline (Joinery/Upholstery/Painting/Curtain)
+  is built on top of.
