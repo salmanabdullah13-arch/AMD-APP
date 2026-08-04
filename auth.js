@@ -106,6 +106,14 @@ async function checkCloudSession() {
 }
 
 // ── Sign In / Sign Up (tabbed) ──────────────────────────────────────
+// Sign-up is a real registration form (5 Aug 2026, role-based access
+// rollout) — Full Name/DOB/Telephone/Designation/User Type, replacing
+// "pick your name off a fixed roster" (the actual access gate before
+// this). Sign-in deliberately KEEPS the roster dropdown — by the time
+// someone signs in, their name is already in allowed_identities from
+// their own sign-up, so a dropdown is still lower-friction than typing
+// (fewer login failures from a typo not matching the stored name
+// exactly) and there's no reason to change working UX here.
 function renderAuthForms(mode, message) {
   const body = document.getElementById('cloud-login-body');
   if (!body) return;
@@ -114,26 +122,34 @@ function renderAuthForms(mode, message) {
   const messageHtml = message ? `<p style="font-size:12.5px;color:var(--bad);text-align:center;margin-bottom:10px;">${authEsc(message)}</p>` : '';
 
   body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--shell-ink-muted);">Loading…</p>`;
-  sb.from('allowed_identities').select('display_name').order('display_name').then(({ data: roster, error }) => {
-    if (error) { body.innerHTML = tabsHtml + `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the roster: ${authEsc(error.message)}</p>`; return; }
-    const rosterOptions = roster.map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('');
 
-    if (mode === 'signup') {
+  if (mode === 'signup') {
+    sb.from('user_types').select('key,label,department').order('department').order('label').then(({ data: userTypes, error }) => {
+      if (error) { body.innerHTML = tabsHtml + `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load role list: ${authEsc(error.message)}</p>`; return; }
+      const userTypeOptions = userTypes.map(t => `<option value="${authEsc(t.key)}">${authEsc(t.label)}</option>`).join('');
       body.innerHTML = tabsHtml + `
         ${messageHtml}
-        <select id="auth-identity-select" style="${authFieldStyle}">
-          <option value="">— Which of these are you? —</option>
-          ${rosterOptions}
+        <input id="auth-fullname-input" type="text" placeholder="Full Name" style="${authFieldStyle}">
+        <input id="auth-dob-input" type="date" placeholder="Date of Birth" style="${authFieldStyle}">
+        <input id="auth-phone-input" type="tel" placeholder="Telephone Number" style="${authFieldStyle}">
+        <input id="auth-designation-input" type="text" placeholder="Designation (your job title)" style="${authFieldStyle}">
+        <select id="auth-usertype-select" style="${authFieldStyle}">
+          <option value="">— User Type —</option>
+          ${userTypeOptions}
         </select>
         <input id="auth-password-input" type="password" placeholder="Choose a password (6+ characters)" style="${authFieldStyle}">
         <input id="auth-password-confirm-input" type="password" placeholder="Confirm password" style="${authFieldStyle}">
         <button onclick="handleSignUp()" style="${authBtnStyle}">Create Account</button>
-        <p style="font-size:11px;color:var(--shell-ink-faint);text-align:center;margin-top:10px;line-height:1.4;">No email needed — just remember your password, since only your admin can reset it.</p>
+        <p style="font-size:11px;color:var(--shell-ink-faint);text-align:center;margin-top:10px;line-height:1.4;">Your account needs approval from an Owner or HR admin before you can sign in.</p>
       `;
-      return;
-    }
+    });
+    return;
+  }
 
-    // mode === 'signin'
+  // mode === 'signin'
+  sb.from('allowed_identities').select('display_name').order('display_name').then(({ data: roster, error }) => {
+    if (error) { body.innerHTML = tabsHtml + `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the roster: ${authEsc(error.message)}</p>`; return; }
+    const rosterOptions = roster.map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('');
     body.innerHTML = tabsHtml + `
       ${messageHtml}
       <select id="auth-identity-select" style="${authFieldStyle}">
@@ -160,17 +176,28 @@ async function handleSignIn() {
 }
 
 async function handleSignUp() {
-  const displayName = document.getElementById('auth-identity-select').value;
+  const displayName = (document.getElementById('auth-fullname-input').value || '').trim();
+  const dob = document.getElementById('auth-dob-input').value || '';
+  const phone = (document.getElementById('auth-phone-input').value || '').trim();
+  const designation = (document.getElementById('auth-designation-input').value || '').trim();
+  const userType = document.getElementById('auth-usertype-select').value;
   const password = document.getElementById('auth-password-input').value || '';
   const confirmPassword = document.getElementById('auth-password-confirm-input').value || '';
-  if (!displayName) { renderAuthForms('signup', 'Pick which of the names you are.'); return; }
+  if (!displayName) { renderAuthForms('signup', 'Enter your full name.'); return; }
+  if (!dob) { renderAuthForms('signup', 'Enter your date of birth.'); return; }
+  if (!phone) { renderAuthForms('signup', 'Enter your telephone number.'); return; }
+  if (!designation) { renderAuthForms('signup', 'Enter your designation.'); return; }
+  if (!userType) { renderAuthForms('signup', 'Pick your User Type.'); return; }
   if (password.length < 6) { renderAuthForms('signup', 'Password needs to be at least 6 characters.'); return; }
   if (password !== confirmPassword) { renderAuthForms('signup', "Passwords don't match."); return; }
   const body = document.getElementById('cloud-login-body');
   body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--shell-ink-muted);">Creating account…</p>`;
   const { data, error } = await sb.auth.signUp({
     email: identityToInternalEmail(displayName), password,
-    options: { data: { intended_identity: displayName } }
+    options: { data: {
+      intended_identity: displayName, intended_dob: dob, intended_phone: phone,
+      intended_designation: designation, intended_user_type: userType
+    } }
   });
   if (error) {
     if (error.message.includes('already registered')) { renderAuthForms('signup', `"${displayName}" already has an account — try Sign In instead.`); return; }
@@ -188,46 +215,120 @@ async function handleSignUp() {
   await afterSignedIn();
 }
 
+// Idempotency guard (5 Aug 2026) — the direct call chain
+// (handleSignUp/handleSignIn -> afterSignedIn) and Supabase's own
+// onAuthStateChange listener both independently reach afterSignedIn()
+// for the same SIGNED_IN event, the same race documented elsewhere in
+// this app for finishCloudLogin(). That was previously harmless here
+// because finishCloudLogin() itself sets cloudLoginActive=false, which
+// stops the listener's second call before it mattered — but a PENDING
+// account never reaches finishCloudLogin() at all (renderPendingApproval()
+// is the whole point — no app access), so cloudLoginActive stayed true
+// and the listener's second afterSignedIn() call raced the first one's
+// profiles insert, lost (23505), and overwrote the pending screen with
+// the identity-claim fallback. Found live-testing the new sign-up flow.
+let afterSignedInInFlight = false;
 async function afterSignedIn() {
+  if (afterSignedInInFlight) return;
+  afterSignedInInFlight = true;
+  try {
+    await afterSignedInImpl();
+  } finally {
+    afterSignedInInFlight = false;
+  }
+}
+async function afterSignedInImpl() {
   const { data: userData } = await sb.auth.getUser();
   const user = userData.user;
   if (!user) { renderAuthForms('signin'); return; }
-  const { data: existingProfile, error } = await sb.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+  const { data: existingProfile, error } = await sb.from('profiles').select('display_name, user_type, approval_status').eq('id', user.id).maybeSingle();
   if (error) {
     const body = document.getElementById('cloud-login-body');
     if (body) body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't check your profile: ${authEsc(error.message)}</p>`;
     return;
   }
   if (existingProfile) {
-    finishCloudLogin(existingProfile.display_name);
+    if (existingProfile.approval_status === 'pending') { renderPendingApproval(); return; }
+    if (existingProfile.approval_status === 'rejected') { renderAccountRejected(); return; }
+    finishCloudLogin(existingProfile.display_name, true, existingProfile.user_type);
     return;
   }
-  // First login right after sign-up — claim the name picked at
+  // First login right after sign-up — claim the name/role picked at
   // sign-up time immediately, no extra screen needed. Falls back to
   // the manual picker only if that metadata is somehow missing.
-  const intended = user.user_metadata && user.user_metadata.intended_identity;
+  const meta = user.user_metadata || {};
+  const intended = meta.intended_identity;
   if (intended) {
-    const { error: claimError } = await sb.from('profiles').insert({ id: user.id, display_name: intended });
-    if (!claimError) { finishCloudLogin(intended); return; }
+    // allowed_identities first — messages.sender_name/recipient_name
+    // still FK-reference it, and profiles.display_name FK-references
+    // it too, so this must land before the profiles insert below. A
+    // 23505 here is harmless (someone else already registered this
+    // exact name as a known participant) — the REAL uniqueness check
+    // that matters is the one on profiles.display_name right after.
+    await sb.from('allowed_identities').insert({ display_name: intended });
+    const { error: claimError } = await sb.from('profiles').insert({
+      id: user.id, display_name: intended,
+      dob: meta.intended_dob || null, phone: meta.intended_phone || null,
+      designation: meta.intended_designation || null, user_type: meta.intended_user_type || null,
+      approval_status: 'pending'
+    });
+    if (!claimError) { renderPendingApproval(); return; }
     if (claimError.code !== '23505') { renderIdentityClaim(claimError.message); return; }
     // 23505 = that name got claimed by someone else in the meantime; fall through to manual picker.
   }
   renderIdentityClaim();
 }
 
+// Shown right after a fresh sign-up, and on every subsequent sign-in
+// attempt until an Owner/HR admin approves the account (5 Aug 2026,
+// role-based access rollout). No app access until approved — enforced
+// for real in RLS (supabase/schema.sql's is_approved()), this screen is
+// just the honest UI reflection of that, not the actual gate.
+function renderPendingApproval() {
+  const body = document.getElementById('cloud-login-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div style="text-align:center;padding:10px 4px;">
+      <p style="font-size:15px;font-weight:700;margin-bottom:8px;">Account created</p>
+      <p style="font-size:13px;color:var(--shell-ink-muted);line-height:1.5;">Your account is waiting for approval from an Owner or HR admin before you can sign in. Come back once you've been notified you're approved.</p>
+      <button onclick="cloudSignOut()" style="${authBtnStyle}margin-top:18px;">Back to Sign In</button>
+    </div>`;
+}
+
+// Shown on sign-in for an account an Owner/HR admin rejected.
+function renderAccountRejected() {
+  const body = document.getElementById('cloud-login-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div style="text-align:center;padding:10px 4px;">
+      <p style="font-size:15px;font-weight:700;margin-bottom:8px;color:var(--bad);">Account not approved</p>
+      <p style="font-size:13px;color:var(--shell-ink-muted);line-height:1.5;">Your sign-up wasn't approved. Contact your admin if you think this is a mistake.</p>
+      <button onclick="cloudSignOut()" style="${authBtnStyle}margin-top:18px;">Sign Out</button>
+    </div>`;
+}
+
 // Manual fallback identity picker — only reached if sign-up metadata
 // is missing or the intended name got claimed by someone else first.
+// Still needs a User Type (profiles.user_type is not-null) since this
+// bypasses the main sign-up form entirely.
 async function renderIdentityClaim(message) {
   const body = document.getElementById('cloud-login-body');
   if (!body) return;
   body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--shell-ink-muted);">Loading roster…</p>`;
-  const { data: roster, error } = await sb.from('allowed_identities').select('display_name').order('display_name');
-  if (error) {
-    body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the roster: ${authEsc(error.message)}</p>`;
+  const [{ data: roster, error }, { data: userTypes, error: utError }] = await Promise.all([
+    sb.from('allowed_identities').select('display_name').order('display_name'),
+    sb.from('user_types').select('key,label').order('label')
+  ]);
+  if (error || utError) {
+    body.innerHTML = `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the roster: ${authEsc((error || utError).message)}</p>`;
     return;
   }
   body.innerHTML = `
     <p style="font-size:13px;color:var(--shell-ink-muted);text-align:center;margin-bottom:16px;line-height:1.4;">Which of these are you? You'll be permanently signed in as this name on this login.</p>
+    <select id="cloud-identity-usertype-select" style="${authFieldStyle}">
+      <option value="">— Your User Type —</option>
+      ${userTypes.map(t => `<option value="${authEsc(t.key)}">${authEsc(t.label)}</option>`).join('')}
+    </select>
     ${message ? `<p style="font-size:12.5px;color:var(--bad);text-align:center;margin-bottom:10px;">${authEsc(message)}</p>` : ''}
     <select id="cloud-identity-select" style="${authFieldStyle}">
       <option value="">— Select your name —</option>
@@ -238,12 +339,13 @@ async function renderIdentityClaim(message) {
 }
 
 async function claimIdentity() {
-  const select = document.getElementById('cloud-identity-select');
-  const displayName = select.value;
+  const displayName = document.getElementById('cloud-identity-select').value;
+  const userType = document.getElementById('cloud-identity-usertype-select').value;
   if (!displayName) { renderIdentityClaim('Pick a name from the list.'); return; }
+  if (!userType) { renderIdentityClaim('Pick your User Type.'); return; }
   const { data: userData } = await sb.auth.getUser();
   const user = userData.user;
-  const { error } = await sb.from('profiles').insert({ id: user.id, display_name: displayName });
+  const { error } = await sb.from('profiles').insert({ id: user.id, display_name: displayName, user_type: userType, approval_status: 'pending' });
   if (error) {
     if (error.code === '23505') {
       renderIdentityClaim(`"${displayName}" is already claimed by someone else — pick a different name.`);
@@ -252,16 +354,35 @@ async function claimIdentity() {
     }
     return;
   }
-  finishCloudLogin(displayName);
+  renderPendingApproval();
 }
 
-function finishCloudLogin(displayName, isRealSession = true) {
+// userType: a user_types.key value for a real session (fetched from the
+// signed-in profile — see afterSignedIn()). Defaults to "owner" for a
+// non-real session (the e2e test bypass, isRealSession=false) — there's
+// no real profile in that path, and "owner" is the one role every
+// role-gated check (getPendingBudgetApprovalsFor, the nav's role-gating
+// framework) treats as a wildcard, so the ~20 pre-existing offline e2e
+// tests keep exercising every module unimpeded, same as before this
+// role-based access work existed.
+function finishCloudLogin(displayName, isRealSession = true, userType = 'owner') {
   window.cloudIdentity = displayName;
+  window.cloudUserType = userType;
   window.__realCloudSession = isRealSession;
   cloudLoginActive = false;
   document.getElementById('cloud-login').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   if (isRealSession) {
+    // window.__dashboardMap — the role-gating framework's actual data
+    // (index.html's nodeAccessible()). Fetched fresh every real login
+    // rather than cached across sessions, since it's tiny (28 rows) and
+    // this way a dashboard_node_id change (Milestones B-E, as those
+    // dashboards get built) takes effect on the next login with zero
+    // cache-invalidation logic needed.
+    sb.from('user_types').select('key,dashboard_node_id').then(({ data }) => {
+      window.__dashboardMap = {};
+      (data || []).forEach(t => { if (t.dashboard_node_id) window.__dashboardMap[t.key] = t.dashboard_node_id; });
+    });
     // Fire-and-forget — the app shouldn't wait on these to unlock, they
     // populate/subscribe in the background and re-render via
     // notifyLiveUpdateListeners() (data.js) once ready.

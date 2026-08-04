@@ -3398,3 +3398,107 @@ credential decision this session; he chose to hand one over.
   PWA/owner-dashboard) all clean, matching prior counts.
 - Phase 2 slice 3 (jobCards) is now fully proven live. Remaining Phase 2
   work: curtainJobs[]/projects[] (deliberately deferred, see above).
+
+### 5 Aug 2026 — Role-based access rollout, Milestone A (foundation)
+- Plan approved via EnterPlanMode before writing any code, given the
+  size (schema, sign-up rework, approval workflow, a nav-level
+  role-gating framework, ~13 future new dashboards). See
+  `project_amd_app_role_based_access_and_cycle_audit.md` (memory) for
+  the full two-phase plan this milestone is the first slice of.
+- **Schema**: new `user_types` lookup table (27 roles + `owner`, each
+  with a `dashboard_node_id` — null for the ~13 not built yet).
+  `profiles` gets `dob`/`phone`/`designation`/`user_type`/
+  `approval_status`/`approved_by`/`approved_date`. The 11 pre-existing
+  profiles were grandfathered to `approval_status='approved'` with a
+  best-guess `user_type` (imperfect guesses accepted — correctable via
+  the new approval screen). Two new security-definer helper functions
+  (`is_approved()`, `is_owner_or_hr()`) so any table's RLS policy can
+  check the caller's approval/role without needing its own read access
+  to `profiles`.
+- **Real hard boundary added**: every existing table's RLS policies
+  (customers/enquiries/quotations/job_cards/messages/profiles) now
+  additionally require `is_approved()` — a pending or rejected account
+  can read/write NOTHING at the database level, not just a hidden UI
+  screen. Deliberately did NOT build full per-role table restrictions
+  (Sales blocked from Accounts' data, etc.) — that's the bigger
+  27-role x N-table matrix, left as future Phase 3 work (already in the
+  tracker).
+- **Sign-up rework** (`auth.js`): replaced the roster-dropdown sign-up
+  with a real form — Full Name/DOB/Telephone/Designation/User Type
+  (sourced from `user_types`). New accounts land `approval_status:
+  'pending'` with a dedicated pending screen, no `finishCloudLogin()`
+  call at all. Sign-IN deliberately kept as the roster dropdown
+  (unchanged) — by sign-in time the name's already in
+  `allowed_identities` from the person's own sign-up, so a dropdown is
+  still lower-friction than typing. `allowed_identities` itself is now
+  auto-populated at sign-up (an insert policy was added) rather than
+  manually curated, since `messages.sender_name`/`recipient_name` still
+  FK-reference it.
+- **Real bug found and fixed live**: `afterSignedIn()` had no
+  idempotency guard. The direct call chain and Supabase's own
+  `onAuthStateChange` listener both independently reach it for one
+  `SIGNED_IN` event (same class of race documented earlier this session
+  for `finishCloudLogin`) — previously harmless here because
+  `finishCloudLogin()` sets `cloudLoginActive=false`, stopping the
+  listener's second call. A PENDING account never reaches
+  `finishCloudLogin()` at all, so `cloudLoginActive` stayed true and the
+  listener's second `afterSignedIn()` call raced the first one's
+  `profiles` insert, lost (23505), and silently overwrote the pending
+  screen with the identity-claim fallback. Fixed with an in-flight
+  guard around `afterSignedIn()`.
+- **Approval queue** (`approval-queue.js`, new file, shared by HR's new
+  Approvals tab and a new Owner Dashboard "Pending Sign-ups" link):
+  lists pending profiles, approves (optionally correcting `user_type`
+  first) or rejects. The actual write is real RLS enforcement
+  (`is_owner_or_hr()`), not just a screen only Owner/HR happen to see.
+- **Role-gating framework** (`index.html`): `window.__dashboardMap`
+  (`user_type` -> its one `dashboard_node_id`, fetched at login)
+  gates the ecosystem picker's `n.launch()` call — `nodeAccessible(id)`
+  fails CLOSED if the map hasn't loaded yet (a real access-control
+  check, not cosmetic). `owner` is the one wildcard. Gated at the
+  click/launch level rather than filtering which 3D nodes render at
+  all — the 3D scene's geometry builds once, before login state exists,
+  and restructuring that lifecycle was judged riskier than gating the
+  one real entry point (the tap handler) for the same practical
+  outcome: an unauthorized module simply never opens.
+- **Real bug found and fixed live**: `DEPARTMENT_APPROVERS`
+  (`data.js`) was keyed by deptKey -> a literal display-name string
+  ("Joinery Production Manager") — a leftover from before real
+  per-person login existed, when a module's "current user" was a
+  hardcoded constant literally equal to the role name
+  (`joineryCurrentUser`/`upholsteryCurrentUser` in
+  joinery.js/upholstery.js). Changed to `user_type` keys. First fix
+  attempt used `window.cloudUserType` directly at the joinery.js/
+  upholstery.js call sites, which broke the OFFLINE e2e bypass: that
+  path has no real profile, so `window.cloudUserType` is uniformly
+  `"owner"` (a wildcard) regardless of which department dashboard is
+  open, which made Upholstery's approvals badge incorrectly show
+  Joinery's pending budget too (`e2e-dashboard-enhancements.js` caught
+  it: "Upholstery's Budgets Pending stays 0" failed). Fixed with a
+  per-module `joineryApproverUserType()`/`upholsteryApproverUserType()`
+  helper — real session uses the real role, offline bypass keeps
+  simulating its own department's manager specifically, preserving the
+  existing test suite's isolation checks.
+- **Verification**: new `e2e-signup-approval.js` (10/10) proves the
+  pending screen, the RLS gate blocking a pending account's direct API
+  calls, the approve/reject actions persisting live, and the
+  approved/rejected screens on next sign-in — using a new dedicated
+  `'E2E Approver Account'` fixture (pre-approved `user_type='owner'`,
+  bootstrapped once directly via SQL since a fresh sign-up can't
+  approve itself) kept separate from `'E2E Test Account'` (already
+  depended on by four other live tests). New `e2e-role-gating.js`
+  (8/8) proves `window.__dashboardMap` loads, `nodeAccessible()`'s
+  decision, AND a real simulated tap opening an authorized node while
+  a tap on an unauthorized one is denied and does not open it, plus the
+  owner wildcard. `e2e-cloud-login.js` updated for the new sign-up form
+  (the old roster-picker assertion was stale). `e2e-pwa-offline.js`'s
+  hardcoded cache-version string updated (`v3` -> `v4`, bumped because
+  `approval-queue.js` was added to the service worker's asset list).
+  Full offline regression (27 files) and all five live-cloud suites
+  re-verified clean, aside from the one already-known pre-existing
+  `markMessageRead` timing flake (confirmed again unrelated — this
+  milestone never touched messages code).
+- Milestone A (foundation) is complete and fully proven live. Next:
+  Milestones B-E (Curtain/Upholstery/Joinery granular dashboards,
+  Vehicle Fleet Inspector + Delivery/Scheduling) — see the plan file
+  from this session for the full breakdown.

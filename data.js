@@ -4347,10 +4347,19 @@ function handOffPaintingLine(jobId, lineId, user) {
 // breaking an already-working, previously-verified flow for no real
 // benefit.
 // ═══════════════════════════════════════
+// Keyed by user_type (supabase/schema.sql), not a display name — a
+// legacy leftover from before real per-person login existed, when a
+// module's "current user" was a hardcoded string literally equal to the
+// role name (see joineryCurrentUser/upholsteryCurrentUser in
+// joinery.js/upholstery.js). Fixed as part of the role-based access
+// rollout (5 Aug 2026): getPendingBudgetApprovalsFor() now compares
+// against the ACTING user's real user_type (window.cloudUserType),
+// since a real person's display name is no longer the same string as
+// their role.
 const DEPARTMENT_APPROVERS = {
-  carp: "Joinery Production Manager",
-  paint: "Joinery Production Manager",
-  uph: "Upholstery Manager"
+  carp: "joinery_production_manager",
+  paint: "joinery_production_manager",
+  uph: "upholstery_manager"
 };
 const EMPTY_BOM_CATEGORIES = ["materials", "labour", "subcontract", "hiring", "others"];
 
@@ -4445,12 +4454,19 @@ function rejectDepartmentBudget(jobId, deptKey, rejectedBy, comment) {
   persistJobCardUpdate(job);
   return entry;
 }
-function getPendingBudgetApprovalsFor(approverName) {
+// approverUserType: a user_type key (e.g. "joinery_production_manager"),
+// not a display name — see the note on DEPARTMENT_APPROVERS above.
+// "owner" is a wildcard match (Salman/the offline e2e test bypass, which
+// sets window.cloudUserType to "owner" since there's no real per-person
+// profile in that path — see finishCloudLogin() in auth.js) — matches
+// the real requirement that the Owner should see every pending approval,
+// not just one department's.
+function getPendingBudgetApprovalsFor(approverUserType) {
   const rows = [];
   jobCards.forEach(job => {
     if (!job.departmentBudgets) return;
     Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
-      if (entry.approvalStatus === "pending" && DEPARTMENT_APPROVERS[deptKey] === approverName) rows.push({ job, deptKey, entry });
+      if (entry.approvalStatus === "pending" && (approverUserType === "owner" || DEPARTMENT_APPROVERS[deptKey] === approverUserType)) rows.push({ job, deptKey, entry });
     });
   });
   return rows;

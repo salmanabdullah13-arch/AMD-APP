@@ -48,7 +48,15 @@ insert into public.allowed_identities (display_name) values
   -- a real person. Without this, an automated test run would
   -- permanently consume one of the 11 real identities above with a
   -- throwaway password nobody knows.
-  ('E2E Test Account')
+  ('E2E Test Account'),
+  -- Dedicated slot for e2e-signup-approval.js/e2e-role-gating.js (5 Aug
+  -- 2026) — a pre-approved user_type='owner' fixture used ONLY to
+  -- perform the approve/reject action on throwaway pending test
+  -- accounts. Kept separate from 'E2E Test Account' (a plain
+  -- user_type='sales' account four OTHER live-cloud tests already
+  -- depend on) so correcting/testing this one's role never risks
+  -- disturbing those.
+  ('E2E Approver Account')
 on conflict (display_name) do nothing;
 
 -- The project's "auto-enable RLS on new tables" setting locks this
@@ -427,3 +435,259 @@ begin
     alter publication supabase_realtime add table public.job_cards;
   end if;
 end $$;
+
+-- ══════════════════════════════════════════════════════════════
+-- Phase 1 of the role-based access plan (5 Aug 2026) — role-based
+-- sign-up + per-role dashboards. Replaces "pick your name off a fixed
+-- 11-identity roster" (the actual access gate today) with a real
+-- self-service registration form (Full Name/DOB/Phone/Designation/User
+-- Type) gated by Owner/HR approval before the account can do anything —
+-- approval is enforced here in RLS, not just hidden in the UI, since
+-- anyone with a valid Supabase session can call the REST API directly
+-- regardless of what the nav shows.
+--
+-- Deliberately NOT in scope: per-role table restrictions (e.g. Sales
+-- literally blocked from reading Accounts' data) — that's the much
+-- bigger 27-role x N-table matrix, flagged as future Phase 3 work. This
+-- pass adds exactly one new hard boundary — approved vs. pending/
+-- rejected — applied uniformly across every existing table. Which
+-- DASHBOARD a role sees is enforced client-side (index.html/shell.js),
+-- same honesty-level as today's per-role module split.
+-- ══════════════════════════════════════════════════════════════
+
+-- ── user_types — the 27-role taxonomy + Owner, replaces "your display
+-- name IS your role" (several of the 11 legacy identities are literally
+-- role names used as login names — a shortcut that only worked with one
+-- person per role). dashboard_node_id is null for roles whose dedicated
+-- dashboard isn't built yet (Milestones B-E) — those route to a plain
+-- placeholder screen client-side, never a manager's full dashboard.
+create table if not exists public.user_types (
+  key text primary key,
+  label text not null,
+  dashboard_node_id text,
+  department text not null
+);
+
+insert into public.user_types (key, label, dashboard_node_id, department) values
+  ('sales', 'Sales', 'sales', 'commercial'),
+  ('estimator', 'Estimator', 'estimation', 'commercial'),
+  ('approver', 'Approver', 'approvals', 'commercial'),
+  ('accounts', 'Accounts', 'accounts', 'commercial'),
+  ('operations_manager', 'Operations Manager', 'operations', 'operations'),
+  ('storekeeper', 'Storekeeper', 'storekeeper', 'operations'),
+  ('purchaser', 'Purchaser', 'purchasing', 'operations'),
+  ('vehicle_fleet_inspector', 'Vehicle Fleet Inspector', null, 'operations'),
+  ('delivery_scheduling', 'Delivery / Scheduling', null, 'operations'),
+  ('hr', 'HR', 'hr', 'operations'),
+  ('joinery_production_manager', 'Joinery Production Manager', 'joinery', 'joinery'),
+  ('joinery_assistant_production_manager', 'Assistant Production Manager', null, 'joinery'),
+  ('joinery_site_supervisor', 'Site Supervisor', null, 'joinery'),
+  ('joinery_floor_supervisor', 'Floor Supervisor', null, 'joinery'),
+  ('joinery_draftsman', 'Draftsman', null, 'joinery'),
+  ('joinery_team_leader', 'Team Leader', null, 'joinery'),
+  ('joinery_cutting_list_team', 'Cutting List Team', null, 'joinery'),
+  ('joinery_veneer_pressing_team', 'Veneer Pressing Team', null, 'joinery'),
+  ('painting_lead', 'Painting Lead / Work Supervisor', 'painting', 'painting'),
+  ('curtain_manager', 'Curtain Manager', 'curtain', 'curtain'),
+  ('curtain_tracks_team', 'Tracks Team', null, 'curtain'),
+  ('curtain_qc_team', 'QC Team', null, 'curtain'),
+  ('curtain_team_leader', 'Team Leader', null, 'curtain'),
+  ('curtain_site_installer', 'Site Installer', null, 'curtain'),
+  ('upholstery_manager', 'Upholstery Manager', 'upholstery', 'upholstery'),
+  ('upholstery_team_leader', 'Team Leader', null, 'upholstery'),
+  ('upholstery_qc_packaging_team', 'QC / Packaging Team', null, 'upholstery'),
+  ('owner', 'Owner', 'owner', 'owner')
+on conflict (key) do update set label = excluded.label, dashboard_node_id = excluded.dashboard_node_id, department = excluded.department;
+
+alter table public.user_types enable row level security;
+drop policy if exists "user_types readable by anyone" on public.user_types;
+create policy "user_types readable by anyone"
+  on public.user_types for select
+  to public
+  using (true);
+
+-- ── profiles gets the new registration fields + the approval gate ──
+alter table public.profiles add column if not exists dob date;
+alter table public.profiles add column if not exists phone text;
+alter table public.profiles add column if not exists designation text;
+alter table public.profiles add column if not exists user_type text references public.user_types (key);
+-- Fail-closed default: any insert that doesn't explicitly set this
+-- (i.e. every new real sign-up) starts pending. The 11 pre-existing
+-- accounts are explicitly grandfathered to 'approved' below — this
+-- default only matters for rows inserted from here on.
+alter table public.profiles add column if not exists approval_status text not null default 'pending';
+alter table public.profiles add column if not exists approved_by text;
+alter table public.profiles add column if not exists approved_date date;
+
+-- Grandfather the pre-existing accounts so this rollout doesn't lock
+-- anyone currently working out. Best-guess user_type mapping — several
+-- of these guesses are approximate (Arun Kumar/Karthik Silva didn't
+-- have a formal role captured anywhere before now); Owner can correct
+-- any of them via the new approval/edit screen. `where user_type is
+-- null` makes this safe to re-run — it only ever touches un-migrated rows.
+update public.profiles set
+  user_type = case display_name
+    when 'Salman Abdullah' then 'owner'
+    when 'Operations Manager' then 'operations_manager'
+    when 'Joinery Production Manager' then 'joinery_production_manager'
+    when 'Arun Kumar' then 'joinery_production_manager'
+    when 'Karthik Silva' then 'joinery_team_leader'
+    when 'Silva' then 'curtain_manager'
+    when 'Upholstery Manager' then 'upholstery_manager'
+    when 'Painting Lead / Work Supervisor' then 'painting_lead'
+    when 'Storekeeper' then 'storekeeper'
+    when 'Accounts' then 'accounts'
+    when 'HR' then 'hr'
+    else 'sales'
+  end,
+  approval_status = 'approved',
+  approved_by = 'Migration (Phase 1 rollout, 5 Aug 2026)',
+  approved_date = current_date
+where user_type is null;
+
+alter table public.profiles alter column user_type set not null;
+
+-- ── RLS helper functions — security definer so a policy on ANY table
+-- can check the caller's approval/role without needing its own separate
+-- read access to profiles. search_path pinned to public, the standard
+-- guard against search-path hijacking on security definer functions.
+create or replace function public.is_approved()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and approval_status = 'approved'
+  );
+$$;
+
+create or replace function public.is_owner_or_hr()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and approval_status = 'approved' and user_type in ('owner', 'hr')
+  );
+$$;
+
+-- ── profiles policies — rebuilt for the approval workflow. A user can
+-- always read their OWN row (needed to see their own pending/rejected
+-- status before they're approved for anything else); once approved,
+-- they can read everyone's (roster/messaging/approval-queue). Insert is
+-- still "only your own id", now also pinned to approval_status =
+-- 'pending' — otherwise a self-registering user could simply insert
+-- their own row with approval_status: 'approved' and skip the whole
+-- gate. Update is new: only an already-approved owner/hr can update
+-- ANY profile (the approval queue's actual write path) — there is
+-- still no self-service profile edit for anyone else.
+drop policy if exists "profiles are readable by any signed-in user" on public.profiles;
+drop policy if exists "profiles are readable by own row or once approved" on public.profiles;
+create policy "profiles are readable by own row or once approved"
+  on public.profiles for select
+  to authenticated
+  using (id = auth.uid() or public.is_approved());
+
+drop policy if exists "you can claim your own identity once" on public.profiles;
+create policy "you can claim your own identity once"
+  on public.profiles for insert
+  to authenticated
+  with check (id = auth.uid() and approval_status = 'pending');
+
+drop policy if exists "owner or hr can update any profile for approval" on public.profiles;
+create policy "owner or hr can update any profile for approval"
+  on public.profiles for update
+  to authenticated
+  using (public.is_owner_or_hr())
+  with check (true);
+
+-- ── allowed_identities gets an insert policy — sign-up is no longer a
+-- picker over this table, but messages.sender_name/recipient_name still
+-- FK-reference it, so a fresh sign-up needs to be able to add its own
+-- typed Full Name here before its profiles row can be inserted. Kept
+-- deliberately open (`with check (true)`) — worst case is a junk name
+-- that can only ever be a messaging participant, not a security issue,
+-- and simpler than threading approval state through this table too.
+drop policy if exists "signed-up users can register their own display name" on public.allowed_identities;
+create policy "signed-up users can register their own display name"
+  on public.allowed_identities for insert
+  to authenticated
+  with check (true);
+
+-- ── Approval gate applied uniformly to every existing business table.
+-- Same policies as before, each now additionally requiring
+-- public.is_approved() — a pending or rejected account can read/write
+-- NOTHING here, enforced at the database, not just hidden in the UI.
+drop policy if exists "customers readable by any signed-in user" on public.customers;
+create policy "customers readable by any signed-in user"
+  on public.customers for select to authenticated using (public.is_approved());
+drop policy if exists "customers insertable by any signed-in user" on public.customers;
+create policy "customers insertable by any signed-in user"
+  on public.customers for insert to authenticated with check (public.is_approved());
+drop policy if exists "customers updatable by any signed-in user" on public.customers;
+create policy "customers updatable by any signed-in user"
+  on public.customers for update to authenticated using (public.is_approved()) with check (public.is_approved());
+
+drop policy if exists "enquiries readable by any signed-in user" on public.enquiries;
+create policy "enquiries readable by any signed-in user"
+  on public.enquiries for select to authenticated using (public.is_approved());
+drop policy if exists "enquiries insertable by any signed-in user" on public.enquiries;
+create policy "enquiries insertable by any signed-in user"
+  on public.enquiries for insert to authenticated with check (public.is_approved());
+drop policy if exists "enquiries updatable by any signed-in user" on public.enquiries;
+create policy "enquiries updatable by any signed-in user"
+  on public.enquiries for update to authenticated using (public.is_approved()) with check (public.is_approved());
+drop policy if exists "enquiries deletable by any signed-in user" on public.enquiries;
+create policy "enquiries deletable by any signed-in user"
+  on public.enquiries for delete to authenticated using (public.is_approved());
+
+drop policy if exists "quotations readable by any signed-in user" on public.quotations;
+create policy "quotations readable by any signed-in user"
+  on public.quotations for select to authenticated using (public.is_approved());
+drop policy if exists "quotations insertable by any signed-in user" on public.quotations;
+create policy "quotations insertable by any signed-in user"
+  on public.quotations for insert to authenticated with check (public.is_approved());
+drop policy if exists "quotations updatable by any signed-in user" on public.quotations;
+create policy "quotations updatable by any signed-in user"
+  on public.quotations for update to authenticated using (public.is_approved()) with check (public.is_approved());
+
+drop policy if exists "job_cards readable by any signed-in user" on public.job_cards;
+create policy "job_cards readable by any signed-in user"
+  on public.job_cards for select to authenticated using (public.is_approved());
+drop policy if exists "job_cards insertable by any signed-in user" on public.job_cards;
+create policy "job_cards insertable by any signed-in user"
+  on public.job_cards for insert to authenticated with check (public.is_approved());
+drop policy if exists "job_cards updatable by any signed-in user" on public.job_cards;
+create policy "job_cards updatable by any signed-in user"
+  on public.job_cards for update to authenticated using (public.is_approved()) with check (public.is_approved());
+
+drop policy if exists "read your own inbox and sent messages" on public.messages;
+create policy "read your own inbox and sent messages"
+  on public.messages for select
+  to authenticated
+  using (
+    public.is_approved() and (
+      sender_name = (select display_name from public.profiles where id = auth.uid())
+      or recipient_name = (select display_name from public.profiles where id = auth.uid())
+    )
+  );
+drop policy if exists "send only as your own claimed identity" on public.messages;
+create policy "send only as your own claimed identity"
+  on public.messages for insert
+  to authenticated
+  with check (
+    public.is_approved() and
+    sender_name = (select display_name from public.profiles where id = auth.uid())
+  );
+drop policy if exists "recipient can mark their own messages read" on public.messages;
+create policy "recipient can mark their own messages read"
+  on public.messages for update
+  to authenticated
+  using (public.is_approved() and recipient_name = (select display_name from public.profiles where id = auth.uid()))
+  with check (public.is_approved() and recipient_name = (select display_name from public.profiles where id = auth.uid()));

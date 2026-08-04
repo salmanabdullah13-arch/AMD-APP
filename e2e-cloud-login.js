@@ -99,25 +99,24 @@ function printReport() {
   currentStep = 'switch-to-signup';
   await page.click('#cloud-login-body button:nth-of-type(2)');
   await page.waitForSelector('#auth-password-confirm-input', { state: 'visible', timeout: 10000 });
-  const signupFormShown = await page.evaluate(() => !!document.getElementById('auth-identity-select') && !!document.getElementById('auth-password-confirm-input'));
-  record('Sign Up tab shows the roster picker + password + confirm-password (no email field)', signupFormShown ? 'PASS' : 'FAIL');
+  // Sign-up is a real registration form now (5 Aug 2026, role-based
+  // access rollout) — Full Name/DOB/Telephone/Designation/User Type,
+  // replacing the old roster picker (which now stays a picker only on
+  // the Sign In side — see the sign-in check further below).
+  const signupFormShown = await page.evaluate(() =>
+    !!document.getElementById('auth-fullname-input') && !!document.getElementById('auth-usertype-select') && !!document.getElementById('auth-password-confirm-input'));
+  record('Sign Up tab shows the new registration form (Full Name/DOB/Phone/Designation/User Type) + password + confirm-password (no email field)', signupFormShown ? 'PASS' : 'FAIL');
   await shot(page, 'signup-form');
 
   currentStep = 'signup-live';
-  const rosterHasTestAccount = await page.evaluate((name) =>
-    Array.from(document.getElementById('auth-identity-select').options).some(o => o.value === name), testIdentity);
-  if (!rosterHasTestAccount) {
-    record(
-      'signUp() with name+password reaches the live Supabase project and produces a coherent outcome',
-      'FAIL',
-      'ACTION NEEDED: "E2E Test Account" isn\'t in the live allowed_identities table yet — run the latest supabase/schema.sql insert against the project.'
-    );
-    currentStep = 'cdn-failure-fallback';
-  } else {
-  await page.selectOption('#auth-identity-select', testIdentity);
+  await page.fill('#auth-fullname-input', testIdentity);
+  await page.fill('#auth-dob-input', '1990-01-01');
+  await page.fill('#auth-phone-input', '39001122');
+  await page.fill('#auth-designation-input', 'Test Designation');
+  await page.selectOption('#auth-usertype-select', 'sales');
   await page.fill('#auth-password-input', testPassword);
   await page.fill('#auth-password-confirm-input', testPassword);
-  await page.click('#cloud-login-body button:has-text("Create Account")');
+  await page.click('#cloud-login-body button[onclick="handleSignUp()"]');
   await page.waitForTimeout(5000); // real network round trip — signUp() + immediately checking/claiming the profile row
   await shot(page, 'after-signup');
   const afterSignupHtml = await page.evaluate(() => document.body.innerHTML);
@@ -160,7 +159,6 @@ function printReport() {
     await shot(page, 'after-signin');
     const signedBackIn = await page.evaluate(() => getComputedStyle(document.getElementById('app')).display !== 'none');
     record('Signing back in with the same name + password (no email step at all) works', signedBackIn ? 'PASS' : 'FAIL');
-  }
   }
 
   currentStep = 'cdn-failure-fallback';

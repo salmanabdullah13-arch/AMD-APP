@@ -1323,6 +1323,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
+<script src="approval-queue.js"></script>
 <script src="print.js"></script>
 <script src="teamcomms.js"></script>
 <script src="shell.js"></script>
@@ -1405,6 +1406,28 @@ const NODES = [
   { id:'approvals',    label:'Approver',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
   { id:'tally',         label:'Tally Bridge',     built:false },
 ];
+
+// Role-based access (5 Aug 2026, role-based access rollout) —
+// window.__dashboardMap (a user_type key -> its one NODES id, populated
+// at login — see finishCloudLogin() in auth.js) decides which built
+// node an actual tap is allowed to open. "owner" (Salman, and the
+// offline e2e test bypass — finishCloudLogin defaults to it when there's
+// no real per-person profile) always sees everything. Deliberately
+// fails CLOSED if the map hasn't loaded yet — a real access-control
+// check, not cosmetic, so the safe default during that brief window is
+// "can't open anything yet," never "can open everything."
+function nodeAccessible(nodeId) {
+  if (window.cloudUserType === 'owner') return true;
+  if (!window.__dashboardMap) return false;
+  return window.__dashboardMap[window.cloudUserType] === nodeId;
+}
+// This file is a <script type="module">, so top-level declarations are
+// module-scoped, not global — window.__eco3d below is exposed
+// explicitly for the same reason. nodeAccessible() needs the same
+// explicit exposure so e2e tests (e2e-role-gating.js) can call it
+// directly to verify the access decision itself, not just its
+// downstream effect.
+window.nodeAccessible = nodeAccessible;
 
 const PURPLE = 0x9b5cff;       // one accent, all nodes
 const BUILT_OPACITY = 0.95;
@@ -1520,8 +1543,9 @@ if (app) {
 
   const ecoTooltip = document.getElementById('eco-tooltip');
   let tooltipTimer = null;
-  function showPlannedTooltip(branch) {
+  function showPlannedTooltip(branch, text) {
     if (!ecoTooltip) return;
+    ecoTooltip.textContent = text || 'Coming soon';
     const v = new THREE.Vector3();
     branch.getWorldPosition(v);
     v.project(camera);
@@ -1563,11 +1587,11 @@ if (app) {
     if (hit.length) {
       const branch = hit[0].object.parent;
       const n = branch.userData.node;
-      if (n.built) {
+      if (n.built && nodeAccessible(n.id)) {
         n.launch();
       } else {
         selectedBranch = branch;
-        showPlannedTooltip(branch);
+        showPlannedTooltip(branch, n.built ? 'Not part of your role' : undefined);
         setTimeout(() => { if (selectedBranch === branch) selectedBranch = null; }, 1200);
       }
     }

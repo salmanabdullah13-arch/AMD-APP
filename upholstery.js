@@ -59,6 +59,13 @@ document.body.appendChild(upholsteryModuleWrap);
 
 let upholsteryView = 'dashboard'; // dashboard | queue
 const upholsteryCurrentUser = 'Upholstery Manager'; // no dedicated STAFF entry today — see project memory on the routing/budgeting design
+// See joineryApproverUserType()'s note (joinery.js) — same reasoning,
+// keeps the offline e2e bypass simulating "Upholstery Manager"
+// specifically instead of the global window.cloudUserType="owner"
+// wildcard, which would break the isolation the existing test suite
+// verifies (Upholstery's pending count must stay 0 when only a
+// Joinery/Painting budget is pending, and vice versa).
+function upholsteryApproverUserType() { return window.__realCloudSession ? window.cloudUserType : 'upholstery_manager'; }
 
 function upEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function upholsteryAlert(msg) {
@@ -101,12 +108,12 @@ function renderUpholsteryBody() {
   const body = document.getElementById('upholstery-body');
   if (!body) return;
   const tab = (v, label) => `<button class="sales-tabbtn ${upholsteryView === v ? 'active' : ''}" onclick="upholsterySetView('${v}')">${label}</button>`;
-  const pendingCount = getPendingBudgetApprovalsFor(upholsteryCurrentUser).length;
+  const pendingCount = getPendingBudgetApprovalsFor(upholsteryApproverUserType()).length;
   const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'Dashboard')}${tab('queue', 'Production Queue')}${tab('budget', 'Budgets')}${tab('approvals', `Approvals${pendingCount ? ' (' + pendingCount + ')' : ''}`)}</div>`;
   let content;
   if (upholsteryView === 'queue') content = renderDeptQueue(UPHOLSTERY_DEPT_KEY, upholsteryCurrentUser, 'upholstery');
   else if (upholsteryView === 'budget') content = renderDeptBudgetTab(UPHOLSTERY_DEPT_KEY, upholsteryCurrentUser, 'upholstery');
-  else if (upholsteryView === 'approvals') content = renderBudgetApprovals(upholsteryCurrentUser, 'upholstery');
+  else if (upholsteryView === 'approvals') content = renderBudgetApprovals(upholsteryApproverUserType(), upholsteryCurrentUser, 'upholstery');
   else content = renderUpholsteryDashboard();
   body.innerHTML = tabsHtml + content;
 }
@@ -114,7 +121,7 @@ function renderUpholsteryBody() {
 function renderUpholsteryDashboard() {
   const rows = getDepartmentQueue(UPHOLSTERY_DEPT_KEY);
   const count = s => rows.filter(r => r.entry.status === s).length;
-  const pendingApprovals = getPendingBudgetApprovalsFor(upholsteryCurrentUser).length;
+  const pendingApprovals = getPendingBudgetApprovalsFor(upholsteryApproverUserType()).length;
   const overBudget = getOverBudgetCountForDept(UPHOLSTERY_DEPT_KEY);
   return `
     <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">

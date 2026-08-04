@@ -98,13 +98,18 @@ function renderHRBody() {
   const body = document.getElementById('hr-body');
   if (!body) return;
   const tab = (v, label) => `<button class="sales-tabbtn ${hrView === v ? 'active' : ''}" onclick="hrSetView('${v}')">${label}</button>`;
-  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'HR Dashboard')}${tab('emp-list', 'Employee')}${tab('payroll', 'Payroll Report')}</div>`;
+  // Approvals (5 Aug 2026, role-based access rollout) — self-registered
+  // sign-ups pending Owner/HR approval before they get any app access.
+  // Shared with the Owner dashboard, see approval-queue.js.
+  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'HR Dashboard')}${tab('emp-list', 'Employee')}${tab('payroll', 'Payroll Report')}${tab('approvals', 'Approvals')}</div>`;
   let content = '';
   if (hrView === 'dashboard') content = renderHRDashboard();
   else if (hrView === 'emp-list') content = renderEmployeeList();
   else if (hrView === 'emp-detail') content = renderEmployeeDetail();
   else if (hrView === 'payroll') content = renderPayrollReport();
+  else if (hrView === 'approvals') content = '<div id="hr-approval-queue"></div>';
   body.innerHTML = (hrView === 'emp-detail' ? '' : tabsHtml) + content;
+  if (hrView === 'approvals') renderApprovalQueueScreen('hr-approval-queue');
 }
 
 // ── HR DASHBOARD — 6 expiry tiles ─────────────────────────

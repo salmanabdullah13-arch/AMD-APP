@@ -255,8 +255,13 @@ function deptRecordActual(modPrefix, jobId, deptKey, currentUser) {
 // department's pending submissions here (Joinery Production Manager sees
 // both Joinery's and Painting's, since that's today's real assignment,
 // not a data-model merge — see DEPARTMENT_APPROVERS in data.js).
-function renderBudgetApprovals(approverName, modPrefix) {
-  const rows = getPendingBudgetApprovalsFor(approverName);
+// approverUserType (a user_type key) decides WHICH pending approvals show;
+// approverDisplayName (the real person's name) is what actually gets
+// recorded as approvedBy/rejectedBy — split apart 5 Aug 2026 as part of
+// the role-based access rollout, since a person's role and their name are
+// no longer the same string (see the note on DEPARTMENT_APPROVERS).
+function renderBudgetApprovals(approverUserType, approverDisplayName, modPrefix) {
+  const rows = getPendingBudgetApprovalsFor(approverUserType);
   if (rows.length === 0) {
     return `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No budgets waiting on your approval right now.</p></div>`;
   }
@@ -272,8 +277,8 @@ function renderBudgetApprovals(approverName, modPrefix) {
         <tr><td>${t.materialCost.toFixed(3)}</td><td>${t.labourCost.toFixed(3)}</td><td>${t.subcontractCost.toFixed(3)}</td><td>${t.hiringCost.toFixed(3)}</td><td>${t.othersCost.toFixed(3)}</td></tr>
       </table>
       <div style="display:flex;gap:8px;margin-top:8px;">
-        <button class="primary" style="flex:1;font-size:11.5px;" onclick="deptApproveBudget('${modPrefix}','${r.job.id}','${r.deptKey}','${deptEsc(approverName)}')">Approve</button>
-        <button class="secondary" style="flex:1;font-size:11.5px;color:#b91c1c;" onclick="deptRejectBudget('${modPrefix}','${r.job.id}','${r.deptKey}','${deptEsc(approverName)}')">Reject</button>
+        <button class="primary" style="flex:1;font-size:11.5px;" onclick="deptApproveBudget('${modPrefix}','${r.job.id}','${r.deptKey}','${deptEsc(approverDisplayName)}')">Approve</button>
+        <button class="secondary" style="flex:1;font-size:11.5px;color:#b91c1c;" onclick="deptRejectBudget('${modPrefix}','${r.job.id}','${r.deptKey}','${deptEsc(approverDisplayName)}')">Reject</button>
       </div>
     </div>`;
   }).join('');

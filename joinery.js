@@ -61,6 +61,16 @@ document.body.appendChild(joineryModuleWrap);
 
 let joineryView = 'dashboard'; // dashboard | queue
 const joineryCurrentUser = 'Joinery Production Manager'; // no dedicated STAFF entry today — see project memory on the routing/budgeting design
+// Approver-check role (5 Aug 2026, role-based access rollout): a real
+// login uses the actual signed-in person's real user_type (correctly
+// isolating Joinery's approvals from Upholstery's when two different
+// real people hold those roles); the offline e2e bypass has no real
+// per-person profile, so it keeps simulating "logged in as the Joinery
+// Production Manager" specifically here — NOT the global
+// window.cloudUserType="owner" wildcard, which would incorrectly show
+// EVERY department's pending budgets on every module at once and break
+// the isolation the existing offline test suite already verifies.
+function joineryApproverUserType() { return window.__realCloudSession ? window.cloudUserType : 'joinery_production_manager'; }
 
 function jyEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function joineryAlert(msg) {
@@ -106,12 +116,12 @@ function renderJoineryBody() {
   // "Approvals" covers Joinery's own pending budgets AND Painting's — the
   // Joinery Production Manager approves both today (real staffing fact,
   // not a data merge — see DEPARTMENT_APPROVERS in data.js).
-  const pendingCount = getPendingBudgetApprovalsFor(joineryCurrentUser).length;
+  const pendingCount = getPendingBudgetApprovalsFor(joineryApproverUserType()).length;
   const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'Dashboard')}${tab('queue', 'Production Queue')}${tab('budget', 'Budgets')}${tab('approvals', `Approvals${pendingCount ? ' (' + pendingCount + ')' : ''}`)}</div>`;
   let content;
   if (joineryView === 'queue') content = renderDeptQueue(JOINERY_DEPT_KEY, joineryCurrentUser, 'joinery');
   else if (joineryView === 'budget') content = renderDeptBudgetTab(JOINERY_DEPT_KEY, joineryCurrentUser, 'joinery');
-  else if (joineryView === 'approvals') content = renderBudgetApprovals(joineryCurrentUser, 'joinery');
+  else if (joineryView === 'approvals') content = renderBudgetApprovals(joineryApproverUserType(), joineryCurrentUser, 'joinery');
   else content = renderJoineryDashboard();
   body.innerHTML = tabsHtml + content;
 }
@@ -122,7 +132,7 @@ function renderJoineryDashboard() {
   // Painting's own budgets land in this same inbox too — Salman's real
   // staffing fact, the Joinery Production Manager approves both until
   // Painting has its own dedicated manager (see DEPARTMENT_APPROVERS).
-  const pendingApprovals = getPendingBudgetApprovalsFor(joineryCurrentUser).length;
+  const pendingApprovals = getPendingBudgetApprovalsFor(joineryApproverUserType()).length;
   const overBudget = getOverBudgetCountForDept(JOINERY_DEPT_KEY) + getOverBudgetCountForDept(PAINT_DEPT_KEY);
   return `
     <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">

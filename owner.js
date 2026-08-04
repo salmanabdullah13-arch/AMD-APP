@@ -23,6 +23,7 @@ ownerStyleTag.textContent = `
 #owner-module-wrap .sales-card{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px;margin-bottom:12px;box-shadow:var(--biz-shadow);}
 #owner-module-wrap .sales-card h3{font-weight:700;font-size:13px;margin:0 0 8px;color:#1a1f2e;}
 #owner-module-wrap .owner-link{cursor:pointer;color:var(--biz-primary);font-weight:600;font-size:11px;}
+#owner-module-wrap .sales-back{font-size:12px;color:var(--biz-primary);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
 #owner-module-wrap .owner-activity-row{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--biz-border-light);font-size:11.5px;}
 #owner-module-wrap .owner-activity-row:last-child{border-bottom:0;}
 #owner-module-wrap .owner-activity-date{color:#94a3b8;white-space:nowrap;font-size:10.5px;}
@@ -63,7 +64,13 @@ function openOwnerModule() {
     if (el) el.style.display = 'none';
   });
   ownerModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
+  ownerView = 'dashboard';
   renderOwnerBody();
+  // Fire-and-forget count for the "Pending Sign-ups" tile above — the
+  // dashboard itself renders synchronously as always, this just patches
+  // the badge in shortly after, same optimistic-then-patch pattern as
+  // every cloud-backed cache in this app.
+  if (typeof loadApprovalQueue === 'function') loadApprovalQueue().then(() => { if (ownerView === 'dashboard') renderOwnerBody(); });
 }
 function closeOwnerModule() {
   ownerModuleWrap.style.display = 'none';
@@ -83,9 +90,22 @@ function ownerGoToOperations() {
   setTimeout(() => goTo('operations'), 150);
 }
 
+// Approvals (5 Aug 2026, role-based access rollout) — the one new
+// screen state this dashboard needs; everything else here stays the
+// single static summary render it always was. Shared with HR's own
+// Approvals tab, see approval-queue.js.
+let ownerView = 'dashboard';
+function ownerOpenApprovals() { ownerView = 'approvals'; renderOwnerBody(); }
+function ownerBackToDashboard() { ownerView = 'dashboard'; renderOwnerBody(); }
+
 function renderOwnerBody() {
   const body = document.getElementById('owner-body');
   if (!body) return;
+  if (ownerView === 'approvals') {
+    body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span><div id="owner-approval-queue"></div>`;
+    renderApprovalQueueScreen('owner-approval-queue');
+    return;
+  }
 
   const salesK = getSalesKPIs();
   const acctK = getAccountsKPIs();
@@ -123,6 +143,7 @@ function renderOwnerBody() {
         <div class="sales-kpi-tile"><div class="num">${activeEmployees}</div><div class="lbl">Active Staff</div></div>
       </div>
       <span class="owner-link" onclick="ownerGoTo('launchAccountsModule')">Open Accounts →</span>
+      <span class="owner-link" style="margin-left:14px;" onclick="ownerOpenApprovals()">Pending Sign-ups${approvalQueueRows.length ? ' (' + approvalQueueRows.length + ')' : ''} →</span>
     </div>
 
     <div class="sales-card">

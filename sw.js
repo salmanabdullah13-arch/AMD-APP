@@ -18,11 +18,11 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v3";
+const CACHE_VERSION = "amd-app-v4";
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
-  "./data.js", "./auth.js", "./print.js", "./teamcomms.js", "./shell.js",
+  "./data.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
   "./operations.js", "./curtain.js",
   "./purchasing.js", "./storekeeper.js", "./sales.js", "./estimator.js",
   "./approver.js", "./jobs.js", "./accounts.js", "./hr.js", "./owner.js",
