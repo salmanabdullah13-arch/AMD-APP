@@ -1019,6 +1019,11 @@ function saveWizardStep3() {
 function renderSalesDashboard() {
   const k = getSalesKPIs();
   return `
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${esc(salesCurrentUser)}</b></p>
+      <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${salesCurrentUser}',null,null,'renderSalesBody')">🏬 Notify Storekeeper</span>
+    </div>
+    ${renderInboxWidget(salesCurrentUser, 'renderSalesBody', 5)}
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('enquiries');salesEnqFilterChanged('unassigned',true);"><div class="num">${k.unallocated}</div><div class="lbl">Un-allocated</div></div>
       <div class="sales-kpi-tile"><div class="num">${k.inProgress}</div><div class="lbl">In-Progress</div></div>

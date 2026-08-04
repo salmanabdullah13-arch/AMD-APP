@@ -72,6 +72,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-
 .num-btn.empty{background:transparent;border-color:transparent;box-shadow:none;pointer-events:none;}
 .lock-hint{font-size:11px;color:var(--shell-ink-faint);margin-top:20px;}
 
+/* GLOBAL FALLBACK for shared cross-module widgets (Team Comms inbox, dept
+   tasks panel, etc. — 4 Aug 2026). Most business modules re-declare
+   .sales-card/.sales-kpi-tile/.stage-pill scoped under their own
+   #x-module-wrap id (see e.g. joinery.js). Modules that predate that
+   pattern (Operations, Curtain, Storekeeper) never did, so widgets built
+   by teamcomms.js/dept-pipeline-ui.js and dropped into their dashboards
+   would otherwise render unstyled. These bare rules are lower-specificity
+   than any #id-scoped version, so they only fill the gap. */
+.sales-card{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px;margin-bottom:10px;box-shadow:var(--biz-shadow);font-family:var(--font-biz);}
+.sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);font-family:var(--font-biz);}
+.sales-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-primary);}
+.sales-kpi-tile .lbl{font-size:10.5px;color:var(--biz-text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px;}
+.stage-pill{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+.stage-pill.queued{background:#eef0f3;color:#475569;}
+.stage-pill.in-production{background:var(--warn-bg,#fff6e3);color:var(--warn,#c47d00);}
+.stage-pill.qc{background:#e0ecfb;color:var(--info,#2563eb);}
+.stage-pill.rework{background:var(--bad-bg,#fdeceb);color:var(--bad,#d9342b);}
+.stage-pill.ready-for-handoff{background:var(--ok-bg,#eafaf1);color:var(--ok,#0f9d58);}
+
 /* TOPBAR */
 .topbar{background:var(--shell-surface);border-bottom:1px solid var(--shell-border);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex:none;}
 .brand{display:flex;align-items:center;gap:10px;}

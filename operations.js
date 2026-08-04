@@ -799,6 +799,16 @@ function renderOpsDashboard() {
   const jobsOverBudget = activeJobs.filter(j => getJobAttentionFlags(j).some(f => f.tone === 'bad')).length;
   const jobsOnBudget = activeJobs.length - jobsOverBudget;
 
+  const commsHtml = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+      <p style="font-size:11px;color:var(--ink2,#64748b);margin:0;">Operations</p>
+      <div style="display:flex;gap:14px;">
+        <span style="font-size:11.5px;font-weight:600;color:#600131;cursor:pointer;white-space:nowrap;" onclick="notifyStorekeeper('Operations Manager',null,null,'renderOpsDashboard')">🏬 Notify Storekeeper</span>
+        <span style="font-size:11.5px;font-weight:600;color:#600131;cursor:pointer;white-space:nowrap;" onclick="requestPurchaseFromModule(null,null,null)">🛒 Request Purchase</span>
+      </div>
+    </div>
+    ${renderInboxWidget('Operations Manager', 'renderOpsDashboard', 5)}`;
+
   const kpisHtml = `
     <div class="kpis">
       <div class="kpi"><p class="kl">Active Jobs</p><p class="kv">${activeJobs.length}</p><p class="ks">routed, in production</p></div>
@@ -829,7 +839,7 @@ function renderOpsDashboard() {
       return `<div class="prow"><div><div class="pname">${opsEsc(j.projectName)}</div><div class="pmeta">${j.id} · ${opsEsc(c ? c.name : '—')} · On budget</div></div><span class="badge zero">✓</span></div>`;
     }).join('');
 
-  el.innerHTML = kpisHtml + `
+  el.innerHTML = commsHtml + kpisHtml + `
     <div class="card">
       <p class="card-title">Needs your attention now</p>
       ${attentionRows}

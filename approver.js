@@ -184,6 +184,16 @@ function approverOpenPurchasing() {
 function renderApproverDashboard() {
   const k = getApproverKPIs(approverCurrentUser);
 
+  const commsHtml = `
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${aEsc(approverCurrentUser)}</b></p>
+      <div style="display:flex;gap:14px;">
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${approverCurrentUser}',null,null,'renderApproverBody')">🏬 Notify Storekeeper</span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeApproverModule',null,null)">🛒 Request Purchase</span>
+      </div>
+    </div>
+    ${renderInboxWidget(approverCurrentUser, 'renderApproverBody', 5)}`;
+
   const kpiTilesHtml = `
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('pending')"><div class="num">${k.pendingToPick}</div><div class="lbl">Pending to Pick</div></div>
@@ -225,7 +235,7 @@ function renderApproverDashboard() {
         }).join('')) + `</div>`;
   }
 
-  return kpiTilesHtml + expandedHtml;
+  return commsHtml + kpiTilesHtml + expandedHtml;
 }
 
 // ══════════════════════════════════════════

@@ -2719,3 +2719,89 @@ concrete gaps.
   re-confirmed (208/208) plus this session's 17/17 — 225/225 total,
   back-button-check clean across all 13 modules, zero console/page
   errors.
+
+### 4 Aug 2026 (mid-morning) — Team Comms (Messages + Request Purchase + Notify Storekeeper) everywhere, Joinery/Upholstery/Painting dashboard rebuild
+
+Salman role-played the Joinery Production Manager's real day (Operations
+routes jobs in for BOM/approval, Estimator sometimes asks for pricing,
+the day is scheduling week-by-week and reviewing quality) and asked for
+3 dashboard pieces, replicated across Painting/Upholstery, plus a
+company-wide ask: "make sure all the users have an option or raising
+purchase requests to the purchaser," "a link to store keeper to inform
+him things," "want everyone to have system to reach their teammates."
+
+- **New shared primitive — `messages[]` (data.js)**: lightweight, no due
+  date/status beyond read/unread, distinct from the existing `tasks[]`.
+  `sendMessage()`, `getInboxFor()`, `getUnreadCountFor()`,
+  `markMessageRead()`. New `REACHABLE_PEOPLE` roster combines `STAFF`
+  (minus the literal `"Operations"` placeholder entry, which was never a
+  real person) with the department pseudo-identities that don't have a
+  dedicated STAFF row (Joinery Production Manager, Upholstery Manager,
+  Painting Lead / Work Supervisor, Operations Manager, Storekeeper,
+  Accounts, HR).
+- **New shared UI file `teamcomms.js`** (loads after data.js/print.js,
+  before shell.js): a compose-message modal, a reusable
+  `renderInboxWidget()` card, a `notifyStorekeeper()` one-tap shortcut,
+  and `requestPurchaseFromModule()` — a generalized version of the
+  Sales-only `salesRequestPurchase()` shortcut that already existed,
+  usable from any module regardless of whether it has its own per-job PR
+  button. All of it reuses the existing `.sales-card`/`.sales-field` CSS
+  class names every business module already shares, so no new stylesheet
+  was needed for the modules that already had that design system —
+  except Operations/Curtain/Storekeeper, which predate it (see below).
+- **`getQCTrendForDept()` (data.js)**: QC pass/fail activity-log entries
+  previously carried the department only inside a free-text message
+  string ("failed QC at Joinery"), making reliable per-department
+  filtering impossible without fragile parsing. Added a structured `dept`
+  field to `logActivity()` and threaded it through the 4 real call sites
+  (2 in the shared pipeline's `recordLineQCResult()`, 2 in Painting's own
+  `recordPaintingQCResult()`), then built the trend query on top of it.
+- **Joinery/Upholstery dashboards rebuilt** (shared, `dept-pipeline-ui.js`):
+  replaced the counts-only view with a real **queue preview** (actual
+  product/job names, not just a number — tapping "View all" jumps to the
+  full Production Queue tab), a **Quality card** (first-pass QC rate +
+  recent pass/fail feed, from the new `getQCTrendForDept()`), and a **My
+  Tasks panel** reusing the existing `tasks[]` primitive (quick-add +
+  complete, nothing new in the data layer). Painting got its own
+  hand-coded equivalent in `painting.js` — deliberately not sharing
+  `dept-pipeline-ui.js`, per the standing design decision that Painting
+  stays standalone. All three dashboards also gained a Notify Storekeeper
+  / Request Purchase header row and the Messages inbox widget.
+- **Wired Messages + Request Purchase into every remaining module** —
+  Operations, Curtain, Sales, Estimator, Approver, Accounts, HR,
+  Storekeeper. Sales already had its own per-job `salesRequestPurchase()`
+  button, so only got the Messages inbox added, not a duplicate general
+  shortcut. Storekeeper (the usual *recipient* of Notify Storekeeper) got
+  Messages + Request Purchase but not a "notify storekeeper" shortcut
+  aimed at itself. Curtain already had a real, comprehensive dashboard
+  (QC pass rate, reject reasons) from before this session, so only needed
+  the comms banner — added a new `#curt-comms` div to its static
+  `index.html` markup (Curtain's dashboard is otherwise entirely
+  JS-rendered into `#curt-kpis`, not its own div per section).
+- **Found and fixed a real styling gap while wiring this in**:
+  `.sales-card`/`.sales-kpi-tile`/`.stage-pill` are only ever defined
+  *scoped* per-module (e.g. `#joinery-module-wrap .sales-card{...}`) —
+  there was no global, module-agnostic version anywhere. Operations,
+  Curtain, and Storekeeper predate that design system and never declared
+  their own scoped copies, so widgets built by `teamcomms.js`/
+  `dept-pipeline-ui.js` and dropped into their dashboards would have
+  rendered completely unstyled (no border/background/padding) in exactly
+  those three places. Added a **global fallback** block to `styles.css`
+  (bare `.sales-card`/`.sales-kpi-tile`/`.stage-pill` rules, right after
+  `:root`) — lower specificity than any `#id`-scoped version, so it only
+  fills the gap rather than overriding any existing module's own look.
+- **Verification:** new suite `e2e-team-comms-dashboard.js` (24/24) —
+  data-layer message send/reject/inbox checks, Storekeeper's dashboard
+  showing a real unread message from Joinery with the unread badge and
+  marking it read on click, the compose modal end-to-end (Sales → Accounts),
+  the Request Purchase shortcut correctly closing Estimator and landing on
+  Purchasing's real PR form, Joinery's queue preview/quality
+  card/tasks panel (including a live quick-add-then-complete-task
+  round trip), Upholstery and Painting both carrying the same 4 pieces,
+  and a sweep confirming all 5 of the lighter-touch modules
+  (Operations/Curtain/Approver/Accounts/HR) render their comms widget
+  cleanly. Full regression: `e2e-dashboard-enhancements.js` (17/17),
+  `e2e-owner-dashboard.js` (12/12), `e2e-back-button-check.js` (all 13
+  modules close cleanly), `e2e-job-routing-gate-sales-purchase.js`
+  (24/24, confirms Sales' pre-existing per-job Request Purchase button
+  still works untouched) — zero console/page errors throughout.

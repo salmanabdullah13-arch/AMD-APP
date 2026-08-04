@@ -3771,11 +3771,11 @@ function recordLineQCResult(jobId, lineId, deptKey, pass, user) {
   if (!pass) {
     entry.status = "rework";
     entry.reworkCount = (entry.reworkCount || 0) + 1;
-    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, message: `${item.product} failed QC at ${dc(deptKey).n} (rework #${entry.reworkCount})` });
+    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: deptKey, message: `${item.product} failed QC at ${dc(deptKey).n} (rework #${entry.reworkCount})` });
     return item;
   }
   entry.status = "ready-for-handoff";
-  logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, message: `${item.product} passed QC at ${dc(deptKey).n}` });
+  logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: deptKey, message: `${item.product} passed QC at ${dc(deptKey).n}` });
   return item;
 }
 
@@ -3892,11 +3892,11 @@ function recordPaintingQCResult(jobId, lineId, pass, user) {
   if (!pass) {
     entry.status = "rework";
     entry.reworkCount = (entry.reworkCount || 0) + 1;
-    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, message: `${item.product} failed QC at Painting (rework #${entry.reworkCount})` });
+    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, message: `${item.product} failed QC at Painting (rework #${entry.reworkCount})` });
     return item;
   }
   entry.status = "ready-for-handoff";
-  logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, message: `${item.product} passed QC at Painting` });
+  logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, message: `${item.product} passed QC at Painting` });
   return item;
 }
 
@@ -5354,10 +5354,14 @@ function getOpenTasksForAssignee(assignee) {
 }
 
 const activityLog = [];
-function logActivity({ type, linkedType = null, linkedId = null, user, message }) {
+// dept is optional — added 4 Aug 2026 so QC pass/fail entries can be
+// reliably filtered by department for the Joinery/Upholstery/Painting
+// dashboards' new quality-trend view, instead of parsing the department
+// name back out of the free-text message string.
+function logActivity({ type, linkedType = null, linkedId = null, user, message, dept = null }) {
   const entry = {
     id: activityLog.length + 1, date: new Date().toISOString().slice(0, 10), time: new Date().toISOString(),
-    type, linkedType, linkedId, user, message
+    type, linkedType, linkedId, user, message, dept
   };
   activityLog.push(entry);
   return entry;
@@ -5367,4 +5371,68 @@ function getActivityFor(linkedType, linkedId) {
 }
 function getRecentActivity(limit = 20) {
   return activityLog.slice().sort((a, b) => b.time.localeCompare(a.time)).slice(0, limit);
+}
+// Quality/rework trend for a single department — built for the Joinery/
+// Upholstery/Painting dashboards (4 Aug 2026), which showed a raw "In
+// Rework" count and nothing else about quality, even though every QC
+// pass/fail already gets logged to activityLog via the shared pipeline
+// (dept-pipeline-ui.js) and Painting's own separate functions. Matches
+// Curtain's own pre-existing "Reject Reasons" dashboard tile in spirit.
+function getQCTrendForDept(deptKey, limit = 8) {
+  const entries = activityLog.filter(a => a.dept === deptKey && (a.type === "qc-pass" || a.type === "qc-fail"));
+  const passCount = entries.filter(a => a.type === "qc-pass").length;
+  const failCount = entries.filter(a => a.type === "qc-fail").length;
+  const total = passCount + failCount;
+  return {
+    passCount, failCount, total,
+    passRate: total > 0 ? Math.round((passCount / total) * 100) : null,
+    recent: entries.slice().sort((a, b) => b.time.localeCompare(a.time)).slice(0, limit)
+  };
+}
+
+// ══════════════════════════════════════════
+// TEAM MESSAGES (4 Aug 2026) — a lightweight note between teammates,
+// deliberately separate from tasks[] above. Tasks are open/done action
+// items with a due date; a message is just "reach a teammate" — no
+// status beyond read/unread, no due date, no assignee workflow. Built
+// per Salman's explicit ask: "want everyone to have system to reach
+// their teammates."
+// REACHABLE_PEOPLE combines the real simulated STAFF roster with the
+// fixed role identities several modules already use as their own
+// "logged in as" name (Joinery/Upholstery/Painting have no dedicated
+// STAFF entry — see those modules' own currentUser comments) so every
+// module's "current user" is reachable by name, not just the 4 real
+// STAFF entries.
+// ══════════════════════════════════════════
+const REACHABLE_PEOPLE = [
+  ...STAFF.filter(s => s !== "Operations"),
+  "Operations Manager", "Joinery Production Manager", "Upholstery Manager",
+  "Painting Lead / Work Supervisor", "Storekeeper", "Accounts", "HR"
+];
+const messages = [];
+function nextMessageId() { return "MSG-" + String(messages.length + 1).padStart(5, "0"); }
+function sendMessage({ from, to, body, linkedType = null, linkedId = null }) {
+  if (!to) return { error: "Choose who to send this to." };
+  if (!body || !body.trim()) return { error: "Message can't be empty." };
+  const msg = {
+    id: nextMessageId(), from, to, body: body.trim(),
+    linkedType, linkedId, date: new Date().toISOString().slice(0, 10),
+    time: new Date().toISOString(), read: false
+  };
+  messages.push(msg);
+  return msg;
+}
+function getInboxFor(person) {
+  return messages.filter(m => m.to === person).sort((a, b) => b.time.localeCompare(a.time));
+}
+function getUnreadCountFor(person) {
+  return messages.filter(m => m.to === person && !m.read).length;
+}
+function markMessageRead(id) {
+  const m = messages.find(x => x.id === id);
+  if (m) m.read = true;
+  return m;
+}
+function markAllMessagesReadFor(person) {
+  messages.forEach(m => { if (m.to === person) m.read = true; });
 }

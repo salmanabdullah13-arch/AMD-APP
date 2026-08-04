@@ -180,6 +180,16 @@ function estimatorQtnRowSummary(q) {
 function renderEstimatorDashboard() {
   const k = getEstimatorKPIs(estimatorCurrentUser);
 
+  const commsHtml = `
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${eEsc(estimatorCurrentUser)}</b></p>
+      <div style="display:flex;gap:14px;">
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${estimatorCurrentUser}',null,null,'renderEstimatorBody')">🏬 Notify Storekeeper</span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeEstimatorModule',null,null)">🛒 Request Purchase</span>
+      </div>
+    </div>
+    ${renderInboxWidget(estimatorCurrentUser, 'renderEstimatorBody', 5)}`;
+
   const kpiTilesHtml = `
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="estimatorToggleTile('pending')"><div class="num">${k.pendingToPick}</div><div class="lbl">Pending to Pick</div></div>
@@ -221,7 +231,7 @@ function renderEstimatorDashboard() {
         }).join('')) + `</div>`;
   }
 
-  return kpiTilesHtml + expandedHtml;
+  return commsHtml + kpiTilesHtml + expandedHtml;
 }
 
 // ══════════════════════════════════════════

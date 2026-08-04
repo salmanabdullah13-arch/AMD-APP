@@ -125,7 +125,13 @@ function renderJoineryDashboard() {
   const pendingApprovals = getPendingBudgetApprovalsFor(joineryCurrentUser).length;
   const overBudget = getOverBudgetCountForDept(JOINERY_DEPT_KEY) + getOverBudgetCountForDept(PAINT_DEPT_KEY);
   return `
-    <div class="sales-card"><p style="font-size:11px;color:#94a3b8;">Logged in as <b>${jyEsc(joineryCurrentUser)}</b></p></div>
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${jyEsc(joineryCurrentUser)}</b></p>
+      <div style="display:flex;gap:14px;">
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${joineryCurrentUser}',null,null,'renderJoineryBody')">🏬 Notify Storekeeper</span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeJoineryModule','${JOINERY_DEPT_KEY}',null)">🛒 Request Purchase</span>
+      </div>
+    </div>
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">${count('queued')}</div><div class="lbl">Queued</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
@@ -138,5 +144,9 @@ function renderJoineryDashboard() {
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Ready for hand-off</p>
       <p style="font-size:22px;font-weight:700;color:var(--ok,#0f9d58);">${count('ready-for-handoff')}</p>
       <p style="font-size:11px;color:#94a3b8;">Passed QC, waiting to move to the next department (or finish, if this was the last stop).</p>
-    </div>`;
+    </div>
+    ${renderDeptQueuePreview(JOINERY_DEPT_KEY, 'joinery', 5)}
+    ${renderDeptQualityCard(JOINERY_DEPT_KEY)}
+    ${renderDeptTasksPanel(joineryCurrentUser, 'joinery')}
+    ${renderInboxWidget(joineryCurrentUser, 'renderJoineryBody', 5)}`;
 }

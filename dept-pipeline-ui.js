@@ -56,6 +56,104 @@ function deptQueueAction(modPrefix, fnName, ...args) {
 }
 
 // ══════════════════════════════════════════
+// SHARED DASHBOARD ENHANCEMENTS (4 Aug 2026) — built after role-playing
+// the Joinery Production Manager's real day: Operations routes jobs in,
+// Estimator sometimes asks for pricing input, the day is spent scheduling
+// week by week and reviewing quality. The dashboard used to show counts
+// only ("3 Queued") with no way to see WHAT those items actually are
+// without switching tabs, and nothing about quality trends or a place to
+// leave yourself a reminder. All three pieces below reuse primitives that
+// already existed elsewhere in the app (getDepartmentQueue, activityLog,
+// tasks[]) — none of this needed new data-model work. Shared here since
+// Joinery and Upholstery are the same underlying pipeline; Painting has
+// its own near-identical versions in painting.js (see that file's header
+// for why it doesn't consume this one).
+// ══════════════════════════════════════════
+
+// Compact "what's actually queued" list for the dashboard itself — the
+// full sortable table with actions stays in the Production Queue tab
+// (renderDeptQueue above); this is just enough to plan a week without
+// switching tabs.
+function renderDeptQueuePreview(deptKey, modPrefix, limit) {
+  limit = limit || 5;
+  const rows = getDepartmentQueue(deptKey).filter(r => r.entry.status !== 'ready-for-handoff');
+  const body = rows.length === 0
+    ? `<p style="font-size:11.5px;color:#94a3b8;">Nothing queued right now.</p>`
+    : rows.slice(0, limit).map(r => {
+      const c = customers.find(x => x.id === r.job.customerId);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">
+        <div><p style="font-size:12.5px;font-weight:600;margin:0;">${deptEsc(r.item.product)}</p><p style="font-size:10.5px;color:#94a3b8;margin:0;">${deptEsc(r.job.id)} · ${deptEsc(c ? c.name : '—')}${r.entry.reworkCount ? ` · rework ×${r.entry.reworkCount}` : ''}</p></div>
+        <span class="stage-pill ${r.entry.status}">${DEPT_QUEUE_STAGE_LABEL[r.entry.status] || r.entry.status}</span>
+      </div>`;
+    }).join('');
+  return `
+    <div class="sales-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <p style="font-weight:700;font-size:13px;margin:0;">This week's queue</p>
+        <span style="font-size:11px;color:var(--biz-primary,#600131);cursor:pointer;font-weight:600;" onclick="${modPrefix}SetView('queue')">View all →</span>
+      </div>
+      ${body}
+      ${rows.length > limit ? `<p style="font-size:10.5px;color:#94a3b8;margin-top:6px;">+ ${rows.length - limit} more in the full queue.</p>` : ''}
+    </div>`;
+}
+
+// Quality/rework trend — matches Curtain's own pre-existing "Reject
+// Reasons" dashboard tile in spirit, built off the same QC pass/fail
+// events the production pipeline already logs to activityLog.
+function renderDeptQualityCard(deptKey) {
+  const t = getQCTrendForDept(deptKey);
+  const recentRows = t.recent.length === 0
+    ? `<p style="font-size:11.5px;color:#94a3b8;">No QC history yet.</p>`
+    : t.recent.map(a => `<p style="font-size:11.5px;margin:3px 0;color:${a.type === 'qc-fail' ? 'var(--bad,#d9342b)' : 'var(--ok,#0f9d58)'};">${a.type === 'qc-fail' ? '✕' : '✓'} ${deptEsc(a.message)}</p>`).join('');
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Quality</p>
+      ${t.total === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No QC results recorded yet.</p>` : `
+        <p style="font-size:22px;font-weight:700;color:${t.passRate >= 90 ? 'var(--ok,#0f9d58)' : t.passRate >= 75 ? 'var(--warn,#c47d00)' : 'var(--bad,#d9342b)'};">${t.passRate}%</p>
+        <p style="font-size:10.5px;color:#94a3b8;margin:-2px 0 8px;">First-pass QC rate — ${t.passCount} passed, ${t.failCount} failed (all-time)</p>
+      `}
+      ${recentRows}
+    </div>`;
+}
+
+// My Tasks/Reminders — reuses the exact tasks[] primitive the Job Card
+// hub and Owner Dashboard already use, just never surfaced in a
+// department's own module before. quickAddFn/completeFn are this
+// module's own function names (string) since each module needs its own
+// re-render after an action.
+function renderDeptTasksPanel(currentUser, modPrefix) {
+  const openTasks = getOpenTasksForAssignee(currentUser);
+  const rows = openTasks.length === 0
+    ? `<p style="font-size:11.5px;color:#94a3b8;">Nothing on your list.</p>`
+    : openTasks.map(t => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">
+        <div><p style="font-size:12.5px;margin:0;">${deptEsc(t.title)}</p>${t.dueDate ? `<p style="font-size:10px;color:#94a3b8;margin:0;">Due ${t.dueDate}</p>` : ''}</div>
+        <span style="font-size:11px;color:var(--ok,#0f9d58);cursor:pointer;white-space:nowrap;" onclick="deptCompleteTask('${t.id}','${modPrefix}')">✓ Done</span>
+      </div>`).join('');
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">My Tasks</p>
+      ${rows}
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input id="${modPrefix}-quicktask" type="text" placeholder="Add a reminder…" style="flex:1;padding:8px 10px;border:1px solid var(--biz-border,#e2e8f0);border-radius:8px;font-size:12.5px;font-family:inherit;">
+        <button class="secondary" style="font-size:11.5px;padding:8px 12px;" onclick="deptQuickAddTask('${modPrefix}','${currentUser}')">Add</button>
+      </div>
+    </div>`;
+}
+function deptQuickAddTask(modPrefix, currentUser) {
+  const input = document.getElementById(`${modPrefix}-quicktask`);
+  const title = input.value;
+  if (!title || !title.trim()) return;
+  const result = createTask({ title, assignee: currentUser });
+  if (result.error) { (modPrefix === 'upholstery' ? upholsteryAlert : joineryAlert)(result.error); return; }
+  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
+}
+function deptCompleteTask(taskId, modPrefix) {
+  completeTask(taskId);
+  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
+}
+
+// ══════════════════════════════════════════
 // SHARED BUDGET SUBMIT/APPROVE UI (Batch 8, Phase 4) — the other piece
 // Joinery and Upholstery genuinely share, since costing/budgeting IS
 // uniform business logic across departments (same computeBOMTotals()

@@ -214,6 +214,11 @@ function renderAccountsDashboard() {
   const k = getAccountsKPIs();
   const divisionRows = Object.entries(k.byDivision);
   return `
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Accounts</p>
+      <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeAccountsModule',null,null)">🛒 Request Purchase</span>
+    </div>
+    ${renderInboxWidget('Accounts', 'renderAccountsBody', 5)}
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">BD ${k.revenue.toFixed(3)}</div><div class="lbl">Revenue (Invoiced)</div></div>
       <div class="sales-kpi-tile"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>

@@ -117,7 +117,13 @@ function renderUpholsteryDashboard() {
   const pendingApprovals = getPendingBudgetApprovalsFor(upholsteryCurrentUser).length;
   const overBudget = getOverBudgetCountForDept(UPHOLSTERY_DEPT_KEY);
   return `
-    <div class="sales-card"><p style="font-size:11px;color:#94a3b8;">Logged in as <b>${upEsc(upholsteryCurrentUser)}</b></p></div>
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${upEsc(upholsteryCurrentUser)}</b></p>
+      <div style="display:flex;gap:14px;">
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${upholsteryCurrentUser}',null,null,'renderUpholsteryBody')">🏬 Notify Storekeeper</span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeUpholsteryModule','${UPHOLSTERY_DEPT_KEY}',null)">🛒 Request Purchase</span>
+      </div>
+    </div>
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">${count('queued')}</div><div class="lbl">Queued</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
@@ -130,5 +136,9 @@ function renderUpholsteryDashboard() {
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Ready for hand-off</p>
       <p style="font-size:22px;font-weight:700;color:var(--ok,#0f9d58);">${count('ready-for-handoff')}</p>
       <p style="font-size:11px;color:#94a3b8;">Passed QC, waiting to move to the next department (or finish, if this was the last stop).</p>
-    </div>`;
+    </div>
+    ${renderDeptQueuePreview(UPHOLSTERY_DEPT_KEY, 'upholstery', 5)}
+    ${renderDeptQualityCard(UPHOLSTERY_DEPT_KEY)}
+    ${renderDeptTasksPanel(upholsteryCurrentUser, 'upholstery')}
+    ${renderInboxWidget(upholsteryCurrentUser, 'renderUpholsteryBody', 5)}`;
 }

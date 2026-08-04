@@ -179,7 +179,13 @@ function renderPaintingDashboard() {
   const awaitingMaterial = rows.filter(r => (r.entry.materialStatus || 'awaiting') !== 'arrived').length;
   const overBudget = getOverBudgetCountForDept(PAINT_DEPT_KEY);
   return `
-    <div class="sales-card"><p style="font-size:11px;color:#94a3b8;">Logged in as <b>${ptEsc(paintingCurrentUser)}</b> — operational visibility only, budget approval stays with the Joinery Production Manager until Painting has its own dedicated manager.</p></div>
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${ptEsc(paintingCurrentUser)}</b> — operational visibility only, budget approval stays with the Joinery Production Manager until Painting has its own dedicated manager.</p>
+      <div style="display:flex;gap:14px;">
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;white-space:nowrap;" onclick="notifyStorekeeper('${paintingCurrentUser}',null,null,'renderPaintingBody')">🏬 Notify Storekeeper</span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;white-space:nowrap;" onclick="requestPurchaseFromModule('closePaintingModule','${PAINT_DEPT_KEY}',null)">🛒 Request Purchase</span>
+      </div>
+    </div>
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">${count('queued')}</div><div class="lbl">Queued</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
@@ -192,7 +198,86 @@ function renderPaintingDashboard() {
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Ready for hand-off</p>
       <p style="font-size:22px;font-weight:700;color:var(--ok,#0f9d58);">${count('ready-for-handoff')}</p>
       <p style="font-size:11px;color:#94a3b8;">Passed QC, waiting to move to the next department (or finish, if Painting was the last stop).</p>
+    </div>
+    ${renderPaintingQueuePreview(rows, 5)}
+    ${renderPaintingQualityCard()}
+    ${renderPaintingTasksPanel()}
+    ${renderInboxWidget(paintingCurrentUser, 'renderPaintingBody', 5)}`;
+}
+
+// Painting's own standalone versions of the queue-preview/quality/tasks
+// pieces (4 Aug 2026) — same shape as dept-pipeline-ui.js's shared ones
+// but hand-coded here since Painting deliberately doesn't share that
+// file with Joinery/Upholstery (see the file header note near the top).
+function renderPaintingQueuePreview(rows, limit) {
+  limit = limit || 5;
+  const active = rows.filter(r => r.entry.status !== 'ready-for-handoff');
+  const body = active.length === 0
+    ? `<p style="font-size:11.5px;color:#94a3b8;">Nothing queued right now.</p>`
+    : active.slice(0, limit).map(r => {
+      const c = customers.find(x => x.id === r.job.customerId);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">
+        <div><p style="font-size:12.5px;font-weight:600;margin:0;">${ptEsc(r.item.product)}</p><p style="font-size:10.5px;color:#94a3b8;margin:0;">${ptEsc(r.job.id)} · ${ptEsc(c ? c.name : '—')}${r.entry.reworkCount ? ` · rework ×${r.entry.reworkCount}` : ''}</p></div>
+        <span class="stage-pill ${r.entry.status}">${PAINT_STAGE_LABEL[r.entry.status] || r.entry.status}</span>
+      </div>`;
+    }).join('');
+  return `
+    <div class="sales-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <p style="font-weight:700;font-size:13px;margin:0;">This week's queue</p>
+        <span style="font-size:11px;color:var(--biz-primary,#600131);cursor:pointer;font-weight:600;" onclick="paintingSetView('queue')">View all →</span>
+      </div>
+      ${body}
+      ${active.length > limit ? `<p style="font-size:10.5px;color:#94a3b8;margin-top:6px;">+ ${active.length - limit} more in the full queue.</p>` : ''}
     </div>`;
+}
+
+function renderPaintingQualityCard() {
+  const t = getQCTrendForDept(PAINT_DEPT_KEY);
+  const recentRows = t.recent.length === 0
+    ? `<p style="font-size:11.5px;color:#94a3b8;">No QC history yet.</p>`
+    : t.recent.map(a => `<p style="font-size:11.5px;margin:3px 0;color:${a.type === 'qc-fail' ? 'var(--bad,#d9342b)' : 'var(--ok,#0f9d58)'};">${a.type === 'qc-fail' ? '✕' : '✓'} ${ptEsc(a.message)}</p>`).join('');
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Quality</p>
+      ${t.total === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No QC results recorded yet.</p>` : `
+        <p style="font-size:22px;font-weight:700;color:${t.passRate >= 90 ? 'var(--ok,#0f9d58)' : t.passRate >= 75 ? 'var(--warn,#c47d00)' : 'var(--bad,#d9342b)'};">${t.passRate}%</p>
+        <p style="font-size:10.5px;color:#94a3b8;margin:-2px 0 8px;">First-pass QC rate — ${t.passCount} passed, ${t.failCount} failed (all-time)</p>
+      `}
+      ${recentRows}
+    </div>`;
+}
+
+function renderPaintingTasksPanel() {
+  const openTasks = getOpenTasksForAssignee(paintingCurrentUser);
+  const rows = openTasks.length === 0
+    ? `<p style="font-size:11.5px;color:#94a3b8;">Nothing on your list.</p>`
+    : openTasks.map(t => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">
+        <div><p style="font-size:12.5px;margin:0;">${ptEsc(t.title)}</p>${t.dueDate ? `<p style="font-size:10px;color:#94a3b8;margin:0;">Due ${t.dueDate}</p>` : ''}</div>
+        <span style="font-size:11px;color:var(--ok,#0f9d58);cursor:pointer;white-space:nowrap;" onclick="paintingCompleteTask('${t.id}')">✓ Done</span>
+      </div>`).join('');
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">My Tasks</p>
+      ${rows}
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input id="painting-quicktask" type="text" placeholder="Add a reminder…" style="flex:1;padding:8px 10px;border:1px solid var(--biz-border,#e2e8f0);border-radius:8px;font-size:12.5px;font-family:inherit;">
+        <button class="secondary" style="font-size:11.5px;padding:8px 12px;" onclick="paintingQuickAddTask()">Add</button>
+      </div>
+    </div>`;
+}
+function paintingQuickAddTask() {
+  const input = document.getElementById('painting-quicktask');
+  const title = input.value;
+  if (!title || !title.trim()) return;
+  const result = createTask({ title, assignee: paintingCurrentUser });
+  if (result.error) { paintingAlert(result.error); return; }
+  renderPaintingBody();
+}
+function paintingCompleteTask(taskId) {
+  completeTask(taskId);
+  renderPaintingBody();
 }
 
 const PAINT_STAGE_LABEL = { queued: 'Queued', 'in-production': 'In Production', qc: 'QC', rework: 'Rework', 'ready-for-handoff': 'Ready for Hand-off' };

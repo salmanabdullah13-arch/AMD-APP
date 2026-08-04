@@ -188,6 +188,13 @@ function renderStorekeeperDashboard() {
   if (!body) return;
   const summary = getStockPoolSummary();
 
+  const commsHtml = `
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Storekeeper</p>
+      <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeStorekeeperModule',null,null)">🛒 Request Purchase</span>
+    </div>
+    ${renderInboxWidget('Storekeeper', 'renderStorekeeperDashboard', 5)}`;
+
   const kpiHtml = `
     <div class="sk-kpi-grid">
       <div class="sk-kpi-tile"><div class="num">${summary.inPoolCount}</div><div class="lbl">Entries In-Pool</div></div>
@@ -239,7 +246,7 @@ function renderStorekeeperDashboard() {
         </div>`).join('');
   }
 
-  body.innerHTML = kpiHtml + tabsHtml + searchHtml + listHtml;
+  body.innerHTML = commsHtml + kpiHtml + tabsHtml + searchHtml + listHtml;
 }
 
 // ── Release panel ────────────────────────────

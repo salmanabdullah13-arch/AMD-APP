@@ -120,6 +120,14 @@ function renderHRDashboard() {
   const allFlagged = ['cpr', 'passport', 'licence', 'visa', 'contract', 'dependent']
     .flatMap(key => [...k[key].expiring.map(x => ({ ...x, status: 'expiring' })), ...k[key].expired.map(x => ({ ...x, status: 'expired' }))]);
   return `
+    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">HR</p>
+      <div style="display:flex;gap:14px;">
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('HR',null,null,'renderHRBody')">🏬 Notify Storekeeper</span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeHRModule',null,null)">🛒 Request Purchase</span>
+      </div>
+    </div>
+    ${renderInboxWidget('HR', 'renderHRBody', 5)}
     <div class="sales-kpi-grid">
       ${tile('cpr', 'CPR')}
       ${tile('passport', 'Passport')}
