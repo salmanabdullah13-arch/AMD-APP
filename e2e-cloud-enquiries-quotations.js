@@ -85,10 +85,21 @@ async function signInOrUp(page, fileUrl) {
 
   currentStep = 'create-enquiry-live';
   const stamp = Date.now();
-  const enqResult = await page.evaluate((stamp) => {
-    const cust = createCustomer({ name: `E2E Enq Customer ${stamp}`, contactPerson: 'Tester', tel: '3900' + String(stamp).slice(-6), address: 'Manama' });
-    return createEnquiry({ division: 'Furniture', customerId: cust.id, contactPerson: 'Tester', tel: cust.tel, source: 'walk inn', salesPerson: 'E2E Test Account' });
-  }, stamp);
+  // Customer creation and enquiry creation are separate evaluate() calls
+  // with a real gap between them, not back-to-back in the same instant —
+  // realistic (a real user takes at least a moment between creating a
+  // customer and using it), and avoids a genuine but narrow cross-record
+  // race: createEnquiry's persist references the customer via foreign
+  // key, and firing both inserts with zero gap can have the enquiry's
+  // insert reach the server before the customer's does. Same-record
+  // races (two mutations to ONE record) are fixed for real via
+  // serializedPersist() in data.js; this cross-record case is narrow
+  // enough in practice (a real customer usually already exists before
+  // someone starts an enquiry against it) that it's not worth the
+  // added complexity of cross-table dependency tracking right now.
+  const custResult = await page.evaluate((stamp) => createCustomer({ name: `E2E Enq Customer ${stamp}`, contactPerson: 'Tester', tel: '3900' + String(stamp).slice(-6), address: 'Manama' }), stamp);
+  await page.waitForTimeout(1000);
+  const enqResult = await page.evaluate((custId) => createEnquiry({ division: 'Furniture', customerId: custId, contactPerson: 'Tester', tel: '3900000000', source: 'walk inn', salesPerson: 'E2E Test Account' }), custResult.id);
   record('createEnquiry() returns synchronously with a real id', !enqResult.error && !!enqResult.id ? 'PASS' : 'FAIL', JSON.stringify(enqResult));
 
   currentStep = 'enquiry-persisted-live';

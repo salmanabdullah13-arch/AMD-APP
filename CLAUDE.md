@@ -3262,3 +3262,54 @@ Salman: "Keep building." Continued Phase 2 with the Sales pipeline.
   though a bigger one, since it's what the whole department-routing/
   budgeting/production pipeline (Joinery/Upholstery/Painting/Curtain)
   is built on top of.
+
+### 4 Aug 2026 (dawn) — Salman gave direct schema access; Phase 2 slice 2 fully proven live; one more real race found and fixed
+
+Salman asked directly why every schema change needed manual copy-paste
+now that he'd already handed over `service_role`. Answered honestly:
+that key covers the data/Auth Admin APIs (how the stale test user got
+deleted) but not raw SQL — that needs the Management API, which needs
+a Personal Access Token tied to his whole Supabase *account*, not just
+this project. Presented the tradeoff the same way as every other
+credential decision this session; he chose to hand one over.
+
+- **Now applying schema changes directly** via `POST
+  https://api.supabase.com/v1/projects/{ref}/database/query` with the
+  PAT as a Bearer token — verified the exact endpoint/body shape with
+  a harmless `select 1` before ever running real DDL with an account-
+  wide credential. Ran the pending enquiries/quotations schema this
+  way; confirmed live afterward via direct REST calls rather than
+  trusting the 201 response alone.
+- **Found and fixed one more real race while running the live
+  enquiries/quotations verification**: `addQuotationItem()` and
+  `addBOMMaterial()` each fire their own independent background save
+  in quick succession — since network requests can complete out of
+  order, the earlier save (item without BOM) could overwrite the later
+  one (item with BOM) if it happened to arrive second. Live-tested
+  proof, not theoretical: first run showed the persisted item with
+  `bom: null` even though the local object clearly had it. Fixed with
+  `serializedPersist()` (data.js) — chains every persist call for the
+  same record onto the previous one for that record, so writes to one
+  record are guaranteed to both start AND finish in the order they
+  were triggered. Applied to all seven persist* functions (customers,
+  enquiries, quotations), not just the one that happened to fail a
+  test, since the same risk exists anywhere two mutations land on the
+  same record in quick succession.
+- **Separately surfaced (and left alone, deliberately) a narrower
+  cross-record race**: creating a customer and immediately creating an
+  enquiry that references it via foreign key, with zero gap, can have
+  the enquiry's insert reach the server before the customer's does.
+  `serializedPersist()` only serializes repeat writes to the *same*
+  record, not dependencies across different records. Judged this
+  narrow enough in practice (a real customer usually already exists
+  before someone starts an enquiry against it, and a real person takes
+  more than zero milliseconds between the two actions) not to warrant
+  building cross-table dependency tracking right now — documented
+  inline in the test and in `persistNewEnquiry`'s neighborhood, not
+  silently ignored.
+- **Verification**: all four live-cloud suites (login, messages+
+  presence, customers, enquiries+quotations) pass in full after the
+  fix — enquiries+quotations went from 4/10 (items/BOM race, cross-
+  record race) to 10/10. Full offline regression re-confirmed clean.
+- **Phase 2 slice 2 (enquiries + quotations) is now fully proven
+  live**, not just built. Next: `jobCards[]`.

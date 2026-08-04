@@ -2763,6 +2763,23 @@ async function initCloudCustomersCache() {
     })
     .subscribe();
 }
+// Serializes background persist calls per record (table+id) — found live
+// while testing quotations: addQuotationItem() and addBOMMaterial() each
+// fire their own independent fire-and-forget save in quick succession,
+// and network requests can complete out of order, so the earlier save
+// (item without BOM) could overwrite the later one (item with BOM) if it
+// happened to arrive second. Chaining each new persist onto the previous
+// one for the same record guarantees they both start AND finish in the
+// order they were triggered, closing that race for good. Used by every
+// persist* function below, not just quotations' — the same risk exists
+// anywhere two mutations land on the same record in quick succession.
+const persistChains = {};
+function serializedPersist(key, fn) {
+  const prev = persistChains[key] || Promise.resolve();
+  const next = prev.then(fn, fn);
+  persistChains[key] = next.catch(() => {});
+  return next;
+}
 // Background persist for a locally-created customer. Deliberately does
 // NOT auto-retry a 23505 id collision with a regenerated id — the
 // caller already captured and may have used the original id
@@ -2774,17 +2791,17 @@ async function initCloudCustomersCache() {
 // not a silent auto-fix that could break a different reference.
 function persistNewCustomer(c) {
   if (!window.__realCloudSession || !sb) return;
-  sb.from("customers").insert(customerObjToRow(c)).then(({ error }) => {
+  serializedPersist("customers:" + c.id, () => sb.from("customers").insert(customerObjToRow(c)).then(({ error }) => {
     if (!error) return;
     const reason = error.code === "23505" ? "id conflict with another device — please recreate this customer" : error.message;
     if (typeof commsToast === "function") commsToast(`Couldn't save customer ${c.name} (${c.id}) to the cloud: ${reason}`);
-  });
+  }));
 }
 function persistCustomerUpdate(c) {
   if (!window.__realCloudSession || !sb) return;
-  sb.from("customers").update(customerObjToRow(c)).eq("id", c.id).then(({ error }) => {
+  serializedPersist("customers:" + c.id, () => sb.from("customers").update(customerObjToRow(c)).eq("id", c.id).then(({ error }) => {
     if (error && typeof commsToast === "function") commsToast(`Couldn't sync customer ${c.name} to the cloud: ${error.message}`);
-  });
+  }));
 }
 // Soft duplicate detection for Accounts' approval queue — Salman's call,
 // from a real past incident: duplicate client records slipped through and
@@ -2883,21 +2900,21 @@ async function initCloudEnquiriesCache() {
 }
 function persistNewEnquiry(e) {
   if (!window.__realCloudSession || !sb) return;
-  sb.from("enquiries").insert(enquiryObjToRow(e)).then(({ error }) => {
+  serializedPersist("enquiries:" + e.id, () => sb.from("enquiries").insert(enquiryObjToRow(e)).then(({ error }) => {
     if (error && typeof commsToast === "function") commsToast(`Couldn't save enquiry ${e.id} to the cloud: ${error.message}`);
-  });
+  }));
 }
 function persistEnquiryUpdate(e) {
   if (!window.__realCloudSession || !sb) return;
-  sb.from("enquiries").update(enquiryObjToRow(e)).eq("id", e.id).then(({ error }) => {
+  serializedPersist("enquiries:" + e.id, () => sb.from("enquiries").update(enquiryObjToRow(e)).eq("id", e.id).then(({ error }) => {
     if (error && typeof commsToast === "function") commsToast(`Couldn't sync enquiry ${e.id} to the cloud: ${error.message}`);
-  });
+  }));
 }
 function persistEnquiryDelete(id) {
   if (!window.__realCloudSession || !sb) return;
-  sb.from("enquiries").delete().eq("id", id).then(({ error }) => {
+  serializedPersist("enquiries:" + id, () => sb.from("enquiries").delete().eq("id", id).then(({ error }) => {
     if (error && typeof commsToast === "function") commsToast(`Couldn't delete enquiry ${id} from the cloud: ${error.message}`);
-  });
+  }));
 }
 
 // Enq No format matches the live reference (ENQ04061AMD).
@@ -2993,15 +3010,15 @@ async function initCloudQuotationsCache() {
 }
 function persistNewQuotation(q) {
   if (!window.__realCloudSession || !sb) return;
-  sb.from("quotations").insert(quotationObjToRow(q)).then(({ error }) => {
+  serializedPersist("quotations:" + q.id, () => sb.from("quotations").insert(quotationObjToRow(q)).then(({ error }) => {
     if (error && typeof commsToast === "function") commsToast(`Couldn't save quotation ${q.id} to the cloud: ${error.message}`);
-  });
+  }));
 }
 function persistQuotationUpdate(q) {
   if (!window.__realCloudSession || !sb) return;
-  sb.from("quotations").update(quotationObjToRow(q)).eq("id", q.id).then(({ error }) => {
+  serializedPersist("quotations:" + q.id, () => sb.from("quotations").update(quotationObjToRow(q)).eq("id", q.id).then(({ error }) => {
     if (error && typeof commsToast === "function") commsToast(`Couldn't sync quotation ${q.id} to the cloud: ${error.message}`);
-  });
+  }));
 }
 
 // ── QUOTATIONS ──
