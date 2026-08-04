@@ -13,7 +13,7 @@ function pt(v){
   for(let i=0;i<4;i++){const d=document.getElementById('d'+i);d.classList.toggle('filled',i<entered.length);}
   if(entered.length===4){
     setTimeout(()=>{
-      if(entered===PIN){document.getElementById('lock').style.display='none';document.getElementById('app').style.display='flex';updCP();updateHubBadges();}
+      if(entered===PIN){document.getElementById('lock').style.display='none';if(typeof cloudLoginStart==='function'){cloudLoginStart();}else{document.getElementById('app').style.display='flex';updCP();updateHubBadges();}}
       else{document.querySelectorAll('.pin-dot').forEach(d=>d.classList.add('error'));setTimeout(()=>{entered='';for(let i=0;i<4;i++)document.getElementById('d'+i).classList.remove('filled','error');},700);}
     },100);
   }

@@ -183,6 +183,25 @@
   <p class="lock-hint">Default PIN: 1994</p>
 </div>
 
+<!-- CLOUD LOGIN — shown after PIN, before the app unlocks (4 Aug 2026,
+     Phase 1). PIN still gates "is this a company device"; this gates
+     "who specifically are you" with a real per-person Supabase login,
+     replacing the old dropdown-picks-your-name simulation. Both stay
+     until Phase 3 retires the PIN once business rules are server-
+     enforced too — see CLAUDE.md. -->
+<div class="lock" id="cloud-login" style="display:none;">
+  <div style="width:80px;height:80px;border-radius:20px;border:1px solid var(--shell-border);background:linear-gradient(135deg,var(--maraya),var(--maraya2));display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 8px 20px -8px rgba(96,1,49,.35);">
+    <svg width="58" height="58" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="4" width="92" height="92" rx="18" stroke="white" stroke-width="4.5" fill="none"/>
+      <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="white" stroke-width="5.5" stroke-linejoin="miter" stroke-linecap="square"/>
+      <polygon points="50,64 76,82 76,48" fill="none" stroke="white" stroke-width="4.5" stroke-linejoin="miter"/>
+      <line x1="57" y1="74" x2="76" y2="74" stroke="white" stroke-width="4.5"/>
+    </svg>
+  </div>
+  <h1>Al Maraya Dev</h1>
+  <div id="cloud-login-body" style="width:100%;max-width:320px;margin-top:8px;"></div>
+</div>
+
 <!-- APP -->
 <div class="app" id="app" style="display:none;">
   <div class="safe-top"></div>
@@ -1334,7 +1353,9 @@
 <!-- Coming-soon tooltip -->
 <div id="eco-tooltip">Coming soon</div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="print.js"></script>
 <script src="teamcomms.js"></script>
 <script src="shell.js"></script>
