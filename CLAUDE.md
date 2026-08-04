@@ -2655,3 +2655,67 @@ which is where the real findings were.
   which is before the job even exists), so this is a narrow theoretical
   edge case, not a live bug, and wasn't pursued further given the time
   available tonight.
+
+### 4 Aug 2026 (early morning) — Real Operations Dashboard, Joinery/Upholstery/Painting budget visibility
+
+Salman asked to "enhance Operations, Joinery, Curtain, Upholstery,
+Painting dashboards." Looked at all five before touching anything —
+Curtain's was already real and comprehensive (`getCurtainKPIs()`,
+stitching %, QC pass rate, reject reasons, its own pre-existing
+`awaitingBudget` tile), so left untouched. The other four had real,
+concrete gaps.
+
+- **Operations' main Dashboard tab was 100% static — a genuine bug, not
+  just "thin."** The KPI numbers (11 active jobs, 3 approval pending, "24k
+  invoiced"...) and the three "Needs your attention now" project rows
+  (Majlis Refurbishment/AMD-15010, Villa 5 Fit-out, Showroom Door Unit)
+  were hand-authored HTML baked directly into `index.html`, with **zero**
+  JavaScript ever touching them — confirmed via grep, no reference to
+  `p-dashboard` existed anywhere in `operations.js`. It showed the exact
+  same fake numbers on every load regardless of real app state, the whole
+  time this app has existed. New `renderOpsDashboard()` reads real data:
+  Active Jobs (routed, non-cancelled), Approval Pending
+  (`getAllPendingBudgetApprovals()`, new company-wide helper, also
+  refactored Owner Dashboard to share it instead of duplicating the same
+  reduce), Needs Action / a real per-job attention list (new
+  `getJobAttentionFlags()` — Awaiting Routing, per-department Budget
+  Pending, per-department Over Budget), Open Tasks (`tasks[]`, the same
+  primitive from the earlier activity-log retrofit), and real Invoiced/
+  Received-this-month from `taxInvoices`. Deliberately dropped "Subs
+  overdue" and "Snags open" rather than inventing numbers for them —
+  neither has any real tracking anywhere in this app's data model, and
+  faking placeholder numbers would just be a smaller version of the exact
+  bug this replaces.
+- **Found a second bug live-testing the first fix**: `goTo('operations')`
+  (the ecosystem hub's own navigation, shell.js) never called
+  `renderOpsDashboard()` at all — only `opsGoTo()` (switching between
+  Operations' *own* internal tabs) did. Which meant the new real dashboard
+  would still have shown stale data from whenever the page first loaded,
+  every time someone entered Operations from the hub — the exact same
+  class of staleness bug as the thing just being fixed. Added the render
+  call to `goTo()`'s own `'operations'` case.
+- **Joinery/Upholstery/Painting dashboards showed production-queue counts
+  only** — Queued/In Production/Awaiting QC/Rework — with zero visibility
+  into budget health, even though every one of these departments already
+  has a real Budgets/Approvals tab tracking exactly that. Added a
+  **Budgets Pending** tile (tapping it jumps straight to that dept's own
+  Approvals tab) and an **Over Budget** tile (new
+  `getOverBudgetCountForDept()`, data.js) to all three. Joinery's count
+  correctly includes Painting's pending budgets too (the real staffing
+  fact from Batch 8 — Joinery Production Manager approves both), Painting
+  gets the two new tiles but no clickable Approvals link since it has no
+  approval authority by design, and Painting also gained an **In Rework**
+  tile it was missing entirely (Joinery/Upholstery already had one).
+- **Verification:** new suite `e2e-dashboard-enhancements.js` (17/17) —
+  confirms the old fake project rows are gone, a realistic 3-job mix
+  (routed+clear, unrouted, routed-with-pending-budget) produces the
+  correct KPI numbers and the correct attention/all-clear split, the
+  New Jobs nav badge reflects real data, re-entering Operations from the
+  hub after changing a job's status shows fresh numbers (not the stale
+  first-load snapshot — this is what caught the second bug), Joinery's
+  Budgets Pending tile shows the real submitted count, Upholstery's stays
+  correctly isolated at 0 in the same run, and Painting shows both new
+  tiles with no Approvals tab. Full regression: all 16 other suites
+  re-confirmed (208/208) plus this session's 17/17 — 225/225 total,
+  back-button-check clean across all 13 modules, zero console/page
+  errors.

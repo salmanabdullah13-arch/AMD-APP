@@ -4070,6 +4070,36 @@ function getPendingBudgetApprovalsFor(approverName) {
   });
   return rows;
 }
+// Company-wide version (4 Aug 2026, built for the Operations/Owner
+// dashboards) — same shape as getPendingBudgetApprovalsFor() above but not
+// filtered to one approver's own inbox.
+function getAllPendingBudgetApprovals() {
+  const rows = [];
+  jobCards.forEach(job => {
+    if (!job.departmentBudgets) return;
+    Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
+      if (entry.approvalStatus === "pending") rows.push({ job, deptKey, entry });
+    });
+  });
+  return rows;
+}
+// One real, honest "what needs attention" rollup per job — built for the
+// Operations Dashboard (4 Aug 2026), which used to be static hand-authored
+// demo markup with fake numbers, never wired to any real data at all.
+// Deliberately doesn't invent flags this app has no real data for (no
+// "subs overdue"/"snags open" tracking exists anywhere in the data model —
+// left out rather than faked).
+function getJobAttentionFlags(job) {
+  const flags = [];
+  if (!job.routingConfirmed && job.status !== "cancelled") flags.push({ label: "Awaiting Routing", tone: "warn" });
+  if (job.departmentBudgets) {
+    Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
+      if (entry.approvalStatus === "pending") flags.push({ label: `${dc(deptKey).n} Budget Pending`, tone: "warn" });
+      if (isDepartmentOverBudget(job.id, deptKey)) flags.push({ label: `${dc(deptKey).n} Over Budget`, tone: "bad" });
+    });
+  }
+  return flags;
+}
 
 // Over-budget check is reactive/informational only, per Salman's explicit
 // instruction — flag it, never hold production. Mirrors Curtain's own
@@ -4081,6 +4111,14 @@ function isDepartmentOverBudget(jobId, deptKey) {
   const budgeted = computeBOMTotals(entry.bom).totalCostInclOH;
   const actual = Object.values(entry.actual || {}).filter(v => typeof v === "number").reduce((s, v) => s + v, 0);
   return budgeted > 0 && actual > budgeted;
+}
+// Department-wide over-budget count — built for the Joinery/Upholstery/
+// Painting dashboards (4 Aug 2026 audit follow-up), which showed
+// production-queue counts only and nothing about budget health, even
+// though every dept already has a real Budgets/Approvals tab tracking
+// exactly this.
+function getOverBudgetCountForDept(deptKey) {
+  return jobCards.filter(j => j.departmentBudgets && j.departmentBudgets[deptKey] && isDepartmentOverBudget(j.id, deptKey)).length;
 }
 
 function recordDepartmentActual(jobId, deptKey, categoryAmounts, recordedBy) {

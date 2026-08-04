@@ -119,6 +119,11 @@ function renderJoineryBody() {
 function renderJoineryDashboard() {
   const rows = getDepartmentQueue(JOINERY_DEPT_KEY);
   const count = s => rows.filter(r => r.entry.status === s).length;
+  // Painting's own budgets land in this same inbox too — Salman's real
+  // staffing fact, the Joinery Production Manager approves both until
+  // Painting has its own dedicated manager (see DEPARTMENT_APPROVERS).
+  const pendingApprovals = getPendingBudgetApprovalsFor(joineryCurrentUser).length;
+  const overBudget = getOverBudgetCountForDept(JOINERY_DEPT_KEY) + getOverBudgetCountForDept(PAINT_DEPT_KEY);
   return `
     <div class="sales-card"><p style="font-size:11px;color:#94a3b8;">Logged in as <b>${jyEsc(joineryCurrentUser)}</b></p></div>
     <div class="sales-kpi-grid">
@@ -126,6 +131,8 @@ function renderJoineryDashboard() {
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('qc')}</div><div class="lbl">Awaiting QC</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('rework')}</div><div class="lbl">In Rework</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="joinerySetView('approvals')"><div class="num" style="${pendingApprovals ? 'color:var(--warn,#c47d00);' : ''}">${pendingApprovals}</div><div class="lbl">Budgets Pending</div></div>
+      <div class="sales-kpi-tile"><div class="num" style="${overBudget ? 'color:var(--bad,#d9342b);' : ''}">${overBudget}</div><div class="lbl">Over Budget</div></div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Ready for hand-off</p>

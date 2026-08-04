@@ -59,6 +59,16 @@ function goTo(p){
   document.getElementById('tb-title').textContent=TT[p]||p;
   scroll?.scrollTo({top:0,behavior:'smooth'});
   updateHubBadges();
+  // The Operations Dashboard/New-Jobs badge only refreshed on script load
+  // or when switching between Operations' OWN internal tabs (opsGoTo) —
+  // navigating INTO Operations from the ecosystem hub never re-rendered
+  // either, so anyone entering Operations saw whatever was true whenever
+  // the page first loaded, not real current data (4 Aug 2026 audit finding,
+  // found live-testing the new dashboard right after building it).
+  if (p === 'operations') {
+    if (typeof renderOpsDashboard === 'function') renderOpsDashboard();
+    if (typeof updateOpsRoutingBadge === 'function') updateOpsRoutingBadge();
+  }
 }
 
 // MODULE DATA

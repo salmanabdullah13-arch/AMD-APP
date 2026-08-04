@@ -9,6 +9,7 @@
 // ══════════════════════════════
 function money(n){return "BD "+(parseFloat(n)||0).toFixed(3);}
 function unres(p){return p.alerts.filter(a=>!a.r).length;}
+function opsEsc(s){return (s===null||s===undefined)?'':String(s).replace(/</g,'&lt;');}
 function showAlert(msg){
   const el=document.createElement("div");
   el.style.cssText="position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:11px 20px;border-radius:var(--r2);font-size:13px;font-weight:600;z-index:999;max-width:90vw;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.15);";
@@ -763,11 +764,80 @@ function opsGoTo(p){
   document.getElementById("p-"+p).classList.add("active");
   document.querySelector("[data-p="+p+"]").classList.add("active");
   window.scrollTo({top:0,behavior:"smooth"});
+  if(p==="dashboard"){ renderOpsDashboard(); }
   if(p==="alerts"){ renderJobRouting(); }
   if(p==="bom"){ renderBomList(""); }
   if(p==="curtapp"){ renderCurtainApprovals(); }
   if(p==="projects"){ renderProjList(); }
   if(p==="reminders"){ renderReminders(); }
+}
+
+// ══════════════════════════════════════════
+// DASHBOARD (4 Aug 2026) — was static hand-authored demo markup baked
+// directly into index.html (11 active jobs, 3 approval pending, fake
+// project rows like "Majlis Refurbishment") with zero JS ever touching
+// it — found during the overnight audit. Deliberately does NOT show
+// "Subs overdue"/"Snags open" tiles the old static version had — nothing
+// in this app's data model tracks either, and inventing numbers to fill
+// a placeholder would just be a smaller version of the same bug this
+// replaces. getJobAttentionFlags()/getAllPendingBudgetApprovals() (data.js)
+// do the real work; Owner Dashboard's own KPIs were refactored the same
+// day to share the pending-approvals helper rather than duplicate it.
+// ══════════════════════════════════════════
+function renderOpsDashboard() {
+  const el = document.getElementById('ops-dashboard-body');
+  if (!el) return;
+
+  const activeJobs = jobCards.filter(j => j.status === 'open' && j.routingConfirmed);
+  const pendingApprovals = getAllPendingBudgetApprovals().length;
+  const jobsWithFlags = jobCards.filter(j => j.status !== 'cancelled' && getJobAttentionFlags(j).length > 0);
+  const openTasksCount = tasks.filter(t => t.status === 'open').length;
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const invThisMonth = taxInvoices.filter(inv => inv.date.slice(0, 7) === thisMonth);
+  const invoicedThisMonth = invThisMonth.reduce((s, inv) => s + inv.totals.netTotal, 0);
+  const receivedThisMonth = invThisMonth.reduce((s, inv) => s + (inv.paidAmount || 0), 0);
+  const jobsOverBudget = activeJobs.filter(j => getJobAttentionFlags(j).some(f => f.tone === 'bad')).length;
+  const jobsOnBudget = activeJobs.length - jobsOverBudget;
+
+  const kpisHtml = `
+    <div class="kpis">
+      <div class="kpi"><p class="kl">Active Jobs</p><p class="kv">${activeJobs.length}</p><p class="ks">routed, in production</p></div>
+      <div class="kpi ${pendingApprovals > 0 ? 'warn' : ''}"><p class="kl">Approval Pending</p><p class="kv" ${pendingApprovals > 0 ? 'style="color:var(--warn)"' : ''}>${pendingApprovals}</p><p class="ks">department budgets</p></div>
+      <div class="kpi ${jobsWithFlags.length > 0 ? 'bad' : ''}"><p class="kl">Needs Action</p><p class="kv" ${jobsWithFlags.length > 0 ? 'style="color:var(--bad)"' : ''}>${jobsWithFlags.length}</p><p class="ks">jobs flagged</p></div>
+      <div class="kpi ${openTasksCount > 0 ? 'warn' : ''}"><p class="kl">Open Tasks</p><p class="kv" ${openTasksCount > 0 ? 'style="color:var(--warn)"' : ''}>${openTasksCount}</p><p class="ks">awaiting completion</p></div>
+      <div class="kpi"><p class="kl">Invoiced This Month</p><p class="kv">${money(invoicedThisMonth)}</p><p class="ks">${money(receivedThisMonth)} received</p></div>
+      <div class="kpi ok"><p class="kl">Jobs On Budget</p><p class="kv" style="color:var(--ok)">${jobsOnBudget}</p><p class="ks">of ${activeJobs.length} active</p></div>
+    </div>`;
+
+  const attentionRows = jobsWithFlags.length === 0
+    ? `<p style="font-size:12.5px;color:var(--ink2,#64748b);">Nothing needs attention right now.</p>`
+    : jobsWithFlags.map(j => {
+      const c = customers.find(x => x.id === j.customerId);
+      const flags = getJobAttentionFlags(j);
+      return `<div class="prow" onclick="openJob('${j.id}')">
+        <div><div class="pname">${opsEsc(j.projectName)}</div><div class="pmeta">${j.id} · ${opsEsc(c ? c.name : '—')} · ${money(j.amount)}</div>
+          <div class="ptags">${flags.map(f => `<span class="pill ${f.tone}">${opsEsc(f.label)}</span>`).join('')}</div></div>
+        <span class="badge ${flags.some(f => f.tone === 'bad') ? '' : 'warn'}">${flags.length}</span>
+      </div>`;
+    }).join('');
+
+  const clearJobs = activeJobs.filter(j => getJobAttentionFlags(j).length === 0);
+  const clearRows = clearJobs.length === 0
+    ? `<p style="font-size:12.5px;color:var(--ink2,#64748b);">No active jobs are fully clear yet.</p>`
+    : clearJobs.map(j => {
+      const c = customers.find(x => x.id === j.customerId);
+      return `<div class="prow"><div><div class="pname">${opsEsc(j.projectName)}</div><div class="pmeta">${j.id} · ${opsEsc(c ? c.name : '—')} · On budget</div></div><span class="badge zero">✓</span></div>`;
+    }).join('');
+
+  el.innerHTML = kpisHtml + `
+    <div class="card">
+      <p class="card-title">Needs your attention now</p>
+      ${attentionRows}
+    </div>
+    <div class="card">
+      <p class="card-title">All clear</p>
+      ${clearRows}
+    </div>`;
 }
 
 // ══════════════════════════════════════════
@@ -859,3 +929,4 @@ function renderJobRouting() {
 renderProjList();
 updateCurtAppBadge();
 updateOpsRoutingBadge();
+renderOpsDashboard();

@@ -99,10 +99,7 @@ function renderOwnerBody() {
   const withEstimator = quotations.filter(q => q.stage === 'estimator').length;
   const withApprover = quotations.filter(q => q.stage === 'approver').length;
   const jobsPendingRouting = getJobsPendingRouting().length;
-  const pendingBudgetApprovals = jobCards.reduce((s, job) => {
-    if (!job.departmentBudgets) return s;
-    return s + Object.values(job.departmentBudgets).filter(e => e.approvalStatus === 'pending').length;
-  }, 0);
+  const pendingBudgetApprovals = getAllPendingBudgetApprovals().length;
 
   const curtK = getCurtainKPIs();
   const joineryQueue = getDepartmentQueue('carp').length;

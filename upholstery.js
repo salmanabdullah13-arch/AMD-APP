@@ -114,6 +114,8 @@ function renderUpholsteryBody() {
 function renderUpholsteryDashboard() {
   const rows = getDepartmentQueue(UPHOLSTERY_DEPT_KEY);
   const count = s => rows.filter(r => r.entry.status === s).length;
+  const pendingApprovals = getPendingBudgetApprovalsFor(upholsteryCurrentUser).length;
+  const overBudget = getOverBudgetCountForDept(UPHOLSTERY_DEPT_KEY);
   return `
     <div class="sales-card"><p style="font-size:11px;color:#94a3b8;">Logged in as <b>${upEsc(upholsteryCurrentUser)}</b></p></div>
     <div class="sales-kpi-grid">
@@ -121,6 +123,8 @@ function renderUpholsteryDashboard() {
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('qc')}</div><div class="lbl">Awaiting QC</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('rework')}</div><div class="lbl">In Rework</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="upholsterySetView('approvals')"><div class="num" style="${pendingApprovals ? 'color:var(--warn,#c47d00);' : ''}">${pendingApprovals}</div><div class="lbl">Budgets Pending</div></div>
+      <div class="sales-kpi-tile"><div class="num" style="${overBudget ? 'color:var(--bad,#d9342b);' : ''}">${overBudget}</div><div class="lbl">Over Budget</div></div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Ready for hand-off</p>

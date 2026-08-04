@@ -338,41 +338,7 @@
      DASHBOARD
 ══════════════════════════════════════════ -->
 <div class="page active" id="p-dashboard">
-  <div class="kpis">
-    <div class="kpi"><p class="kl">Active jobs</p><p class="kv">11</p><p class="ks">in production</p></div>
-    <div class="kpi warn"><p class="kl">Approval pending</p><p class="kv" style="color:var(--warn)">3</p><p class="ks">budgets + variations</p></div>
-    <div class="kpi bad"><p class="kl">Needs action</p><p class="kv" style="color:var(--bad)">4</p><p class="ks">alerts unresolved</p></div>
-    <div class="kpi warn"><p class="kl">Delegated tasks</p><p class="kv" style="color:var(--warn)">3</p><p class="ks">awaiting completion</p></div>
-    <div class="kpi warn"><p class="kl">Subs overdue</p><p class="kv" style="color:var(--warn)">2</p><p class="ks">not received</p></div>
-    <div class="kpi warn"><p class="kl">Snags open</p><p class="kv" style="color:var(--warn)">3</p><p class="ks">post-delivery</p></div>
-    <div class="kpi"><p class="kl">Invoiced this month</p><p class="kv">BD 24k</p><p class="ks">BD 14k received</p></div>
-    <div class="kpi ok"><p class="kl">Jobs on budget</p><p class="kv" style="color:var(--ok)">7</p><p class="ks">of 11 active</p></div>
-  </div>
-
-  <div class="card">
-    <p class="card-title">Needs your attention now</p>
-    <div class="prow" onclick="openJob('AMD-15010')">
-      <div><div class="pname">Majlis Refurbishment</div><div class="pmeta">AMD-15010 · Ahmed Omar · BD 4,200</div>
-        <div class="ptags"><span class="pill bad">Over budget</span><span class="pill warn">BOM overdue</span><span class="pill warn">Variation pending</span></div></div>
-      <span class="badge">3</span>
-    </div>
-    <div class="prow" onclick="openJob('AMD-15002')">
-      <div><div class="pname">Villa 5 Fit-out</div><div class="pmeta">AMD-15002 · Discovery Dev · BD 8,450</div>
-        <div class="ptags"><span class="pill warn">Subcon overdue</span><span class="pill warn">Invoice not raised</span><span class="pill bad">3 snags open</span></div></div>
-      <span class="badge warn">3</span>
-    </div>
-    <div class="prow" onclick="opsGoTo('bom')">
-      <div><div class="pname">Showroom Door Unit</div><div class="pmeta">AMD-14933 · Al Maraya Decor · BD 6,800</div>
-        <div class="ptags"><span class="pill grey">Awaiting Owner budget approval</span></div></div>
-      <span class="badge warn">1</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <p class="card-title">All clear</p>
-    <div class="prow"><div><div class="pname">Pocket Wall Cladding</div><div class="pmeta">AMD-14871 · Cinqo · On budget · 70%</div></div><span class="badge zero">✓</span></div>
-    <div class="prow"><div><div class="pname">Motorised Curtain Set</div><div class="pmeta">AMD-14801 · Asian Vision · On budget · 90%</div></div><span class="badge zero">✓</span></div>
-  </div>
+  <div id="ops-dashboard-body"></div>
 </div>
 
 <!-- ══════════════════════════════════════════
