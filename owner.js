@@ -92,11 +92,7 @@ function openOwnerModule() {
   // every cloud-backed cache in this app.
   if (typeof loadApprovalQueue === 'function') loadApprovalQueue().then(() => { if (ownerView === 'dashboard') renderOwnerBody(); });
 }
-function closeOwnerModule() {
-  ownerModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeOwnerModule() { closeModuleWrap(ownerModuleWrap, 'launchOwnerModule'); }
 function launchOwnerModule() { openOwnerModule(); }
 
 // Jumps straight into a real module, same pattern as every other

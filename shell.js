@@ -232,6 +232,40 @@ function setHubBadge(groupId, count){
   }
 }
 
+// SIGN OUT / SHARED CLOSE (5 Aug 2026, navigation overhaul) — replaces
+// the identical hide-wrap + reveal-#scroll body every close*Module()
+// function used to duplicate (12+ near-identical copies). Context-aware:
+// most roles have exactly one dashboard (window.__dashboardHome is
+// null, set at login by finishCloudLogin) — for them, closing their one
+// screen has nowhere else to go, so it IS signing out. Owner/Admin have
+// their own dashboard as a real hub (quick-links / developer preview
+// into every other module) — window.__dashboardHome holds THEIR OWN
+// launch function's name, so closing anything else returns to it;
+// closing that home dashboard itself still means Sign Out, same as any
+// other role's own dashboard.
+// homeFnName: the launch-function name this module's OWN dashboard is
+// registered under (e.g. 'launchSalesModule') — lets this tell "am I
+// being closed as someone's home" apart from "am I a drill-in".
+function closeModuleWrap(wrapEl, homeFnName) {
+  if (wrapEl) wrapEl.style.display = 'none';
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = '';
+  const home = window.__dashboardHome;
+  if (home === undefined) {
+    // window.__dashboardHome isn't assigned until the direct-landing login
+    // flow (Phase 3) sets it — until then, fall back to the pre-existing
+    // "return to hub" behavior so nothing breaks mid-rollout.
+    if (typeof goTo === 'function') goTo('eco');
+    return;
+  }
+  if (home && home !== homeFnName) {
+    if (typeof window[home] === 'function') { window[home](); return; }
+  }
+  if (window.confirm('Sign out of AMD-APP?')) {
+    if (typeof cloudSignOut === 'function') cloudSignOut();
+  }
+}
+
 // NOTES
 function addNote(){
   const text=prompt('Add note:');if(!text)return;

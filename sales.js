@@ -155,11 +155,7 @@ function openSalesModule() {
   salesView = 'dashboard';
   renderSalesBody();
 }
-function closeSalesModule() {
-  salesModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeSalesModule() { closeModuleWrap(salesModuleWrap, 'launchEnquiryModule'); }
 function launchEnquiryModule() { openSalesModule(); }
 function launchSalesModule() { openSalesModule(); }
 

@@ -84,11 +84,7 @@ function openHRModule() {
   hrView = 'dashboard';
   renderHRBody();
 }
-function closeHRModule() {
-  hrModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeHRModule() { closeModuleWrap(hrModuleWrap, 'launchHRModule'); }
 function launchHRModule() { openHRModule(); }
 
 function hrSetView(v) { hrView = v; renderHRBody(); }

@@ -1786,12 +1786,7 @@ function renderPurchaseBillOutstanding() {
   document.getElementById('purch-billos-body').innerHTML = filterHtml + tableHtml;
 }
 
-function closePurchasingModule() {
-  const mod = document.getElementById('purch-module-wrap');
-  if (mod) mod.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closePurchasingModule() { closeModuleWrap(document.getElementById('purch-module-wrap'), 'launchPurchasingModule'); }
 
 // ── Hook into shell ─────────────────────
 function launchPurchasingModule() {

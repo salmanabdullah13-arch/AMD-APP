@@ -111,11 +111,7 @@ function openAccountsModule() {
   accountsView = 'dashboard';
   renderAccountsBody();
 }
-function closeAccountsModule() {
-  accountsModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeAccountsModule() { closeModuleWrap(accountsModuleWrap, 'launchAccountsModule'); }
 function launchAccountsModule() { openAccountsModule(); }
 
 function accountsSetView(v) { accountsView = v; renderAccountsBody(); }

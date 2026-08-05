@@ -4372,3 +4372,55 @@ credential decision this session; he chose to hand one over.
   QC-Packaging, etc.) remain deliberately untouched, per the plan's own
   reasoning — they're bare single-stage task tables by design, not
   oversight dashboards.
+
+### 5 Aug 2026 — Nav overhaul Phase 1: shared closeModuleWrap() + Sign Out foundation
+
+Salman: the 3D ecosystem hub "does not fit what we have built so far" and
+asked for a cohesive, structured layout instead — full plan approved via
+EnterPlanMode (`elegant-watching-hippo.md`, 3 parallel Explore agents):
+Owner and a new Admin Dashboard split apart, regular roles land directly on
+their one dashboard with no picker, the 3D hub removed once the new flow is
+proven. Four phases, built in dependency order so login is never broken
+mid-rollout. This entry covers Phase 1 only.
+
+- **New shared `closeModuleWrap(wrapEl, homeFnName)`** (shell.js) replaces
+  13 near-identical `close*Module()` bodies (accounts/approver/estimator/
+  fleet/delivery-sched/hr/jobs/joinery/owner/painting/upholstery/sales/
+  purchasing/storekeeper — Curtain has no `close*Module()`, it relies on
+  `goTo('eco')` directly, untouched here, scoped to Phase 4). Reads a new
+  `window.__dashboardHome` (not yet assigned anywhere — that's Phase 3's
+  job): if set and the closing module isn't the home module itself, calls
+  it by name (returns to Owner/Admin's own hub); otherwise confirms and
+  calls the pre-existing `cloudSignOut()` — this is the fix for a real gap
+  found during planning (no Sign Out button anywhere in the logged-in
+  shell).
+- **Real bug caught before it ever ran, not after**: the plan's own
+  pseudocode treated `window.__dashboardHome` as falsy-means-"no home."
+  Since Phase 3 (the login-time assignment) hasn't landed yet,
+  `__dashboardHome` is `undefined` for every role today — under the
+  originally-planned logic that reads as "no home, sign out," which would
+  have turned every module's close button into a Sign-Out confirm dialog
+  for the entire gap between Phase 1 and Phase 3, breaking roughly 40
+  existing e2e suites that click a close button and expect a plain return
+  to the hub. Fixed by distinguishing "not yet initialized" (`undefined`
+  → falls back to the pre-existing `goTo('eco')` behavior, unchanged) from
+  "explicitly no home" (`null`, only ever set once Phase 3 lands) — the
+  new Sign-Out behavior only activates once Phase 3 actually assigns the
+  variable, so this phase is a pure additive no-op on today's real
+  behavior until then, matching the plan's own stated goal of never
+  having a broken window mid-rollout.
+- **Verification**: `node --check` on all 14 touched files, plus a
+  repo-wide duplicate-top-level-declaration scan across all 23 JS files
+  (none found). Full regression sweep (43 e2e suites) — 40 pass clean;
+  the 3 that failed in the sweep (`e2e-age-gate.js`,
+  `e2e-cloud-messages-presence.js`, `e2e-job-routing-gate-sales-
+  purchase.js`) were each re-run standalone and passed in full (10/10,
+  7/8 with the one pre-existing documented stateful-live-data flake on
+  `markMessageRead`, 24/24) — all three are the same already-documented
+  flake classes from earlier sessions, not regressions from this change.
+- **Not done this phase, by design**: `window.__dashboardHome` is not
+  assigned anywhere yet (Phase 3); no new Sign Out UI affordance beyond
+  the existing close (✕) buttons now routing through it; Curtain's own
+  `goTo('eco')` call sites are untouched (Phase 4).
+- Next: Phase 2 (new `admin.js` — Approvals/Developer Preview/User &
+  Role Management, new `admin` `user_types` row + RLS wildcard).

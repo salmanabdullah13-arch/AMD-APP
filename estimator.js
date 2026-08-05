@@ -127,11 +127,7 @@ function openEstimatorModule() {
   estimatorView = 'dashboard';
   renderEstimatorBody();
 }
-function closeEstimatorModule() {
-  estimatorModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeEstimatorModule() { closeModuleWrap(estimatorModuleWrap, 'launchEstimatorModule'); }
 function launchEstimatorModule() { openEstimatorModule(); }
 
 function estimatorSetCurrentUser(name) {

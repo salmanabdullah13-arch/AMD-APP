@@ -149,11 +149,7 @@ function openStorekeeperModule() {
   skGoTo('dashboard');
 }
 
-function closeStorekeeperModule() {
-  skModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeStorekeeperModule() { closeModuleWrap(skModuleWrap, 'launchStorekeeperModule'); }
 
 function launchStorekeeperModule() {
   openStorekeeperModule();

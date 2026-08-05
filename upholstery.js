@@ -104,11 +104,7 @@ function openUpholsteryModule(initialView) {
 // Granular-role entry points (Milestone C) — see openUpholsteryModule()'s note.
 function launchUpholsteryTeamLeaderModule() { openUpholsteryModule('team-leader'); }
 function launchUpholsteryQCPackagingModule() { openUpholsteryModule('qc-packaging'); }
-function closeUpholsteryModule() {
-  upholsteryModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeUpholsteryModule() { closeModuleWrap(upholsteryModuleWrap, 'launchUpholsteryModule'); }
 function launchUpholsteryModule() { openUpholsteryModule(); }
 
 function upholsterySetView(v) { upholsteryView = v; renderUpholsteryBody(); }

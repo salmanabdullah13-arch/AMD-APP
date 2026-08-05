@@ -106,11 +106,7 @@ function openJoineryModule(initialView) {
   joineryView = initialView || 'dashboard';
   renderJoineryBody();
 }
-function closeJoineryModule() {
-  joineryModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeJoineryModule() { closeModuleWrap(joineryModuleWrap, 'launchJoineryModule'); }
 function launchJoineryModule() { openJoineryModule(); }
 // Granular-role entry points (Milestone D).
 function launchJoineryDraftingModule() { openJoineryModule('drafting'); }

@@ -153,11 +153,7 @@ function openJobsModule(jumpToJobId) {
   if (jumpToJobId) { openJobHub(jumpToJobId); }
   else { jobsView = 'list'; renderJobsBody(); }
 }
-function closeJobsModule() {
-  jobsModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeJobsModule() { closeModuleWrap(jobsModuleWrap, 'launchJobsModule'); }
 function launchJobsModule(jumpToJobId) { openJobsModule(jumpToJobId); }
 
 function renderJobsBody() {

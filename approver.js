@@ -126,11 +126,7 @@ function openApproverModule() {
   approverView = 'dashboard';
   renderApproverBody();
 }
-function closeApproverModule() {
-  approverModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeApproverModule() { closeModuleWrap(approverModuleWrap, 'launchApproverModule'); }
 function launchApproverModule() { openApproverModule(); }
 
 function approverSetCurrentUser(name) {

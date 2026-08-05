@@ -99,11 +99,7 @@ function openPaintingModule() {
   paintingView = 'dashboard';
   renderPaintingBody();
 }
-function closePaintingModule() {
-  paintingModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closePaintingModule() { closeModuleWrap(paintingModuleWrap, 'launchPaintingModule'); }
 function launchPaintingModule() { openPaintingModule(); }
 
 function paintingSetView(v) { paintingView = v; renderPaintingBody(); }

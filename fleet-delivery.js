@@ -70,11 +70,7 @@ function openFleetModule() {
   fleetActiveVehicleId = null;
   renderFleetBody();
 }
-function closeFleetModule() {
-  fleetModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeFleetModule() { closeModuleWrap(fleetModuleWrap, 'launchFleetModule'); }
 function launchFleetModule() { openFleetModule(); }
 
 function renderFleetBody() {
@@ -236,11 +232,7 @@ function openDeliverySchedModule() {
   deliverySchedView = 'list';
   renderDeliverySchedBody();
 }
-function closeDeliverySchedModule() {
-  deliverySchedModuleWrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-}
+function closeDeliverySchedModule() { closeModuleWrap(deliverySchedModuleWrap, 'launchDeliverySchedModule'); }
 function launchDeliverySchedModule() { openDeliverySchedModule(); }
 
 function renderDeliverySchedBody() {
