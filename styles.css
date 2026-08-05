@@ -91,6 +91,56 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-
 .stage-pill.rework{background:var(--bad-bg,#fdeceb);color:var(--bad,#d9342b);}
 .stage-pill.ready-for-handoff{background:var(--ok-bg,#eafaf1);color:var(--ok,#0f9d58);}
 
+/* SHARED CHART WIDGETS (Dashboard Analytics rollout, 5 Aug 2026) —
+   promoted from Curtain's original #curt-module-wrap-scoped-only ring-
+   gauge/mini-bar-chart CSS (which referenced module-local --ink/--line/
+   --card/--r tokens), rewritten here to use the true global --biz-*/
+   --ok/--warn/--bad tokens (defined at :root above) so any module gets
+   correctly-styled output with no restyle needed — same technique as
+   the GLOBAL FALLBACK block just above. Curtain's own scoped rules are
+   untouched and still win there via higher specificity (#id + class),
+   so its existing dashboard is visually unchanged. New chart-widgets.js
+   functions (cwRingGauge/cwMiniBars/cwStackedMonthlyBars/
+   cwHorizontalBarList) render into these classes. */
+.dash-body{display:block;width:100%;}
+.dash-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--biz-text-muted);margin:16px 0 8px;}
+.dash-rings{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+.ring-card{flex:1;min-width:120px;background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:14px 10px 12px;text-align:center;}
+.ring-wrap{position:relative;width:84px;height:84px;margin:0 auto 8px;}
+.ring-wrap svg{position:absolute;inset:0;}
+.ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.ring-value{font-size:18px;font-weight:800;line-height:1;}
+.ring-title{font-size:11px;font-weight:700;color:var(--biz-text);margin-top:1px;}
+.ring-sub{font-size:10px;color:var(--biz-text-faint);margin-top:2px;line-height:1.35;}
+.stat-strip{display:flex;gap:8px;flex-wrap:wrap;}
+.stat-tile{flex:1;min-width:90px;background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r-sm);padding:10px 8px;text-align:center;}
+.stat-tile .st-v{font-size:16px;font-weight:800;color:var(--biz-text);}
+.stat-tile .st-l{font-size:9px;color:var(--biz-text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-top:3px;line-height:1.3;}
+.mini-bars{display:flex;gap:7px;align-items:flex-end;height:96px;background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r-sm);padding:10px 8px 8px;}
+.mini-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;}
+.mini-bar-track{flex:1;width:100%;max-width:24px;display:flex;align-items:flex-end;}
+.mini-bar-fill{width:100%;border-radius:4px 4px 0 0;min-height:2px;transition:height .3s;}
+.mini-bar-val{font-size:10px;font-weight:700;color:var(--biz-text);margin-top:4px;}
+.mini-bar-label{font-size:8.5px;color:var(--biz-text-faint);margin-top:1px;text-align:center;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+
+/* New for this rollout — stacked-monthly-bar chart legend, horizontal
+   ranked-bar list (division share / top clients / pipeline funnel),
+   and the shared empty-state message every chart-widgets.js primitive
+   falls back to. */
+.cw-chart{width:100%;}
+.cw-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--biz-text-muted);margin-top:8px;}
+.cw-legend-item{display:flex;align-items:center;gap:6px;}
+.cw-legend-swatch{width:10px;height:10px;border-radius:2px;flex:none;}
+.cw-hbar-list{display:flex;flex-direction:column;gap:9px;}
+.cw-hbar-row{display:flex;align-items:center;gap:8px;}
+.cw-hbar-label{width:150px;flex:none;font-size:12px;color:var(--biz-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cw-hbar-track{flex:1;position:relative;height:16px;background:var(--biz-border-light);border-radius:4px;overflow:hidden;}
+.cw-hbar-fill{height:100%;border-radius:4px;transition:width .3s;}
+.cw-hbar-val{width:auto;min-width:70px;text-align:right;font-size:12px;font-weight:700;flex:none;font-variant-numeric:tabular-nums;color:var(--biz-text);}
+.cw-hbar-sub{font-weight:400;color:var(--biz-text-faint);}
+.cw-empty{padding:18px 8px;text-align:center;}
+.cw-empty p{font-size:12px;color:var(--biz-text-faint);margin:0;}
+
 /* TOPBAR */
 .topbar{background:var(--shell-surface);border-bottom:1px solid var(--shell-border);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex:none;}
 .brand{display:flex;align-items:center;gap:10px;}

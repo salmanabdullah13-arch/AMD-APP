@@ -6133,6 +6133,116 @@ function getQCTrendForDept(deptKey, limit = 8) {
 }
 
 // ══════════════════════════════════════════
+// DASHBOARD ANALYTICS AGGREGATIONS (5 Aug 2026) — feed the new
+// chart-widgets.js primitives. Pure functions, no new stored state,
+// same convention as getQCTrendForDept()/getSalesKPIs()/etc. above —
+// every value here is computed fresh from the existing arrays, nothing
+// is cached or persisted.
+// ══════════════════════════════════════════
+
+// Confirmed order value by month x division, from jobCards (job.amount,
+// job.date), joined back to the division via quotationId -> enquiryId.
+// Deliberately NOT limited to invoiced revenue (that's Accounts' own,
+// narrower getAccountsKPIs().byDivision, which only counts taxInvoices
+// — a real recognized-revenue figure, kept as-is) — this reflects
+// business actually confirmed/booked, the figure Sales/Owner care
+// about day to day. scope.salesPerson optionally restricts to one
+// salesperson's own enquiries.
+function getMonthlyRevenueByDivision(monthsBack, scope) {
+  monthsBack = monthsBack || 8;
+  scope = scope || {};
+  const months = [];
+  const now = new Date();
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    months.push({ key, label: d.toLocaleString("en-US", { month: "short" }) });
+  }
+  const byMonthDiv = {};
+  months.forEach(m => { byMonthDiv[m.key] = {}; SALES_DIVISIONS.forEach(d => { byMonthDiv[m.key][d] = 0; }); });
+
+  jobCards.forEach(job => {
+    if (job.status === "cancelled") return;
+    const mk = (job.date || "").slice(0, 7);
+    if (!byMonthDiv[mk]) return;
+    const qtn = quotations.find(q => q.id === job.quotationId);
+    const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
+    if (scope.salesPerson && (!enq || enq.salesPerson !== scope.salesPerson)) return;
+    const div = enq ? enq.division : null;
+    if (!div || !(div in byMonthDiv[mk])) return;
+    byMonthDiv[mk][div] += job.amount || 0;
+  });
+
+  return { months, byMonthDiv, divisions: SALES_DIVISIONS.slice() };
+}
+
+// Pipeline funnel — count + value at each real stage a quote/job
+// actually passes through. Buckets deliberately mirror the app's own
+// lifecycle, not an invented generic funnel: an open (not-yet-
+// confirmed) quotation; a job card that exists but Operations hasn't
+// routed yet; a routed job with at least one undelivered line; a fully
+// delivered job (every line's deliveredQty >= qty). scope.salesPerson/
+// scope.department optionally narrow to one salesperson's quotes or
+// one production department's jobs.
+function getPipelineFunnel(scope) {
+  scope = scope || {};
+  const stages = ["Quotation", "Job Confirmed", "In Production", "Delivered"];
+  const byStage = {};
+  stages.forEach(s => { byStage[s] = { count: 0, value: 0 }; });
+
+  quotations.forEach(qtn => {
+    if (qtn.lifecycleStatus === "confirmed") return; // counted via its job card instead
+    const enq = enquiries.find(e => e.id === qtn.enquiryId);
+    if (scope.salesPerson && (!enq || enq.salesPerson !== scope.salesPerson)) return;
+    const totals = computeQuotationTotals(qtn);
+    byStage["Quotation"].count++;
+    byStage["Quotation"].value += totals.netTotal;
+  });
+
+  jobCards.forEach(job => {
+    if (job.status === "cancelled") return;
+    if (scope.salesPerson) {
+      const qtn = quotations.find(q => q.id === job.quotationId);
+      const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
+      if (!enq || enq.salesPerson !== scope.salesPerson) return;
+    }
+    if (scope.department && !job.items.some(it => (it.departmentSequence || []).includes(scope.department))) return;
+    const fullyDelivered = job.items.length > 0 && job.items.every(it => (it.deliveredQty || 0) >= it.qty);
+    const bucket = fullyDelivered ? "Delivered" : !job.routingConfirmed ? "Job Confirmed" : "In Production";
+    byStage[bucket].count++;
+    byStage[bucket].value += job.amount || 0;
+  });
+
+  return { stages, byStage };
+}
+
+// Top clients by confirmed order value — jobCards rollup grouped by
+// customerId, joined to customers[].name. No existing helper does
+// this (getCustomerOpenInvoices()/getSalesBillOutstandingByParty() both
+// compute outstanding BALANCE, not total sold value). scope.salesPerson
+// optionally restricts to one salesperson's own jobs.
+function getTopClientsByValue(limit, scope) {
+  limit = limit || 8;
+  scope = scope || {};
+  const byCustomer = {};
+  jobCards.forEach(job => {
+    if (job.status === "cancelled" || !job.customerId) return;
+    if (scope.salesPerson) {
+      const qtn = quotations.find(q => q.id === job.quotationId);
+      const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
+      if (!enq || enq.salesPerson !== scope.salesPerson) return;
+    }
+    byCustomer[job.customerId] = (byCustomer[job.customerId] || 0) + (job.amount || 0);
+  });
+  const rows = Object.keys(byCustomer).map(cid => {
+    const c = customers.find(x => x.id === cid);
+    return { customerId: cid, name: c ? c.name : cid, value: byCustomer[cid] };
+  });
+  rows.sort((a, b) => b.value - a.value);
+  return rows.slice(0, limit);
+}
+
+// ══════════════════════════════════════════
 // TEAM MESSAGES (4 Aug 2026) — a lightweight note between teammates,
 // deliberately separate from tasks[] above. Tasks are open/done action
 // items with a due date; a message is just "reach a teammate" — no

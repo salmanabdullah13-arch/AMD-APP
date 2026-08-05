@@ -4075,3 +4075,76 @@ credential decision this session; he chose to hand one over.
   database with a role the restriction actually applies to. Remaining
   27-role × N-table matrix work (finer per-table restrictions beyond
   these three) is open for a future session if it becomes a priority.
+
+### 5 Aug 2026 — Dashboard Analytics rollout, Phase 1: shared chart-widgets.js foundation
+- Salman shared a standalone HTML sales-dashboard prototype (monthly
+  revenue by division as a stacked bar, division share bars, a pipeline
+  funnel, top clients, upcoming deliveries) and wants that visual
+  language — real charts, not just KPI tiles — across most of the
+  app's dashboards. Planned in full via EnterPlanMode/ExitPlanMode
+  first (3 parallel Explore agents researched existing chart infra, the
+  available business data, and the full 27-role dashboard catalog) —
+  see the approved plan for the phased rollout and reasoning; this
+  entry covers Phase 1 only.
+- Confirmed via research: every dashboard except Curtain's
+  (`curtain.js`, `renderCurtDashboard()`) is numbers-and-tables only —
+  Curtain already proved the pattern works (ring gauges, mini bar
+  charts, a Gantt timeline, all hand-rolled SVG/CSS, no library). No
+  charting library is loaded anywhere in the app; kept it that way.
+- New `chart-widgets.js` — promoted and renamed (not modified)
+  Curtain's `svgRingGauge`/`ringStatCard`/`svgMiniBars` into
+  `cwRingGauge`/`cwRingStatCard`/`cwMiniBars` (identical math), plus two
+  genuinely new primitives modeled on the prototype but rewritten as
+  template-literal-string returns (matching this app's own convention,
+  not the prototype's own DOM/`createElementNS` approach):
+  `cwStackedMonthlyBars()` (monthly revenue-by-division style chart)
+  and `cwHorizontalBarList()` (one shared primitive covering division
+  share / top clients / pipeline funnel — same visual shape, different
+  formatting). Every primitive renders a graceful "not enough data yet"
+  empty state for zero/near-zero input — non-negotiable, since
+  `jobCards[]` ships with zero seed rows and
+  `customers`/`enquiries`/`quotations` each have exactly one hand-
+  authored trace record; real charts here will often be empty until
+  real business usage populates Supabase.
+- `styles.css` — promoted Curtain's ring/bar-chart CSS out of its
+  `#curt-module-wrap`-only scope into a new unscoped "SHARED CHART
+  WIDGETS" section (same technique as the existing GLOBAL FALLBACK
+  block for `.sales-card`/`.sales-kpi-tile`/`.stage-pill`), rewritten to
+  reference the true global `--biz-*`/`--ok`/`--warn`/`--bad` tokens
+  (defined at `:root`) instead of Curtain's own module-scoped
+  `--ink`/`--line`/`--purple` names, which aren't guaranteed to exist
+  in every module. Curtain's own scoped rules are untouched and still
+  win there via higher CSS specificity, so its dashboard is visually
+  unchanged.
+- `data.js` — three new pure aggregation functions, same convention as
+  every existing `get*KPIs()`/`get*Trend()` helper (no new stored
+  state): `getMonthlyRevenueByDivision(monthsBack, scope)` (confirmed
+  job value by month × `enq.division` — deliberately the existing
+  `SALES_DIVISIONS` taxonomy, not the finer per-line `DEPTS` keys,
+  which would need an unresolved allocation rule for items touching
+  more than one department), `getPipelineFunnel(scope)` (Quotation →
+  Job Confirmed → In Production → Delivered, using the app's real
+  lifecycle strings), `getTopClientsByValue(limit, scope)` (jobCards
+  rollup by customerId — no existing helper did this; the closest,
+  `getCustomerOpenInvoices()`/`getSalesBillOutstandingByParty()`, both
+  compute outstanding *balance*, not total sold value). All three take
+  an optional `scope` (e.g. `{salesPerson}`/`{department}`) for later
+  per-role-scoped dashboards. Department quality charting needs no new
+  function — `getQCTrendForDept()` already existed and already fed
+  Curtain's dashboard.
+- **Verification**: new `e2e-chart-widgets.js` (15/15) — unit-style
+  checks on every primitive directly (correct SVG/bar structure for
+  known input, empty state for zero records) plus a seeded multi-
+  month/multi-division/multi-customer scenario proving the three new
+  aggregations bucket correctly (revenue by month×division, funnel
+  stage assignment by real `deliveredQty`-vs-`qty`/`routingConfirmed`
+  state, top-client sort order). Uses the fast offline bypass (no live
+  Supabase round trip needed — pure in-memory logic). Full 39-file
+  regression sweep otherwise clean (the one pre-existing, unrelated
+  `e2e-cloud-messages-presence.js` flake only).
+- New file added to `index.html`'s script tags and `sw.js`'s
+  `CORE_ASSETS`/`CACHE_VERSION` (v5→v6), same pattern as every prior
+  new file this session.
+- Next: Phase 2 (Owner Dashboard, the flagship/reference
+  implementation) through Phase 7 (lighter-touch dashboards), per the
+  approved plan.
