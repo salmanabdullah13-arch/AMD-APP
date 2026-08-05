@@ -748,3 +748,81 @@ create policy "owner or hr can resolve reset requests"
   to authenticated
   using (public.is_owner_or_hr())
   with check (public.is_owner_or_hr());
+
+-- ══════════════════════════════════════════════════════════════
+-- Phase 3 (5 Aug 2026) — server-side enforcement of the pricing-lock
+-- rule. Real incident: Sales staff previously used an editable-price
+-- field on quotations to defraud the company (see the "pricing-lock"
+-- feedback memory — this is a documented, non-negotiable fraud-
+-- prevention rule, not a UX preference). addQuotationItem()/data.js
+-- already zeroes rate/amount for Sales client-side (withEstimation is
+-- always true — no opt-out), but until now RLS placed zero restriction
+-- on quotations UPDATE beyond "any approved user" — a Sales-role login
+-- could call the Supabase REST API directly and write any price into
+-- any quotation, completely bypassing the client. This closes that gap
+-- at the database itself.
+--
+-- Implemented as a BEFORE UPDATE trigger, not a plain RLS policy,
+-- because the restriction is field-level within a jsonb column
+-- (items[].rate/.amount/etc.), not row-level — RLS alone can only gate
+-- whether a role can touch a ROW at all, not which JSON keys inside it
+-- changed.
+--
+-- GOTCHA (hit and fixed live, 5 Aug 2026): addQuotationItem() always
+-- sets bom to JSON null (not an absent key) on a fresh line. In
+-- Postgres, `jsonb_column -> 'key'` on a JSON null VALUE returns a
+-- jsonb null, which is NOT sql NULL — `is not null` on it evaluates
+-- true, so an early version of this trigger wrongly rejected every
+-- brand-new zero-priced line Sales added. jsonb_typeof() is the
+-- correct absent-vs-null-vs-object test; used below.
+-- ══════════════════════════════════════════════════════════════
+create or replace function public.enforce_quotation_pricing_lock()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_type text;
+  new_item jsonb;
+  old_item jsonb;
+begin
+  select user_type into caller_type from public.profiles where id = auth.uid();
+  if caller_type is distinct from 'sales' then
+    return new; -- only the Sales role is restricted here
+  end if;
+
+  for new_item in select value from jsonb_array_elements(coalesce(new.items, '[]'::jsonb)) as value
+  loop
+    select value into old_item from jsonb_array_elements(coalesce(old.items, '[]'::jsonb)) as value
+      where value->>'lineId' = new_item->>'lineId';
+
+    if old_item is null then
+      -- a brand-new line Sales is adding — must start with zero pricing
+      if coalesce((new_item->>'rate')::numeric, 0) <> 0
+         or coalesce((new_item->>'amount')::numeric, 0) <> 0
+         or coalesce((new_item->>'netAmount')::numeric, 0) <> 0
+         or coalesce(jsonb_typeof(new_item->'bom'), 'null') <> 'null' then
+        raise exception 'Sales cannot set pricing on a quotation line — pricing must go through the Estimator.';
+      end if;
+    else
+      if coalesce((new_item->>'rate')::numeric, 0) is distinct from coalesce((old_item->>'rate')::numeric, 0)
+         or coalesce((new_item->>'amount')::numeric, 0) is distinct from coalesce((old_item->>'amount')::numeric, 0)
+         or coalesce((new_item->>'discAmt')::numeric, 0) is distinct from coalesce((old_item->>'discAmt')::numeric, 0)
+         or coalesce((new_item->>'netAmount')::numeric, 0) is distinct from coalesce((old_item->>'netAmount')::numeric, 0)
+         or coalesce((new_item->>'discPercent')::numeric, 0) is distinct from coalesce((old_item->>'discPercent')::numeric, 0)
+         or coalesce((new_item->>'vatPercent')::numeric, 0) is distinct from coalesce((old_item->>'vatPercent')::numeric, 0)
+         or (new_item->'bom') is distinct from (old_item->'bom') then
+        raise exception 'Sales cannot modify pricing on a quotation line — pricing must go through the Estimator.';
+      end if;
+    end if;
+  end loop;
+  return new;
+end;
+$$;
+
+drop trigger if exists quotation_pricing_lock on public.quotations;
+create trigger quotation_pricing_lock
+  before update on public.quotations
+  for each row
+  execute function public.enforce_quotation_pricing_lock();

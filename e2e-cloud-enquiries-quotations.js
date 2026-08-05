@@ -37,7 +37,7 @@ function printReport() {
 const TEST_IDENTITY = 'E2E Test Account';
 const TEST_PASSWORD = 'E2eFixedTestPassword1234!';
 
-async function signInOrUp(page, fileUrl) {
+async function signInOrUp(page, fileUrl, identity = TEST_IDENTITY) {
   await page.goto(fileUrl);
   await page.waitForFunction(() => {
     const s = document.getElementById('auth-identity-select');
@@ -46,9 +46,9 @@ async function signInOrUp(page, fileUrl) {
   const hasSelect = await page.evaluate((name) => {
     const s = document.getElementById('auth-identity-select');
     return !!s && Array.from(s.options).some(o => o.value === name);
-  }, TEST_IDENTITY);
+  }, identity);
   if (!hasSelect) return { ok: false, reason: 'roster-missing' };
-  await page.selectOption('#auth-identity-select', TEST_IDENTITY);
+  await page.selectOption('#auth-identity-select', identity);
   await page.fill('#auth-password-input', TEST_PASSWORD);
   await page.click('#cloud-login-body button[onclick="handleSignIn()"]');
   await page.waitForFunction(() => {
@@ -60,7 +60,7 @@ async function signInOrUp(page, fileUrl) {
   if (inApp) return { ok: true, via: 'signin' };
   await page.click('#cloud-login-body button:nth-of-type(2)');
   await page.waitForSelector('#auth-password-confirm-input', { state: 'visible', timeout: 10000 }).catch(() => null);
-  await page.selectOption('#auth-identity-select', TEST_IDENTITY).catch(() => null);
+  await page.selectOption('#auth-identity-select', identity).catch(() => null);
   await page.fill('#auth-password-input', TEST_PASSWORD).catch(() => null);
   await page.fill('#auth-password-confirm-input', TEST_PASSWORD).catch(() => null);
   await page.click('#cloud-login-body button:has-text("Create Account")');
@@ -138,6 +138,17 @@ async function signInOrUp(page, fileUrl) {
 
   currentStep = 'quotation-items-bom-live';
   const itemResult = await page.evaluate((id) => addQuotationItem(id, { product: 'E2E Test Cabinet', qty: 2, unit: 'Nos' }), qtnResult.id);
+  // Phase 3 (5 Aug 2026): addBOMMaterial() is a real Estimator action
+  // (enters pricing) — the new quotation_pricing_lock DB trigger now
+  // correctly rejects it from a Sales-typed caller (supabase/schema.sql),
+  // same as the real app already gates client-side. This test's identity
+  // was Sales-typed throughout for convenience before that distinction
+  // existed at the DB level; switch to the owner-typed E2E Approver
+  // Account for the BOM step specifically, matching who'd really do this.
+  await page.evaluate(() => sb.auth.signOut());
+  await page.waitForTimeout(300);
+  await signInOrUp(page, fileUrl, 'E2E Approver Account');
+  await page.waitForTimeout(1000);
   await page.evaluate((args) => addBOMMaterial(args.id, args.lineId, { name: 'Plywood', qty: 4, unit: 'Sheet', rate: 12.5 }), { id: qtnResult.id, lineId: itemResult.lineId });
   await page.waitForTimeout(1500);
   const itemsPersisted = await page.evaluate(async (id) => {

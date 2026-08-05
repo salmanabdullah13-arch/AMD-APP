@@ -3893,3 +3893,71 @@ credential decision this session; he chose to hand one over.
   feedback) resolved this session — see
   `project_amd_app_role_based_access_and_cycle_audit.md` (memory) for
   the full audit history.
+
+### 5 Aug 2026 — Phase 3, first slice: server-side pricing-lock enforcement
+- Confirmed the PIN system was already fully retired (4 Aug 2026, same
+  day as the Supabase login migration) — no PIN/1994 bypass exists
+  anywhere in live code. The remaining, real Phase 3 work is per-role
+  RLS: today, every business table (customers/enquiries/quotations/
+  job_cards) grants full read/write to ANY approved user regardless of
+  role — a Sales login can call the Supabase REST API directly and do
+  anything an Accounts or Estimator login can, the UI nav is the only
+  thing stopping them.
+- Started with the single highest-stakes piece: the pricing-lock rule
+  (a real, documented internal-fraud incident — Sales staff previously
+  used an editable-price field to defraud the company; Salman's
+  standing rule is that Sales must never have an editable price path).
+  `addQuotationItem()` already zeroes rate/amount for Sales client-side,
+  but nothing stopped a Sales-role session from calling
+  `sb.from('quotations').update(...)` directly with a manipulated price
+  — RLS had zero column-level restriction.
+- Added `enforce_quotation_pricing_lock()` (supabase/schema.sql) — a
+  BEFORE UPDATE trigger on `quotations`, not a plain RLS policy, since
+  the restriction is field-level within a jsonb column
+  (`items[].rate`/`.amount`/etc.), which row-level RLS can't express.
+  Scoped to `profiles.user_type = 'sales'` only; every other role is
+  unaffected. Blocks changing rate/amount/discAmt/netAmount/
+  discPercent/vatPercent/bom on an existing line, and blocks adding a
+  brand-new line with any of those already nonzero.
+- **Bug caught live and fixed before it could bite a real user**: the
+  first version used `(new_item->'bom') is not null` to detect "does
+  this line already have a BOM" — but `addQuotationItem()` sets `bom`
+  to JSON `null` (not an absent key), and in Postgres `jsonb -> key` on
+  a JSON null VALUE returns a jsonb null, which is NOT sql NULL, so
+  `is not null` on it is TRUE. This wrongly rejected every brand-new
+  zero-priced line a Sales user tried to add — caught by
+  `e2e-pricing-lock-rls.js` within minutes of applying it live, fixed
+  with `jsonb_typeof()` (the correct absent-vs-null-vs-object test),
+  reapplied. The live database ran the buggy version for a few minutes
+  before the fix landed; confirmed via direct query no real quotation
+  writes occurred in that window.
+- **Verification**: new `e2e-pricing-lock-rls.js` (9/9) — signs in as
+  the real, live, `user_type = 'sales'` E2E fixture account and issues
+  RAW `sb.from('quotations').update()` calls (not through the app's own
+  functions) attempting to tamper an existing line's price, add a
+  smuggled-in priced line, and touch a non-pricing field — confirms the
+  first two are rejected at the database with a clear error and the row
+  is unchanged, the third succeeds (the trigger isn't blocking
+  everything), and the identical pricing update succeeds when made by
+  a non-Sales role (Owner) — the restriction is scoped correctly, not
+  overreaching.
+- Fixed a real fallout in the pre-existing `e2e-cloud-enquiries-
+  quotations.js`: it called `addBOMMaterial()` (a genuine Estimator
+  action — enters real pricing) while signed in as the Sales-typed
+  E2E Test Account, since role never mattered for this test before RLS
+  discriminated by role. The trigger now correctly rejects that,
+  exposing the same test-fixture-vs-real-role mismatch pattern hit
+  earlier this session with Joinery's sub-stage gate. Fixed by having
+  `signInOrUp()` accept an identity parameter and switching to the
+  owner-typed E2E Approver Account for the BOM step specifically,
+  matching who would really do this — 10/10 after the fix.
+- Full regression sweep (36 e2e files) otherwise clean; two flakes
+  during the sweep (one `ERR_NAME_NOT_RESOLVED` network blip, one stale
+  result from before the trigger fix landed) both confirmed as flakes
+  via standalone re-run, not real regressions.
+- **Remaining Phase 3 scope** (department-scoped job_cards writes,
+  read-restricting sensitive customer bank/financial fields, and the
+  rest of the 27-role × N-table matrix) is real but lower-urgency than
+  the fraud-critical pricing lock — deliberately not bundled into this
+  slice. Next slice's scope to be confirmed with Salman before
+  building, same as this session's other real design decisions.
