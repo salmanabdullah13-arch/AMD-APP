@@ -1340,6 +1340,7 @@
 <script src="accounts.js"></script>
 <script src="hr.js"></script>
 <script src="owner.js"></script>
+<script src="admin.js"></script>
 <script src="dept-pipeline-ui.js"></script>
 <script src="joinery.js"></script>
 <script src="upholstery.js"></script>
@@ -1403,6 +1404,10 @@ const NODES = [
   { id:'sales',        label:'Sales',            built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchSalesModule(),150); } },
   { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
   { id:'owner',        label:'Owner Dashboard',  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchOwnerModule(),150); } },
+  // Nav overhaul Phase 2 (5 Aug 2026) — system administration: Approvals,
+  // Developer Preview (jump into any built dashboard for QA), User &
+  // Role Management. See admin.js.
+  { id:'admin',        label:'Admin Dashboard',  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAdminModule(),150); } },
   { id:'accounts',    label:'Accounts',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAccountsModule(),150); } },
   { id:'delivery',     label:'Jobs',             built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJobsModule(),150); } },
   { id:'hr',            label:'HR & Payroll',     built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchHRModule(),150); } },
@@ -1461,7 +1466,7 @@ const NODES = [
 // check, not cosmetic, so the safe default during that brief window is
 // "can't open anything yet," never "can open everything."
 function nodeAccessible(nodeId) {
-  if (window.cloudUserType === 'owner') return true;
+  if (window.cloudUserType === 'owner' || window.cloudUserType === 'admin') return true;
   if (!window.__dashboardMap) return false;
   return window.__dashboardMap[window.cloudUserType] === nodeId;
 }

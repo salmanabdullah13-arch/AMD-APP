@@ -4424,3 +4424,71 @@ mid-rollout. This entry covers Phase 1 only.
   `goTo('eco')` call sites are untouched (Phase 4).
 - Next: Phase 2 (new `admin.js` — Approvals/Developer Preview/User &
   Role Management, new `admin` `user_types` row + RLS wildcard).
+
+### 5 Aug 2026 — Nav overhaul Phase 2: new Admin Dashboard (admin.js)
+
+- **New `admin.js`**, split out of the Owner Dashboard per the approved
+  plan — Owner stays business-oversight-only, Admin owns system
+  administration. Three tabs, mirroring `owner.js`'s module-wrap/style
+  boilerplate: **Approvals** (`renderApprovalQueueScreen('admin-
+  approval-queue')`, the exact same shared screen Owner/HR already use,
+  zero changes to that file — a third caller, as the plan predicted);
+  **Developer Preview** (lists `window.__eco3d.NODES.filter(n =>
+  n.built)` — exposed by index.html's module script — and jumps
+  straight into one via its own real `launch()`, the identical by-name
+  launch pattern `owner.js`'s `ownerGoTo()` already proved needs no
+  changes to `nodeAccessible()`); **User & Role Management** (genuinely
+  new — lists every approved-or-deactivated profile, lets Admin correct
+  a role or toggle active/deactivated).
+- **New `deactivated` approval_status value**, distinct from `rejected`
+  (which reads as "this sign-up was never approved") — a real
+  offboarding action on an account that used to work. `auth.js` gets a
+  matching login-time branch (`renderAccountDeactivated()`, mirroring
+  the existing `renderAccountRejected()`). No schema change needed
+  (`approval_status` is plain `text`, no check constraint) — `is_
+  approved()`/`is_owner_or_hr()`/etc. already treat anything other than
+  `'approved'` as blocked, so this is purely additive.
+- **Schema**: new `admin` `user_types` row (`dashboard_node_id: 'admin'`,
+  `department: 'admin'`). Per the plan's own explicit call (flagged for
+  review at plan-approval time): `admin` gets the identical full
+  wildcard `owner` already has, added directly — `is_owner_or_hr()`/
+  `is_accounts_or_owner()` now check `user_type in (..., 'admin')`
+  too; `caller_job_department_key()` now short-circuits `null` for
+  `user_type in ('owner', 'admin')` explicitly (previously this would
+  have happened to also return null for admin via `department='admin'`
+  falling through the case statement, but making it explicit is more
+  robust than relying on that incidental behavior); `nodeAccessible()`
+  (index.html) now also wildcards `cloudUserType === 'admin'`.
+- **New NODES entry** (`id:'admin'`, `launchAdminModule()`), new script
+  tag right after `owner.js` (no eager-init dependency risk — Approvals
+  reuses an already-loaded shared file, Developer Preview reads
+  `window.__eco3d.NODES` which index.html's own module script populates
+  independently of load order, User & Role Management talks to
+  Supabase directly). `admin-module-wrap` added to all 14 other
+  modules' mutual-exclusivity hide-lists + `shell.js`'s `goTo()` — the
+  standing "any new floating module must be added to every existing
+  module's hide-list the same day it's created" rule. `sw.js`
+  `CACHE_VERSION` v6→v7, `admin.js` added to `CORE_ASSETS`.
+- **Verification**: `node --check` on all 19 touched/new files; repo-
+  wide duplicate-top-level-declaration scan across all 24 JS files
+  (none found). New `e2e-admin-dashboard.js` (12/12) — opens Admin via
+  a real node tap, confirms mutual exclusivity, confirms the Approvals
+  and User & Role Management tabs degrade gracefully (a clear message,
+  no crash) without a real cloud session — the offline e2e bypass sets
+  `__realCloudSession = false`, so neither tab's real Supabase read/
+  write path is exercised here — and confirms Developer Preview's real
+  click-through launch path end to end (tapping the Sales row opens
+  the actual Sales dashboard and closes Admin), which needs no cloud
+  session at all. Full 44-file regression sweep: 43 pass, the one
+  failure (`e2e-cloud-messages-presence.js`) is the same already-
+  documented stateful-live-account flake from earlier sessions.
+- **Not done this phase, not yet live-verified**: the schema changes
+  above haven't been applied against the live Supabase project in this
+  session (no Management API PAT available this turn) — Salman needs
+  to run the latest `supabase/schema.sql` before Approvals/User & Role
+  Management can be exercised for real, or before a real `admin`-typed
+  account can sign in. `window.__dashboardHome` still isn't assigned
+  anywhere (Phase 3).
+- Next: Phase 3 (direct-landing login flow in `finishCloudLogin()` —
+  look up `window.__dashboardMap[cloudUserType]`, launch that dashboard
+  directly, set `window.__dashboardHome` per role).

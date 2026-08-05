@@ -58,7 +58,7 @@ document.body.appendChild(fleetModuleWrap);
 
 let fleetView = 'list'; // list | detail | new-vehicle | new-inspection
 let fleetActiveVehicleId = null;
-const ALL_MODULE_WRAP_IDS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap'];
+const ALL_MODULE_WRAP_IDS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'admin-module-wrap'];
 
 function openFleetModule() {
   const scroll = document.getElementById('scroll');

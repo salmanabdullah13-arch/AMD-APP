@@ -516,7 +516,16 @@ insert into public.user_types (key, label, dashboard_node_id, department) values
   -- NODES entries in index.html.
   ('upholstery_team_leader', 'Team Leader', 'upholstery-team-leader', 'upholstery'),
   ('upholstery_qc_packaging_team', 'QC / Packaging Team', 'upholstery-qc-packaging', 'upholstery'),
-  ('owner', 'Owner', 'owner', 'owner')
+  ('owner', 'Owner', 'owner', 'owner'),
+  -- Nav overhaul Phase 2 (5 Aug 2026) — system administration: approvals,
+  -- user/role management, and a developer-preview tool to jump into any
+  -- built dashboard for QA. Gets the same full wildcard treatment as
+  -- 'owner' everywhere that's checked (see is_owner_or_hr()/
+  -- is_accounts_or_owner()/caller_job_department_key() below and
+  -- nodeAccessible() in index.html) — one trusted person holds both
+  -- roles today, so a half-working read-only preview would just get in
+  -- the way of real QA.
+  ('admin', 'Admin', 'admin', 'admin')
 on conflict (key) do update set label = excluded.label, dashboard_node_id = excluded.dashboard_node_id, department = excluded.department;
 
 alter table public.user_types enable row level security;
@@ -593,7 +602,7 @@ stable
 as $$
   select exists (
     select 1 from public.profiles
-    where id = auth.uid() and approval_status = 'approved' and user_type in ('owner', 'hr')
+    where id = auth.uid() and approval_status = 'approved' and user_type in ('owner', 'hr', 'admin')
   );
 $$;
 
@@ -881,7 +890,7 @@ stable
 as $$
   select exists (
     select 1 from public.profiles
-    where id = auth.uid() and approval_status = 'approved' and user_type in ('accounts', 'owner')
+    where id = auth.uid() and approval_status = 'approved' and user_type in ('accounts', 'owner', 'admin')
   );
 $$;
 
@@ -971,12 +980,20 @@ security definer
 set search_path = public
 stable
 as $$
-  select case ut.department
-    when 'joinery' then 'carp'
-    when 'painting' then 'paint'
-    when 'curtain' then 'curt'
-    when 'upholstery' then 'uph'
-    else null
+  select case
+    -- Nav overhaul Phase 2 (5 Aug 2026) — admin gets the same full
+    -- bypass owner already had here, checked directly by user_type
+    -- rather than relying on department='admin' falling through the
+    -- case below (which would happen to also return null today, but
+    -- this makes the bypass explicit rather than incidental).
+    when p.user_type in ('owner', 'admin') then null
+    else case ut.department
+      when 'joinery' then 'carp'
+      when 'painting' then 'paint'
+      when 'curtain' then 'curt'
+      when 'upholstery' then 'uph'
+      else null
+    end
   end
   from public.profiles p
   join public.user_types ut on ut.key = p.user_type

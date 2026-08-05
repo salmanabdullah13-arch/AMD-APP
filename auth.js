@@ -296,6 +296,7 @@ async function afterSignedInImpl() {
   if (existingProfile) {
     if (existingProfile.approval_status === 'pending') { renderPendingApproval(); return; }
     if (existingProfile.approval_status === 'rejected') { renderAccountRejected(); return; }
+    if (existingProfile.approval_status === 'deactivated') { renderAccountDeactivated(); return; }
     finishCloudLogin(existingProfile.display_name, true, existingProfile.user_type);
     return;
   }
@@ -349,6 +350,22 @@ function renderAccountRejected() {
     <div style="text-align:center;padding:10px 4px;">
       <p style="font-size:15px;font-weight:700;margin-bottom:8px;color:var(--bad);">Account not approved</p>
       <p style="font-size:13px;color:var(--shell-ink-muted);line-height:1.5;">Your sign-up wasn't approved. Contact your admin if you think this is a mistake.</p>
+      <button onclick="cloudSignOut()" style="${authBtnStyle}margin-top:18px;">Sign Out</button>
+    </div>`;
+}
+
+// Nav overhaul Phase 2 (5 Aug 2026) — reached when Admin's new User &
+// Role Management screen (admin.js) flips a previously-approved account
+// back to 'deactivated'. Distinct from "rejected" (which reads as a
+// sign-up that never got approved in the first place) — this is a real
+// offboarding action taken later on an account that used to work.
+function renderAccountDeactivated() {
+  const body = document.getElementById('cloud-login-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div style="text-align:center;padding:10px 4px;">
+      <p style="font-size:15px;font-weight:700;margin-bottom:8px;color:var(--bad);">Access deactivated</p>
+      <p style="font-size:13px;color:var(--shell-ink-muted);line-height:1.5;">Your access has been deactivated. Contact an Owner or Admin if you think this is a mistake.</p>
       <button onclick="cloudSignOut()" style="${authBtnStyle}margin-top:18px;">Sign Out</button>
     </div>`;
 }
