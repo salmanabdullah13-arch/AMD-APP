@@ -232,17 +232,23 @@ function renderPaintingQueuePreview(rows, limit) {
     </div>`;
 }
 
+// Dashboard Analytics rollout (5 Aug 2026), Phase 6: same ring-gauge
+// upgrade as dept-pipeline-ui.js's renderDeptQualityCard() — Painting
+// keeps its own separate copy of this function by design (see this
+// file's header), so it needs its own matching edit.
 function renderPaintingQualityCard() {
   const t = getQCTrendForDept(PAINT_DEPT_KEY);
   const recentRows = t.recent.length === 0
     ? `<p style="font-size:11.5px;color:#94a3b8;">No QC history yet.</p>`
     : t.recent.map(a => `<p style="font-size:11.5px;margin:3px 0;color:${a.type === 'qc-fail' ? 'var(--bad,#d9342b)' : 'var(--ok,#0f9d58)'};">${a.type === 'qc-fail' ? '✕' : '✓'} ${ptEsc(a.message)}</p>`).join('');
+  const color = t.passRate >= 90 ? 'var(--ok,#0f9d58)' : t.passRate >= 75 ? 'var(--warn,#c47d00)' : 'var(--bad,#d9342b)';
   return `
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Quality</p>
       ${t.total === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No QC results recorded yet.</p>` : `
-        <p style="font-size:22px;font-weight:700;color:${t.passRate >= 90 ? 'var(--ok,#0f9d58)' : t.passRate >= 75 ? 'var(--warn,#c47d00)' : 'var(--bad,#d9342b)'};">${t.passRate}%</p>
-        <p style="font-size:10.5px;color:#94a3b8;margin:-2px 0 8px;">First-pass QC rate — ${t.passCount} passed, ${t.failCount} failed (all-time)</p>
+        <div class="dash-rings" style="margin-bottom:8px;">
+          ${cwRingStatCard(t.passRate, t.passRate + '%', 'First-Pass QC Rate', `${t.passCount} passed, ${t.failCount} failed (all-time)`, color)}
+        </div>
       `}
       ${recentRows}
     </div>`;

@@ -4294,3 +4294,34 @@ credential decision this session; he chose to hand one over.
   `renderPaintingQualityCard()` from a plain pass-rate number to a real
   ring gauge (`cwRingStatCard`), bringing all three up to Curtain's
   existing visual tier.
+
+### 5 Aug 2026 — Dashboard Analytics rollout, Phase 6: department quality ring gauges
+- `dept-pipeline-ui.js`'s shared `renderDeptQualityCard()` (consumed by
+  both Joinery and Upholstery) and Painting's own separate
+  `renderPaintingQualityCard()` (deliberately not sharing that file,
+  see its own header) both had their plain pass-rate NUMBER replaced
+  with a real ring gauge (`cwRingStatCard`, `chart-widgets.js`) — the
+  one shared-file edit brings Joinery and Upholstery up to Curtain's
+  existing visual tier in a single change; Painting needed its own
+  matching edit since it never shared this code. The empty state (no
+  QC history yet) is unchanged — still the plain "No QC results
+  recorded yet" message, no ring for zero data.
+- Verified no load-order risk repeating Phase 5's bugs: neither
+  `dept-pipeline-ui.js` nor `painting.js` (nor `joinery.js`/
+  `upholstery.js`) has an eager init-time call the way `operations.js`
+  does — both new ring-gauge calls only fire when a user actually
+  navigates into that department's dashboard, by which point
+  `chart-widgets.js` (now loaded right after `data.js`) has always
+  already run. Confirmed with a direct startup page-error check
+  (temporary diagnostic script, deleted after use) — clean.
+- **Verification**: new `e2e-dept-quality-rings.js` (7/7) — confirms
+  the empty state still shows correctly with no QC history, then walks
+  one real QC pass through Joinery's shared pipeline (100% ring),
+  a real QC fail through Upholstery's shared pipeline (0% ring,
+  correctly isolated per department), and a full carp→paint hand-off
+  ending in a QC pass through Painting's own separate pipeline (its
+  own ring, same visual language). Full 42-file regression sweep
+  completely clean — zero failures, not even the usual flaky tests.
+- Next: Phase 7 (lighter-touch dashboards) — one or two small charts
+  each for Estimator, Approver, Purchaser, Storekeeper, HR, Fleet/
+  Delivery. Lower priority/smaller scope than Phases 2-6.

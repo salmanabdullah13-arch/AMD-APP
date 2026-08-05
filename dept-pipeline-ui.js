@@ -116,17 +116,24 @@ function renderDeptQueuePreview(deptKey, modPrefix, limit) {
 // Quality/rework trend — matches Curtain's own pre-existing "Reject
 // Reasons" dashboard tile in spirit, built off the same QC pass/fail
 // events the production pipeline already logs to activityLog.
+// Dashboard Analytics rollout (5 Aug 2026), Phase 6: the plain pass-
+// rate NUMBER is now a real ring gauge (cwRingStatCard,
+// chart-widgets.js) — bringing Joinery and Upholstery (both consume
+// this one shared function) up to Curtain's own existing visual tier
+// in a single change, rather than three separate near-identical edits.
 function renderDeptQualityCard(deptKey) {
   const t = getQCTrendForDept(deptKey);
   const recentRows = t.recent.length === 0
     ? `<p style="font-size:11.5px;color:#94a3b8;">No QC history yet.</p>`
     : t.recent.map(a => `<p style="font-size:11.5px;margin:3px 0;color:${a.type === 'qc-fail' ? 'var(--bad,#d9342b)' : 'var(--ok,#0f9d58)'};">${a.type === 'qc-fail' ? '✕' : '✓'} ${deptEsc(a.message)}</p>`).join('');
+  const color = t.passRate >= 90 ? 'var(--ok,#0f9d58)' : t.passRate >= 75 ? 'var(--warn,#c47d00)' : 'var(--bad,#d9342b)';
   return `
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Quality</p>
       ${t.total === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No QC results recorded yet.</p>` : `
-        <p style="font-size:22px;font-weight:700;color:${t.passRate >= 90 ? 'var(--ok,#0f9d58)' : t.passRate >= 75 ? 'var(--warn,#c47d00)' : 'var(--bad,#d9342b)'};">${t.passRate}%</p>
-        <p style="font-size:10.5px;color:#94a3b8;margin:-2px 0 8px;">First-pass QC rate — ${t.passCount} passed, ${t.failCount} failed (all-time)</p>
+        <div class="dash-rings" style="margin-bottom:8px;">
+          ${cwRingStatCard(t.passRate, t.passRate + '%', 'First-Pass QC Rate', `${t.passCount} passed, ${t.failCount} failed (all-time)`, color)}
+        </div>
       `}
       ${recentRows}
     </div>`;
