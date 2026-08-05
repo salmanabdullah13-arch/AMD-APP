@@ -388,7 +388,7 @@ function renderEstimationIndex() {
     const deptEditing = estimatorEditingDeptLineId === it.lineId;
     const deptCell = deptEditing ? `
       <div style="display:flex;flex-direction:column;gap:2px;">
-        ${DEPTS.map(d => `<label style="font-size:10.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${(it.departmentSequence || []).includes(d.k) ? 'checked' : ''} onchange="estimatorToggleDept('${q.id}',${it.lineId},'${d.k}',this.checked)"> ${d.n}</label>`).join('')}
+        ${ROUTABLE_DEPTS.map(d => `<label style="font-size:10.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${(it.departmentSequence || []).includes(d.k) ? 'checked' : ''} onchange="estimatorToggleDept('${q.id}',${it.lineId},'${d.k}',this.checked)"> ${d.n}</label>`).join('')}
         <span style="font-size:10px;color:var(--biz-primary);cursor:pointer;" onclick="estimatorEditingDeptLineId=null;renderEstimatorBody();">Done</span>
       </div>` :
       `<div style="cursor:pointer;" onclick="estimatorEditingDeptLineId=${it.lineId};renderEstimatorBody();">
@@ -435,7 +435,7 @@ function estimatorToggleDept(qtnId, lineId, deptKey, checked) {
   if (!item) return;
   const current = new Set(item.departmentSequence || []);
   if (checked) current.add(deptKey); else current.delete(deptKey);
-  const ordered = DEPTS.map(d => d.k).filter(k => current.has(k));
+  const ordered = ROUTABLE_DEPTS.map(d => d.k).filter(k => current.has(k));
   setItemDepartmentSequence(qtnId, lineId, ordered);
   renderEstimatorBody();
 }

@@ -5023,3 +5023,87 @@ session doesn't have to re-derive them:
   invoice caps; C: QC reasons + maker-checker decision; D: per-item
   revenue attribution + variation timing; E: aging tiles + hand-off
   notifications + urgent-flag decision).
+
+### 6 Aug 2026 — Audit fix Phases A + B(metal/delivery): quotation lifecycle gates, invoice cap, metal dropped, delivery integrity
+
+Salman switched this session to the Fable model specifically to run a deep
+test and commit the fixes. Re-ran the full three-workflow audit live (probe
+deleted after; report handed over as `amd-app-systems-audit-2026-08-06-fable.md`,
+not committed — point-in-time artifact), reproducing every 6 Aug finding with
+real numbers, then built the two phases Salman authorized. Two product calls
+he made up front: **drop Metal Works from routing entirely**, and **track
+products go to the Curtain (Tracks) department**.
+
+- **Quotation lifecycle gates (data.js, audit Critical #1)** —
+  `approveQuotation()` now refuses when `lifecycleStatus` is already
+  `confirmed` (the actual double-billing cause: re-approving a confirmed
+  quote reverted it to Open, after which `confirmQuotationToJobCard()` minted
+  a SECOND Job Card — demonstrated live, `JB…01000` + `…01001` from one
+  quote) or already `open`. `confirmQuotationToJobCard()` gains a belt-and-
+  suspenders guard: never create a Job Card for a quotation that already has
+  a live (non-cancelled) one.
+  - **Deliberately NOT gated: requiring the quote to have actually passed
+    through the Estimator/Approver stage before approval** (audit Critical
+    #2, "approve a Sales draft directly"). A first attempt gated approval on
+    "at least one submitted BOM"; the full offline sweep immediately showed
+    that trips ~18 existing e2e seeds that legitimately approve a quote
+    without a submitted BOM (they hand-set or default amounts), and a proper
+    stage gate would be broader still. Reverted it and left loophole #2
+    flagged open in the audit report — it needs its own decision + a
+    test-suite pass, not a bolt-on here. (lifecycleStatus is also not covered
+    by the server-side pricing-lock trigger, so a raw-API Sales session can
+    still do this — genuinely Phase 3/RLS territory, noted for later.)
+- **Cumulative invoice cap (data.js, audit High)** —
+  `generateInvoiceFromJob()` now sums `invoicedPercent` already billed
+  against the job and refuses anything pushing the total past 100% (two full
+  100% invoices on one job were previously allowed — `IN…01000` + `…01001`).
+  Partial invoices still stack correctly up to exactly 100%.
+- **refreshJobFromQuotation() recomputes job.amount (data.js, audit Medium)**
+  — it synced each line from the quotation but left `job.amount` frozen at
+  its confirm-time value, so an Approver correction left the revenue figure
+  stale everywhere. Now recomputed from the refreshed lines.
+- **Metal Works dropped from routing (data.js/estimator.js, audit Critical
+  #2 of the metal set)** — a `"Motorized Track"` routed to `metal`, which has
+  no module, no `DEPARTMENT_APPROVERS` entry, no budget screen: routed,
+  un-startable, invisible to every queue/flag (permanently stuck, confirmed
+  live). Per Salman: the `["rail","track","bracket"]` keyword set now routes
+  to `curt` (track-making is Curtain's Tracks team), `"steel"` was dropped
+  (no real home — falls through to the division fallback), and `"Metal Works"`
+  is removed from `DIVISION_TO_DEPT` so that division no longer falls back to
+  the dead dept either. New `ROUTABLE_DEPTS` (= DEPTS minus metal) drives the
+  Estimator's assignable-department checkboxes so metal can't be picked
+  manually either. **DEPTS keeps `metal`** so any historical badge/colour
+  lookup still resolves — only routing changed.
+- **Delivery integrity (data.js, audit High)** — new
+  `jobLineProductionComplete()` / `jobProductionComplete()` helpers;
+  `addDeliveryNote()` refuses to deliver a line whose routed departments
+  aren't all `done`, and `markDeliveryScheduleStatus('delivered')` refuses
+  until the whole job is production-complete. Previously a full-qty delivery
+  note could be raised while every department still sat at `queued`, and
+  `getPipelineFunnel()` would then report the job "Delivered" (demonstrated:
+  In Production → Delivered with carp still `queued`). **`curt` stops are
+  excluded** from the completeness check — Curtain tracks its own production
+  in `curtainJobs[]` and never advances the `curt` `departmentStatuses` entry
+  here, so curtain jobs stay deliverable (verified: curtain job still
+  delivers, unproduced joinery job blocked, fully-produced joinery job
+  delivers).
+- **Verification**: new `e2e-audit-fixes-2026-08-06.js` (17/17) covering all
+  of the above through the real data layer. `e2e-batch8-routing.js` updated
+  (it toggled the now-removed "Metal Works" checkbox — retargeted to
+  Upholstery; the override UI itself is unchanged) — 12/12. `node --check` on
+  all touched files; secret scan clean. Full offline regression sweep — all
+  suites green except `e2e-chart-widgets.js`'s one monthly-bucketing check,
+  confirmed **pre-existing** by stashing this session's changes and
+  reproducing the identical failure on committed code: it's a UTC-rollover
+  artifact in that test's own `new Date()`/`toISOString()` date construction
+  (local-midnight-on-the-1st rolls back a day/month in a UTC+ timezone),
+  untouched by anything here. Live-cloud/RLS/pwa suites not re-run — nothing
+  in this change touches auth, RLS, cloud persistence, or the service worker.
+- **Remaining audit phases (C/D/E), not started, need Salman's calls**: QC
+  reject-reason capture + maker-checker on QC pass (loophole #6); per-item
+  department revenue attribution + variation month bucketing (loophole #7);
+  `setJobStatus` gating, an urgent/promised-date field, hand-off
+  notifications via the existing Messages system, and the cheap dashboard
+  wins (per-salesperson scope already built but unsurfaced, Storekeeper
+  reorder tile, Estimator/Approver aging) (loophole #8). Plus the flagged
+  loophole #2 (enforce the estimation stage before approval) noted above.

@@ -65,15 +65,18 @@ async function openNode(page, nodeId, wrapId) {
   await page.waitForTimeout(200);
   await shot(page, 'estimation-index-with-departments');
   await page.click(`#estimator-body td:has-text("Painted Cabinet Unit")`).catch(() => {});
-  // Click the Departments cell for line 1 to open the editor, then toggle "Metal Works" on
+  // Click the Departments cell for line 1 to open the editor, then toggle
+  // "Upholstery" on. (Metal Works was dropped from the routable list in the
+  // 6 Aug 2026 audit fix — it had no production pathway; the override UI
+  // itself is unchanged and still adds any routable department.)
   await page.evaluate((lineId) => { estimatorEditingDeptLineId = lineId; renderEstimatorBody(); }, seed.item1LineId);
   await page.waitForTimeout(150);
   await shot(page, 'estimator-dept-editor-open');
-  await page.click(`#estimator-body input[type=checkbox] >> nth=4`); // 5th checkbox = Metal Works for line1 (carp,paint,uph,curt,metal order)
+  await page.click(`#estimator-body input[type=checkbox] >> nth=2`); // 3rd checkbox = Upholstery (carp,paint,uph,curt order)
   await page.waitForTimeout(150);
   const overriddenSeq = await page.evaluate((id) => quotations.find(q => q.id === id).items[0].departmentSequence, seed.qtnId);
   await shot(page, 'estimator-dept-overridden');
-  record('Estimator override UI adds a department to the sequence', overriddenSeq.includes('metal') ? 'PASS' : 'FAIL', JSON.stringify(overriddenSeq));
+  record('Estimator override UI adds a department to the sequence', overriddenSeq.includes('uph') ? 'PASS' : 'FAIL', JSON.stringify(overriddenSeq));
 
   // ── Approve + confirm to Job Card, land in routing queue ──
   currentStep = 'confirm-to-job';

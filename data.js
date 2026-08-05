@@ -7,6 +7,16 @@
 // DEPARTMENTS & STAFF
 const DEPTS=[{k:"carp",n:"Carpentry",c:"#0f9d58"},{k:"paint",n:"Painting",c:"#c47d00"},{k:"uph",n:"Upholstery",c:"#d6336c"},{k:"curt",n:"Curtain",c:"#7c3aed"},{k:"metal",n:"Metal Works",c:"#475569"}];
 function dc(k){return DEPTS.find(d=>d.k===k)||{n:k,c:"#888"};}
+// Departments a job line can actually be ROUTED to — i.e. that have a real
+// production pathway (module, budget approver, queue). Metal Works has none
+// (no module, no DEPARTMENT_APPROVERS entry, no budget screen), so a
+// metal-routed line was a permanent dead end — routed, un-startable, and
+// invisible to every queue/flag (6 Aug 2026 audit, Critical). Track-making
+// lives under Curtain (the Tracks team), so track/rail products route to
+// "curt" now, and metal is dropped from both auto-suggestion and the
+// Estimator's assignable-department list. DEPTS itself keeps "metal" so any
+// historical badge/colour lookup still resolves — this only governs routing.
+const ROUTABLE_DEPTS = DEPTS.filter(d => d.k !== "metal");
 const STAFF=["Arun Kumar","Karthik Silva","Silva","Salman Abdullah","Operations"];
 
 // ═══════════════════════════════════════
@@ -25,11 +35,20 @@ const DEPARTMENT_KEYWORD_MAP = [
   { keywords: ["curtain", "blind", "drape", "sheer"], dept: "curt" },
   { keywords: ["sofa", "chair", "cushion", "upholst", "ottoman", "settee"], dept: "uph" },
   { keywords: ["cabinet", "wardrobe", "shelf", "counter", "vanity", "joinery"], dept: "carp" },
-  { keywords: ["rail", "track", "bracket", "steel"], dept: "metal" }
+  // Track-making is a Curtain (Tracks team) function, not a separate Metal
+  // Works department — a "Motorized Track" routes to Curtain, not a dead end
+  // (6 Aug 2026 audit, Critical). "steel" was dropped: it named the old
+  // metal dead end and has no real production home, so it now falls through
+  // to the division fallback rather than auto-routing anywhere un-actionable.
+  { keywords: ["rail", "track", "bracket"], dept: "curt" }
 ];
 const DIVISION_TO_DEPT = {
   "Curtain & Blinds": "curt", "Upholstery": "uph", "Joinery": "carp",
-  "Metal Works": "metal", "Furniture": "carp"
+  "Furniture": "carp"
+  // "Metal Works" intentionally omitted — it has no production module, so a
+  // fallback to it would recreate the dead end. A Metal Works-division
+  // enquiry falls through to an empty sequence and the Estimator assigns a
+  // real department manually (visible), rather than silently stuck.
 };
 function suggestDepartmentSequence(product, enquiryDivision) {
   const seq = [];
@@ -3669,6 +3688,20 @@ function logQuotationAudit(qtn, { action, user, userType, status }) {
 function approveQuotation(qtnId, approvedBy) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  // Lifecycle gate (6 Aug 2026 audit, Critical #1). This is the ONLY action
+  // that flips Draft -> Open, and it must only ever run on a Draft: re-
+  // approving a CONFIRMED quote used to silently revert it to Open, after
+  // which confirmQuotationToJobCard() would happily mint a SECOND Job Card
+  // for the same quotation (double production + double billing). Re-approving
+  // an already-Open quote is a no-op-shaped mistake worth refusing too.
+  // (Backed by the confirm-side existing-job guard below.)
+  // NOT gated here: requiring the quote to have actually gone through the
+  // Estimator/Approver stage before approval (audit Critical #2, "approve a
+  // Sales draft directly"). That needs a stage gate that ~18 existing e2e
+  // seeds would trip on, and it's a broader change than the double-billing
+  // fix this commit is scoped to — flagged open in the audit report instead.
+  if (qtn.lifecycleStatus === "confirmed") return { error: "This quotation is already confirmed into a Job Card — it can't be approved again." };
+  if (qtn.lifecycleStatus === "open") return { error: "This quotation is already approved (Open)." };
   qtn.stage = "sales";
   qtn.lifecycleStatus = "open";
   logQuotationAudit(qtn, { action: "Transfer", user: approvedBy, userType: "SALES", status: "Open" });
@@ -4055,6 +4088,12 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
   if (qtn.lifecycleStatus !== "open") return { error: "Quotation must be Open before it can be confirmed." };
+  // Double-confirm guard (6 Aug 2026 audit, Critical #1). Even if some path
+  // reopens an already-confirmed quote, never mint a second Job Card for a
+  // quotation that still has a live (non-cancelled) one.
+  if (jobCards.some(j => j.quotationId === qtn.id && j.status !== "cancelled")) {
+    return { error: "A Job Card already exists for this quotation." };
+  }
   const totals = computeQuotationTotals(qtn);
   const job = {
     id: nextJobCardNo(), quotationId: qtn.id, customerId: qtn.customerId, projectName: qtn.projectName,
@@ -4955,10 +4994,29 @@ function refreshJobFromQuotation(jobId) {
       item.amount = src.amount; item.vatPercent = src.vatPercent; item.netAmount = src.netAmount;
     }
   });
+  // Recompute the job's headline amount from the (now refreshed) lines
+  // (6 Aug 2026 audit, Medium). Previously this synced each line but left
+  // job.amount frozen at its confirm-time value, so an Approver correction
+  // to the quote left the job's revenue figure stale everywhere it's read.
+  job.amount = Math.round(job.items.reduce((s, it) => s + (it.amount || 0), 0) * 1000) / 1000;
   persistJobCardUpdate(job);
   return job;
 }
 
+// A line is production-complete when every one of its routed department
+// stops has reached "done" — EXCEPT "curt" stops, which Curtain tracks in
+// its own curtainJobs[] system and never advances inside departmentStatuses
+// here (so a curtain job would otherwise never be deliverable). A line with
+// no routed stops (or only curt stops) has nothing to build here and is
+// treated as complete. (6 Aug 2026 audit, High — deliver-before-production.)
+function jobLineProductionComplete(item) {
+  return (item.departmentStatuses || [])
+    .filter(d => d.department !== "curt")
+    .every(d => d.status === "done");
+}
+function jobProductionComplete(job) {
+  return (job.items || []).every(jobLineProductionComplete);
+}
 function nextDeliveryNoteId(job) { return "DN-" + job.id + "-" + (job.deliveryNotes.length + 1); }
 // entries: [{ lineId, requiredQty }] — increments deliveredQty on each line,
 // capped at the line's own Qty (can't over-deliver).
@@ -4978,6 +5036,16 @@ function addDeliveryNote(jobId, entries) {
   if (!job) return { error: "Job Card not found." };
   if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
   if (job.status === "cancelled") return { error: "This job is cancelled." };
+  // Don't deliver a line whose production isn't finished (6 Aug 2026 audit,
+  // High). Previously a full-qty delivery note could be raised while every
+  // department still sat at "queued", and getPipelineFunnel() would then
+  // report the job "Delivered" — a job marked delivered that was never built.
+  const incomplete = entries
+    .map(e => job.items.find(it => it.lineId === e.lineId))
+    .filter(it => it && (it.qty - it.deliveredQty) > 0 && !jobLineProductionComplete(it));
+  if (incomplete.length) {
+    return { error: `Can't deliver — production isn't finished for: ${incomplete.map(it => it.product).join(', ')}.` };
+  }
   const lines = entries.map(e => {
     const item = job.items.find(it => it.lineId === e.lineId);
     if (!item) return null;
@@ -5223,6 +5291,15 @@ function scheduleDelivery(jobId, { plannedDate, driver, vehicleId, notes }) {
 function markDeliveryScheduleStatus(id, status) {
   const entry = deliverySchedule.find(e => e.id === id);
   if (!entry) return { error: "Schedule entry not found." };
+  // Can't mark a planned delivery "delivered" before the job is actually
+  // built (6 Aug 2026 audit, High) — same production-complete rule as
+  // addDeliveryNote(), so the two delivery paths can't disagree.
+  if (status === "delivered") {
+    const job = getJobCard(entry.jobId);
+    if (job && !jobProductionComplete(job)) {
+      return { error: "Can't mark delivered — production isn't finished for every line on this job yet." };
+    }
+  }
   entry.status = status;
   return entry;
 }
@@ -5297,6 +5374,16 @@ function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } =
   if (!job) return { error: "Job Card not found." };
   if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
   if (job.status === "cancelled") return { error: "This job is cancelled." };
+  // Cumulative invoice cap (6 Aug 2026 audit, High). Nothing stopped two
+  // full 100% invoices on one job. Sum the invoicedPercent already billed
+  // against this job and refuse anything that would push the total past 100%.
+  const alreadyInvoicedPct = taxInvoices
+    .filter(iv => iv.jobId === jobId)
+    .reduce((s, iv) => s + ((iv.totals && iv.totals.invoicedPercent) || 0), 0);
+  if (alreadyInvoicedPct >= 100) return { error: "This job is already fully invoiced (100%)." };
+  if (alreadyInvoicedPct + invoicedPercent > 100 + 1e-6) {
+    return { error: `Only ${(100 - alreadyInvoicedPct).toFixed(1)}% of this job remains uninvoiced.` };
+  }
   const total = job.items.reduce((s, it) => s + it.amount, 0);
   const vat = job.items.reduce((s, it) => s + (it.amount * (it.vatPercent || 0) / 100), 0) * (invoicedPercent / 100);
   const invoicedTotal = total * (invoicedPercent / 100);
