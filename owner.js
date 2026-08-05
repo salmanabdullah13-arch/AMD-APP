@@ -184,6 +184,13 @@ function renderOwnerBody() {
       </div>
       <span class="owner-link" onclick="ownerGoTo('launchAccountsModule')">Open Accounts →</span>
       <span class="owner-link" style="margin-left:14px;" onclick="ownerOpenApprovals()">Pending Sign-ups${approvalQueueRows.length ? ' (' + approvalQueueRows.length + ')' : ''} →</span>
+      <!-- Nav overhaul (5 Aug 2026), Salman's call: Owner stays the
+           landing screen (business oversight), with Admin one tap away
+           rather than switching this account's own user_type to 'admin'
+           and losing these charts as the default view. Drills in via the
+           standard ownerGoTo() hop, so Admin's own ✕ returns here (see
+           closeModuleWrap(), shell.js). -->
+      <span class="owner-link" style="margin-left:14px;" onclick="ownerGoTo('launchAdminModule')">Admin Dashboard →</span>
     </div>
 
     <div class="sales-card">

@@ -123,6 +123,21 @@ async function openNode(page, nodeId, wrapId) {
   const salesOpened = await page.evaluate(() => getComputedStyle(document.getElementById('sales-module-wrap')).display !== 'none' && getComputedStyle(document.getElementById('owner-module-wrap')).display === 'none');
   record('Quick link "Open Sales" closes Owner Dashboard and opens the real Sales module', salesOpened ? 'PASS' : 'FAIL');
 
+  // Nav overhaul (5 Aug 2026) — Owner stays the landing screen with Admin
+  // one tap away (Salman's call), rather than switching the owner account's
+  // own user_type to 'admin'. Verified via a real click on the new link.
+  currentStep = 'admin-quick-link';
+  await page.evaluate(() => goTo('eco'));
+  await page.waitForTimeout(200);
+  await openNode(page, 'owner', 'owner-module-wrap');
+  await page.click('#owner-body span:has-text("Admin Dashboard")');
+  await page.waitForSelector('#admin-module-wrap', { state: 'visible', timeout: 5000 });
+  const adminOpened = await page.evaluate(() => ({
+    adminVisible: getComputedStyle(document.getElementById('admin-module-wrap')).display !== 'none',
+    ownerHidden: getComputedStyle(document.getElementById('owner-module-wrap')).display === 'none'
+  }));
+  record('Quick link "Admin Dashboard" opens the real Admin module from Owner', adminOpened.adminVisible && adminOpened.ownerHidden ? 'PASS' : 'FAIL', JSON.stringify(adminOpened));
+
   currentStep = 'mutual-exclusivity';
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
