@@ -3827,3 +3827,69 @@ credential decision this session; he chose to hand one over.
   feedback loop exists) remain open, pending Salman's call on priority/
   approach — see the audit artifact and
   `project_amd_app_role_based_access_and_cycle_audit.md` (memory).
+
+### 5 Aug 2026 — Fixed Phase 2 audit finding #2: Joinery sub-stage sequence now gates QC
+- `submitLineForQC()` (data.js) used to only check
+  `status === "in-production"` — Milestone D's internal sub-stage
+  tracking (drafting -> cutting -> veneer-pressing -> assembly) was
+  visibility-only, so a carp line could move to QC (and from there,
+  hand off to Painting) while still sitting at "drafting". Confirmed
+  live in the audit.
+- Decision made (not asked, since the audit's own analysis made the
+  correct answer clear): make the sequence a real gate, not just
+  tracking, since visibility with nothing enforcing it was the actual
+  gap the audit flagged. `submitLineForQC()` now refuses when
+  `deptKey === "carp"` and `entry.joinerySubStage` is set but isn't yet
+  the final stage — returns a clear error naming the current and
+  required stage. Scoped to exactly `deptKey === "carp"` so Upholstery
+  (which never sets `joinerySubStage`) is completely unaffected.
+- `renderDeptQueue()` (dept-pipeline-ui.js, shared by Joinery and
+  Upholstery) now shows a "Waiting on &lt;stage&gt;" message instead of
+  a clickable Submit for QC button when a carp line is blocked, so the
+  gate is visible in the UI rather than a silent click-and-get-
+  rejected.
+- **Verification**: new `e2e-joinery-substage-gate.js` (6/6) — a carp
+  line stuck at "drafting" is refused, the same line succeeds once
+  advanced to "assembly", Upholstery is unaffected (regression), and
+  the Production Queue UI shows the waiting message instead of the
+  button. Existing `e2e-batch8-phase2-4.js` needed updating (its QC
+  walkthrough now needs to advance the seeded line through all three
+  sub-stages before Submit for QC works, exactly matching a real
+  Joinery line's flow) — 17/17 after the fix. Full regression sweep
+  otherwise clean; one pre-existing, unrelated flake in
+  `e2e-cloud-messages-presence.js` (a stateful live-Supabase test
+  reading a message already marked read by an earlier run against the
+  same shared E2E test account) — not touched by this change.
+
+### 5 Aug 2026 — Fixed Phase 2 audit finding #3: minimal customer feedback loop
+- Confirmed nothing in the app captured how a job actually landed with
+  the customer — no function, form, array, or dashboard tile.
+- Deliberately minimal scope: `customerFeedback[]` (data.js) — one 1-5
+  star rating + optional comments per job, via
+  `recordCustomerFeedback()`/`getFeedbackForJob()`/
+  `getRecentFeedback()`/`getAverageRating()`. LOCAL-ONLY for now, same
+  as the rest of Milestone E's `vehicles[]`/`deliverySchedule[]` (not
+  yet on Supabase) — resets on reload, consistent with that precedent
+  rather than a new one.
+- Integration point chosen deliberately: Delivery/Scheduling
+  (fleet-delivery.js), right when a delivery is marked "Delivered" —
+  the single most natural moment to ask "how did it go?", not a new
+  standalone feedback screen nobody would remember to open. Marking a
+  delivery complete now opens a short star-rating + comments capture
+  (Save or Skip) before returning to the list; the list view also
+  gains a small "Customer Feedback" panel (running average + 5 most
+  recent) so what's captured is actually visible somewhere.
+- **Verification**: new `e2e-customer-feedback.js` (7/7) — the real
+  click path (marking delivered opens the form, clicking a star and
+  saving records the entry with the right rating/comments/recordedBy,
+  returns to a list showing the updated average and the panel entry,
+  Skip leaves no entry, and out-of-range ratings are rejected).
+  `e2e-fleet-delivery.js` (the existing Milestone E test that also
+  clicks "Delivered") re-run clean — it only asserts on
+  `deliverySchedule[]` status and the close button, both unaffected by
+  the new feedback step being inserted in between.
+- Both Phase 2 audit findings are now closed. All three findings (#1
+  curtain-line pathway, #2 Joinery sub-stage gate, #3 customer
+  feedback) resolved this session — see
+  `project_amd_app_role_based_access_and_cycle_audit.md` (memory) for
+  the full audit history.

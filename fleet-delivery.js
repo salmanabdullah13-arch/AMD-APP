@@ -214,8 +214,10 @@ deliverySchedModuleWrap.innerHTML = `
 `;
 document.body.appendChild(deliverySchedModuleWrap);
 
-let deliverySchedView = 'list'; // list | new-schedule
+let deliverySchedView = 'list'; // list | new-schedule | feedback
 let deliverySchedActiveJobId = null;
+let deliverySchedFeedbackScheduleId = null; // Phase 2 audit finding #3 (5 Aug 2026) — which schedule entry just got marked Delivered
+let deliverySchedFeedbackRating = 0;
 
 function openDeliverySchedModule() {
   const scroll = document.getElementById('scroll');
@@ -237,7 +239,29 @@ function renderDeliverySchedBody() {
   const body = document.getElementById('delivery-sched-body');
   if (!body) return;
   if (deliverySchedView === 'new-schedule') { body.innerHTML = renderNewScheduleForm(); return; }
+  if (deliverySchedView === 'feedback') { body.innerHTML = renderDeliveryFeedbackForm(); return; }
   body.innerHTML = renderDeliverySchedList();
+}
+
+// Phase 2 business-cycle audit finding #3 (5 Aug 2026) — a small
+// "Recent Feedback" panel so the rating actually captured below is
+// visible somewhere, not just written and forgotten.
+function renderFeedbackPanel() {
+  const avg = getAverageRating();
+  const recent = getRecentFeedback(5);
+  return `
+    <div class="sales-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <p style="font-weight:700;font-size:13px;margin:0;">Customer Feedback</p>
+        ${avg !== null ? `<span style="font-size:13px;font-weight:700;color:var(--biz-primary,#600131);">★ ${avg}/5</span>` : ''}
+      </div>
+      ${recent.length === 0 ? `<p style="font-size:12.5px;color:#64748b;">No feedback recorded yet.</p>` : recent.map(f => `
+        <div style="padding:6px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">
+          <p style="font-size:12px;font-weight:600;margin:0;">${fdEsc(f.jobId)} — ${'★'.repeat(f.rating)}${'☆'.repeat(5 - f.rating)}</p>
+          ${f.comments ? `<p style="font-size:11px;color:#64748b;margin:2px 0 0;">${fdEsc(f.comments)}</p>` : ''}
+          <p style="font-size:10px;color:#94a3b8;margin:2px 0 0;">${fdEsc(f.recordedDate)} · ${fdEsc(f.recordedBy)}</p>
+        </div>`).join('')}
+    </div>`;
 }
 
 function renderDeliverySchedList() {
@@ -271,7 +295,8 @@ function renderDeliverySchedList() {
           <td><span class="pill ${s.status === 'completed' ? 'ok' : s.status === 'cancelled' ? 'bad' : 'info'}">${fdEsc(s.status)}</span></td>
           <td>${s.status === 'planned' ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deliverySchedMark('${s.id}','completed')">Delivered</button> <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="deliverySchedMark('${s.id}','cancelled')">Cancel</button>` : ''}</td>
         </tr>`).join('')}</table>`}
-    </div>`;
+    </div>
+    ${renderFeedbackPanel()}`;
 }
 
 function deliverySchedOpenNewSchedule(jobId) { deliverySchedActiveJobId = jobId; deliverySchedView = 'new-schedule'; renderDeliverySchedBody(); }
@@ -304,5 +329,51 @@ function deliverySchedSubmit() {
 function deliverySchedMark(id, status) {
   const result = markDeliveryScheduleStatus(id, status);
   if (result.error) { fdToast(result.error); return; }
+  // Phase 2 audit finding #3 (5 Aug 2026): marking a delivery Completed
+  // is the single most natural moment to ask "how did it go?" — route
+  // into a short feedback capture instead of straight back to the list.
+  if (status === 'completed') {
+    deliverySchedFeedbackScheduleId = id;
+    deliverySchedFeedbackRating = 0;
+    deliverySchedView = 'feedback';
+    renderDeliverySchedBody();
+    return;
+  }
+  renderDeliverySchedBody();
+}
+
+function renderDeliveryFeedbackForm() {
+  const entry = deliverySchedule.find(s => s.id === deliverySchedFeedbackScheduleId);
+  if (!entry) { deliverySchedView = 'list'; return renderDeliverySchedList(); }
+  const job = getJobCard(entry.jobId);
+  const c = job && customers.find(x => x.id === job.customerId);
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:14px;margin-bottom:2px;">Delivered — ${fdEsc(entry.jobId)}</p>
+      <p style="font-size:11.5px;color:#94a3b8;margin-bottom:12px;">${fdEsc(c ? c.name : '—')} · optional: how did this delivery go?</p>
+      <div style="display:flex;gap:6px;margin-bottom:12px;">
+        ${[1, 2, 3, 4, 5].map(n => `<span onclick="deliverySchedSetRating(${n})" style="cursor:pointer;font-size:26px;color:${n <= deliverySchedFeedbackRating ? 'var(--biz-primary,#600131)' : '#cbd5e1'};">★</span>`).join('')}
+      </div>
+      <div class="field"><label>Comments (optional)</label><textarea id="ds-feedback-comments" rows="2" style="width:100%;padding:8px 10px;border:1px solid var(--biz-border,#e2e8f0);border-radius:8px;font-size:12.5px;font-family:inherit;"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="primary" style="flex:1;" onclick="deliverySchedSubmitFeedback()">Save Feedback</button>
+        <button class="secondary" style="flex:1;" onclick="deliverySchedSkipFeedback()">Skip</button>
+      </div>
+    </div>`;
+}
+function deliverySchedSetRating(n) { deliverySchedFeedbackRating = n; renderDeliverySchedBody(); }
+function deliverySchedSubmitFeedback() {
+  const entry = deliverySchedule.find(s => s.id === deliverySchedFeedbackScheduleId);
+  if (!entry) return;
+  if (deliverySchedFeedbackRating < 1) { fdToast('Pick a star rating first, or Skip.'); return; }
+  const comments = document.getElementById('ds-feedback-comments').value;
+  const result = recordCustomerFeedback(entry.jobId, { rating: deliverySchedFeedbackRating, comments }, window.cloudIdentity || 'Delivery / Scheduling');
+  if (result.error) { fdToast(result.error); return; }
+  fdToast('✓ Feedback recorded.');
+  deliverySchedSkipFeedback();
+}
+function deliverySchedSkipFeedback() {
+  deliverySchedFeedbackScheduleId = null;
+  deliverySchedView = 'list';
   renderDeliverySchedBody();
 }
