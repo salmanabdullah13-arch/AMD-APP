@@ -56,7 +56,14 @@ insert into public.allowed_identities (display_name) values
   -- user_type='sales' account four OTHER live-cloud tests already
   -- depend on) so correcting/testing this one's role never risks
   -- disturbing those.
-  ('E2E Approver Account')
+  ('E2E Approver Account'),
+  -- Dedicated slot for e2e-jobcards-dept-scope-rls.js (5 Aug 2026) — a
+  -- pre-approved user_type='joinery_production_manager' fixture, the
+  -- first live E2E account typed to a department-scoped production
+  -- role (E2E Test Account is 'sales'/commercial, E2E Approver Account
+  -- is 'owner' — neither is restricted by job_cards' department
+  -- scoping, so neither could actually verify it).
+  ('E2E Joinery Account')
 on conflict (display_name) do nothing;
 
 -- The project's "auto-enable RLS on new tables" setting locks this
@@ -920,3 +927,95 @@ alter table public.customers
   drop column if exists bank_swift,
   drop column if exists bank_name,
   drop column if exists bank_branch;
+
+-- ══════════════════════════════════════════════════════════════
+-- Phase 3, third slice (5 Aug 2026) — department-scoped job_cards
+-- access. Today any approved user can read/write ANY job card via the
+-- API regardless of role — a Curtain Tracks Team login could read or
+-- tamper with a pure-Joinery job that has zero curtain lines.
+--
+-- Restricts read/write to job_cards rows that actually have at least
+-- one item routed to the caller's own department, but ONLY for the
+-- department-scoped production roles (Joinery/Painting/Curtain/
+-- Upholstery, via user_types.department). Commercial (Sales/Estimator/
+-- Approver/Accounts), Operations (Operations Manager/Storekeeper/
+-- Purchaser/Vehicle Fleet Inspector/Delivery-Scheduling/HR) and Owner
+-- keep full, unrestricted access, unchanged — they legitimately need
+-- cross-department visibility (routing, invoicing, budgeting,
+-- oversight).
+--
+-- KNOWN RESIDUAL GAP, accepted deliberately (confirmed with Salman
+-- before building): items is a single jsonb array column, not one row
+-- per line — a mixed job (e.g. a TV Unit needing both Joinery and
+-- Painting) is ONE job_cards row. This policy allows a department-
+-- scoped role to write to that row at all once ANY of its items
+-- belongs to them, but does not stop a raw API call from also
+-- rewriting a DIFFERENT department's line data within that same items
+-- array in the same update — no field-level diffing here, unlike the
+-- quotation_pricing_lock trigger above. Lower severity than the
+-- pricing-lock case (no direct financial gain, requires a deliberate
+-- raw-API bypass of the app's own UI, which never does this) —
+-- row-level scoping is the real, tractable win for this slice; full
+-- field-level enforcement across 4 department keys is a bigger lift
+-- left for later if it becomes a real concern.
+--
+-- INSERT policy is intentionally left unchanged (any approved user) —
+-- job_cards rows are only ever created via confirmQuotationToJobCard()/
+-- variation flows, triggered by Sales/Approver, never by a production
+-- role's own UI.
+-- ══════════════════════════════════════════════════════════════
+create or replace function public.caller_job_department_key()
+returns text
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select case ut.department
+    when 'joinery' then 'carp'
+    when 'painting' then 'paint'
+    when 'curtain' then 'curt'
+    when 'upholstery' then 'uph'
+    else null
+  end
+  from public.profiles p
+  join public.user_types ut on ut.key = p.user_type
+  where p.id = auth.uid() and p.approval_status = 'approved';
+$$;
+
+drop policy if exists "job_cards readable by any signed-in user" on public.job_cards;
+create policy "job_cards readable, department-scoped for production roles"
+  on public.job_cards for select
+  to authenticated
+  using (
+    public.is_approved() and (
+      public.caller_job_department_key() is null
+      or exists (
+        select 1 from jsonb_array_elements(coalesce(items, '[]'::jsonb)) it
+        where it->'departmentSequence' ? public.caller_job_department_key()
+      )
+    )
+  );
+
+drop policy if exists "job_cards updatable by any signed-in user" on public.job_cards;
+create policy "job_cards updatable, department-scoped for production roles"
+  on public.job_cards for update
+  to authenticated
+  using (
+    public.is_approved() and (
+      public.caller_job_department_key() is null
+      or exists (
+        select 1 from jsonb_array_elements(coalesce(items, '[]'::jsonb)) it
+        where it->'departmentSequence' ? public.caller_job_department_key()
+      )
+    )
+  )
+  with check (
+    public.is_approved() and (
+      public.caller_job_department_key() is null
+      or exists (
+        select 1 from jsonb_array_elements(coalesce(items, '[]'::jsonb)) it
+        where it->'departmentSequence' ? public.caller_job_department_key()
+      )
+    )
+  );

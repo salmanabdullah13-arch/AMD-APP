@@ -4011,3 +4011,67 @@ credential decision this session; he chose to hand one over.
   restriction) are real, targeted server-side enforcement wins. The
   rest of the 27-role × N-table matrix (department-scoped job_cards
   writes, etc.) remains open for a future session.
+
+### 5 Aug 2026 — Phase 3, third slice: department-scoped job_cards access
+- Today any approved user can read/write ANY job card via the API
+  regardless of role — a Curtain Tracks Team login could read or
+  tamper with a pure-Joinery job that has zero curtain lines.
+- New `caller_job_department_key()` (supabase/schema.sql) maps
+  `user_types.department` (joinery/painting/curtain/upholstery) to the
+  job-routing department key (carp/paint/curt/uph); returns null for
+  commercial/operations/owner roles, which keep full unrestricted
+  access. Rebuilt `job_cards`' SELECT/UPDATE policies to require, for a
+  department-scoped caller, that the row have at least one item with
+  that key in its `departmentSequence`. INSERT policy deliberately
+  unchanged — job_cards rows are only ever created via Sales/Approver
+  flows, never a production role's own UI.
+- **Real design tradeoff surfaced and confirmed with Salman before
+  building**: `items` is a single jsonb array column, not one row per
+  line, so a mixed job (e.g. Joinery + Painting on one TV Unit) is ONE
+  row. Row-level scoping (can a role touch this row at all) is
+  tractable now; stopping a department role from also touching a
+  DIFFERENT department's line within that same shared row would need a
+  much bigger field-level trigger (like the pricing-lock one, but
+  across 4 department keys). Chose to ship row-level scoping now and
+  document the residual gap — lower severity than pricing fraud (no
+  financial angle, requires a deliberate raw-API bypass the app's own
+  UI never does).
+- New live E2E fixture: 'E2E Joinery Account' (`user_type =
+  joinery_production_manager`) — the first department-scoped-role live
+  test account; neither of the existing fixtures (Sales/commercial,
+  Owner) could actually verify this restriction, since both map to
+  `caller_job_department_key() = null`.
+- **Verification**: new `e2e-jobcards-dept-scope-rls.js` — signs in as
+  the real, live Joinery-typed account and confirms it CAN read/write
+  its own department's job but CANNOT read a pure-Curtain job (RLS-
+  filtered, zero rows, not an error) nor tamper with it via a raw
+  update (zero rows affected); confirms Owner still reads both,
+  unaffected; confirms the real `getDepartmentQueue('carp')` dashboard
+  function still works normally for the Joinery account.
+- **Found and diagnosed a real pre-existing flake source while writing
+  this test, unrelated to the RLS change itself**: every cloud-synced
+  array (customers/quotations/job_cards/enquiries) has a realtime
+  `postgres_changes` handler that unconditionally replaces the local
+  object (`array[idx] = mapped`) for ANY event, with no ordering check.
+  Supabase Realtime echoes a write back to the SAME session that made
+  it — if an earlier step's echo arrives late (network jitter) after a
+  later step already mutated the same object, it can silently
+  overwrite newer state with a stale snapshot. Confirmed directly by
+  inspecting a live job_cards row via SQL outside the app and finding
+  `items: []` after `confirmJobRouting()` had run. This is a
+  pre-existing architectural characteristic of the whole cloud-sync
+  layer (not introduced by this slice, not something a job_cards RLS
+  change should fix) — documented clearly in the new test's header so
+  a future session doesn't mistake an occasional setup-step failure
+  there for the RLS restriction itself being wrong. Spaced out the
+  test's own mutations (matching the ~600-1500ms gaps already used
+  elsewhere, e.g. `e2e-cloud-enquiries-quotations.js`) to make it rare
+  in practice.
+- Full regression sweep otherwise clean (pre-existing, unrelated
+  network/messages-presence flakes only, same as prior slices).
+- All three Phase 3 RLS slices this session (pricing lock, customer
+  banking, job_cards department scoping) are real, targeted,
+  server-side enforcement wins, each confirmed live against the real
+  database with a role the restriction actually applies to. Remaining
+  27-role × N-table matrix work (finer per-table restrictions beyond
+  these three) is open for a future session if it becomes a priority.
