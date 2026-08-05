@@ -658,7 +658,7 @@ function renderQuotationHub() {
         const job = q.parentJobId ? getJobCard(q.parentJobId) : jobCards.find(j => j.quotationId === q.id);
         if (!job) return '';
         const label = q.parentJobId ? `✓ Merged into Job Card <b>${esc(job.id)}</b>.` : `✓ Confirmed — Job Card <b>${esc(job.id)}</b> created.`;
-        return `<p style="font-size:11.5px;color:#166534;margin-top:8px;">${label}</p><button class="secondary" style="width:100%;margin-top:6px;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule('${job.id}'),150);">Open Job Card →</button>`;
+        return `<p style="font-size:11.5px;color:#166534;margin-top:8px;">${label}</p><button class="secondary" style="width:100%;margin-top:6px;" onclick="hideModuleWrap(salesModuleWrap);setTimeout(()=>launchJobsModule('${job.id}'),150);">Open Job Card →</button>`;
       })() : ''}
     </div>
     <div class="sales-card">
@@ -1080,7 +1080,7 @@ function renderSalesDashboard() {
       <div class="sales-kpi-tile"><div class="num">${k.withApprover}</div><div class="lbl">With Approver</div></div>
       <div class="sales-kpi-tile"><div class="num">${k.jobsPending}</div><div class="lbl">Jobs Pending</div></div>
       <div class="sales-kpi-tile"><div class="num">${k.jobsOngoing}</div><div class="lbl">Jobs On-going</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="closeSalesModule();setTimeout(()=>launchJobsModule(),150);"><div class="num">${k.toInvoice}</div><div class="lbl">To Invoice</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="hideModuleWrap(salesModuleWrap);setTimeout(()=>launchJobsModule(),150);"><div class="num">${k.toInvoice}</div><div class="lbl">To Invoice</div></div>
       <div class="sales-kpi-tile"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
       <div class="sales-kpi-tile"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
       <div class="sales-kpi-tile"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
@@ -1140,7 +1140,7 @@ function renderSalesMyJobs() {
 // (prFormDraft.linkedJobId); this just gives Sales a door into it without
 // broader access to Purchasing itself.
 function salesRequestPurchase(jobId) {
-  closeSalesModule();
+  hideModuleWrap(salesModuleWrap);
   setTimeout(() => {
     launchPurchasingModule();
     openPRForm();

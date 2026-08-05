@@ -113,7 +113,7 @@ function adminDevPreviewLaunch(nodeId) {
   const allNodes = (window.__eco3d && window.__eco3d.NODES) || [];
   const node = allNodes.find(n => n.id === nodeId);
   if (!node || typeof node.launch !== 'function') return;
-  closeAdminModule();
+  hideModuleWrap(adminModuleWrap);
   setTimeout(() => node.launch(), 150);
 }
 

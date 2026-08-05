@@ -428,6 +428,25 @@ async function claimIdentity() {
 // framework) treats as a wildcard, so the ~20 pre-existing offline e2e
 // tests keep exercising every module unimpeded, same as before this
 // role-based access work existed.
+// Nav overhaul Phase 3 (5 Aug 2026) — window.__eco3d (the 3D hub's own
+// NODES + launch registry) is set by index.html's <script type="module">,
+// which runs deferred, after every classic script including this one —
+// there's a real race between finishCloudLogin() firing (as soon as a
+// real Supabase session/profile check resolves) and that module script
+// finishing. Polls briefly rather than assuming it's ready; gives up
+// silently after ~2s (a safe, non-broken fallback — the user just sees
+// the ecosystem hub and can tap in manually, not a crash).
+function launchDashboardNode(nodeId, attemptsLeft = 40) {
+  const nodes = window.__eco3d && window.__eco3d.NODES;
+  if (nodes) {
+    const node = nodes.find(n => n.id === nodeId);
+    if (node && typeof node.launch === 'function') node.launch();
+    return;
+  }
+  if (attemptsLeft <= 0) return;
+  setTimeout(() => launchDashboardNode(nodeId, attemptsLeft - 1), 50);
+}
+
 function finishCloudLogin(displayName, isRealSession = true, userType = 'owner') {
   window.cloudIdentity = displayName;
   window.cloudUserType = userType;
@@ -445,6 +464,21 @@ function finishCloudLogin(displayName, isRealSession = true, userType = 'owner')
     sb.from('user_types').select('key,dashboard_node_id').then(({ data }) => {
       window.__dashboardMap = {};
       (data || []).forEach(t => { if (t.dashboard_node_id) window.__dashboardMap[t.key] = t.dashboard_node_id; });
+
+      // Nav overhaul Phase 3 (5 Aug 2026) — land directly on the role's
+      // own dashboard instead of the ecosystem hub picker, since
+      // nodeAccessible() already knows exactly which one dashboard every
+      // role is allowed to open. window.__dashboardHome (read by
+      // closeModuleWrap(), shell.js, Phase 1) is the launch-fn name for
+      // Owner/Admin's own hub to return to, or null for every other role
+      // (their one dashboard IS the top level — closing it signs out).
+      // Deliberately scoped to a REAL session only — the offline e2e
+      // bypass (isRealSession=false, see cloudLoginStart()) must keep
+      // landing on the ecosystem hub exactly as before, since ~40
+      // existing suites navigate from there via window.__eco3d.branches.
+      window.__dashboardHome = userType === 'owner' ? 'launchOwnerModule' : userType === 'admin' ? 'launchAdminModule' : null;
+      const targetNodeId = window.__dashboardMap[userType];
+      if (targetNodeId) launchDashboardNode(targetNodeId);
     });
     // Fire-and-forget — the app shouldn't wait on these to unlock, they
     // populate/subscribe in the background and re-render via

@@ -908,7 +908,7 @@ function jobsNewVariation(jobId) {
   const result = createVariationForJob(jobId);
   if (result.error) { jobsAlert(result.error); return; }
   jobsAlert(`✓ Variation ${result.id} created — continue in Sales to add items.`);
-  closeJobsModule();
+  hideModuleWrap(jobsModuleWrap);
   setTimeout(() => { openSalesModule(); openQuotationWizard(result.id, 2); }, 150);
 }
 
@@ -919,7 +919,7 @@ function renderJobVariations(job) {
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Variations (${variations.length})</p>
       ${variations.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No variations yet — use "New Variation" above for additions/changes/returns on this job without starting a new Enquiry.</p>` :
         `<table class="sales-items"><tr><th>Variation</th><th>Date</th><th>Status</th><th>Stage</th></tr>
-        ${variations.map(v => `<tr style="cursor:pointer;" onclick="closeJobsModule();setTimeout(()=>{openSalesModule();openQuotationHub('${v.id}');},150);"><td>${jEsc(v.id)}</td><td>${v.date}</td><td><span class="sales-pill ${v.lifecycleStatus}">${v.lifecycleStatus}</span></td><td>${v.lifecycleStatus === 'confirmed' ? 'Merged' : v.stage}</td></tr>`).join('')}
+        ${variations.map(v => `<tr style="cursor:pointer;" onclick="hideModuleWrap(jobsModuleWrap);setTimeout(()=>{openSalesModule();openQuotationHub('${v.id}');},150);"><td>${jEsc(v.id)}</td><td>${v.date}</td><td><span class="sales-pill ${v.lifecycleStatus}">${v.lifecycleStatus}</span></td><td>${v.lifecycleStatus === 'confirmed' ? 'Merged' : v.stage}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }

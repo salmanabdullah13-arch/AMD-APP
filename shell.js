@@ -249,6 +249,23 @@ function setHubBadge(groupId, count){
 // homeFnName: the launch-function name this module's OWN dashboard is
 // registered under (e.g. 'launchSalesModule') — lets this tell "am I
 // being closed as someone's home" apart from "am I a drill-in".
+// Plain hide, no Sign-Out/return-home logic — for internal cross-module
+// hops (ownerGoTo(), jobsNewVariation(), salesRequestPurchase(), etc.)
+// that call a module's own close*Module() purely to tidy up its wrap
+// before jumping to a different module, NOT because the user closed
+// their dashboard. Nav overhaul Phase 3 (5 Aug 2026) real bug found
+// live: once window.__dashboardHome is assigned, calling closeXModule()
+// from one of these hops is indistinguishable from the user closing
+// their own home dashboard (same wrap, same homeFnName) — it wrongly
+// triggered a Sign-Out confirm instead of just hiding the wrap and
+// continuing the jump. Use this instead of close*Module() anywhere a
+// call is a means to navigate elsewhere, not a real close.
+function hideModuleWrap(wrapEl) {
+  if (wrapEl) wrapEl.style.display = 'none';
+  const scroll = document.getElementById('scroll');
+  if (scroll) scroll.style.display = '';
+}
+
 function closeModuleWrap(wrapEl, homeFnName) {
   if (wrapEl) wrapEl.style.display = 'none';
   const scroll = document.getElementById('scroll');

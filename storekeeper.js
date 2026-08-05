@@ -690,7 +690,7 @@ function skStartMaterialsMove(kind) {
   if (!jobId) return;
   const job = getJobCard(jobId.trim());
   if (!job) { skAlert('Job Card not found.'); return; }
-  closeStorekeeperModule();
+  hideModuleWrap(skModuleWrap);
   openJobsModule(job.id);
   openMaterialsMove(job.id, kind === 'MI' ? 'issue' : 'return');
 }
@@ -711,7 +711,7 @@ function renderMaterialsMoveList(kind) {
             <td>${r.client}</td><td>${r.move.date}</td><td>${r.jobId}</td>
             <td>
               <button style="font-size:11px;background:none;border:0;color:var(--biz-teal);cursor:pointer;" onclick="skAlert('Print not implemented in this build.')">Print</button>
-              <button style="font-size:11px;background:none;border:0;color:var(--biz-teal);cursor:pointer;" onclick="closeStorekeeperModule();openJobsModule('${r.jobId}')">Edit</button>
+              <button style="font-size:11px;background:none;border:0;color:var(--biz-teal);cursor:pointer;" onclick="hideModuleWrap(skModuleWrap);openJobsModule('${r.jobId}')">Edit</button>
               ${r.move.status !== 'cancelled' ? `<button style="font-size:11px;background:none;border:0;color:#dc2626;cursor:pointer;" onclick="skCancelMove('${r.jobId}','${kind}','${r.move.id}')">Cancel</button>` : ''}
             </td>
           </tr>`).join('')}

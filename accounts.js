@@ -899,7 +899,7 @@ function renderProformaList() {
     <table class="sales-items"><tr><th>Proforma</th><th>Qtn No</th><th>Date</th><th>Client</th><th>Amount</th></tr>
     ${rows.map(p => {
       const c = customers.find(x => x.id === p.customerId);
-      return `<tr style="cursor:pointer;" onclick="closeAccountsModule();setTimeout(()=>launchJobsModule('${p.jobId}'),150);"><td>${acEsc(p.id)}</td><td>${acEsc(p.quotationId)}</td><td>${p.date}</td><td>${acEsc(c ? c.name : '—')}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`;
+      return `<tr style="cursor:pointer;" onclick="hideModuleWrap(accountsModuleWrap);setTimeout(()=>launchJobsModule('${p.jobId}'),150);"><td>${acEsc(p.id)}</td><td>${acEsc(p.quotationId)}</td><td>${p.date}</td><td>${acEsc(c ? c.name : '—')}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`;
     }).join('')}
     </table>
   </div>`;

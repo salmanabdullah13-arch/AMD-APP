@@ -98,11 +98,11 @@ function launchOwnerModule() { openOwnerModule(); }
 // Jumps straight into a real module, same pattern as every other
 // cross-module hop in this app (jobsNewVariation, salesRequestPurchase).
 function ownerGoTo(fn) {
-  closeOwnerModule();
+  hideModuleWrap(ownerModuleWrap);
   setTimeout(() => { if (typeof window[fn] === 'function') window[fn](); }, 150);
 }
 function ownerGoToOperations() {
-  closeOwnerModule();
+  hideModuleWrap(ownerModuleWrap);
   setTimeout(() => goTo('operations'), 150);
 }
 

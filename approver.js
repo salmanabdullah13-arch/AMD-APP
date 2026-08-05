@@ -173,7 +173,7 @@ function approverQtnRowSummary(q) {
 // "PO Approval" is a rollup + shortcut into Purchasing's own PO approval
 // queue (getPendingPOApprovals()) rather than a second PO approval flow.
 function approverOpenPurchasing() {
-  closeApproverModule();
+  hideModuleWrap(approverModuleWrap);
   setTimeout(() => { if (typeof launchPurchasingModule === 'function') launchPurchasingModule(); }, 150);
 }
 

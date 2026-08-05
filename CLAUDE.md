@@ -4492,3 +4492,75 @@ mid-rollout. This entry covers Phase 1 only.
 - Next: Phase 3 (direct-landing login flow in `finishCloudLogin()` —
   look up `window.__dashboardMap[cloudUserType]`, launch that dashboard
   directly, set `window.__dashboardHome` per role).
+
+### 5 Aug 2026 — Nav overhaul Phase 3: direct-landing login flow
+
+- **`finishCloudLogin()` (auth.js)** now looks up the signed-in role's
+  `window.__dashboardMap` entry (already fetched here) and launches
+  that dashboard directly — zero taps through the ecosystem hub. Also
+  assigns `window.__dashboardHome` for the first time (`'launchOwner
+  Module'`/`'launchAdminModule'` for those two roles, `null` for every
+  other role) — Phase 1's `closeModuleWrap()` logic finally activates.
+  New `launchDashboardNode(nodeId)` polls briefly for `window.__eco3d`
+  (the 3D hub's module script runs deferred, genuinely later than this
+  classic script — a real race, not theoretical) and gives up silently
+  after ~2s if it's still not ready (a safe non-broken fallback: the
+  user just sees the hub and can tap in manually). Scoped to
+  `isRealSession` only — the offline e2e bypass (`isRealSession=false`)
+  keeps landing on the hub completely unchanged, since ~40 existing
+  suites navigate from there via `window.__eco3d.branches`.
+- **Real bug caught live, not by review, before it shipped**: several
+  existing "cross-module hop" helpers (`ownerGoTo()`/
+  `ownerGoToOperations()` in owner.js, `jobsNewVariation()` + a
+  Variations-row click in jobs.js, `salesRequestPurchase()` + two KPI-
+  tile clicks in sales.js, `approverOpenPurchasing()`,
+  `adminDevPreviewLaunch()`, a related-record row click in accounts.js,
+  Storekeeper's Material Issue/Return job-picker) all call their own
+  `close*Module()` purely to tidy up their wrap before jumping to a
+  *different* module — never a real "the user closed their dashboard."
+  Once `window.__dashboardHome` is actually assigned, that call became
+  indistinguishable from a genuine home-dashboard close (same wrap,
+  same `homeFnName`) and wrongly triggered a Sign-Out confirm instead
+  of just continuing the jump — found via `e2e-direct-landing.js`
+  itself (Owner's own "Open Accounts →" quick-link navigated the whole
+  page instead of opening Accounts, traced to `cloudSignOut()`'s
+  `location.reload()`). This would have hit EVERY single-dashboard
+  role's own internal shortcuts the moment they signed in for real, not
+  just Owner/Admin — a much bigger blast radius than it first looked.
+  Fixed with a new plain `hideModuleWrap(wrapEl)` (shell.js, hide + reveal
+  `#scroll`, no Sign-Out/home logic at all) and switched all 10 of the
+  call sites above to it instead of the full `close*Module()`. The ✕
+  button's own onclick is untouched — it's the only caller that should
+  still go through `closeModuleWrap()`'s real context-aware logic.
+- **Verification**: `node --check` on all 9 touched files. New
+  `e2e-direct-landing.js` (13/13) — calls the real `finishCloudLogin()`
+  directly with different `userType` values (not a full live sign-up
+  per role — this exercises the exact function a real login already
+  calls once a profile is fetched, needing only Supabase's already-
+  public `user_types` table, not a dedicated account per role):
+  confirms the offline bypass is unaffected (baseline regression),
+  `sales` lands directly on Sales with `__dashboardHome: null`, closing
+  it prompts Sign Out and a real reload lands back on the hub, `owner`
+  lands directly on the Owner Dashboard with `__dashboardHome:
+  'launchOwnerModule'`, a real click on Owner's own quick-link opens
+  Accounts, closing that returns to Owner's hub with **no** Sign-Out
+  prompt (the actual bug fix, re-verified after the `hideModuleWrap()`
+  fix), a shared-node granular role (`curtain_tracks_team`) lands
+  directly on Curtain's Tracks dashboard, and a restricted-view granular
+  role (`joinery_draftsman`) lands directly on the no-tab-bar drafting
+  view. One test-only flake found and fixed along the way: the
+  Joinery-Draftsman assertion initially used a fixed 400ms wait after
+  simulating login, which was tighter than a live 3rd-in-a-row Supabase
+  round trip actually took (~600ms observed) — not an app bug, confirmed
+  by manually polling the wrap's `display` value over time and watching
+  it flip at ~600ms every run; widened the wait rather than adding a
+  brittle exact-timing assumption. Full 45-file regression sweep: 44
+  pass, the one failure is the same already-documented stateful-live-
+  account flake.
+- **Not done this phase**: the 3D ecosystem hub itself is untouched and
+  still fully present — Phase 4 removes it, now that direct-landing has
+  been proven to work correctly alongside it.
+- Next: Phase 4 (remove the 3D ecosystem hub — Three.js scene, import
+  map, `#p-eco` 3D markup, the stale `M`/`showPanel()` 2D panel system;
+  repoint the 6 hardcoded `goTo('eco')` call sites; bottom nav's
+  "Ecosystem" tab → "Home").
