@@ -3961,3 +3961,53 @@ credential decision this session; he chose to hand one over.
   the fraud-critical pricing lock — deliberately not bundled into this
   slice. Next slice's scope to be confirmed with Salman before
   building, same as this session's other real design decisions.
+
+### 5 Aug 2026 — Phase 3, second slice: restrict customer bank/payment details
+- Confirmed by code search: customer bank account/IBAN/swift details
+  (6 fields) were readable by every approved user via `customers`'
+  unrestricted SELECT policy, including every shop-floor/production
+  role with no reason to ever see them — but the fields are actually
+  entered by SALES themselves at customer intake (`sales.js`), not just
+  by Accounts. Presented this nuance to Salman before building; his
+  call was the tightest option (Accounts + Owner only), accepting the
+  real workflow change that implies.
+- New `customer_banking_details` table (supabase/schema.sql), own RLS
+  via `is_accounts_or_owner()` (`user_type in ('accounts','owner')`).
+  Implemented as a SEPARATE table, not a masking view over `customers`
+  — Supabase Realtime's `postgres_changes` broadcasts full row changes
+  from the base table regardless of any view on top, so a view alone
+  would still leak these fields over the existing `customers` realtime
+  channel. Migrated existing data first (verified live: 0 customers had
+  any bank field filled in — zero data-loss risk), then dropped the 6
+  bank/iban columns from `customers` entirely — leaving them in place
+  would still expose them via `customers`' own unrestricted policy,
+  defeating the point. Both the migration and the column drop were
+  confirmed with Salman before running against the live database (real
+  destructive DDL on a live table other people use).
+- `createCustomer()`/`customerRowToObj()`/`customerObjToRow()` (data.js)
+  no longer touch bank fields at all. New
+  `customerBankingDetails[]` cache + `initCloudCustomerBankingCache()`
+  (same local-cache + realtime pattern as every other cloud table) +
+  `getBankingDetailsForCustomer()`/`saveBankingDetailsForCustomer()`.
+  A non-Accounts/Owner session's cache just stays empty (RLS returns
+  zero rows) — real server-side enforcement, not a client-side hide.
+- Sales' "Add Customer" form (`sales.js`) had the 6 bank fields removed
+  entirely, with a comment pointing to where they moved. New "Customer
+  Banking Details" tool in Accounts (`accounts.js`) — search a customer,
+  view/edit its bank fields, same search-then-edit shape as the
+  existing Customer Update tool.
+- **Verification**: new `e2e-customer-banking-rls.js` (11/11) — signs in
+  as the real, live, Sales E2E account and confirms a raw read of
+  `customer_banking_details` returns zero rows and a raw insert is
+  REJECTED by RLS; confirms the real `saveBankingDetailsForCustomer()`
+  function succeeds for a live Owner-typed account and the data
+  actually persists and is readable; confirms `customers` itself no
+  longer has a `bank_account_number` column at all (fully removed, not
+  hidden). Full 37-file regression sweep otherwise clean (one
+  pre-existing, unrelated flake in `e2e-cloud-messages-presence.js`,
+  same root cause as before — stateful live test data, not this
+  change).
+- Both Phase 3 slices this session (pricing lock, customer banking
+  restriction) are real, targeted server-side enforcement wins. The
+  rest of the 27-role × N-table matrix (department-scoped job_cards
+  writes, etc.) remains open for a future session.

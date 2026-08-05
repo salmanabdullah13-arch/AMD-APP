@@ -64,7 +64,7 @@ accountsModuleWrap.innerHTML = `
 `;
 document.body.appendChild(accountsModuleWrap);
 
-let accountsView = 'dashboard'; // dashboard | invoices | purchases | coa | ledgers | ledger-new | receipts | receipt-new | payments | payment-new | journals | journal-new | daybook | ledger-report | trial-balance | pl | balance-sheet | proforma | salesreceipts | salesreceipt-new | creditnotes | creditnote-new | custupdate | bill-os
+let accountsView = 'dashboard'; // dashboard | invoices | purchases | coa | ledgers | ledger-new | receipts | receipt-new | payments | payment-new | journals | journal-new | daybook | ledger-report | trial-balance | pl | balance-sheet | proforma | salesreceipts | salesreceipt-new | creditnotes | creditnote-new | custupdate | custbanking | bill-os
 let acVisibleLineRows = 1; // shared row-count for whichever line-entry form (Receipt/Payment/Journal) is currently open
 const acToday = new Date().toISOString().slice(0, 10);
 let acReportFilters = { dbFrom: acToday, dbTo: acToday, voucherType: 'All', glFrom: '2023-01-01', glTo: acToday, ledgerName: '', ledgerWise: true };
@@ -76,6 +76,11 @@ let salesReceiptDraft = null;
 let salesCreditNoteDraft = null;
 let custUpdateSearch = '';
 let custUpdateQtnId = null;
+// Phase 3 (5 Aug 2026) — Customer Banking Details tool: bank fields
+// moved off Sales' intake form (sales.js) since they're now restricted
+// to Accounts/Owner (customer_banking_details, supabase/schema.sql).
+let custBankingSearch = '';
+let custBankingCustomerId = null;
 let salesBillOSFilters = { view: 'byparty', ageWise: false, ageBasis: 'bill' };
 
 function acEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
@@ -140,6 +145,7 @@ function renderAccountsBody() {
       ${tab('salesreceipts', 'Sales Receipt')}
       ${tab('creditnotes', 'Sales Credit Note')}
       ${tab('custupdate', 'Customer Update')}
+      ${tab('custbanking', 'Customer Banking Details')}
       ${tab('bill-os', 'Sales Bill Outstanding')}
       ${tab('pending-customers', `Pending Customers${pendingCustomerCount ? ` (${pendingCustomerCount})` : ''}`)}
     </div>`;
@@ -167,6 +173,7 @@ function renderAccountsBody() {
   else if (accountsView === 'creditnotes') content = renderSalesCreditNoteList();
   else if (accountsView === 'creditnote-new') content = renderSalesCreditNoteCreate();
   else if (accountsView === 'custupdate') content = renderCustomerUpdateTool();
+  else if (accountsView === 'custbanking') content = renderCustomerBankingTool();
   else if (accountsView === 'bill-os') content = renderSalesBillOutstanding();
   else if (accountsView === 'pl') content = renderProfitLossView();
   else if (accountsView === 'balance-sheet') content = renderBalanceSheetView();
@@ -1138,6 +1145,69 @@ function renderCustomerUpdateTool() {
       <button class="primary" onclick="custUpdateApplyVat()">Update VAT</button>
     </div>`;
 }
+// ── CUSTOMER BANKING DETAILS (Phase 3, 5 Aug 2026) — view/edit the six
+// bank fields moved off Sales' intake form. Search-then-edit, same shape
+// as Customer Update above, but scoped to Accounts/Owner both by which
+// module offers it AND by real database RLS on customer_banking_details
+// (see supabase/schema.sql) — this screen is the honest UI surface for a
+// boundary that's actually enforced server-side, not the boundary itself.
+function renderCustomerBankingTool() {
+  if (!custBankingCustomerId) {
+    const q = custBankingSearch.trim().toLowerCase();
+    const rows = customers.filter(c => !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q))
+      .slice().sort((a, b) => a.name.localeCompare(b.name)).slice(0, 25);
+    return `
+      <div class="sales-card">
+        <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Customer Banking Details</p>
+        <p style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Select a customer to view or update their bank account details.</p>
+        <input type="text" placeholder="Search Customer Name or Code…" value="${acEsc(custBankingSearch)}"
+          oninput="custBankingSearch=this.value;renderAccountsBody();"
+          style="width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;">
+      </div>
+      ${rows.length === 0 ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No matching customers.</p></div>` :
+        rows.map(c => {
+          const bd = typeof getBankingDetailsForCustomer === 'function' ? getBankingDetailsForCustomer(c.id) : null;
+          return `<div class="sales-card" style="cursor:pointer;" onclick="custBankingCustomerId='${c.id}';renderAccountsBody();">
+          <p style="font-weight:700;font-size:13px;">${acEsc(c.name)} <span class="sales-pill">${c.id}</span></p>
+          <p style="font-size:11.5px;color:#94a3b8;">${bd && bd.bankAccountNumber ? 'Bank details on file' : 'No bank details on file'}</p>
+        </div>`;
+        }).join('')}`;
+  }
+  const c = customers.find(x => x.id === custBankingCustomerId);
+  if (!c) { custBankingCustomerId = null; return renderCustomerBankingTool(); }
+  const bd = (typeof getBankingDetailsForCustomer === 'function' ? getBankingDetailsForCustomer(c.id) : null) || {};
+  return `
+    <span class="sales-back" onclick="custBankingCustomerId=null;renderAccountsBody();">‹ Back to search</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:15px;">${acEsc(c.name)} <span class="sales-pill">${c.id}</span></p>
+      <p style="font-size:12px;color:var(--biz-text-muted, #64748b);">${acEsc(c.contactPerson)} · ${acEsc(c.tel)}</p>
+    </div>
+    <div class="sales-card">
+      <div class="sales-field"><label>Bank Account Number</label><input type="text" id="cb-acc-no" value="${acEsc(bd.bankAccountNumber || '')}"></div>
+      <div class="sales-field"><label>Bank Account Holder Name</label><input type="text" id="cb-holder" value="${acEsc(bd.bankAccountHolderName || '')}"></div>
+      <div class="sales-field"><label>IBAN Number</label><input type="text" id="cb-iban" value="${acEsc(bd.ibanNumber || '')}"></div>
+      <div class="sales-field"><label>Bank Swift</label><input type="text" id="cb-swift" value="${acEsc(bd.bankSwift || '')}"></div>
+      <div class="sales-field"><label>Bank Name</label><input type="text" id="cb-bank-name" value="${acEsc(bd.bankName || '')}"></div>
+      <div class="sales-field"><label>Bank Branch</label><input type="text" id="cb-branch" value="${acEsc(bd.bankBranch || '')}"></div>
+      ${bd.updatedDate ? `<p style="font-size:10.5px;color:#94a3b8;">Last updated ${acEsc(bd.updatedDate)} by ${acEsc(bd.updatedBy)}</p>` : ''}
+      <button class="primary" style="width:100%;margin-top:8px;" onclick="custBankingSave()">Save Banking Details</button>
+    </div>`;
+}
+function custBankingSave() {
+  const fields = {
+    bankAccountNumber: document.getElementById('cb-acc-no').value,
+    bankAccountHolderName: document.getElementById('cb-holder').value,
+    ibanNumber: document.getElementById('cb-iban').value,
+    bankSwift: document.getElementById('cb-swift').value,
+    bankName: document.getElementById('cb-bank-name').value,
+    bankBranch: document.getElementById('cb-branch').value
+  };
+  const result = saveBankingDetailsForCustomer(custBankingCustomerId, fields, window.cloudIdentity || 'Accounts');
+  if (result && result.error) { accountsAlert(result.error); return; }
+  accountsAlert('✓ Banking details saved.');
+  renderAccountsBody();
+}
+
 function custUpdateApplyCustomer() {
   const customerId = document.getElementById('cu-customer').value;
   const contactPerson = document.getElementById('cu-contact').value;

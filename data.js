@@ -2697,7 +2697,6 @@ const customers = [
   {
     id: "C1508", name: "ZZTEST", contactPerson: "Test Contact", tel: "00099911", tel2: "", email: "", fax: "",
     vatName: "", vatNo: "", taxPercent: 10, isCredit: false, creditLimit: 0, creditDays: 0,
-    bankAccountNumber: "", bankAccountHolderName: "", ibanNumber: "", bankSwift: "", bankName: "", bankBranch: "",
     address: "Test Address, Manama", crNo: "", country: "Bahrain", openingBalance: 0, salesMan: "Salman Abdullah",
     status: "approved", approvedBy: "Salman Abdullah", approvalDate: "2026-07-24", rejectionComment: null, possibleDuplicateOf: null
   }
@@ -2722,8 +2721,6 @@ function customerRowToObj(row) {
     id: row.id, name: row.name, contactPerson: row.contact_person, tel: row.tel, tel2: row.tel2,
     email: row.email, fax: row.fax, vatName: row.vat_name, vatNo: row.vat_no, taxPercent: row.tax_percent,
     isCredit: row.is_credit, creditLimit: row.credit_limit, creditDays: row.credit_days,
-    bankAccountNumber: row.bank_account_number, bankAccountHolderName: row.bank_account_holder_name,
-    ibanNumber: row.iban_number, bankSwift: row.bank_swift, bankName: row.bank_name, bankBranch: row.bank_branch,
     address: row.address, crNo: row.cr_no, country: row.country, openingBalance: row.opening_balance,
     salesMan: row.sales_man, status: row.status, approvedBy: row.approved_by, approvalDate: row.approval_date,
     rejectionComment: row.rejection_comment, possibleDuplicateOf: row.possible_duplicate_of
@@ -2734,8 +2731,6 @@ function customerObjToRow(c) {
     id: c.id, name: c.name, contact_person: c.contactPerson, tel: c.tel, tel2: c.tel2 || "",
     email: c.email || "", fax: c.fax || "", vat_name: c.vatName || "", vat_no: c.vatNo || "", tax_percent: c.taxPercent || 0,
     is_credit: !!c.isCredit, credit_limit: c.creditLimit || 0, credit_days: c.creditDays || 0,
-    bank_account_number: c.bankAccountNumber || "", bank_account_holder_name: c.bankAccountHolderName || "",
-    iban_number: c.ibanNumber || "", bank_swift: c.bankSwift || "", bank_name: c.bankName || "", bank_branch: c.bankBranch || "",
     address: c.address, cr_no: c.crNo || "", country: c.country || "Bahrain", opening_balance: c.openingBalance || 0,
     sales_man: c.salesMan || null, status: c.status, approved_by: c.approvedBy || null, approval_date: c.approvalDate || null,
     rejection_comment: c.rejectionComment || null, possible_duplicate_of: c.possibleDuplicateOf || null
@@ -2803,6 +2798,65 @@ function persistCustomerUpdate(c) {
     if (error && typeof commsToast === "function") commsToast(`Couldn't sync customer ${c.name} to the cloud: ${error.message}`);
   }));
 }
+
+// ── Customer banking details (Phase 3, 5 Aug 2026) — split out of
+// customers into its own table with RLS restricted to Accounts/Owner
+// (see supabase/schema.sql's customer_banking_details for why: Sales
+// used to enter these on the intake form, but every approved user could
+// read them via customers' unrestricted SELECT policy). Same local-
+// cache pattern as customers itself, kept in a SEPARATE array so a
+// non-Accounts/Owner session's cache simply stays empty (RLS returns
+// zero rows to them — real server-side enforcement, not a client-side
+// hide) rather than mixing sensitive and non-sensitive fields on one
+// object.
+const customerBankingDetails = [];
+function customerBankingRowToObj(row) {
+  return {
+    customerId: row.customer_id, bankAccountNumber: row.bank_account_number, bankAccountHolderName: row.bank_account_holder_name,
+    ibanNumber: row.iban_number, bankSwift: row.bank_swift, bankName: row.bank_name, bankBranch: row.bank_branch,
+    updatedBy: row.updated_by, updatedDate: row.updated_date
+  };
+}
+let cloudCustomerBankingCacheInitialized = false;
+async function initCloudCustomerBankingCache() {
+  if (!window.__realCloudSession || !sb || cloudCustomerBankingCacheInitialized) return;
+  cloudCustomerBankingCacheInitialized = true;
+  const { data, error } = await sb.from("customer_banking_details").select("*");
+  // A non-Accounts/Owner session gets zero rows back (RLS), not an
+  // error — that's expected, not a failure to surface.
+  if (!error && data) { customerBankingDetails.length = 0; data.forEach(row => customerBankingDetails.push(customerBankingRowToObj(row))); }
+  sb.channel("customer-banking-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "customer_banking_details" }, (payload) => {
+      const row = payload.new || payload.old;
+      if (!row) return;
+      if (payload.eventType === "DELETE") { const i = customerBankingDetails.findIndex(b => b.customerId === row.customer_id); if (i >= 0) customerBankingDetails.splice(i, 1); return; }
+      const obj = customerBankingRowToObj(row);
+      const i = customerBankingDetails.findIndex(b => b.customerId === obj.customerId);
+      if (i >= 0) customerBankingDetails[i] = obj; else customerBankingDetails.push(obj);
+      notifyLiveUpdateListeners();
+    })
+    .subscribe();
+}
+function getBankingDetailsForCustomer(customerId) {
+  return customerBankingDetails.find(b => b.customerId === customerId) || null;
+}
+// Upsert — a customer may not have a banking_details row yet (most
+// don't, today). updatedBy/updatedDate are set here, not trusted from
+// the caller, same as every other audit-style field in this app.
+function saveBankingDetailsForCustomer(customerId, { bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "", bankSwift = "", bankName = "", bankBranch = "" }, updatedBy) {
+  if (!customers.find(c => c.id === customerId)) return { error: "Customer not found." };
+  const obj = { customerId, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, updatedBy, updatedDate: new Date().toISOString().slice(0, 10) };
+  const i = customerBankingDetails.findIndex(b => b.customerId === customerId);
+  if (i >= 0) customerBankingDetails[i] = obj; else customerBankingDetails.push(obj);
+  if (window.__realCloudSession && sb) {
+    const row = { customer_id: obj.customerId, bank_account_number: obj.bankAccountNumber, bank_account_holder_name: obj.bankAccountHolderName, iban_number: obj.ibanNumber, bank_swift: obj.bankSwift, bank_name: obj.bankName, bank_branch: obj.bankBranch, updated_by: obj.updatedBy, updated_date: obj.updatedDate };
+    serializedPersist("customer_banking:" + customerId, () => sb.from("customer_banking_details").upsert(row).then(({ error }) => {
+      if (error && typeof commsToast === "function") commsToast(`Couldn't save banking details: ${error.message}`);
+    }));
+  }
+  return obj;
+}
+
 // Soft duplicate detection for Accounts' approval queue — Salman's call,
 // from a real past incident: duplicate client records slipped through and
 // caused problems downstream in Accounts. Flags a likely match on phone OR
@@ -2824,10 +2878,10 @@ function findPossibleDuplicateCustomer(tel, email, excludeId = null) {
 // pick a pending customer on an Enquiry right away, confirmed by Salman.
 // Approval here is after-the-fact governance (catching duplicates/bad
 // data), not a hard gate that would slow Sales down.
-function createCustomer({ name, contactPerson, tel, tel2 = "", email = "", fax = "", vatName = "", vatNo = "", taxPercent = 0, isCredit = false, creditLimit = 0, creditDays = 0, bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "", bankSwift = "", bankName = "", bankBranch = "", address, crNo = "", country = "Bahrain", openingBalance = 0, salesMan }) {
+function createCustomer({ name, contactPerson, tel, tel2 = "", email = "", fax = "", vatName = "", vatNo = "", taxPercent = 0, isCredit = false, creditLimit = 0, creditDays = 0, address, crNo = "", country = "Bahrain", openingBalance = 0, salesMan }) {
   if (!name || !contactPerson || !tel || !address) return { error: "Name, Contact Person, Telephone and Address are required." };
   const dup = findPossibleDuplicateCustomer(tel, email);
-  const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, address, crNo, country, openingBalance, salesMan, status: "pending", approvedBy: null, approvalDate: null, rejectionComment: null, possibleDuplicateOf: dup ? dup.id : null };
+  const c = { id: nextCustomerCode(), name, contactPerson, tel, tel2, email, fax, vatName, vatNo, taxPercent, isCredit, creditLimit, creditDays, address, crNo, country, openingBalance, salesMan, status: "pending", approvedBy: null, approvalDate: null, rejectionComment: null, possibleDuplicateOf: dup ? dup.id : null };
   customers.push(c);
   persistNewCustomer(c);
   return c;

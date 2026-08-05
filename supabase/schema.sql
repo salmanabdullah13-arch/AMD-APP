@@ -826,3 +826,97 @@ create trigger quotation_pricing_lock
   before update on public.quotations
   for each row
   execute function public.enforce_quotation_pricing_lock();
+
+-- ══════════════════════════════════════════════════════════════
+-- Phase 3, second slice (5 Aug 2026) — restrict customer bank/payment
+-- details to Accounts/Owner. Confirmed via code search: Sales entered
+-- these on the intake form (sales.js), but customers' SELECT policy
+-- above lets ANY approved user read them, including every shop-floor/
+-- production role. Salman's explicit call (the "tightest" of the
+-- options offered): Accounts + Owner only, accepting the real workflow
+-- change — Sales' intake form loses these 6 fields; Accounts fills them
+-- in afterward via a new "Customer Banking Details" tool (accounts.js).
+--
+-- Implemented as a SEPARATE table with its own RLS, not a masking view
+-- over customers — Supabase Realtime's postgres_changes broadcasts full
+-- row changes from the base table regardless of any view on top of it,
+-- so a view alone would still leak these fields over the existing
+-- customers realtime channel. This is the only approach that's both
+-- real protection and leaves that channel untouched.
+--
+-- The migration below moved any existing bank data into this table
+-- (verified live, 5 Aug 2026: 0 customers had any bank field filled in
+-- at the time — zero data-loss risk) and the six bank_*/iban_number
+-- columns were then DROPPED from customers entirely — leaving them in
+-- place would still let anyone read them via customers' own
+-- unrestricted SELECT policy above, defeating the whole point.
+-- ══════════════════════════════════════════════════════════════
+create table if not exists public.customer_banking_details (
+  customer_id text primary key references public.customers (id) on delete cascade,
+  bank_account_number text not null default '',
+  bank_account_holder_name text not null default '',
+  iban_number text not null default '',
+  bank_swift text not null default '',
+  bank_name text not null default '',
+  bank_branch text not null default '',
+  updated_by text,
+  updated_date date
+);
+
+alter table public.customer_banking_details enable row level security;
+
+create or replace function public.is_accounts_or_owner()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and approval_status = 'approved' and user_type in ('accounts', 'owner')
+  );
+$$;
+
+drop policy if exists "accounts or owner can read banking details" on public.customer_banking_details;
+create policy "accounts or owner can read banking details"
+  on public.customer_banking_details for select
+  to authenticated
+  using (public.is_accounts_or_owner());
+
+drop policy if exists "accounts or owner can insert banking details" on public.customer_banking_details;
+create policy "accounts or owner can insert banking details"
+  on public.customer_banking_details for insert
+  to authenticated
+  with check (public.is_accounts_or_owner());
+
+drop policy if exists "accounts or owner can update banking details" on public.customer_banking_details;
+create policy "accounts or owner can update banking details"
+  on public.customer_banking_details for update
+  to authenticated
+  using (public.is_accounts_or_owner())
+  with check (public.is_accounts_or_owner());
+
+-- One-time migration — safe to re-run (on conflict do nothing), a no-op
+-- once the bank_* columns below no longer exist on customers.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'bank_account_number') then
+    insert into public.customer_banking_details
+      (customer_id, bank_account_number, bank_account_holder_name, iban_number, bank_swift, bank_name, bank_branch)
+    select id, bank_account_number, bank_account_holder_name, iban_number, bank_swift, bank_name, bank_branch
+    from public.customers
+    where coalesce(bank_account_number, '') <> '' or coalesce(bank_account_holder_name, '') <> ''
+       or coalesce(iban_number, '') <> '' or coalesce(bank_swift, '') <> ''
+       or coalesce(bank_name, '') <> '' or coalesce(bank_branch, '') <> ''
+    on conflict (customer_id) do nothing;
+  end if;
+end $$;
+
+alter table public.customers
+  drop column if exists bank_account_number,
+  drop column if exists bank_account_holder_name,
+  drop column if exists iban_number,
+  drop column if exists bank_swift,
+  drop column if exists bank_name,
+  drop column if exists bank_branch;

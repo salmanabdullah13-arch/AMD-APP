@@ -374,8 +374,14 @@ function saveEnquiryCreate() {
 }
 
 // ── Add Customer ──
+// Bank Account Number/Holder Name/IBAN/Swift/Bank Name/Branch used to be
+// entered here — moved to Accounts' own "Customer Banking Details" tool
+// (Phase 3, 5 Aug 2026, accounts.js) since those fields are now
+// restricted to Accounts/Owner at the database level (see
+// customer_banking_details in supabase/schema.sql). Not a regression —
+// a deliberate real workflow change Salman confirmed.
 function openCustomerCreate(returnTo) {
-  salesDraft = { _returnTo: returnTo, name: '', contactPerson: '', tel: '', tel2: '', email: '', fax: '', vatName: '', vatNo: '', taxPercent: 0, isCredit: false, creditLimit: 0, creditDays: 0, bankAccountNumber: '', bankAccountHolderName: '', ibanNumber: '', bankSwift: '', bankName: '', bankBranch: '', address: '', crNo: '', country: 'Bahrain', openingBalance: 0, salesMan: STAFF[0] };
+  salesDraft = { _returnTo: returnTo, name: '', contactPerson: '', tel: '', tel2: '', email: '', fax: '', vatName: '', vatNo: '', taxPercent: 0, isCredit: false, creditLimit: 0, creditDays: 0, address: '', crNo: '', country: 'Bahrain', openingBalance: 0, salesMan: STAFF[0] };
   salesView = 'cust-create';
   renderSalesBody();
 }
@@ -403,12 +409,6 @@ function renderCustomerCreate() {
       <div class="sales-field"><label><input type="checkbox" ${d.isCredit ? 'checked' : ''} onchange="salesCustDraftChanged('isCredit',this.checked)"> Is Credit</label></div>
       <div class="sales-field"><label>Credit Limit</label><input type="number" value="${d.creditLimit}" oninput="salesCustDraftChanged('creditLimit',Number(this.value))"></div>
       <div class="sales-field"><label>Credit Days</label><input type="number" value="${d.creditDays}" oninput="salesCustDraftChanged('creditDays',Number(this.value))"></div>
-      <div class="sales-field"><label>Bank Account Number</label><input type="text" value="${esc(d.bankAccountNumber)}" oninput="salesCustDraftChanged('bankAccountNumber',this.value)"></div>
-      <div class="sales-field"><label>Bank Account Holder Name</label><input type="text" value="${esc(d.bankAccountHolderName)}" oninput="salesCustDraftChanged('bankAccountHolderName',this.value)"></div>
-      <div class="sales-field"><label>IBAN Number</label><input type="text" value="${esc(d.ibanNumber)}" oninput="salesCustDraftChanged('ibanNumber',this.value)"></div>
-      <div class="sales-field"><label>Bank Swift</label><input type="text" value="${esc(d.bankSwift)}" oninput="salesCustDraftChanged('bankSwift',this.value)"></div>
-      <div class="sales-field"><label>Bank Name</label><input type="text" value="${esc(d.bankName)}" oninput="salesCustDraftChanged('bankName',this.value)"></div>
-      <div class="sales-field"><label>Bank Branch</label><input type="text" value="${esc(d.bankBranch)}" oninput="salesCustDraftChanged('bankBranch',this.value)"></div>
       <div class="sales-field"><label>Address *</label><textarea oninput="salesCustDraftChanged('address',this.value)">${esc(d.address)}</textarea></div>
       <div class="sales-field"><label>CR No</label><input type="text" value="${esc(d.crNo)}" oninput="salesCustDraftChanged('crNo',this.value)"></div>
       <div class="sales-field"><label>Country</label>

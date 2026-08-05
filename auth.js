@@ -447,7 +447,11 @@ function finishCloudLogin(displayName, isRealSession = true, userType = 'owner')
       typeof initCloudCustomersCache === 'function' ? initCloudCustomersCache() : Promise.resolve(),
       typeof initCloudEnquiriesCache === 'function' ? initCloudEnquiriesCache() : Promise.resolve(),
       typeof initCloudQuotationsCache === 'function' ? initCloudQuotationsCache() : Promise.resolve(),
-      typeof initCloudJobCardsCache === 'function' ? initCloudJobCardsCache() : Promise.resolve()
+      typeof initCloudJobCardsCache === 'function' ? initCloudJobCardsCache() : Promise.resolve(),
+      // Phase 3 (5 Aug 2026) — independent of the other four/the bridge
+      // step below; a non-Accounts/Owner session just gets an empty
+      // cache back (RLS), not an error.
+      typeof initCloudCustomerBankingCache === 'function' ? initCloudCustomerBankingCache() : Promise.resolve()
     ]);
     businessDataReady.then(() => { if (typeof bridgeAllJobCards === 'function') bridgeAllJobCards(); });
   }
