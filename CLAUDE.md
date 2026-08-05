@@ -4859,3 +4859,51 @@ three landed this session.
   from the earlier Admin-role session (still needs Salman to run it
   against the live project); broader collapsible-section dashboard
   reorganization beyond the one concrete action-row fix above.
+
+### 5 Aug 2026 — Fix Plan Phase 1: close two silent stuck-job gaps (Fable audit)
+
+Salman said "Go" — started the Fable audit's own 5-phase fix plan,
+beginning with Phase 1 (foundation, no product decisions needed).
+
+- **`confirmVariationToJobCard()` gains one call**: `ensureDepartmentBudgets(job)`,
+  the same call `confirmJobRouting()` already makes, re-run here since a
+  Variation can introduce a department the job was never originally
+  routed to (the audit's own example: an upholstered-bench-seat line
+  added to a joinery job). Before this fix, the new department's line
+  correctly showed up in that department's real production queue
+  (`getDepartmentQueue`) but the department's own Budgets tab
+  (`getJobsForDepartmentBudget`) only ever lists jobs that already have
+  a `departmentBudgets` entry — so the job was invisible there forever,
+  with no discoverable way for the correct manager to submit the
+  missing budget, and `startLineProduction()`'s real budget gate
+  correctly refused forever too (nothing shipped wrong, it just got
+  permanently stuck).
+- **`getJobAttentionFlags()` gains a defense-in-depth check**: any
+  routed department present in the job's own `departmentSequence` but
+  missing from `job.departmentBudgets` entirely now surfaces a
+  "`<Dept>` Budget Not Yet Submitted" flag — catching the *class* of bug
+  (some future code path skipping `ensureDepartmentBudgets()`), not just
+  this one instance of it, which fix #1 above already closes on its own.
+- **Verification**: new `e2e-variation-new-department.js` (10/10) —
+  reruns the audit's exact scenario (Joinery-only job → Variation adds
+  an Upholstery-routed line), confirms the new department's budget slot
+  exists immediately after merge with status `"not-submitted"`, confirms
+  it's now visible on `getJobsForDepartmentBudget('uph')` (previously
+  never), confirms the new attention flag fires when a slot is
+  deliberately deleted to simulate the hypothetical future bug the
+  flag guards against (fix #1 already prevents the real path from ever
+  reaching this state, so this was tested directly rather than through
+  a now-impossible-to-observe window), confirms the flag clears once
+  submitted and the normal "Budget Pending" flag takes over, confirms
+  production actually starts once approved through the now-visible tab,
+  and confirms a normal single-department job shows no spurious flag
+  (regression check). Full 49-file regression sweep: 47 pass, the one
+  failure is the same already-documented `markMessageRead` flake.
+- **Phase 2 policy decisions confirmed with Salman before building**:
+  self-approval on department budgets (Joinery/Upholstery, same manager
+  submits and approves today) will be blocked outright, not just above
+  a threshold; the BD 5,000 owner-approval threshold applies to
+  department budgets only, not quotation approval (Salman's call —
+  narrower than the audit's own suggestion of applying it to both).
+- Next: Phase 2 (real budget-approval control — the threshold + blocked
+  self-approval, per the confirmed policy above).

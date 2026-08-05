@@ -4671,6 +4671,22 @@ function getAllPendingBudgetApprovals() {
 function getJobAttentionFlags(job) {
   const flags = [];
   if (!job.routingConfirmed && job.status !== "cancelled") flags.push({ label: "Awaiting Routing", tone: "warn" });
+  // Fix Plan Phase 1 (5 Aug 2026, Fable audit finding #3) — defense in
+  // depth alongside the confirmVariationToJobCard() fix above: flags ANY
+  // routed department that's missing its departmentBudgets slot entirely,
+  // not just the one call site (Variations) that caused this the first
+  // time. ensureDepartmentBudgets() guarantees every department in any
+  // item's departmentSequence gets a slot — a routed job missing one
+  // means some future code path skipped that call, exactly the class of
+  // silent gap this is meant to surface instead of leaving invisible.
+  if (job.routingConfirmed) {
+    const routedDepts = new Set(job.items.flatMap(it => it.departmentSequence || []));
+    routedDepts.forEach(deptKey => {
+      if (!job.departmentBudgets || !job.departmentBudgets[deptKey]) {
+        flags.push({ label: `${dc(deptKey).n} Budget Not Yet Submitted`, tone: "warn" });
+      }
+    });
+  }
   if (job.departmentBudgets) {
     Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
       if (entry.approvalStatus === "pending") flags.push({ label: `${dc(deptKey).n} Budget Pending`, tone: "warn" });
@@ -4805,6 +4821,19 @@ function confirmVariationToJobCard(qtnId, confirmedBy) {
       departmentStatuses: job.routingConfirmed ? seq.map((dept, i) => ({ department: dept, status: i === 0 ? "queued" : "pending" })) : []
     });
   });
+  // Fix Plan Phase 1 (5 Aug 2026, Fable audit finding #3/Section 1.1) — a
+  // Variation merging in a department the job wasn't originally routed to
+  // (e.g. an upholstered-bench-seat line added to a joinery job) used to
+  // never get a departmentBudgets slot created for it, since only
+  // confirmJobRouting() called ensureDepartmentBudgets() before this fix.
+  // The new line would show up in that department's real production
+  // queue (getDepartmentQueue) but never on its Budgets tab
+  // (getJobsForDepartmentBudget only lists jobs that already have an
+  // entry) — a permanently stuck line with no discoverable way for the
+  // correct manager to submit the missing budget. Same call
+  // confirmJobRouting() already makes, just re-run here since a
+  // Variation can introduce departments after that point.
+  ensureDepartmentBudgets(job);
   job.amount = Math.round((job.amount + totals.netTotal) * 1000) / 1000;
   if (!job.variationIds) job.variationIds = [];
   job.variationIds.push(qtn.id);
