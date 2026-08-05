@@ -66,7 +66,11 @@ function startServer(root, port) {
     const reqs = await cache.keys();
     return { keys, count: reqs.length, urls: reqs.map(r => new URL(r.url).pathname) };
   }));
-  record('Cache is created with the versioned name (amd-app-v5)', cacheState.keys.includes('amd-app-v5') ? 'PASS' : 'FAIL', JSON.stringify(cacheState.keys));
+  // Read the expected version straight from sw.js rather than hardcoding it
+  // here — this assertion went stale twice (v5 vs the real v8) because every
+  // CACHE_VERSION bump also had to remember to update this string.
+  const expectedCacheVersion = (require('fs').readFileSync(require('path').join(__dirname, 'sw.js'), 'utf8').match(/CACHE_VERSION = "([^"]+)"/) || [])[1];
+  record(`Cache is created with the versioned name (${expectedCacheVersion})`, expectedCacheVersion && cacheState.keys.includes(expectedCacheVersion) ? 'PASS' : 'FAIL', JSON.stringify(cacheState.keys));
   record('Cache contains the core app shell files (24 entries expected)', cacheState.count >= 20 ? 'PASS' : 'FAIL', `count=${cacheState.count}`);
   record('Cache includes every real module JS file (data.js, owner.js, print.js, etc.)', cacheState.urls && cacheState.urls.some(u => u.endsWith('owner.js')) && cacheState.urls.some(u => u.endsWith('print.js')) && cacheState.urls.some(u => u.endsWith('data.js')) ? 'PASS' : 'FAIL', JSON.stringify(cacheState.urls));
 

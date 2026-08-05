@@ -61,16 +61,10 @@ document.body.appendChild(joineryModuleWrap);
 
 let joineryView = 'dashboard'; // dashboard | queue
 const joineryCurrentUser = 'Joinery Production Manager'; // no dedicated STAFF entry today — see project memory on the routing/budgeting design
-// Approver-check role (5 Aug 2026, role-based access rollout): a real
-// login uses the actual signed-in person's real user_type (correctly
-// isolating Joinery's approvals from Upholstery's when two different
-// real people hold those roles); the offline e2e bypass has no real
-// per-person profile, so it keeps simulating "logged in as the Joinery
-// Production Manager" specifically here — NOT the global
-// window.cloudUserType="owner" wildcard, which would incorrectly show
-// EVERY department's pending budgets on every module at once and break
-// the isolation the existing offline test suite already verifies.
-function joineryApproverUserType() { return window.__realCloudSession ? window.cloudUserType : 'joinery_production_manager'; }
+// joineryApproverUserType() removed (Fix Plan Phase 2, 5 Aug 2026) —
+// this module no longer approves budgets at all; that moved to the
+// Operations Manager (Operations → Budget Approvals) so the submitting
+// manager can never approve their own budget.
 
 function jyEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function joineryAlert(msg) {
@@ -181,15 +175,14 @@ function renderJoineryBody() {
   if (JOINERY_SUB_STAGES.includes(joineryView)) { body.innerHTML = renderJoinerySubStageView(joineryView); return; }
   if (joineryView === 'floor') { body.innerHTML = renderJoineryFloorView(); return; }
   const tab = (v, label) => `<button class="sales-tabbtn ${joineryView === v ? 'active' : ''}" onclick="joinerySetView('${v}')">${label}</button>`;
-  // "Approvals" covers Joinery's own pending budgets AND Painting's — the
-  // Joinery Production Manager approves both today (real staffing fact,
-  // not a data merge — see DEPARTMENT_APPROVERS in data.js).
-  const pendingCount = getPendingBudgetApprovalsFor(joineryApproverUserType()).length;
-  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'Dashboard')}${tab('queue', 'Production Queue')}${tab('budget', 'Budgets')}${tab('approvals', `Approvals${pendingCount ? ' (' + pendingCount + ')' : ''}`)}</div>`;
+  // Fix Plan Phase 2 (5 Aug 2026) — the Approvals tab is gone: the
+  // manager who submits a budget can no longer approve it (maker-checker),
+  // so approvals live with the Operations Manager (Operations → Budget
+  // Approvals) and, over BD 5,000, with Owner. See DEPARTMENT_APPROVERS.
+  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'Dashboard')}${tab('queue', 'Production Queue')}${tab('budget', 'Budgets')}</div>`;
   let content;
   if (joineryView === 'queue') content = renderDeptQueue(JOINERY_DEPT_KEY, joineryCurrentUser, 'joinery');
   else if (joineryView === 'budget') content = renderDeptBudgetTab(JOINERY_DEPT_KEY, joineryCurrentUser, 'joinery');
-  else if (joineryView === 'approvals') content = renderBudgetApprovals(joineryApproverUserType(), joineryCurrentUser, 'joinery');
   else content = renderJoineryDashboard();
   body.innerHTML = tabsHtml + content;
 }
@@ -197,11 +190,13 @@ function renderJoineryBody() {
 function renderJoineryDashboard() {
   const rows = getDepartmentQueue(JOINERY_DEPT_KEY);
   const count = s => rows.filter(r => r.entry.status === s).length;
-  // Painting's own budgets land in this same inbox too — Salman's real
-  // staffing fact, the Joinery Production Manager approves both until
-  // Painting has its own dedicated manager (see DEPARTMENT_APPROVERS).
-  const pendingApprovals = getPendingBudgetApprovalsFor(joineryApproverUserType()).length;
-  const overBudget = getOverBudgetCountForDept(JOINERY_DEPT_KEY) + getOverBudgetCountForDept(PAINT_DEPT_KEY);
+  // Fix Plan Phase 2 (5 Aug 2026) — "Budgets Pending" now means Joinery's
+  // OWN submissions still awaiting the Operations Manager's (or, over
+  // BD 5,000, Owner's) approval — this manager no longer approves anything
+  // here, including Painting's (that pairing ended with the maker-checker
+  // change; Painting's budgets go to Operations like everyone else's).
+  const pendingApprovals = getOwnPendingBudgetCountForDept(JOINERY_DEPT_KEY);
+  const overBudget = getOverBudgetCountForDept(JOINERY_DEPT_KEY);
   return `
     <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
       <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${jyEsc(joineryCurrentUser)}</b></p>
@@ -216,7 +211,7 @@ function renderJoineryDashboard() {
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('qc')}</div><div class="lbl">Awaiting QC</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('rework')}</div><div class="lbl">In Rework</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="joinerySetView('approvals')"><div class="num" style="${pendingApprovals ? 'color:var(--warn,#c47d00);' : ''}">${pendingApprovals}</div><div class="lbl">Budgets Pending</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="joinerySetView('budget')"><div class="num" style="${pendingApprovals ? 'color:var(--warn,#c47d00);' : ''}">${pendingApprovals}</div><div class="lbl">Budgets Pending</div></div>
       <div class="sales-kpi-tile"><div class="num" style="${overBudget ? 'color:var(--bad,#d9342b);' : ''}">${overBudget}</div><div class="lbl">Over Budget</div></div>
     </div>
     <div class="sales-card">

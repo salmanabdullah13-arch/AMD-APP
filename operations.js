@@ -768,6 +768,7 @@ function opsGoTo(p){
   if(p==="alerts"){ renderJobRouting(); }
   if(p==="bom"){ renderBomList(""); }
   if(p==="curtapp"){ renderCurtainApprovals(); }
+  if(p==="budgetapprovals"){ renderOpsBudgetApprovals(); }
   if(p==="projects"){ renderProjList(); }
   if(p==="reminders"){ renderReminders(); }
 }
@@ -812,7 +813,7 @@ function renderOpsDashboard() {
   const kpisHtml = `
     <div class="kpis">
       <div class="kpi"><p class="kl">Active Jobs</p><p class="kv">${activeJobs.length}</p><p class="ks">routed, in production</p></div>
-      <div class="kpi ${pendingApprovals > 0 ? 'warn' : ''}"><p class="kl">Approval Pending</p><p class="kv" ${pendingApprovals > 0 ? 'style="color:var(--warn)"' : ''}>${pendingApprovals}</p><p class="ks">department budgets</p></div>
+      <div class="kpi ${pendingApprovals > 0 ? 'warn' : ''}" style="cursor:pointer;" onclick="opsGoTo('budgetapprovals')"><p class="kl">Approval Pending</p><p class="kv" ${pendingApprovals > 0 ? 'style="color:var(--warn)"' : ''}>${pendingApprovals}</p><p class="ks">department budgets</p></div>
       <div class="kpi ${jobsWithFlags.length > 0 ? 'bad' : ''}"><p class="kl">Needs Action</p><p class="kv" ${jobsWithFlags.length > 0 ? 'style="color:var(--bad)"' : ''}>${jobsWithFlags.length}</p><p class="ks">jobs flagged</p></div>
       <div class="kpi ${openTasksCount > 0 ? 'warn' : ''}"><p class="kl">Open Tasks</p><p class="kv" ${openTasksCount > 0 ? 'style="color:var(--warn)"' : ''}>${openTasksCount}</p><p class="ks">awaiting completion</p></div>
       <div class="kpi"><p class="kl">Invoiced This Month</p><p class="kv">${money(invoicedThisMonth)}</p><p class="ks">${money(receivedThisMonth)} received</p></div>
@@ -886,6 +887,20 @@ function renderOpsDashboard() {
       <p class="card-title">All clear</p>
       ${clearRows}
     </div>`;
+}
+
+// Fix Plan Phase 2 (5 Aug 2026, Fable audit findings #1/#2) — Operations
+// Manager is now the real, distinct approver for Joinery/Painting/
+// Upholstery department budgets (DEPARTMENT_APPROVERS, data.js), since
+// the submitting department manager can no longer also approve their
+// own budget. Reuses the exact same renderBudgetApprovals()/
+// deptApproveBudget()/deptRejectBudget() (dept-pipeline-ui.js) that
+// Joinery/Upholstery's own dashboards already use for this — Operations
+// is a third caller, not a separate implementation.
+function renderOpsBudgetApprovals() {
+  const el = document.getElementById('ops-budget-approvals-body');
+  if (!el) return;
+  el.innerHTML = renderBudgetApprovals('operations_manager', 'Operations Manager', 'operations');
 }
 
 // ══════════════════════════════════════════

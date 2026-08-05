@@ -189,7 +189,11 @@ function deptCompleteTask(taskId, modPrefix) {
 let deptBudgetEditingJobId = null; // shared scratch state — only one module is ever open at a time
 
 function deptBudgetPillClass(status) {
-  return status === 'approved' ? 'ready-for-handoff' : status === 'rejected' ? 'rework' : status === 'pending' ? 'qc' : 'queued';
+  // Fix Plan Phase 2 (5 Aug 2026) — 'pending-owner-review' gets its own
+  // distinct look (in-production's amber, same family as 'pending' but
+  // visually distinguishable) since it's a real, different state: the
+  // department manager already approved it, it's stuck on Owner now.
+  return status === 'approved' ? 'ready-for-handoff' : status === 'rejected' ? 'rework' : status === 'pending' ? 'qc' : status === 'pending-owner-review' ? 'in-production' : 'queued';
 }
 
 // Jobs currently routed to this department (a departmentBudgets[deptKey]
@@ -307,18 +311,36 @@ function renderBudgetApprovals(approverUserType, approverDisplayName, modPrefix)
   }).join('');
 }
 
+// Fix Plan Phase 2 (5 Aug 2026) — Operations Manager became a third
+// caller of renderBudgetApprovals() (DEPARTMENT_APPROVERS now points
+// carp/paint/uph at 'operations_manager' instead of the submitting
+// department's own manager — real maker-checker, since Operations
+// Manager never submits any of these budgets themselves). Generalized
+// from the old two-way upholstery/joinery-only ternary rather than
+// bolting on a third hardcoded branch inline at every call site.
+function deptAlertFn(modPrefix) {
+  if (modPrefix === 'upholstery') return upholsteryAlert;
+  if (modPrefix === 'operations') return (typeof showAlert === 'function' ? showAlert : alert);
+  return joineryAlert;
+}
+function deptRerenderBody(modPrefix) {
+  if (modPrefix === 'upholstery') renderUpholsteryBody();
+  else if (modPrefix === 'operations') { if (typeof renderOpsBudgetApprovals === 'function') renderOpsBudgetApprovals(); }
+  else renderJoineryBody();
+}
+
 function deptApproveBudget(modPrefix, jobId, deptKey, approverName) {
   const result = approveDepartmentBudget(jobId, deptKey, approverName);
-  const alertFn = modPrefix === 'upholstery' ? upholsteryAlert : joineryAlert;
+  const alertFn = deptAlertFn(modPrefix);
   if (result.error) { alertFn(result.error); return; }
   alertFn(`✓ ${dc(deptKey).n} budget approved.`);
-  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
+  deptRerenderBody(modPrefix);
 }
 function deptRejectBudget(modPrefix, jobId, deptKey, approverName) {
   const comment = window.prompt('Reason for rejecting this budget:', '') || '';
   const result = rejectDepartmentBudget(jobId, deptKey, approverName, comment);
-  const alertFn = modPrefix === 'upholstery' ? upholsteryAlert : joineryAlert;
+  const alertFn = deptAlertFn(modPrefix);
   if (result.error) { alertFn(result.error); return; }
   alertFn(`Budget rejected.`);
-  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
+  deptRerenderBody(modPrefix);
 }

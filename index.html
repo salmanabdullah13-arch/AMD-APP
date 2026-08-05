@@ -236,6 +236,7 @@
   <button class="ntab" data-p="alerts" onclick="opsGoTo('alerts')">New Jobs<span class="nbadge">2</span></button>
   <button class="ntab" data-p="bom" onclick="opsGoTo('bom')">BOM / Budget</button>
   <button class="ntab" data-p="curtapp" onclick="opsGoTo('curtapp')">Curtain Approvals<span class="nbadge" id="curtapp-badge" style="display:none;">0</span></button>
+  <button class="ntab" data-p="budgetapprovals" onclick="opsGoTo('budgetapprovals')">Budget Approvals</button>
   <button class="ntab" data-p="projects" onclick="opsGoTo('projects')">All Projects</button>
   <button class="ntab" data-p="delivery" onclick="opsGoTo('delivery')">Delivery</button>
   <button class="ntab" data-p="capacity" onclick="opsGoTo('capacity')">Capacity</button>
@@ -384,6 +385,18 @@
     <p class="card-title">Reading this</p>
     <p style="font-size:13px;color:var(--ink2);line-height:1.6;">Joinery is <b style="color:var(--bad);">full weeks 1–2.</b> Any new joinery job confirmed today realistically starts week 3. Curtain is free from week 2. Before agreeing a delivery date with Sales or a client, open this view first.</p>
   </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     BUDGET APPROVALS (Fix Plan Phase 2, 5 Aug 2026) — Operations Manager
+     is the real, distinct approver for Joinery/Painting/Upholstery
+     department budgets (DEPARTMENT_APPROVERS, data.js), since the
+     department manager who submits a budget can no longer also approve
+     it (maker-checker fix, same session).
+══════════════════════════════════════════ -->
+<div class="page" id="p-budgetapprovals">
+  <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Department budgets for Joinery, Painting, and Upholstery — the submitting manager can't also approve their own budget, so this is where it lands instead.</p>
+  <div id="ops-budget-approvals-body"></div>
 </div>
 
 <!-- ══════════════════════════════════════════

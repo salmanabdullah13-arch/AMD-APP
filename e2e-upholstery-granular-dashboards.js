@@ -64,7 +64,7 @@ const OTHER_WRAPS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'uph', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Upholstery Manager');
-    approveDepartmentBudget(job.id, 'uph', 'Upholstery Manager');
+    approveDepartmentBudget(job.id, 'uph', 'Operations Manager'); // maker-checker (Fix Plan Phase 2): approver must differ from submitter
     // item1 stays 'queued' (Team Leader's stage); item2 advances to 'qc' (QC/Packaging's stage).
     startLineProduction(job.id, item2.lineId, 'uph');
     submitLineForQC(job.id, item2.lineId, 'uph');

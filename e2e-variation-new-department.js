@@ -92,7 +92,9 @@ function printReport() {
   const afterSubmit = await page.evaluate((jobId) => {
     submitDepartmentBudget(jobId, 'uph', { materials: 90, labour: 40, subcontract: 0, hiring: 0, others: 0 }, 'Upholstery Manager');
     const flagsAfterSubmit = getJobAttentionFlags(getJobCard(jobId)).map(f => f.label);
-    approveDepartmentBudget(jobId, 'uph', 'Upholstery Manager');
+    // Fix Plan Phase 2 (5 Aug 2026) — Operations Manager approves, not the
+    // submitting department manager (real maker-checker, see DEPARTMENT_APPROVERS).
+    approveDepartmentBudget(jobId, 'uph', 'Operations Manager');
     const startResult = startLineProduction(jobId, getJobCard(jobId).items.find(it => (it.departmentSequence || []).includes('uph')).lineId, 'uph');
     return { flagsAfterSubmit, startResult };
   }, setup.jobId);

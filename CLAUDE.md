@@ -4907,3 +4907,62 @@ beginning with Phase 1 (foundation, no product decisions needed).
   narrower than the audit's own suggestion of applying it to both).
 - Next: Phase 2 (real budget-approval control — the threshold + blocked
   self-approval, per the confirmed policy above).
+
+### 5 Aug 2026 — Fix Plan Phase 2: BD 5,000 owner threshold + maker-checker on department budgets
+
+Picked up mid-flight from the previous session (its data.js/operations.js/
+owner.js/dept-pipeline-ui.js/index.html changes and the new
+`e2e-budget-threshold-gate.js` were written but never verified, and the
+department modules were never updated to match — Joinery/Upholstery's
+Approvals tabs had become permanently empty and their "Budgets Pending"
+tiles permanently 0). Completed, verified, committed as one piece.
+
+- **The core (from the previous session, verified this session)**:
+  `approveDepartmentBudget()` (data.js) now refuses when `approvedBy ===
+  entry.submittedBy` (maker-checker, blocked outright per Salman's call),
+  and any budget whose `computeBOMTotals().totalCostInclOH` exceeds
+  `BUDGET_APPROVAL_THRESHOLD` (BD 5,000 — matching CLAUDE.md §1's original
+  "Salman approves budgets over BD 5,000" rule, confirmed by the Fable
+  audit to not exist anywhere in code before this) lands in a new
+  `pending-owner-review` state after the first approval instead of
+  `approved` — production stays blocked until
+  `approveDepartmentBudgetOwnerReview()` (or rejection via
+  `rejectDepartmentBudgetOwnerReview()`, with a mandatory comment).
+  **`DEPARTMENT_APPROVERS` moved carp/paint/uph from the submitting
+  department's own manager to `operations_manager`** — with exactly one
+  real person per department role today, blocking self-approval outright
+  would otherwise have made carp/uph budgets unapprovable by anyone;
+  Operations Manager is a real distinct second person and already the
+  pipeline's one human routing checkpoint. New Operations "Budget
+  Approvals" tab (index.html/operations.js, reusing the shared
+  `renderBudgetApprovals()` as a third caller) and an Owner "Department
+  budgets pending approval →" drill-in (owner.js) covering both plain
+  `pending` rows (Owner wildcard) and `pending-owner-review` rows.
+- **Completed this session (the missing half)**: Joinery's and
+  Upholstery's own Approvals tabs REMOVED (the manager can no longer
+  approve anything — an always-empty tab was worse than no tab);
+  their "Budgets Pending" tiles now mean "MY OWN submissions still
+  awaiting approval" via new `getOwnPendingBudgetCountForDept()`
+  (data.js), clicking through to the Budgets tab; Joinery's tile/
+  over-budget counts no longer include Painting's (that pairing ended
+  with the approver change — Painting's line about "budget approval
+  stays with the Joinery Production Manager" also corrected in
+  painting.js); dead `joineryApproverUserType()`/
+  `upholsteryApproverUserType()` removed.
+- **Tests updated to the new reality**: `e2e-batch8-phase2-4.js`
+  approves via the real Operations → Budget Approvals UI now (17/17);
+  `e2e-upholstery-granular-dashboards.js`/`e2e-joinery-substages.js`
+  seed steps no longer self-approve (8/8, 12/12);
+  `e2e-budget-threshold-gate.js` (13/13, the previous session's own
+  suite, first actually run this session). Two stale-test fixes found
+  by the full sweep, both pre-existing and unrelated to Phase 2:
+  `e2e-back-button-check.js` still clicked the pre-nav-overhaul
+  `goTo('eco')` Operations back button (silently soft-failing inside
+  its try/catch since Phase 4 renamed it to `goHome()` — fixed
+  selector), and `e2e-pwa-offline.js` hardcoded cache version
+  `amd-app-v5` vs the real `amd-app-v8` (now reads `CACHE_VERSION`
+  straight out of sw.js so it can't go stale a third time).
+- **Verification**: `node --check` on all touched files; full offline
+  regression sweep — 30 suites all green (including the two fixed
+  ones re-run standalone). Live-cloud suites not re-run: nothing in
+  this phase touches auth/RLS/cloud persistence paths.

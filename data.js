@@ -4534,10 +4534,21 @@ function handOffPaintingLine(jobId, lineId, user) {
 // against the ACTING user's real user_type (window.cloudUserType),
 // since a real person's display name is no longer the same string as
 // their role.
+// Fix Plan Phase 2 (5 Aug 2026, Fable audit finding #2) — changed from
+// the submitting department's own manager to Operations Manager,
+// confirmed with Salman. The department manager submits their own
+// budget and was ALSO the only configured approver — with exactly one
+// real person in each of these roles today, blocking self-approval
+// outright (the maker-checker fix built alongside this) would otherwise
+// mean carp/uph budgets could never be approved by anyone at all.
+// Operations Manager never submits any of these budgets themselves and
+// is already the one human checkpoint earlier in the same pipeline
+// (job routing) — a real, distinct second person, not Owner having to
+// personally review every submission regardless of size.
 const DEPARTMENT_APPROVERS = {
-  carp: "joinery_production_manager",
-  paint: "joinery_production_manager",
-  uph: "upholstery_manager"
+  carp: "operations_manager",
+  paint: "operations_manager",
+  uph: "operations_manager"
 };
 const EMPTY_BOM_CATEGORIES = ["materials", "labour", "subcontract", "hiring", "others"];
 
@@ -4607,15 +4618,76 @@ function submitDepartmentBudget(jobId, deptKey, categoryAmounts, submittedBy) {
   return entry;
 }
 
+// Fix Plan Phase 2 (5 Aug 2026, Fable audit findings #1/#2) — a real
+// owner-approval threshold, matching Salman's own original project
+// instructions (CLAUDE.md §1: "Salman (owner, approves budgets over
+// BD 5,000)") — confirmed live by the audit that no such check existed
+// anywhere in the app before this. Configurable, not hardcoded in
+// several places. Scoped to department budgets only (Salman's explicit
+// call) — quotation approval is untouched.
+const BUDGET_APPROVAL_THRESHOLD = 5000;
+function requiresOwnerApproval(totalCostInclOH) {
+  return totalCostInclOH > BUDGET_APPROVAL_THRESHOLD;
+}
+
 function approveDepartmentBudget(jobId, deptKey, approvedBy) {
   const job = getJobCard(jobId);
   if (!job || !job.departmentBudgets || !job.departmentBudgets[deptKey]) return { error: "Budget submission not found." };
   const entry = job.departmentBudgets[deptKey];
   if (entry.approvalStatus !== "pending") return { error: "Budget must be submitted before it can be approved." };
+  // Maker-checker (5 Aug 2026, Fable audit finding #2) — the same person
+  // who submitted this budget can never also approve it, confirmed with
+  // Salman as blocked outright rather than only above the threshold.
+  // Same shape of gap already closed once for quotation pricing (see
+  // the pricing-lock trigger, supabase/schema.sql).
+  if (approvedBy === entry.submittedBy) return { error: "The same person who submitted this budget can't also approve it." };
+  const totals = computeBOMTotals(entry.bom);
+  if (requiresOwnerApproval(totals.totalCostInclOH)) {
+    // Over threshold — the department manager's own approval is real and
+    // recorded, but production still can't start (isDepartmentBudgetApproved()
+    // only returns true for "approved") until Owner/Admin clears the
+    // second step below.
+    entry.approvalStatus = "pending-owner-review";
+    entry.managerApprovedBy = approvedBy;
+    entry.managerApprovedDate = new Date().toISOString().slice(0, 10);
+    logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget (BD ${totals.totalCostInclOH.toFixed(3)}, over BD ${BUDGET_APPROVAL_THRESHOLD}) approved by manager — awaiting Owner review before production can start` });
+    persistJobCardUpdate(job);
+    return entry;
+  }
   entry.approvalStatus = "approved";
   entry.approvedBy = approvedBy;
   entry.approvedDate = new Date().toISOString().slice(0, 10);
   logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget approved — production can start` });
+  persistJobCardUpdate(job);
+  return entry;
+}
+
+// The second, Owner/Admin-only step for a budget that crossed the
+// threshold above. Deliberately a separate function (not a parameter on
+// approveDepartmentBudget()) so every existing call site for a normal,
+// under-threshold budget is completely unaffected.
+function approveDepartmentBudgetOwnerReview(jobId, deptKey, approvedBy) {
+  const job = getJobCard(jobId);
+  if (!job || !job.departmentBudgets || !job.departmentBudgets[deptKey]) return { error: "Budget submission not found." };
+  const entry = job.departmentBudgets[deptKey];
+  if (entry.approvalStatus !== "pending-owner-review") return { error: "This budget isn't awaiting Owner review." };
+  entry.approvalStatus = "approved";
+  entry.approvedBy = approvedBy;
+  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget received final Owner approval (over BD ${BUDGET_APPROVAL_THRESHOLD}) — production can start` });
+  persistJobCardUpdate(job);
+  return entry;
+}
+function rejectDepartmentBudgetOwnerReview(jobId, deptKey, rejectedBy, comment) {
+  const job = getJobCard(jobId);
+  if (!job || !job.departmentBudgets || !job.departmentBudgets[deptKey]) return { error: "Budget submission not found." };
+  const entry = job.departmentBudgets[deptKey];
+  if (entry.approvalStatus !== "pending-owner-review") return { error: "This budget isn't awaiting Owner review." };
+  entry.approvalStatus = "rejected";
+  entry.approvedBy = rejectedBy;
+  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  entry.rejectionComment = comment;
+  logActivity({ type: "budget-rejected", linkedType: "job", linkedId: job.id, user: rejectedBy, message: `${dc(deptKey).n} budget rejected at Owner review — ${comment || "no comment"}` });
   persistJobCardUpdate(job);
   return entry;
 }
@@ -4645,6 +4717,9 @@ function getPendingBudgetApprovalsFor(approverUserType) {
     if (!job.departmentBudgets) return;
     Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
       if (entry.approvalStatus === "pending" && (approverUserType === "owner" || DEPARTMENT_APPROVERS[deptKey] === approverUserType)) rows.push({ job, deptKey, entry });
+      // Fix Plan Phase 2 (5 Aug 2026) — the second, over-threshold review
+      // step is Owner-only, regardless of which department it's for.
+      if (entry.approvalStatus === "pending-owner-review" && approverUserType === "owner") rows.push({ job, deptKey, entry });
     });
   });
   return rows;
@@ -4657,7 +4732,7 @@ function getAllPendingBudgetApprovals() {
   jobCards.forEach(job => {
     if (!job.departmentBudgets) return;
     Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
-      if (entry.approvalStatus === "pending") rows.push({ job, deptKey, entry });
+      if (entry.approvalStatus === "pending" || entry.approvalStatus === "pending-owner-review") rows.push({ job, deptKey, entry });
     });
   });
   return rows;
@@ -4690,6 +4765,10 @@ function getJobAttentionFlags(job) {
   if (job.departmentBudgets) {
     Object.entries(job.departmentBudgets).forEach(([deptKey, entry]) => {
       if (entry.approvalStatus === "pending") flags.push({ label: `${dc(deptKey).n} Budget Pending`, tone: "warn" });
+      // Fix Plan Phase 2 (5 Aug 2026) — distinct from plain "pending" so
+      // it's clear this one is stuck on Owner specifically, not the
+      // department manager.
+      if (entry.approvalStatus === "pending-owner-review") flags.push({ label: `${dc(deptKey).n} Budget Awaiting Owner Review`, tone: "warn" });
       if (isDepartmentOverBudget(job.id, deptKey)) flags.push({ label: `${dc(deptKey).n} Over Budget`, tone: "bad" });
     });
   }
@@ -4714,6 +4793,16 @@ function isDepartmentOverBudget(jobId, deptKey) {
 // exactly this.
 function getOverBudgetCountForDept(deptKey) {
   return jobCards.filter(j => j.departmentBudgets && j.departmentBudgets[deptKey] && isDepartmentOverBudget(j.id, deptKey)).length;
+}
+
+// Fix Plan Phase 2 (5 Aug 2026) — with DEPARTMENT_APPROVERS moved to
+// Operations Manager, a department's own dashboard no longer has an
+// approver inbox; its "Budgets Pending" tile now means "MY submissions
+// still awaiting someone else's approval" (pending with the Operations
+// Manager, or pending-owner-review with Salman for over-BD-5,000 ones).
+function getOwnPendingBudgetCountForDept(deptKey) {
+  return jobCards.filter(j => j.departmentBudgets && j.departmentBudgets[deptKey] &&
+    (j.departmentBudgets[deptKey].approvalStatus === "pending" || j.departmentBudgets[deptKey].approvalStatus === "pending-owner-review")).length;
 }
 
 function recordDepartmentActual(jobId, deptKey, categoryAmounts, recordedBy) {

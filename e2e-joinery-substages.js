@@ -59,7 +59,7 @@ const OTHER_WRAPS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'carp', { materials: 200, labour: 100, subcontract: 0, hiring: 0, others: 0 }, 'Joinery Production Manager');
-    approveDepartmentBudget(job.id, 'carp', 'Joinery Production Manager');
+    approveDepartmentBudget(job.id, 'carp', 'Operations Manager'); // maker-checker (Fix Plan Phase 2): approver must differ from submitter
     const startResult = startLineProduction(job.id, item.lineId, 'carp');
     return { jobId: job.id, lineId: item.lineId, subStageAfterStart: startResult.departmentStatuses.find(d => d.department === 'carp').joinerySubStage };
   });
@@ -141,7 +141,7 @@ const OTHER_WRAPS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'carp', { materials: 200, labour: 100, subcontract: 0, hiring: 0, others: 0 }, 'Joinery Production Manager');
-    approveDepartmentBudget(job.id, 'carp', 'Joinery Production Manager');
+    approveDepartmentBudget(job.id, 'carp', 'Operations Manager'); // maker-checker (Fix Plan Phase 2): approver must differ from submitter
     startLineProduction(job.id, item.lineId, 'carp'); // stays at 'drafting'
     return { jobId: job.id };
   });

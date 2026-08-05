@@ -114,12 +114,58 @@ let ownerView = 'dashboard';
 function ownerOpenApprovals() { ownerView = 'approvals'; renderOwnerBody(); }
 function ownerBackToDashboard() { ownerView = 'dashboard'; renderOwnerBody(); }
 
+// Fix Plan Phase 2 (5 Aug 2026, Fable audit findings #1/#2) — a
+// department budget over BD 5,000 needs a second, Owner-only approval
+// (approveDepartmentBudgetOwnerReview()/rejectDepartmentBudgetOwnerReview(),
+// data.js) on top of the department manager's own. getPendingBudgetApprovalsFor
+// ('owner') already surfaces both a normal department-level "pending"
+// entry (Owner is a wildcard, can approve directly like any department
+// approver) and the over-threshold "pending-owner-review" ones — this
+// screen shows both, branching the action per row's own actual status.
+function ownerOpenBudgetReviews() { ownerView = 'budget-review'; renderOwnerBody(); }
+function ownerBudgetReviewApprove(jobId, deptKey, status) {
+  const result = status === 'pending-owner-review'
+    ? approveDepartmentBudgetOwnerReview(jobId, deptKey, 'Salman Abdullah')
+    : approveDepartmentBudget(jobId, deptKey, 'Salman Abdullah');
+  if (result.error) { if (typeof commsToast === 'function') commsToast(result.error); return; }
+  renderOwnerBody();
+}
+function ownerBudgetReviewReject(jobId, deptKey, status) {
+  const comment = window.prompt('Reason for rejecting this budget:');
+  if (!comment) return;
+  const result = status === 'pending-owner-review'
+    ? rejectDepartmentBudgetOwnerReview(jobId, deptKey, 'Salman Abdullah', comment)
+    : rejectDepartmentBudget(jobId, deptKey, 'Salman Abdullah', comment);
+  if (result.error) { if (typeof commsToast === 'function') commsToast(result.error); return; }
+  renderOwnerBody();
+}
+
 function renderOwnerBody() {
   const body = document.getElementById('owner-body');
   if (!body) return;
   if (ownerView === 'approvals') {
     body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span><div id="owner-approval-queue"></div>`;
     renderApprovalQueueScreen('owner-approval-queue');
+    return;
+  }
+  if (ownerView === 'budget-review') {
+    const rows = getPendingBudgetApprovalsFor('owner');
+    body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span>` + (rows.length === 0
+      ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No department budgets waiting on you right now.</p></div>`
+      : rows.map(({ job, deptKey, entry }) => {
+          const c = customers.find(x => x.id === job.customerId);
+          const t = computeBOMTotals(entry.bom);
+          const overThreshold = requiresOwnerApproval(t.totalCostInclOH);
+          return `
+          <div class="sales-card">
+            <p style="font-weight:700;font-size:13px;margin:0 0 4px;">${ownerEsc(job.id)} — ${ownerEsc(dc(deptKey).n)}</p>
+            <p style="font-size:11px;color:#94a3b8;margin:0 0 6px;">${ownerEsc(c ? c.name : '—')} · ${ownerBHD(t.totalCostInclOH)}${overThreshold ? ` · over BD ${BUDGET_APPROVAL_THRESHOLD} — ${entry.approvalStatus === 'pending-owner-review' ? 'manager already approved, needs your final review' : 'will need a second Owner review once approved'}` : ''}</p>
+            <div style="display:flex;gap:8px;">
+              <button class="primary" style="flex:1;font-size:11.5px;" onclick="ownerBudgetReviewApprove('${ownerEsc(job.id)}','${ownerEsc(deptKey)}','${ownerEsc(entry.approvalStatus)}')">Approve</button>
+              <button class="secondary" style="flex:1;font-size:11.5px;color:#b91c1c;" onclick="ownerBudgetReviewReject('${ownerEsc(job.id)}','${ownerEsc(deptKey)}','${ownerEsc(entry.approvalStatus)}')">Reject</button>
+            </div>
+          </div>`;
+        }).join(''));
     return;
   }
 
@@ -231,7 +277,7 @@ function renderOwnerBody() {
     <div class="sales-card">
       <h3>Operations &amp; Production</h3>
       <div class="owner-dept-row"><span>Jobs awaiting routing</span><span class="owner-dept-pill">${jobsPendingRouting}</span></div>
-      <div class="owner-dept-row"><span>Department budgets pending approval</span><span class="owner-dept-pill">${pendingBudgetApprovals}</span></div>
+      <div class="owner-dept-row" style="cursor:pointer;" onclick="ownerOpenBudgetReviews()"><span>Department budgets pending approval</span><span class="owner-dept-pill">${pendingBudgetApprovals} →</span></div>
       <div class="owner-dept-row"><span>Joinery queue</span><span class="owner-dept-pill">${joineryQueue}</span></div>
       <div class="owner-dept-row"><span>Upholstery queue</span><span class="owner-dept-pill">${upholsteryQueue}</span></div>
       <div class="owner-dept-row"><span>Painting queue</span><span class="owner-dept-pill">${paintingQueue}</span></div>

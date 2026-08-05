@@ -49,7 +49,9 @@ for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
   await page.evaluate(() => goTo('operations'));
   await page.waitForTimeout(300);
   try {
-    await page.click('#p-operations button[onclick="goTo(\'eco\')"]', { timeout: 2000 });
+    // Nav overhaul Phase 4 (5 Aug 2026) renamed this button's handler from
+    // goTo('eco') to goHome() — same fallback behavior pre-login.
+    await page.click('#p-operations button[onclick="goHome()"]', { timeout: 2000 });
     await page.waitForTimeout(300);
     const activePage2 = await page.evaluate(() => document.querySelector('#scroll > .page.active')?.id);
     console.log('Clicking internal Operations back button -> active page is now:', activePage2);

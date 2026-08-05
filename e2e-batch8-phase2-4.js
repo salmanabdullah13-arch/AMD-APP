@@ -90,16 +90,20 @@ async function openNode(page, nodeId, wrapId) {
   await shot(page, 'joinery-budget-form-filled');
   await page.click('#joinery-body button:has-text("Submit for Approval")');
   await page.waitForTimeout(200);
-  await page.evaluate(() => joinerySetView('approvals'));
-  await page.waitForTimeout(200);
-  await shot(page, 'joinery-approvals-shows-own-submission');
-  const approvalsShowCarp = await page.evaluate(() => document.getElementById('joinery-body').innerHTML.includes('Carpentry'));
-  record('Joinery Approvals tab shows its own pending budget', approvalsShowCarp ? 'PASS' : 'FAIL');
-  await page.click('#joinery-body button:has-text("Approve")');
+  // Fix Plan Phase 2 (5 Aug 2026): the submitting manager can no longer
+  // approve their own budget — Joinery's Approvals tab is gone, and the
+  // approval happens in Operations → Budget Approvals (Operations Manager).
+  await page.evaluate(() => { goTo('operations'); opsGoTo('budgetapprovals'); });
+  await page.waitForTimeout(300);
+  await shot(page, 'ops-budget-approvals-shows-joinery');
+  const approvalsShowCarp = await page.evaluate(() => document.getElementById('ops-budget-approvals-body').innerHTML.includes('Carpentry'));
+  record("Operations' Budget Approvals tab shows Joinery's pending budget (maker-checker — no longer approvable inside Joinery)", approvalsShowCarp ? 'PASS' : 'FAIL');
+  await page.click('#ops-budget-approvals-body button:has-text("Approve")');
   await page.waitForTimeout(200);
   await shot(page, 'joinery-budget-approved');
 
   // ── Now Start Production actually works ──
+  await openNode(page, 'joinery', 'joinery-module-wrap');
   await page.evaluate(() => joinerySetView('queue'));
   await page.waitForTimeout(200);
   await page.click('#joinery-body button:has-text("Start Production")');
@@ -161,14 +165,14 @@ async function openNode(page, nodeId, wrapId) {
   await page.waitForTimeout(200);
   await shot(page, 'painting-budget-submitted');
 
-  // Painting's budget is approved by the Joinery Production Manager, IN the Joinery module
-  await openNode(page, 'joinery', 'joinery-module-wrap');
-  await page.evaluate(() => joinerySetView('approvals'));
-  await page.waitForTimeout(200);
-  await shot(page, 'joinery-approvals-shows-painting-too');
-  const approvalsShowPainting = await page.evaluate(() => document.getElementById('joinery-body').innerHTML.includes('Painting'));
-  record('Joinery Approvals ALSO shows Painting\'s pending budget (same approver, separate submission)', approvalsShowPainting ? 'PASS' : 'FAIL');
-  await page.click('#joinery-body .sales-card:has-text("Painting") button:has-text("Approve")');
+  // Painting's budget is approved by the Operations Manager too (Fix Plan
+  // Phase 2 — the old Joinery-manager-approves-Painting pairing is gone)
+  await page.evaluate(() => { goTo('operations'); opsGoTo('budgetapprovals'); });
+  await page.waitForTimeout(300);
+  await shot(page, 'ops-approvals-shows-painting-too');
+  const approvalsShowPainting = await page.evaluate(() => document.getElementById('ops-budget-approvals-body').innerHTML.includes('Painting'));
+  record("Operations' Budget Approvals shows Painting's pending budget (no longer routed to the Joinery manager)", approvalsShowPainting ? 'PASS' : 'FAIL');
+  await page.click('#ops-budget-approvals-body .sales-card:has-text("Painting") button:has-text("Approve")');
   await page.waitForTimeout(200);
 
   // Back in Painting, production can now start
@@ -195,13 +199,18 @@ async function openNode(page, nodeId, wrapId) {
   await page.fill('#db-upholstery-materials', '120');
   await page.click('#upholstery-body button:has-text("Submit for Approval")');
   await page.waitForTimeout(200);
-  await page.evaluate(() => upholsterySetView('approvals'));
+  // The dept module no longer has an Approvals tab — its dashboard tile now
+  // counts its OWN submission awaiting the Operations Manager.
+  await page.evaluate(() => upholsterySetView('dashboard'));
   await page.waitForTimeout(200);
-  await shot(page, 'upholstery-approvals-own-only');
-  const upApprovalsShow = await page.evaluate(() => document.getElementById('upholstery-body').innerHTML.includes('Upholstery'));
-  record('Upholstery Approvals shows only its own submission (separate approver from Joinery/Painting)', upApprovalsShow ? 'PASS' : 'FAIL');
-  await page.click('#upholstery-body button:has-text("Approve")');
+  await shot(page, 'upholstery-own-pending-tile');
+  const upOwnPending = await page.evaluate(() => getOwnPendingBudgetCountForDept('uph'));
+  record("Upholstery's Budgets Pending tile counts its own submission awaiting approval (no Approvals tab anymore)", upOwnPending === 1 ? 'PASS' : 'FAIL', `count=${upOwnPending}`);
+  await page.evaluate(() => { goTo('operations'); opsGoTo('budgetapprovals'); });
+  await page.waitForTimeout(300);
+  await page.click('#ops-budget-approvals-body .sales-card:has-text("Upholstery") button:has-text("Approve")');
   await page.waitForTimeout(200);
+  await openNode(page, 'upholstery', 'upholstery-module-wrap');
   await page.evaluate(() => upholsterySetView('queue'));
   await page.waitForTimeout(200);
   await page.click('#upholstery-body button:has-text("Start Production")');
