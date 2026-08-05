@@ -105,13 +105,36 @@ function cloudLoginStart() {
   // suite doesn't stall on this screen. e2e-cloud-login.js opts back OUT
   // (via ?test_cloud_login=1) since that's the one suite testing this
   // screen for real.
-  const isLocalTestOrigin = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   const testingCloudLoginItself = new URLSearchParams(location.search).get('test_cloud_login') === '1';
-  if (isLocalTestOrigin && !testingCloudLoginItself) {
+  if (isLocalTestOrigin() && !testingCloudLoginItself) {
     finishCloudLogin('E2E Test User', false);
     return;
   }
   checkCloudSession();
+}
+
+// Shared with the roster filter below — the real deployed app is only
+// ever reached over https://salmanabdullah13-arch.github.io or as an
+// installed PWA, never file:// or localhost.
+function isLocalTestOrigin() {
+  return location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+}
+
+// The e2e suite's own accounts live in the same allowed_identities table
+// real staff do (they have to — profiles.display_name and
+// messages.sender_name/recipient_name both FK-reference it). Two suites
+// (e2e-signup-approval.js, e2e-role-gating.js) each create a fresh
+// timestamped throwaway account per run to exercise the real sign-up →
+// approve flow, and can't delete it afterwards (removing an auth user
+// needs the service_role key, which must never reach client code) — so
+// these accumulate indefinitely. By 5 Aug 2026 that was 73 test names
+// against 11 real staff in the sign-in dropdown, which is what Salman
+// reported. Filtered out here rather than in the query so the fix holds
+// no matter how many more accumulate; test origins still see everything
+// so the suites that sign in as these accounts keep working unchanged.
+function filterRealIdentities(roster) {
+  if (isLocalTestOrigin()) return roster;
+  return (roster || []).filter(r => !/^E2E /i.test(r.display_name || ''));
 }
 
 async function checkCloudSession() {
@@ -178,7 +201,7 @@ function renderAuthForms(mode, message) {
   // mode === 'signin'
   sb.from('allowed_identities').select('display_name').order('display_name').then(({ data: roster, error }) => {
     if (error) { body.innerHTML = tabsHtml + `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load the roster: ${authEsc(error.message)}</p>`; return; }
-    const rosterOptions = roster.map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('');
+    const rosterOptions = filterRealIdentities(roster).map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('');
     body.innerHTML = tabsHtml + `
       ${messageHtml}
       <select id="auth-identity-select" style="${authFieldStyle}">
@@ -395,7 +418,7 @@ async function renderIdentityClaim(message) {
     ${message ? `<p style="font-size:12.5px;color:var(--bad);text-align:center;margin-bottom:10px;">${authEsc(message)}</p>` : ''}
     <select id="cloud-identity-select" style="${authFieldStyle}">
       <option value="">— Select your name —</option>
-      ${roster.map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('')}
+      ${filterRealIdentities(roster).map(r => `<option value="${authEsc(r.display_name)}">${authEsc(r.display_name)}</option>`).join('')}
     </select>
     <button onclick="claimIdentity()" style="${authBtnStyle}">Continue</button>
   `;

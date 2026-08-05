@@ -4693,3 +4693,52 @@ mid-rollout. This entry covers Phase 1 only.
   `nodeAccessible()` gate note directly above, if he ever wants
   client-side role gating restored somewhere now that the picker is
   gone.
+
+### 5 Aug 2026 — Sign-in dropdown was full of test accounts
+
+- **Salman reported** the sign-in page listing "many test based users."
+  Confirmed by querying the live `allowed_identities` table directly:
+  **83 rows, of which only 11 are real staff** — 47 `E2E Signup
+  Throwaway <ts>`, 23 `E2E Gating Throwaway <ts>`, plus the 3 named
+  fixtures (`E2E Test Account`/`E2E Approver Account`/`E2E Joinery
+  Account`).
+- **Root cause**: `e2e-signup-approval.js` and `e2e-role-gating.js` each
+  create a fresh timestamped throwaway account per run to exercise the
+  real sign-up → approve flow, and **cannot delete it afterwards** —
+  removing an auth user needs the `service_role` key, which must never
+  reach client code. So every run of either suite permanently adds a
+  name to the roster every real staff member sees. This has been
+  accumulating since the role-based access rollout landed.
+- **Fix (auth.js)**: new `filterRealIdentities(roster)` strips any
+  `E2E `-prefixed name from the sign-in dropdown and the identity-claim
+  fallback picker. Gated on a new shared `isLocalTestOrigin()` helper
+  (extracted from the pre-existing inline check in `cloudLoginStart()`,
+  now used by both) — **test origins still see everything**, so the
+  suites that sign in as an E2E account keep working completely
+  unchanged. Filtering client-side rather than in the query is
+  deliberate: it holds no matter how many more accumulate, and needs no
+  schema/RLS change. Prefix-anchored (`/^E2E /i`) so a real staff name
+  can never be caught by accident.
+- **Deliberately NOT "fixed" by making the tests self-clean** — they
+  genuinely can't without shipping `service_role` to the browser, and
+  reusing one fixed throwaway name would break the second run
+  (`profiles.display_name` is unique, which is the point of that test).
+  The accumulation is inherent; hiding it from real users is the real
+  fix. A purge script was handed to Salman separately as optional
+  housekeeping (deletes only `% Throwaway %` rows, explicitly sparing
+  the 3 named fixtures 8 live suites depend on) — not run this session,
+  since no `service_role`/Management API credential was available.
+- **Verification**: new `e2e-roster-filter.js` (8/8) — exercises BOTH
+  branches by monkey-patching `window.isLocalTestOrigin` (both are plain
+  global function declarations, so the reassignment really does change
+  what `filterRealIdentities()` resolves; otherwise the production
+  branch would be untestable from a `file://` origin), confirms
+  pass-through on test origins, confirms the named fixtures are filtered
+  too (not just the timestamped ones), confirms no over-matching of real
+  names, confirms the patch is restored cleanly, and — the check that
+  actually matters — queries the **real live roster** and asserts a
+  staff member now sees **11 names of 83, zero of them test accounts**.
+  Re-ran the 4 suites that sign in via this dropdown individually
+  (cloud-login, role-gating, signup-approval, cloud-customers) plus a
+  full 46-file sweep: 45 pass, the one failure is the same
+  already-documented `markMessageRead` stateful-live-data flake.
