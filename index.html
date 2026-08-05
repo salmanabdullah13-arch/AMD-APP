@@ -1420,6 +1420,14 @@ const NODES = [
   // active job's stages) — the closest existing fit for a coordinating
   // role that needs cross-stage visibility rather than one stage's queue.
   { id:'curtain-pipeline', label:'Curtain – Team Leader',    built:true, launch:()=>{ closePanel(); setTimeout(()=>openPipelineBoard(),150); } },
+  // Upholstery granular role dashboards (Milestone C, 5 Aug 2026) —
+  // reuse the existing upholstery-module-wrap but land on a restricted,
+  // no-tab-bar view (renderUpholsteryTeamLeaderView/
+  // renderUpholsteryQCPackagingView, upholstery.js) so Budgets/Approvals/
+  // the Manager's own Dashboard are never reachable from these entry
+  // points at all, not just hidden.
+  { id:'upholstery-team-leader',  label:'Upholstery – Team Leader',     built:true, launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryTeamLeaderModule(),150); } },
+  { id:'upholstery-qc-packaging', label:'Upholstery – QC/Packaging',    built:true, launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryQCPackagingModule(),150); } },
 ];
 
 // Role-based access (5 Aug 2026, role-based access rollout) —

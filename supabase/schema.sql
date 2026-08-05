@@ -496,8 +496,10 @@ insert into public.user_types (key, label, dashboard_node_id, department) values
   ('curtain_team_leader', 'Team Leader', 'curtain-pipeline', 'curtain'),
   ('curtain_site_installer', 'Site Installer', 'curtain-install', 'curtain'),
   ('upholstery_manager', 'Upholstery Manager', 'upholstery', 'upholstery'),
-  ('upholstery_team_leader', 'Team Leader', null, 'upholstery'),
-  ('upholstery_qc_packaging_team', 'QC / Packaging Team', null, 'upholstery'),
+  -- dashboard_node_id filled in for Milestone C (5 Aug 2026) — see the
+  -- NODES entries in index.html.
+  ('upholstery_team_leader', 'Team Leader', 'upholstery-team-leader', 'upholstery'),
+  ('upholstery_qc_packaging_team', 'QC / Packaging Team', 'upholstery-qc-packaging', 'upholstery'),
   ('owner', 'Owner', 'owner', 'owner')
 on conflict (key) do update set label = excluded.label, dashboard_node_id = excluded.dashboard_node_id, department = excluded.department;
 

@@ -17,8 +17,16 @@ const DEPT_QUEUE_STAGE_LABEL = { queued: 'Queued', 'in-production': 'In Producti
 
 // modPrefix: 'joinery' | 'upholstery' — used only to route the dispatcher
 // back to the right module's re-render + alert functions.
-function renderDeptQueue(deptKey, currentUser, modPrefix) {
-  const rows = getDepartmentQueue(deptKey);
+// statusFilter (optional, 5 Aug 2026, role-based access rollout): an
+// array of departmentStatuses[].status values to restrict this render
+// to — used by the granular per-role dashboards (e.g. Upholstery's
+// Team Leader/QC-Packaging screens) so each role sees only the stage(s)
+// it actually works, not the Manager's full cross-stage queue. Omitted
+// entirely, this renders every row exactly as before — the Manager
+// dashboards (joinery.js/upholstery.js) don't pass it and are unchanged.
+function renderDeptQueue(deptKey, currentUser, modPrefix, statusFilter) {
+  let rows = getDepartmentQueue(deptKey);
+  if (statusFilter) rows = rows.filter(r => statusFilter.includes(r.entry.status));
   if (rows.length === 0) {
     return `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">Nothing in the ${deptEsc(dc(deptKey).n)} queue right now.</p></div>`;
   }

@@ -83,7 +83,13 @@ function upholsteryAlert(msg) {
   toast._t = setTimeout(() => toast.style.opacity = '0', 2800);
 }
 
-function openUpholsteryModule() {
+// initialView (optional, 5 Aug 2026, role-based access rollout):
+// 'team-leader' | 'qc-packaging' — jumps straight to a restricted,
+// role-scoped view with no tab bar (Manager-level tabs like Budgets/
+// Approvals never render for these), used by the granular-role NODES
+// entries in index.html. Omitted, this is the unchanged Manager
+// dashboard entry point.
+function openUpholsteryModule(initialView) {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
@@ -92,9 +98,12 @@ function openUpholsteryModule() {
     if (el) el.style.display = 'none';
   });
   upholsteryModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
-  upholsteryView = 'dashboard';
+  upholsteryView = initialView || 'dashboard';
   renderUpholsteryBody();
 }
+// Granular-role entry points (Milestone C) — see openUpholsteryModule()'s note.
+function launchUpholsteryTeamLeaderModule() { openUpholsteryModule('team-leader'); }
+function launchUpholsteryQCPackagingModule() { openUpholsteryModule('qc-packaging'); }
 function closeUpholsteryModule() {
   upholsteryModuleWrap.style.display = 'none';
   const scroll = document.getElementById('scroll');
@@ -104,9 +113,30 @@ function launchUpholsteryModule() { openUpholsteryModule(); }
 
 function upholsterySetView(v) { upholsteryView = v; renderUpholsteryBody(); }
 
+// Granular-role views (Milestone C, 5 Aug 2026) — deliberately render
+// with NO tab bar, so a Team Leader/QC-Packaging login can never reach
+// Budgets/Approvals or the Manager's own Dashboard by tapping a tab
+// that simply isn't there — matches the plan's rule that a granular
+// role never falls back to a manager's full view. Each reuses
+// renderDeptQueue()'s new optional statusFilter param rather than a
+// separate render function, since the table/action markup is identical
+// — only which rows show differs.
+const UPHOLSTERY_TEAM_LEADER_STATUSES = ['queued', 'in-production', 'rework'];
+const UPHOLSTERY_QC_PACKAGING_STATUSES = ['qc', 'ready-for-handoff'];
+function renderUpholsteryTeamLeaderView() {
+  return `<p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">Team Leader — production queue</p>`
+    + renderDeptQueue(UPHOLSTERY_DEPT_KEY, upholsteryCurrentUser, 'upholstery', UPHOLSTERY_TEAM_LEADER_STATUSES);
+}
+function renderUpholsteryQCPackagingView() {
+  return `<p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">QC / Packaging Team — quality &amp; hand-off queue</p>`
+    + renderDeptQueue(UPHOLSTERY_DEPT_KEY, upholsteryCurrentUser, 'upholstery', UPHOLSTERY_QC_PACKAGING_STATUSES);
+}
+
 function renderUpholsteryBody() {
   const body = document.getElementById('upholstery-body');
   if (!body) return;
+  if (upholsteryView === 'team-leader') { body.innerHTML = renderUpholsteryTeamLeaderView(); return; }
+  if (upholsteryView === 'qc-packaging') { body.innerHTML = renderUpholsteryQCPackagingView(); return; }
   const tab = (v, label) => `<button class="sales-tabbtn ${upholsteryView === v ? 'active' : ''}" onclick="upholsterySetView('${v}')">${label}</button>`;
   const pendingCount = getPendingBudgetApprovalsFor(upholsteryApproverUserType()).length;
   const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'Dashboard')}${tab('queue', 'Production Queue')}${tab('budget', 'Budgets')}${tab('approvals', `Approvals${pendingCount ? ' (' + pendingCount + ')' : ''}`)}</div>`;

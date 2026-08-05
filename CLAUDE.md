@@ -3548,3 +3548,49 @@ credential decision this session; he chose to hand one over.
   expected to be a similar "mostly wiring" pass; check for the same
   kind of already-separated dashboards before assuming new UI is
   needed.
+
+### 5 Aug 2026 — Role-based access rollout, Milestone C (Upholstery)
+- Unlike Curtain, `upholstery.js` (151 lines) has no already-separated
+  dashboards — it's a thin wrapper around the shared Joinery/Upholstery
+  pipeline primitive (`dept-pipeline-ui.js`) with one undifferentiated
+  queue view covering every stage at once. Genuinely needed new (small)
+  work, not just wiring.
+- Added an optional `statusFilter` param to `renderDeptQueue()`
+  (`dept-pipeline-ui.js`) — omitted, renders every row exactly as
+  before (Joinery's and Upholstery's own Manager dashboards don't pass
+  it, unchanged); passed, restricts to just those
+  `departmentStatuses[].status` values. This is the one shared-primitive
+  touch point for both new Upholstery roles, reused as-is rather than
+  writing a second table-render function.
+- **Team Leader** -> `['queued', 'in-production', 'rework']` (getting
+  work into and through production). **QC/Packaging Team** ->
+  `['qc', 'ready-for-handoff']` (quality decision through final
+  hand-off/dispatch — "packaging" mapped onto the existing
+  `ready-for-handoff` stage rather than inventing a new pipeline status,
+  since that would have meant touching the shared primitive Joinery
+  also depends on, for a role-scoping question no new data was actually
+  needed to answer).
+- Reused the EXISTING `upholstery-module-wrap` rather than building new
+  standalone overlays (Curtain's pattern) — `openUpholsteryModule()`
+  now takes an optional `initialView` and `renderUpholsteryBody()`
+  renders these two views with NO tab bar at all, so Budgets/Approvals/
+  the Manager's own Dashboard are structurally unreachable from these
+  entry points, not just hidden. Cheaper than duplicating
+  `.sales-card`/`.sales-tabs` styling into a new scoped stylesheet the
+  way a genuinely standalone overlay would have needed.
+- Two new NODES entries (`upholstery-team-leader`/
+  `upholstery-qc-packaging`) + matching `user_types.dashboard_node_id`
+  values, same pattern as Milestone B.
+- **Verification**: new `e2e-upholstery-granular-dashboards.js` (8/8)
+  routes a real job with one line at `queued` and one at `qc`, proves
+  each entry point shows only its own role's line (not the other),
+  shows no tab bar, leaves no other module wrap visible, and that the
+  Upholstery Manager's own entry point is completely unaffected (still
+  shows the full tab bar). Full regression (batch8 phase2-4,
+  dashboard-enhancements, back-button-check, the new Curtain test) all
+  clean.
+- Milestone C (Upholstery) complete. Next: Milestone D (Joinery) — the
+  one department with no internal granularity today; expect this to be
+  the biggest, most novel milestone, needing an actual new (placeholder,
+  documented-as-such) sub-stage sequence before the 7 Joinery granular
+  dashboards can have anything real to show.
