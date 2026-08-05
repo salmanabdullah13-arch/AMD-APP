@@ -4180,3 +4180,31 @@ credential decision this session; he chose to hand one over.
   existing KPIs already work — confirmed via reading
   `getSalesKPIs()`/`renderSalesDashboard()`, neither filters by
   salesperson today).
+
+### 5 Aug 2026 — Dashboard Analytics rollout, Phase 3: Sales Dashboard charts
+- `sales.js` gets a new `renderSalesAnalyticsSection()`, inserted into
+  `renderSalesDashboard()` after Category Breakdown: Monthly Revenue by
+  Division and Pipeline Funnel (same `chart-widgets.js` primitives +
+  `data.js` aggregations as Owner's dashboard, company-wide — confirmed
+  by reading `getSalesKPIs()` that nothing there filters by
+  salesperson today, so this section doesn't either), Top Clients, and
+  a new Upcoming Deliveries list — a plain list, not a chart, since a
+  delivery date has no meaningful "bar"; reuses `getDeliverySchedule()`
+  as-is (already existed, planning-only layer, `fleet-delivery.js`).
+- **Verification**: new `e2e-sales-dashboard-charts.js` (7/7) — no
+  pre-existing test touched `renderSalesDashboard()`'s actual output,
+  so this is a new file rather than an extension. Deliberately seeded
+  the test job under a *different* salesperson than the logged-in one,
+  to prove the section is genuinely company-wide and not accidentally
+  scoped to "my own jobs." Full 40-file regression sweep clean (one
+  pre-existing, unrelated `e2e-cloud-messages-presence.js` flake).
+- Next: Phase 4 (Accounts Dashboard) — upgrade the existing plain
+  "Revenue by Division" table to the shared chart. Accounts' own
+  revenue definition (`getAccountsKPIs().byDivision`, invoiced-only via
+  `taxInvoices`) is narrower and more conservative than the job-
+  confirmed-value definition `getMonthlyRevenueByDivision()` uses for
+  Owner/Sales — Accounts gets its own monthly-bucketed variant of its
+  existing invoiced-revenue-by-division logic (same source, same
+  `accountsDivisionForInvoice()` trace) rather than reusing the
+  broader Owner/Sales one, preserving that real accounting distinction
+  rather than quietly widening what "Accounts' revenue" means.
