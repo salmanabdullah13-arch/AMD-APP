@@ -22,11 +22,11 @@ const CACHE_VERSION = "amd-app-v6";
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
-  "./data.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
+  "./data.js", "./chart-widgets.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
   "./operations.js", "./curtain.js",
   "./purchasing.js", "./storekeeper.js", "./sales.js", "./estimator.js",
   "./approver.js", "./jobs.js", "./accounts.js", "./hr.js", "./owner.js",
-  "./chart-widgets.js", "./dept-pipeline-ui.js", "./joinery.js", "./upholstery.js", "./painting.js",
+  "./dept-pipeline-ui.js", "./joinery.js", "./upholstery.js", "./painting.js",
   "./fleet-delivery.js"
 ];
 

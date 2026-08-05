@@ -4235,3 +4235,62 @@ credential decision this session; he chose to hand one over.
 - Next: Phase 5 (Operations Manager Dashboard) — cross-department
   pipeline funnel + queue-depth mini-bars per department, reusing
   `getDepartmentQueue()` counts `operations.js` already computes.
+
+### 5 Aug 2026 — Dashboard Analytics rollout, Phase 5: Operations Manager Dashboard charts
+- `operations.js`'s `renderOpsDashboard()` gets two new cards: Pipeline
+  Funnel (`cwHorizontalBarList` + `getPipelineFunnel()`, company-wide,
+  same as Owner/Sales) and Department Queue Depth (`cwMiniBars`, one
+  bar per department — Joinery/Upholstery via the shared
+  `getDepartmentQueue()`, Painting via its own separate
+  `getPaintingQueue()`, Curtain via `getCurtainKPIs().totalRunningJobs`
+  since it tracks activity on its own `curtainJobs[]`, not
+  `departmentStatuses`). Genuinely new information here — unlike
+  Owner's dashboard, Operations never showed a per-department queue
+  breakdown before.
+- **Real script-load-order bug found and fixed, twice, while building
+  this**:
+  1. `chart-widgets.js`'s script tag was positioned after `owner.js` —
+     but `operations.js` (which loads much earlier) calls
+     `renderOpsDashboard()` eagerly at its own script-load time (an
+     existing "init" block at the bottom of the file, not something
+     added this session), and my new code there referenced
+     `cwOrdinalColor()` before `chart-widgets.js` had loaded, throwing
+     `cwOrdinalColor is not defined` at page startup. Fixed by moving
+     `chart-widgets.js`'s script tag to right after `data.js` — it has
+     zero dependencies on anything, so this is safe, and matches the
+     "pure rendering, no data.js dependency" design already documented
+     in the file's own header.
+  2. That fix immediately surfaced a **second**, real, pre-existing
+     latent bug it had been masking: `getCurtainKPIs()` (called by my
+     new Department Queue Depth card) transitively calls
+     `getBehindScheduleWindows()` → `ensureItemCards()`, a curtain.js
+     function — but `operations.js`'s eager init-time call to
+     `renderOpsDashboard()` happens before `curtain.js` has loaded,
+     since `curtain.js` loads after `operations.js` in `index.html`.
+     Confirmed via a full error stack trace (temporary diagnostic
+     script, deleted after use) tracing exactly
+     `getCurtainKPIs→getBehindScheduleWindows→ensureItemCards`, called
+     from `operations.js`'s own bottom-of-file init block. Fixed by
+     guarding the call: `typeof ensureItemCards === 'function' ?
+     getCurtainKPIs().totalRunningJobs : 0` — the init-time eager
+     render just shows 0 for that one bar until curtain.js finishes
+     loading, then shows the real number once the user actually
+     navigates into Operations (same "eager render can be briefly
+     stale" pattern this dashboard's own pre-existing e2e test already
+     covers for its other tiles). Neither bug was reachable before this
+     session touched these two files.
+- **Verification**: extended the existing `e2e-dashboard-enhancements.js`
+  (17→19 checks) rather than creating a parallel test, reusing its
+  already-seeded clear/unrouted/budget-pending jobs to verify the new
+  Pipeline Funnel buckets them into the right real stages and the
+  Department Queue Depth section renders. Full 41-file regression
+  sweep clean after both fixes (two flakes during the *investigation*
+  sweep — `e2e-age-gate.js` and the known
+  `e2e-cloud-messages-presence.js` — both confirmed as flakes via
+  standalone re-run, unrelated to this change).
+- Next: Phase 6 (Joinery/Upholstery/Painting manager dashboards) —
+  upgrade `dept-pipeline-ui.js`'s shared `renderDeptQualityCard()`
+  (used by both Joinery and Upholstery) and Painting's own separate
+  `renderPaintingQualityCard()` from a plain pass-rate number to a real
+  ring gauge (`cwRingStatCard`), bringing all three up to Curtain's
+  existing visual tier.

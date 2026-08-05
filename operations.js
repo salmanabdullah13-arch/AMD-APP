@@ -839,7 +839,45 @@ function renderOpsDashboard() {
       return `<div class="prow"><div><div class="pname">${opsEsc(j.projectName)}</div><div class="pmeta">${j.id} · ${opsEsc(c ? c.name : '—')} · On budget</div></div><span class="badge zero">✓</span></div>`;
     }).join('');
 
+  // Dashboard Analytics rollout (5 Aug 2026), Phase 5 — genuinely new
+  // information on this dashboard (unlike Owner's, which already
+  // surfaced these as plain number rows before its own chart upgrade):
+  // a cross-department pipeline funnel and a queue-depth bar per
+  // department. Painting has its own separate getPaintingQueue()
+  // (deliberately not the shared getDepartmentQueue(), see PAINT_DEPT_KEY
+  // design note) and Curtain tracks activity via getCurtainKPIs() on its
+  // own curtainJobs[] structure, not departmentStatuses — same
+  // per-department normalization already used on Owner's dashboard.
+  const funnel = getPipelineFunnel();
+  const funnelRows = funnel.stages.map((s, i) => ({
+    label: `${s} (${funnel.byStage[s].count})`, value: funnel.byStage[s].value, color: cwOrdinalColor(i)
+  }));
+  // operations.js's own "init" block (bottom of this file) calls
+  // renderOpsDashboard() eagerly at script-load time, before curtain.js
+  // has necessarily finished loading — getCurtainKPIs() transitively
+  // calls curtain.js's ensureItemCards(), which would throw at that
+  // specific early moment. Guard on a curtain.js-only global so the
+  // init-time render just shows 0 here (corrected the moment the user
+  // actually navigates into Operations, same "eager render can be
+  // slightly stale until you enter" pattern this dashboard's own
+  // existing e2e test already covers for its other tiles).
+  const curtainRunningJobs = typeof ensureItemCards === 'function' ? getCurtainKPIs().totalRunningJobs : 0;
+  const deptQueueBars = [
+    { label: dc('carp').n, value: getDepartmentQueue('carp').length, color: cwOrdinalColor(0) },
+    { label: dc('uph').n, value: getDepartmentQueue('uph').length, color: cwOrdinalColor(1) },
+    { label: dc('paint').n, value: getPaintingQueue().length, color: cwOrdinalColor(2) },
+    { label: 'Curtain', value: curtainRunningJobs, color: cwOrdinalColor(3) }
+  ];
+
   el.innerHTML = commsHtml + kpisHtml + `
+    <div class="card">
+      <p class="card-title">Pipeline Funnel (company-wide)</p>
+      ${cwHorizontalBarList(funnelRows, { valueFormatter: v => money(v), emptyMessage: 'No quotations or jobs yet.' })}
+    </div>
+    <div class="card">
+      <p class="card-title">Department Queue Depth (active lines/jobs)</p>
+      ${cwMiniBars(deptQueueBars)}
+    </div>
     <div class="card">
       <p class="card-title">Needs your attention now</p>
       ${attentionRows}

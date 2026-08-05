@@ -125,6 +125,27 @@ async function openNode(page, nodeId, wrapId) {
   });
   record('Active Jobs KPI counts only routed, non-cancelled jobs (2: clear + budget job)', opsKpis[0] === '2' ? 'PASS' : 'FAIL', JSON.stringify(opsKpis));
 
+  // ── Dashboard Analytics rollout (5 Aug 2026), Phase 5 — new Pipeline
+  // Funnel + Department Queue Depth cards, genuinely new information on
+  // this dashboard (unlike Owner's, which already had these as plain
+  // number rows before its own chart upgrade). Reuses the exact seed
+  // data above: unroutedJob -> "Job Confirmed" stage; clearJob/budgetJob
+  // (both routed to carp, per division "Joinery") -> "In Production" and
+  // queued into the Joinery department queue.
+  currentStep = 'analytics-charts';
+  const analytics = await page.evaluate(() => {
+    const html = document.getElementById('ops-dashboard-body').innerHTML;
+    return {
+      hasPipelineFunnelSection: html.includes('Pipeline Funnel'),
+      hasJobConfirmedStage: html.includes('Job Confirmed'),
+      hasInProductionStage: html.includes('In Production'),
+      hasQueueDepthSection: html.includes('Department Queue Depth'),
+      hasJoineryBar: html.includes('Carpentry') || html.includes('Joinery')
+    };
+  });
+  record('Operations Dashboard renders the new Pipeline Funnel section with real stage buckets (Job Confirmed / In Production)', analytics.hasPipelineFunnelSection && analytics.hasJobConfirmedStage && analytics.hasInProductionStage ? 'PASS' : 'FAIL', JSON.stringify(analytics));
+  record('Operations Dashboard renders the new Department Queue Depth section', analytics.hasQueueDepthSection && analytics.hasJoineryBar ? 'PASS' : 'FAIL', JSON.stringify(analytics));
+
   // Navigating INTO Operations from the ecosystem hub re-renders — this was
   // the actual bug found live-testing the fix: goTo('operations') never
   // called renderOpsDashboard() at all, only opsGoTo() (switching between
