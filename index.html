@@ -1428,6 +1428,19 @@ const NODES = [
   // points at all, not just hidden.
   { id:'upholstery-team-leader',  label:'Upholstery – Team Leader',     built:true, launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryTeamLeaderModule(),150); } },
   { id:'upholstery-qc-packaging', label:'Upholstery – QC/Packaging',    built:true, launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryQCPackagingModule(),150); } },
+  // Joinery granular role dashboards (Milestone D, 5 Aug 2026) — reuse
+  // joinery-module-wrap but land on a restricted, no-tab-bar view
+  // scoped to one internal sub-stage (see the design note on
+  // JOINERY_SUB_STAGES in data.js — this is the one department that
+  // needed genuinely new internal granularity, not just wiring).
+  // joinery_assistant_production_manager deliberately isn't listed here
+  // — it shares the 'joinery' node itself (see schema.sql).
+  { id:'joinery-drafting',       label:'Joinery – Draftsman',           built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryDraftingModule(),150); } },
+  { id:'joinery-cutting',        label:'Joinery – Cutting List Team',   built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryCuttingModule(),150); } },
+  { id:'joinery-veneer-pressing',label:'Joinery – Veneer Pressing Team',built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryVeneerPressingModule(),150); } },
+  // Team Leader / Floor Supervisor / Site Supervisor share this one
+  // node (see the design note above and in schema.sql/data.js).
+  { id:'joinery-floor',          label:'Joinery – Floor Overview',      built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryFloorModule(),150); } },
 ];
 
 // Role-based access (5 Aug 2026, role-based access rollout) —

@@ -88,7 +88,13 @@ function joineryAlert(msg) {
   toast._t = setTimeout(() => toast.style.opacity = '0', 2800);
 }
 
-function openJoineryModule() {
+// initialView (optional, Milestone D, 5 Aug 2026, role-based access
+// rollout): 'drafting' | 'cutting' | 'veneer-pressing' | 'floor' — see
+// the granular-role views below. Omitted, this is the unchanged
+// Production Manager dashboard entry point. Assistant Production
+// Manager (see data.js's design note) deliberately reuses THIS same
+// entry point unmodified rather than getting its own restricted view.
+function openJoineryModule(initialView) {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
@@ -97,7 +103,7 @@ function openJoineryModule() {
     if (el) el.style.display = 'none';
   });
   joineryModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
-  joineryView = 'dashboard';
+  joineryView = initialView || 'dashboard';
   renderJoineryBody();
 }
 function closeJoineryModule() {
@@ -106,12 +112,78 @@ function closeJoineryModule() {
   if (scroll) scroll.style.display = '';
 }
 function launchJoineryModule() { openJoineryModule(); }
+// Granular-role entry points (Milestone D).
+function launchJoineryDraftingModule() { openJoineryModule('drafting'); }
+function launchJoineryCuttingModule() { openJoineryModule('cutting'); }
+function launchJoineryVeneerPressingModule() { openJoineryModule('veneer-pressing'); }
+function launchJoineryFloorModule() { openJoineryModule('floor'); }
 
 function joinerySetView(v) { joineryView = v; renderJoineryBody(); }
+
+// Granular sub-stage views (Milestone D) — each shows ONLY the carp
+// lines currently at that internal sub-stage (see data.js's
+// getJoinerySubStageQueue()), with a single action to mark that
+// sub-stage done and advance to the next one. No tab bar — Budgets/
+// Approvals/the Manager's own Dashboard are structurally unreachable
+// from these entry points, same principle as Upholstery's granular
+// views (Milestone C).
+const JOINERY_SUB_STAGE_LABEL = { drafting: 'Drafting', cutting: 'Cutting', 'veneer-pressing': 'Veneer Pressing', assembly: 'Assembly' };
+function renderJoinerySubStageView(subStage) {
+  const rows = getJoinerySubStageQueue(subStage);
+  const idx = JOINERY_SUB_STAGES.indexOf(subStage);
+  const nextStage = JOINERY_SUB_STAGES[idx + 1];
+  const label = JOINERY_SUB_STAGE_LABEL[subStage];
+  const header = `<p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">${jyEsc(label)} Team — your queue</p>`;
+  if (rows.length === 0) return header + `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">Nothing at the ${jyEsc(label)} stage right now.</p></div>`;
+  return header + `<div class="sales-card" style="overflow-x:auto;">
+    <table class="sales-items"><tr><th>Job</th><th>Product</th><th>Qty</th><th>Action</th></tr>
+    ${rows.map(r => {
+      const c = customers.find(x => x.id === r.job.customerId);
+      return `<tr>
+        <td>${jyEsc(r.job.id)}<br><span style="color:#94a3b8;font-size:10.5px;">${jyEsc(c ? c.name : '—')}</span></td>
+        <td>${jyEsc(r.item.product)}</td>
+        <td>${r.item.qty} ${jyEsc(r.item.unit)}</td>
+        <td>${nextStage ? `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="joineryAdvanceSubStage('${r.job.id}',${r.item.lineId},'${nextStage}')">${jyEsc(label)} Done →</button>` : `<span style="font-size:10.5px;color:#94a3b8;">Ready for QC (Submit for QC from Production Queue)</span>`}</td>
+      </tr>`;
+    }).join('')}
+    </table>
+  </div>`;
+}
+function joineryAdvanceSubStage(jobId, lineId, toSubStage) {
+  const result = advanceJoinerySubStage(jobId, lineId, toSubStage);
+  if (result.error) { joineryAlert(result.error); return; }
+  joineryAlert('✓ Advanced to ' + JOINERY_SUB_STAGE_LABEL[toSubStage] + '.');
+  renderJoineryBody();
+}
+
+// Floor overview (Team Leader/Floor Supervisor/Site Supervisor, shared
+// — see the design note in data.js on why these three collapse onto
+// one view). Read-only, cross-sub-stage — coordination visibility, not
+// an action surface (advancing a sub-stage stays that stage's own
+// team's action, via the views above).
+function renderJoineryFloorView() {
+  const overview = getJoineryFloorOverview();
+  const header = `<p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">Floor overview — every Joinery line currently in production, by stage</p>`;
+  return header + `<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;">
+    ${JOINERY_SUB_STAGES.map(stage => {
+      const rows = overview[stage];
+      return `<div style="min-width:190px;flex:1;">
+        <p style="font-weight:700;font-size:12px;margin:0 0 6px;">${jyEsc(JOINERY_SUB_STAGE_LABEL[stage])} <span style="color:#94a3b8;font-weight:400;">(${rows.length})</span></p>
+        ${rows.length === 0 ? `<p style="font-size:11px;color:#94a3b8;">Nothing here.</p>` : rows.map(r => `
+          <div class="sales-card" style="padding:8px 10px;margin-bottom:6px;">
+            <p style="font-size:12px;font-weight:600;margin:0;">${jyEsc(r.item.product)}</p>
+            <p style="font-size:10.5px;color:#94a3b8;margin:0;">${jyEsc(r.job.id)}</p>
+          </div>`).join('')}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
 
 function renderJoineryBody() {
   const body = document.getElementById('joinery-body');
   if (!body) return;
+  if (JOINERY_SUB_STAGES.includes(joineryView)) { body.innerHTML = renderJoinerySubStageView(joineryView); return; }
+  if (joineryView === 'floor') { body.innerHTML = renderJoineryFloorView(); return; }
   const tab = (v, label) => `<button class="sales-tabbtn ${joineryView === v ? 'active' : ''}" onclick="joinerySetView('${v}')">${label}</button>`;
   // "Approvals" covers Joinery's own pending budgets AND Painting's — the
   // Joinery Production Manager approves both today (real staffing fact,

@@ -4113,6 +4113,12 @@ function startLineProduction(jobId, lineId, deptKey) {
   if (entry.status !== "queued") return { error: "Line must be Queued before starting production." };
   if (!isDepartmentBudgetApproved(job, deptKey)) return { error: "Department budget must be approved before production can start." };
   entry.status = "in-production";
+  // Joinery-only internal granularity (Milestone D, 5 Aug 2026, role-
+  // based access rollout) — see the JOINERY_SUB_STAGES note below.
+  // entry.joinerySubStage is left undefined for every other department
+  // (Upholstery/Painting never read or write it), so this is purely
+  // additive to the shared pipeline, not a change to it.
+  if (deptKey === "carp") entry.joinerySubStage = JOINERY_SUB_STAGES[0];
   persistJobCardUpdate(job);
   return item;
 }
@@ -4190,6 +4196,98 @@ function handOffLine(jobId, lineId, deptKey, user) {
   }
   persistJobCardUpdate(job);
   return item;
+}
+
+// ═══════════════════════════════════════
+// JOINERY INTERNAL SUB-STAGES (Milestone D, 5 Aug 2026, role-based
+// access rollout)
+// Joinery is the one department with no internal granularity — "carp"
+// is a single flat queued -> in-production -> qc -> done pipeline, same
+// as Upholstery's. That was fine when the only Joinery role was one
+// Production Manager seeing everything; it isn't enough for Draftsman/
+// Cutting List Team/Veneer Pressing Team to each have a real, distinct
+// queue of their own actual work.
+//
+// This is an ADDITIVE layer, not a change to the shared pipeline above:
+// entry.joinerySubStage is a new optional field on a "carp"-department
+// departmentStatuses[] entry, only ever set while status === "in-
+// production" (set to the first sub-stage by startLineProduction()
+// above, advanced here). Upholstery/Painting entries never have this
+// field at all — startLineProduction() only sets it when deptKey ===
+// "carp" — so getDepartmentQueue()/renderDeptQueue()/the shared
+// pipeline functions are completely unaware of it and unaffected.
+//
+// Sequence is INVENTED, not traced from a real Q-Pro reference (same
+// caveat as JOB_DEPARTMENTS/JOB_LINE_STATUSES) — a reasonable
+// placeholder good enough to give Draftsman/Cutting List Team/Veneer
+// Pressing Team each a real, distinct queue: drafting (technical
+// drawing/cutting spec) -> cutting (Cutting List Team) -> veneer-
+// pressing (Veneer Pressing Team) -> assembly (the final internal step
+// before the line is ready for submitLineForQC(), same as before this
+// milestone).
+//
+// Site Supervisor/Floor Supervisor/Team Leader are collapsed onto ONE
+// shared cross-sub-stage overview (getJoineryFloorOverview() below)
+// rather than three separately-scoped views — Salman's own list gives
+// no real basis to differentiate these three day-to-day (unlike
+// Draftsman/Cutting List/Veneer Pressing, which are genuinely distinct
+// jobs), so inventing three different slices of the same data would be
+// guessing, not modeling something real. Documented here as a
+// deliberate simplification, not an oversight — cheap to split later
+// if a real difference surfaces. Assistant Production Manager (flagged
+// by Salman as "maybe in the future") shares the Production Manager's
+// own full dashboard rather than getting a redundant near-duplicate —
+// it's a management-tier role by definition, not a shop-floor one.
+// ═══════════════════════════════════════
+const JOINERY_SUB_STAGES = ["drafting", "cutting", "veneer-pressing", "assembly"];
+
+// Advances (or moves back to, for a correction) a carp line's internal
+// sub-stage — validates the line is actually in-production for carp
+// and the target is a real sub-stage, same defensive shape as
+// updateJobLineStatus() above.
+function advanceJoinerySubStage(jobId, lineId, toSubStage) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === "carp");
+  if (!entry) return { error: "This line isn't routed to Joinery." };
+  if (entry.status !== "in-production") return { error: "Line must be In Production to update its sub-stage." };
+  if (!JOINERY_SUB_STAGES.includes(toSubStage)) return { error: "Not a real Joinery sub-stage." };
+  entry.joinerySubStage = toSubStage;
+  persistJobCardUpdate(job);
+  return item;
+}
+
+// One sub-stage's own queue — what Draftsman/Cutting List Team/Veneer
+// Pressing Team each see: every in-production carp line currently
+// sitting at exactly their stage, across every job.
+function getJoinerySubStageQueue(subStage) {
+  const rows = [];
+  jobCards.forEach(job => {
+    if (!job.routingConfirmed || job.status === "cancelled") return;
+    job.items.forEach(item => {
+      const entry = (item.departmentStatuses || []).find(d => d.department === "carp");
+      if (entry && entry.status === "in-production" && entry.joinerySubStage === subStage) rows.push({ job, item, entry });
+    });
+  });
+  return rows;
+}
+
+// Cross-sub-stage overview — Site Supervisor/Floor Supervisor/Team
+// Leader's shared view (see the design note above): every in-
+// production carp line, grouped by its current sub-stage, for
+// day-to-day floor coordination rather than one narrow queue.
+function getJoineryFloorOverview() {
+  const overview = {};
+  JOINERY_SUB_STAGES.forEach(s => { overview[s] = []; });
+  jobCards.forEach(job => {
+    if (!job.routingConfirmed || job.status === "cancelled") return;
+    job.items.forEach(item => {
+      const entry = (item.departmentStatuses || []).find(d => d.department === "carp");
+      if (entry && entry.status === "in-production" && entry.joinerySubStage) overview[entry.joinerySubStage].push({ job, item, entry });
+    });
+  });
+  return overview;
 }
 
 // ═══════════════════════════════════════

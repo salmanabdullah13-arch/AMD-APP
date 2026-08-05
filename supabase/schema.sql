@@ -479,14 +479,21 @@ insert into public.user_types (key, label, dashboard_node_id, department) values
   ('vehicle_fleet_inspector', 'Vehicle Fleet Inspector', null, 'operations'),
   ('delivery_scheduling', 'Delivery / Scheduling', null, 'operations'),
   ('hr', 'HR', 'hr', 'operations'),
+  -- dashboard_node_id filled in for Milestone D (5 Aug 2026) — see the
+  -- NODES entries in index.html. Assistant Production Manager
+  -- deliberately shares the Production Manager's own node (management-
+  -- tier role, not a shop-floor one — see the design note in data.js).
+  -- Site/Floor Supervisor and Team Leader deliberately share ONE node
+  -- (joinery-floor) — same design note, no real basis to differentiate
+  -- these three today.
   ('joinery_production_manager', 'Joinery Production Manager', 'joinery', 'joinery'),
-  ('joinery_assistant_production_manager', 'Assistant Production Manager', null, 'joinery'),
-  ('joinery_site_supervisor', 'Site Supervisor', null, 'joinery'),
-  ('joinery_floor_supervisor', 'Floor Supervisor', null, 'joinery'),
-  ('joinery_draftsman', 'Draftsman', null, 'joinery'),
-  ('joinery_team_leader', 'Team Leader', null, 'joinery'),
-  ('joinery_cutting_list_team', 'Cutting List Team', null, 'joinery'),
-  ('joinery_veneer_pressing_team', 'Veneer Pressing Team', null, 'joinery'),
+  ('joinery_assistant_production_manager', 'Assistant Production Manager', 'joinery', 'joinery'),
+  ('joinery_site_supervisor', 'Site Supervisor', 'joinery-floor', 'joinery'),
+  ('joinery_floor_supervisor', 'Floor Supervisor', 'joinery-floor', 'joinery'),
+  ('joinery_draftsman', 'Draftsman', 'joinery-drafting', 'joinery'),
+  ('joinery_team_leader', 'Team Leader', 'joinery-floor', 'joinery'),
+  ('joinery_cutting_list_team', 'Cutting List Team', 'joinery-cutting', 'joinery'),
+  ('joinery_veneer_pressing_team', 'Veneer Pressing Team', 'joinery-veneer-pressing', 'joinery'),
   ('painting_lead', 'Painting Lead / Work Supervisor', 'painting', 'painting'),
   ('curtain_manager', 'Curtain Manager', 'curtain', 'curtain'),
   -- dashboard_node_id filled in for Milestone B (5 Aug 2026) — see the

@@ -3594,3 +3594,65 @@ credential decision this session; he chose to hand one over.
   the biggest, most novel milestone, needing an actual new (placeholder,
   documented-as-such) sub-stage sequence before the 7 Joinery granular
   dashboards can have anything real to show.
+
+### 5 Aug 2026 — Role-based access rollout, Milestone D (Joinery)
+- The one department genuinely needing new internal granularity, not
+  just wiring — `carp` was a single flat queued -> in-production -> qc
+  -> done pipeline, identical to Upholstery's, with no real distinction
+  between Draftsman/Cutting List Team/Veneer Pressing Team's actual
+  work. Added an INVENTED (documented as such, not traced from a real
+  Q-Pro reference — same caveat as `JOB_DEPARTMENTS`/
+  `JOB_LINE_STATUSES`) sub-stage sequence: drafting -> cutting ->
+  veneer-pressing -> assembly, as a new optional
+  `entry.joinerySubStage` field.
+- **Purely additive, not a change to the shared pipeline**: Upholstery/
+  Painting entries never get this field at all — `startLineProduction()`
+  only seeds it (`JOINERY_SUB_STAGES[0]`) when `deptKey === "carp"`. The
+  shared functions (`submitLineForQC`/`recordLineQCResult`/etc., used by
+  both Joinery and Upholstery) are completely unchanged and unaware of
+  it. New `advanceJoinerySubStage()`/`getJoinerySubStageQueue()`/
+  `getJoineryFloorOverview()` (data.js) are the only new data-layer
+  functions.
+- **Real design decision, made and documented rather than guessed
+  silently**: Site Supervisor, Floor Supervisor, and Team Leader
+  collapse onto ONE shared `joinery-floor` node (a read-only, cross-
+  sub-stage overview grouped by stage — no action buttons, since
+  advancing a sub-stage stays that stage's own team's job) rather than
+  three separately-scoped views, since Salman's own list gives no real
+  basis to differentiate these three day-to-day, unlike Draftsman/
+  Cutting List/Veneer Pressing which are genuinely distinct jobs.
+  Assistant Production Manager (flagged by Salman as "maybe in the
+  future") shares the Production Manager's own full dashboard rather
+  than getting a redundant near-duplicate — a management-tier role by
+  definition, not a shop-floor one. Both are cheap to split into
+  distinct views later if a real difference surfaces; guessing three
+  arbitrary slices of the same data now would have been inventing
+  process, not modeling something real.
+- Reused the existing `joinery-module-wrap` (same technique as
+  Upholstery's Milestone C, not new standalone overlays) —
+  `openJoineryModule()` takes an optional `initialView`, and the three
+  sub-stage views plus the floor overview render with NO tab bar, so
+  Budgets/Approvals/the Manager's own Dashboard stay structurally
+  unreachable from these entry points. Once a line reaches the final
+  sub-stage (assembly), it's submitted for QC through the existing,
+  completely unchanged Production Queue tab — the granular views only
+  own their own internal hand-off, not the QC hand-off itself.
+- Four new NODES entries (`joinery-drafting`/`joinery-cutting`/
+  `joinery-veneer-pressing`/`joinery-floor`) + matching
+  `user_types.dashboard_node_id` values for all 7 Joinery granular
+  roles (3 distinct + Site/Floor Supervisor/Team Leader sharing
+  `joinery-floor` + Assistant Production Manager sharing `joinery`).
+- **Verification**: new `e2e-joinery-substages.js` (12/12) proves the
+  whole chain live — starting production seeds `joinerySubStage`,
+  each granular role's queue shows only its own stage via a real
+  simulated tap + real button click, advancing moves the line into the
+  next role's queue, the final stage correctly still uses the existing
+  shared Production Queue's "Submit for QC" (proving the shared
+  pipeline truly wasn't touched), and the Floor Overview shows both
+  test jobs grouped by stage with zero action buttons. Full regression
+  (batch8 routing/phase2-4, dashboard-enhancements, back-button-check,
+  the new Curtain/Upholstery tests, jobcard-unification) all clean.
+- Milestone D (Joinery) complete — the hardest milestone in this plan
+  is done. Next: Milestone E (Vehicle Fleet Inspector + Delivery/
+  Scheduling) — entirely new modules, nothing existing to build on;
+  scoped deliberately minimal per the original plan.
