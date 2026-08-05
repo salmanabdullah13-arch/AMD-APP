@@ -4742,3 +4742,120 @@ mid-rollout. This entry covers Phase 1 only.
   (cloud-login, role-gating, signup-approval, cloud-customers) plus a
   full 46-file sweep: 45 pass, the one failure is the same
   already-documented `markMessageRead` stateful-live-data flake.
+
+### 5 Aug 2026 — Fable end-to-end workflow audit + local-only demo data + action-row consistency fix
+
+Salman asked for three things in one message: run a full end-to-end audit
+of the three real production workflows (explicitly addressed to the Fable
+model), populate every dashboard with realistic sample data so the charts
+actually show something, and clean up dashboard/button consistency. All
+three landed this session.
+
+- **Fable audit** — launched as a background general-purpose agent on
+  the Fable model with the full brief plus repo/architecture context
+  (script load order, the shared Joinery/Upholstery pipeline vocabulary,
+  Painting's deliberately-separate pipeline, the budget gate, `NODES`/
+  `user_types`, and the Dashboard Analytics rollout's own known
+  `SALES_DIVISIONS`-vs-`DEPTS` ambiguity flagged as an open question to
+  re-check). Instructed explicitly to actually RUN the flows via
+  temporary Playwright scripts calling the real data-layer functions,
+  not just read code and guess — confirmed it did (repo left clean,
+  script deleted). Full report:
+  `amd-app-workflow-audit.md` (handed to Salman, not committed here —
+  it's a point-in-time audit artifact, not living documentation).
+  **Headline findings**: (1) a Variation Order that introduces a new
+  department never gets a budget slot (`confirmVariationToJobCard()`
+  skips `ensureDepartmentBudgets()`) — a job can get silently,
+  permanently stuck; (2) confirmed with real numbers (BD 414.96 revenue,
+  ~BD 154 of real Joinery labour attributed to zero) that the Dashboard
+  Analytics rollout's own `SALES_DIVISIONS`-based revenue attribution
+  does NOT hold up for a real Joinery(frame)+Upholstery job — the
+  sofa-frame ambiguity flagged as an open question during that rollout
+  turned out to be a real, demonstrated gap, not just a theoretical one;
+  (3) `suggestDepartmentSequence()` never suggests Joinery for a sofa
+  product name at all (keyword match goes straight to `uph`), so a
+  frame-building step depends entirely on an Estimator manually
+  overriding it; (4) Curtain's routing writes a `"curt"`
+  `departmentStatuses`/`departmentBudgets` entry nothing ever advances —
+  harmless today only because one dashboard function happens to skip
+  it. 5-phase fix plan proposed, not yet started — needs Salman's
+  review/sign-off before any of it is built, especially the phase
+  touching the BHD 5,000 threshold and budget self-approval.
+- **New `demo-data.js`** — `loadDemoData()`/`clearDemoData()`, wired
+  into Admin Dashboard's Developer Preview tab (Load/Clear buttons,
+  mutually exclusive enabled state). Reuses the app's own real
+  functions (`createCustomer`, `convertEnquiryToQuotation`,
+  `addBOMMaterial`+`submitItemBOM` for a real cost-plus selling price
+  since pricing is BOM-locked, `confirmJobRouting`,
+  `startLineProduction`/`submitLineForQC`/`recordLineQCResult`/
+  `handOffLine`, Painting's separate equivalents, `submitDepartmentBudget`/
+  `approveDepartmentBudget`, `generateInvoiceFromJob`/`createSalesReceipt`,
+  the full Purchasing PR→PO→Invoice→stock-pool chain, `addVehicle`/
+  `recordVehicleInspection`/`scheduleDelivery`/`recordCustomerFeedback`)
+  rather than hand-building array shapes — seeded jobs flow through the
+  exact same gates/pipelines a real job does. **LOCAL-ONLY, Salman's
+  explicit call**: every `persist*()` call in data.js is already gated
+  on `window.__realCloudSession`; `loadDemoData()` temporarily flips
+  that to `false` for the duration of seeding (restored in a `finally`),
+  so nothing reaches Supabase regardless of the signed-in session —
+  verified via a real UI click path asserting zero non-`file://` network
+  requests fire, not just a direct function call. `clearDemoData()`
+  snapshots every tracked array's length before seeding and truncates
+  back to it, so it only ever removes what it added (confirmed:
+  `Object.keys`-based diffing correctly left the app's own pre-existing
+  seed rows untouched both times).
+- **Two real bugs in the seeder itself, caught by actually running it**
+  (same "run it for real, don't just read the code" discipline the
+  Fable audit was asked to follow): (1) `recordVehicleInspection()`'s
+  checklist items use `{label, pass}`, not `{label, ok}` — the wrong
+  field name meant `checklist.every(c => c.pass)` was `undefined` for
+  every entry, so both seeded vehicles showed as failed regardless of
+  intended pass/fail. (2) Joinery's internal sub-stage walk
+  (`drafting→...→assembly`, gates `submitLineForQC()`) was originally
+  called before `startLineProduction()` had ever run — at that point
+  `entry.joinerySubStage` doesn't exist yet, so the walk silently no-op'd,
+  every downstream `submitLineForQC()`/`recordLineQCResult()` call then
+  ALSO silently failed its own gate, and Joinery's QC trend chart showed
+  zero data. Fixed by moving the sub-stage walk to run immediately after
+  `startLineProduction()`, inside the same function, not as a separate
+  step called too early.
+- **Dashboard action-row consistency** — Salman's complaint: inconsistent
+  layout, scattered action buttons, too much on one screen. Surveyed
+  every dashboard's actual render order rather than assuming; found the
+  real, concrete inconsistency is narrower than it first sounds: Sales/
+  Accounts/Operations/HR/Estimator/Approver/Storekeeper/Curtain already
+  group their Notify Storekeeper/Request Purchase buttons together with
+  the Messages inbox widget, right after the header — but **Joinery/
+  Upholstery/Painting's own dashboards had the buttons at the top and
+  the inbox widget stranded ~20 lines later**, after the queue preview/
+  quality card/tasks panel. Fixed by moving `renderInboxWidget(...)` to
+  sit immediately after the button row in all three, matching every
+  other dashboard's already-established pattern — a small, targeted fix
+  rather than a broader redesign, since the broader pattern was already
+  mostly consistent once actually checked. Collapsible/"too much on one
+  screen" grouping not addressed this pass — flagged as a separate,
+  larger follow-up if Salman wants it, rather than guessing at scope.
+- **Verification**: `node --check` on all touched/new files; new
+  `e2e-demo-data.js` (12/12) — opens Admin via a real node tap, clicks
+  the real Load Demo Data button (not a direct function call), asserts
+  zero non-`file://` network requests fire during seeding, confirms
+  `window.__realCloudSession` is restored correctly afterward, confirms
+  Owner's Monthly Revenue chart renders real seeded content (a real
+  client name, a real SVG bar), confirms Joinery's dashboard renders
+  with seeded queue/QC content, then clicks the real Clear Demo Data
+  button and confirms every array is back to its exact pre-seed count.
+  Full 48-file regression sweep: 44 pass; the 4 failures
+  (`e2e-cloud-messages-presence.js`, `e2e-jobcards-dept-scope-rls.js`,
+  `e2e-cloud-customers.js`, `e2e-cloud-enquiries-quotations.js`) were
+  each re-run standalone and passed in full (9/9, 10/10) — all four are
+  live-network/stateful-live-data flake classes (two already documented
+  from earlier sessions, two new ones on this session's "second session
+  for realtime-sync check" step, confirmed as timing flakes since the
+  identical first-session code path succeeded moments earlier in the
+  same run), none are regressions from this session's changes.
+- **Not done this session, flagged for Salman's decision**: the Fable
+  audit's 5-phase fix plan (touches real business logic — budget gates,
+  revenue attribution — not started pending sign-off); the schema delta
+  from the earlier Admin-role session (still needs Salman to run it
+  against the live project); broader collapsible-section dashboard
+  reorganization beyond the one concrete action-row fix above.

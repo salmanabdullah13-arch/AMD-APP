@@ -102,12 +102,29 @@ function renderAdminBody() {
 function renderAdminDevPreviewTab() {
   const allNodes = (window.__eco3d && window.__eco3d.NODES) || [];
   const built = allNodes.filter(n => n.built);
+  const demoLoaded = typeof demoDataStartCounts !== 'undefined' && demoDataStartCounts !== null;
   return `
+    <div class="sales-card">
+      <h3>Demo Data</h3>
+      <p style="font-size:11.5px;color:#94a3b8;margin:0 0 8px;">Fills every dashboard's charts with realistic multi-month, multi-division sample jobs — local only, never saved to the cloud. A page reload clears it too.</p>
+      <div style="display:flex;gap:8px;">
+        <button class="primary" style="flex:1;font-size:11.5px;" onclick="adminLoadDemoData()" ${demoLoaded ? 'disabled' : ''}>${demoLoaded ? 'Demo Data Loaded' : 'Load Demo Data'}</button>
+        <button class="secondary" style="flex:1;font-size:11.5px;color:#b91c1c;" onclick="adminClearDemoData()" ${demoLoaded ? '' : 'disabled'}>Clear Demo Data</button>
+      </div>
+    </div>
     <div class="sales-card">
       <h3>Developer Preview</h3>
       <p style="font-size:11.5px;color:#94a3b8;margin:0 0 8px;">${built.length} of ${allNodes.length} dashboards built. Tap one to open it directly for QA.</p>
       ${built.map(n => `<div class="admin-row" onclick="adminDevPreviewLaunch('${adminEsc(n.id)}')"><span>${adminEsc(n.label)}</span><span class="admin-link">Open →</span></div>`).join('')}
     </div>`;
+}
+function adminLoadDemoData() {
+  if (typeof loadDemoData === 'function') loadDemoData();
+  renderAdminBody();
+}
+function adminClearDemoData() {
+  if (typeof clearDemoData === 'function') clearDemoData();
+  renderAdminBody();
 }
 function adminDevPreviewLaunch(nodeId) {
   const allNodes = (window.__eco3d && window.__eco3d.NODES) || [];

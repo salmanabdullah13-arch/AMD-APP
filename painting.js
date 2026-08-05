@@ -182,6 +182,7 @@ function renderPaintingDashboard() {
         <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;white-space:nowrap;" onclick="requestPurchaseFromModule('closePaintingModule','${PAINT_DEPT_KEY}',null)">🛒 Request Purchase</span>
       </div>
     </div>
+    ${renderInboxWidget(paintingCurrentUser, 'renderPaintingBody', 5)}
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">${count('queued')}</div><div class="lbl">Queued</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
@@ -197,8 +198,7 @@ function renderPaintingDashboard() {
     </div>
     ${renderPaintingQueuePreview(rows, 5)}
     ${renderPaintingQualityCard()}
-    ${renderPaintingTasksPanel()}
-    ${renderInboxWidget(paintingCurrentUser, 'renderPaintingBody', 5)}`;
+    ${renderPaintingTasksPanel()}`;
 }
 
 // Painting's own standalone versions of the queue-preview/quality/tasks

@@ -210,6 +210,7 @@ function renderJoineryDashboard() {
         <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeJoineryModule','${JOINERY_DEPT_KEY}',null)">🛒 Request Purchase</span>
       </div>
     </div>
+    ${renderInboxWidget(joineryCurrentUser, 'renderJoineryBody', 5)}
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">${count('queued')}</div><div class="lbl">Queued</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
@@ -225,6 +226,5 @@ function renderJoineryDashboard() {
     </div>
     ${renderDeptQueuePreview(JOINERY_DEPT_KEY, 'joinery', 5)}
     ${renderDeptQualityCard(JOINERY_DEPT_KEY)}
-    ${renderDeptTasksPanel(joineryCurrentUser, 'joinery')}
-    ${renderInboxWidget(joineryCurrentUser, 'renderJoineryBody', 5)}`;
+    ${renderDeptTasksPanel(joineryCurrentUser, 'joinery')}`;
 }

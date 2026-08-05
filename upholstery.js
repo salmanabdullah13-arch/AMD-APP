@@ -157,6 +157,7 @@ function renderUpholsteryDashboard() {
         <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeUpholsteryModule','${UPHOLSTERY_DEPT_KEY}',null)">🛒 Request Purchase</span>
       </div>
     </div>
+    ${renderInboxWidget(upholsteryCurrentUser, 'renderUpholsteryBody', 5)}
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">${count('queued')}</div><div class="lbl">Queued</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>
@@ -172,6 +173,5 @@ function renderUpholsteryDashboard() {
     </div>
     ${renderDeptQueuePreview(UPHOLSTERY_DEPT_KEY, 'upholstery', 5)}
     ${renderDeptQualityCard(UPHOLSTERY_DEPT_KEY)}
-    ${renderDeptTasksPanel(upholsteryCurrentUser, 'upholstery')}
-    ${renderInboxWidget(upholsteryCurrentUser, 'renderUpholsteryBody', 5)}`;
+    ${renderDeptTasksPanel(upholsteryCurrentUser, 'upholstery')}`;
 }
