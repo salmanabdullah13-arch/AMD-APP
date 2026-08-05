@@ -3790,3 +3790,40 @@ credential decision this session; he chose to hand one over.
   approval.js` (10/10, unaffected — confirms Playwright's `.fill()`
   bypasses the keydown block as expected, since it sets values
   programmatically rather than simulating keystrokes) all clean.
+
+### 5 Aug 2026 — Fixed Phase 2 audit finding #1: curtain-line production pathway
+- `bridgeJobToOperationsAndCurtain()` (data.js) checked the ENQUIRY's
+  single `division` field (`division === "Curtain & Blinds"`) — but an
+  enquiry can only ever have one division, so the audit's exact worked
+  example (Curtains + a Joinery TV Unit + a Sofa needing Upholstery,
+  all in one quotation) forced Sales to pick some OTHER division for
+  the enquiry, leaving the curtain line with zero real production
+  pathway: not bridged into Curtain's own system (this check failed)
+  and not consumed by the shared Joinery/Upholstery/Painting pipeline
+  either. Confirmed live in the audit.
+- Fixed to check the JOB's own items directly
+  (`job.items.some(it => (it.departmentSequence||[]).includes("curt"))`)
+  instead of the enquiry's division. `suggestDepartmentSequence()`
+  already tags each item with the correct department regardless of the
+  enquiry's stated division, so item-level data is the correct source
+  of truth — not a new one grafted on. Considered the audit's other
+  suggested remediation (warn/block Sales from mixing a curtain item
+  into a non-Curtain quote) and rejected it: a warning doesn't actually
+  fix production, and blocking the mix outright would work against the
+  very scenario Salman's own audit brief wanted supported.
+- `qtn`/`enq`/`division` were only ever used to compute this one
+  condition — removed as dead code rather than left unused.
+- **Verification**: new `e2e-curtain-bridge-fix.js` (6/6) — the exact
+  mixed-division scenario now bridges correctly, the OTHER (Joinery/
+  Painting) line in that same job still routes correctly via the
+  unchanged shared pipeline, a job with no curtain-routed items does
+  NOT get a spurious bridge entry, and a normal Curtain & Blinds-only
+  quote still bridges exactly as before (the common case is unchanged).
+  Broad regression (batch8 routing/phase2-4, jobcard-unification,
+  job-routing-gate, the Curtain/Upholstery/Joinery granular-dashboard
+  tests, dashboard-enhancements) all clean.
+- Finding #1 (the critical one) is closed. Findings #2 (Joinery
+  sub-stage tracking doesn't gate QC submission) and #3 (no customer
+  feedback loop exists) remain open, pending Salman's call on priority/
+  approach — see the audit artifact and
+  `project_amd_app_role_based_access_and_cycle_audit.md` (memory).

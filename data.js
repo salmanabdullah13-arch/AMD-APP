@@ -3943,9 +3943,6 @@ function persistJobCardUpdate(job) {
 function bridgeJobToOperationsAndCurtain(job) {
   const customer = customers.find(c => c.id === job.customerId);
   const clientName = customer ? customer.name : "—";
-  const qtn = quotations.find(q => q.id === job.quotationId);
-  const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
-  const division = enq ? enq.division : null;
 
   let proj = projects.find(p => p.id === job.id);
   if (!proj) {
@@ -3959,7 +3956,26 @@ function bridgeJobToOperationsAndCurtain(job) {
     projects.push(proj);
   }
 
-  if (division === "Curtain & Blinds") {
+  // Real bug fix (5 Aug 2026, Phase 2 business-cycle audit finding #1):
+  // this used to check the ENQUIRY's single `division` field
+  // (division === "Curtain & Blinds") — but an enquiry can only ever
+  // have one division, so a mixed-division quote (e.g. Curtains + a
+  // Joinery TV Unit + a Sofa needing Upholstery, all in one quotation —
+  // exactly the audit's worked example) forces Sales to pick some OTHER
+  // division for the enquiry, silently leaving the curtain line with
+  // ZERO real production pathway: not bridged into Curtain's own
+  // system (this check failed) AND not consumed by the shared Joinery/
+  // Upholstery/Painting pipeline either (nothing there ever reads
+  // deptKey "curt"). Confirmed live in the audit — the job correctly
+  // routed a line to departmentSequence: ["curt"], but
+  // curtainJobsEntryExists was false. Fixed to check the JOB's own
+  // items directly instead of the enquiry's division —
+  // suggestDepartmentSequence() (above) already tags each ITEM with
+  // the right department regardless of what the enquiry's division
+  // says, so item-level data is the correct source of truth here, not
+  // a new one grafted on.
+  const hasCurtainLine = job.items.some(it => (it.departmentSequence || []).includes("curt"));
+  if (hasCurtainLine) {
     let cj = curtainJobs.find(j => j.id === job.id);
     if (!cj) {
       cj = {
