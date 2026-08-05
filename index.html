@@ -15,20 +15,6 @@
      dependency. -->
 <link rel="stylesheet" href="styles.css">
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
-    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js"
-  },
-  "integrity": {
-    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
-    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
-    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9"
-  }
-}
-</script>
-
 <style>/* ── Gantt chart ─────────────────── */
     .gantt-wrap { width:100%; overflow-x:auto; }
     .gantt-header { display:flex; margin-bottom:4px; }
@@ -67,62 +53,6 @@
     .ws-lock span { font-size:18px; }
     .ws-lock p { font-size:13px; color:var(--bad); font-weight:500; margin:0; }
 
-    /* ── Ecosystem breathing pulse ── */
-    @keyframes eco-breathe {
-      0%,100% { opacity:.85; }
-      50%      { opacity:1;   }
-    }
-    .eco-svg { animation: eco-breathe 4s ease-in-out infinite; }
-
-    /* Node dim-at-rest / glow-on-touch transitions */
-    .eco-node { transition: opacity .25s ease, filter .25s ease, transform .15s ease; transform-box: fill-box; transform-origin: center; }
-    .eco-node.eco-lit { opacity:1 !important; filter: drop-shadow(0 0 8px rgba(52,211,153,.7)); }
-    .eco-node.eco-soon-lit { opacity:.85 !important; filter: drop-shadow(0 0 6px rgba(251,191,36,.6)); }
-    /* Mouse/trackpad users get hover feedback too — touch-glide (above) already
-       covers touch devices. Was previously silent on click for desktop use. */
-    .eco-node:hover { filter: drop-shadow(0 0 10px rgba(255,255,255,.55)); transform: scale(1.06); }
-    .eco-node:active { transform: scale(0.96); }
-    /* Gentle at-rest pulse on every BUILT node, so the hub reads as "alive"
-       rather than a static diagram — soon/planned nodes stay still. */
-    @keyframes eco-built-pulse {
-      0%,100% { filter: drop-shadow(0 0 3px rgba(52,211,153,.35)); }
-      50%      { filter: drop-shadow(0 0 8px rgba(52,211,153,.7)); }
-    }
-    .eco-node-built { animation: eco-built-pulse 3.2s ease-in-out infinite; }
-    .eco-node-built:hover { animation-play-state: paused; }
-
-    /* Connector line electricity flash */
-    .eco-line { transition: stroke .2s, stroke-opacity .2s, stroke-width .2s; }
-    .eco-line.eco-zap {
-      stroke: rgba(52,211,153,.9) !important;
-      stroke-opacity: 1 !important;
-      stroke-width: 2 !important;
-      filter: drop-shadow(0 0 4px rgba(52,211,153,.8));
-    }
-
-    /* Coming-soon tooltip */
-    #eco-tooltip {
-      position:absolute; pointer-events:none;
-      background:rgba(251,191,36,.15); border:1px solid rgba(251,191,36,.4);
-      color:#fbbf24; font-size:11px; font-weight:700; letter-spacing:.5px;
-      padding:5px 10px; border-radius:20px;
-      opacity:0; transition:opacity .15s;
-      white-space:nowrap; z-index:20;
-      transform:translate(-50%,-130%);
-    }
-    #eco-tooltip.show { opacity:1; }
-
-    /* ── Curtain sub-node touch interactions ── */
-    .curt-subnode { cursor:pointer; opacity:0.38; transition:opacity .18s; }
-    .curt-subnode circle.sub-bg   { transition:r .22s cubic-bezier(.34,1.56,.64,1), fill .18s, stroke .18s; }
-    .curt-subnode circle.sub-glow { transition:r .22s cubic-bezier(.34,1.56,.64,1), opacity .18s; }
-    .curt-subnode text             { transition:font-size .18s, opacity .18s; pointer-events:none; }
-    .curt-subnode.active           { opacity:1; }
-    .curt-subnode.active circle.sub-bg   { fill:url(#OKG); stroke:rgba(52,211,153,.7); }
-    .curt-subnode.active circle.sub-glow { opacity:.35; }
-    /* Branch lines from Curtain node to sub-nodes */
-    .curt-branch { transition:stroke-opacity .18s, stroke-width .18s; }
-    .curt-branch.active { stroke-opacity:.7 !important; stroke-width:1.5 !important; }
   /* ── Calc sheet form ── */
   .cs-row   { display:flex; flex-direction:column; gap:4px; }
   .cs-label { font-size:12px; font-weight:600; color:#64748b; }
@@ -193,30 +123,21 @@
 
   <div class="scroll" id="scroll">
 
-    <!-- ECOSYSTEM -->
+    <!-- HOME — Nav overhaul Phase 4 (5 Aug 2026): replaces the old 3D
+         ecosystem hub picker. Every role now lands directly on their own
+         dashboard at login (see finishCloudLogin(), auth.js) and this
+         page is essentially vestigial in normal use — regular roles never
+         see it (closing their own dashboard signs them out, it doesn't
+         land here), and Owner/Admin's "Home" always returns to their own
+         dashboard instead. Kept as a minimal, real fallback rather than
+         deleted outright: it's still the target goTo('eco') mechanically
+         activates, used as a safe default before window.__dashboardHome
+         is assigned (see closeModuleWrap()/goHome(), shell.js). -->
     <div class="page active" id="p-eco">
-      <div class="eco-bg">
-        <div id="eco3d"></div>
-      </div>
-
-      <div class="quick-stats">
-        <div class="qs" style="background:rgba(15,157,88,.08);border:1px solid rgba(15,157,88,.15);">
-          <div class="qs-v" id="qs-built-count" style="color:#34d399;">–</div>
-          <div class="qs-l" style="color:rgba(52,211,153,.6);">Built</div>
-        </div>
-        <div class="qs" style="background:rgba(196,125,0,.08);border:1px solid rgba(196,125,0,.15);">
-          <div class="qs-v" id="qs-building-count" style="color:#fbbf24;">–</div>
-          <div class="qs-l" style="color:rgba(251,191,36,.6);">Building</div>
-        </div>
-        <div class="qs" style="background:#f1f2f4;border:1px solid #e7e9ed;">
-          <div class="qs-v" id="qs-planned-count" style="color:#9ba1aa;">–</div>
-          <div class="qs-l" style="color:#9ba1aa;">Planned</div>
-        </div>
-      </div>
-
-      <div style="margin:4px 16px 16px;padding:11px 13px;background:#f4e6ec;border:1px solid #e0c2d0;border-radius:12px;font-size:11px;color:#42011f;line-height:1.7;">
-        <span style="color:#600131;font-weight:700;">① – ⑤ Core revenue pipeline:</span>
-        Sales <span style="color:#600131;font-weight:700;">→</span> Estimator <span style="color:#600131;font-weight:700;">→</span> Approver <span style="color:#600131;font-weight:700;">→</span> Jobs <span style="color:#600131;font-weight:700;">→</span> Accounts — the blue-numbered badges above trace one quotation all the way from enquiry to invoice.
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;padding:32px;text-align:center;gap:8px;">
+        <div style="font-size:32px;">◣</div>
+        <div style="font-size:15px;font-weight:700;color:var(--shell-ink);">Al Maraya Decor</div>
+        <div style="font-size:12px;color:var(--shell-ink-muted);">Sign in to reach your dashboard.</div>
       </div>
     </div>
 
@@ -296,7 +217,7 @@
     <div class="page" id="p-operations">
       <!-- Back to ecosystem -->
       <div style="background:var(--shell-surface);padding:10px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--shell-border);position:sticky;top:0;z-index:10;">
-        <button onclick="goTo('eco')" style="background:var(--maraya);border:0;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;">‹ Ecosystem</button>
+        <button onclick="goHome()" style="background:var(--maraya);border:0;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;">‹ Home</button>
         <span style="font-size:13px;font-weight:700;color:var(--shell-ink);">Operations</span>
         <span style="font-size:10px;font-weight:700;background:var(--ok-bg);color:var(--ok);padding:2px 8px;border-radius:20px;">✓ Built</span>
       </div>
@@ -490,7 +411,7 @@
         <div style="width:32px;height:32px;border-radius:8px;background:rgba(96,1,49,.15);border:1px solid rgba(96,1,49,.3);display:flex;align-items:center;justify-content:center;font-size:16px;">🪟</div>
         <div><p style="font-weight:700;font-size:15px;color:#fff;">Curtain &amp; Blinds</p><p style="font-size:11px;color:rgba(255,255,255,.45);">Silva · Production Manager</p></div>
       </div>
-      <button class="icon-btn" onclick="goTo('eco')" title="Back to ecosystem" style="color:#fff;font-size:22px;">✕</button>
+      <button class="icon-btn" onclick="closeCurtainModule()" title="Close" style="color:#fff;font-size:22px;">✕</button>
     </div>
 
     <div class="nav" id="curt-nav">
@@ -867,7 +788,7 @@
         <div style="width:32px;height:32px;border-radius:8px;background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.35);display:flex;align-items:center;justify-content:center;font-size:16px;">🛒</div>
         <div><p style="font-weight:700;font-size:15px;color:#fff;">Purchaser</p><p style="font-size:11px;color:rgba(255,255,255,.6);">Request → PO → Invoice</p></div>
       </div>
-      <button class="icon-btn" onclick="closePurchasingModule();goTo('eco')" title="Back to ecosystem" style="color:#fff;font-size:22px;">✕</button>
+      <button class="icon-btn" onclick="closePurchasingModule()" title="Close" style="color:#fff;font-size:22px;">✕</button>
     </div>
 
     <div class="nav" id="purch-nav">
@@ -1294,32 +1215,12 @@
   </div>
 
   <div class="bnav">
-    <div class="bni active" id="bn-eco" onclick="goTo('eco')"><div class="bni-icon">🌐</div><div class="bni-label">Ecosystem</div></div>
+    <div class="bni active" id="bn-eco" onclick="goHome()"><div class="bni-icon">🏠</div><div class="bni-label">Home</div></div>
     <div class="bni" id="bn-roadmap" onclick="goTo('roadmap')"><div class="bni-icon">🗺️</div><div class="bni-label">Roadmap</div></div>
     <div class="bni" id="bn-notes" onclick="goTo('notes')"><div class="bni-icon">📝</div><div class="bni-label">Notes</div></div>
     <div class="bni" id="bn-checklist" onclick="goTo('checklist')"><div class="bni-icon">✅</div><div class="bni-label">Checklist</div></div>
   </div>
 </div>
-
-<!-- OVERLAY + INFO PANEL -->
-<div class="overlay" id="overlay" onclick="closePanel()"></div>
-<div class="info-panel" id="info-panel">
-  <div class="panel-handle"></div>
-  <button class="panel-close" onclick="closePanel()">✕</button>
-  <div class="panel-head">
-    <div class="ph-icon" id="pi"></div>
-    <div class="ph-text">
-      <div class="pt" id="pt"></div>
-      <div class="ps" id="ps"></div>
-      <span class="ph-status" id="pst"></span>
-    </div>
-  </div>
-  <div class="panel-body" id="pb"></div>
-</div>
-
-
-<!-- Coming-soon tooltip -->
-<div id="eco-tooltip">Coming soon</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0"></script>
 <script src="data.js"></script>
@@ -1348,70 +1249,34 @@
 <script src="fleet-delivery.js"></script>
 
 <script>
-// ── Curtain sub-node touch glow ─────────────────────────────
-const SUB_NODE_MAP = {
-  tracks:  { node: 'sub-tracks',  branch: 'branch-tracks'  },
-  qc:      { node: 'sub-qc',      branch: 'branch-qc'      },
-  install: { node: 'sub-install', branch: 'branch-install' },
-};
-
-function subNodeTouch(id, active) {
-  const map = SUB_NODE_MAP[id];
-  if (!map) return;
-  const nodeEl   = document.getElementById(map.node);
-  const branchEl = document.getElementById(map.branch);
-  if (!nodeEl || !branchEl) return;
-  if (active) {
-    nodeEl.classList.add('active');
-    branchEl.classList.add('active');
-    const bg   = nodeEl.querySelector('circle.sub-bg');
-    const glow = nodeEl.querySelector('circle.sub-glow');
-    if (bg)   { bg.setAttribute('r', '18'); }
-    if (glow) { glow.setAttribute('r', '28'); glow.style.opacity = '.35'; }
-  } else {
-    nodeEl.classList.remove('active');
-    branchEl.classList.remove('active');
-    const bg   = nodeEl.querySelector('circle.sub-bg');
-    const glow = nodeEl.querySelector('circle.sub-glow');
-    if (bg)   { bg.setAttribute('r', '14'); }
-    if (glow) { glow.setAttribute('r', '22'); glow.style.opacity = '0'; }
-  }
-}
-</script>
-
-<script type="module">
-// ═══════════════════════════════════════════════════════
-// ECOSYSTEM 3D HUB — "S.A" purple constellation
-// Replaces the flat 2D SVG map. Hub + branch nodes only (no leaves yet).
-// Built modules glow bright; planned modules stay dim/faint — status is
-// carried entirely by radiance/opacity, one purple hue throughout, per
-// the redesign brief. Pure-black canvas is a deliberate exception to the
-// rest of the app's light system (see CLAUDE.md session log).
-// ═══════════════════════════════════════════════════════
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-// Same module registry/launch functions the old SVG hub used — reused
-// unchanged so tapping a branch still opens the real module.
+// Nav overhaul Phase 4 (5 Aug 2026) — the 3D ecosystem hub (Three.js
+// scene/canvas/raycasting) is gone; this plain script keeps just the
+// two things that still matter: NODES (the id/label/built/launch
+// registry — now pure data, consumed by direct-landing (auth.js) and
+// Admin's Developer Preview (admin.js)) and nodeAccessible() (the
+// access-decision function e2e-role-gating.js still tests directly).
+// Every launch() previously called closePanel() first (the old 2D
+// tap-info-panel, also removed this phase) — dropped from all of them
+// since there's nothing left to close before jumping to a module.
 const NODES = [
-  { id:'operations',  label:'Operations',      built:true,  launch:()=>{ closePanel(); setTimeout(()=>goTo('operations'),150); } },
-  { id:'curtain',      label:'Curtain & Blinds', built:true, launch:()=>{ closePanel(); setTimeout(()=>launchCurtainModule(),150); } },
-  { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPurchasingModule(),150); } },
-  { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchStorekeeperModule(),150); } },
-  { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryModule(),150); } },
-  { id:'joinery',      label:'Joinery',          built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJoineryModule(),150); } },
-  { id:'painting',    label:'Painting',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchPaintingModule(),150); } },
-  { id:'sales',        label:'Sales',            built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchSalesModule(),150); } },
-  { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchEstimatorModule(),150); } },
-  { id:'owner',        label:'Owner Dashboard',  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchOwnerModule(),150); } },
+  { id:'operations',  label:'Operations',      built:true,  launch:()=>{ goTo('operations'); } },
+  { id:'curtain',      label:'Curtain & Blinds', built:true, launch:()=>{ launchCurtainModule(); } },
+  { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ launchPurchasingModule(); } },
+  { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ launchStorekeeperModule(); } },
+  { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ launchUpholsteryModule(); } },
+  { id:'joinery',      label:'Joinery',          built:true,  launch:()=>{ launchJoineryModule(); } },
+  { id:'painting',    label:'Painting',         built:true,  launch:()=>{ launchPaintingModule(); } },
+  { id:'sales',        label:'Sales',            built:true,  launch:()=>{ launchSalesModule(); } },
+  { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ launchEstimatorModule(); } },
+  { id:'owner',        label:'Owner Dashboard',  built:true,  launch:()=>{ launchOwnerModule(); } },
   // Nav overhaul Phase 2 (5 Aug 2026) — system administration: Approvals,
   // Developer Preview (jump into any built dashboard for QA), User &
   // Role Management. See admin.js.
-  { id:'admin',        label:'Admin Dashboard',  built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAdminModule(),150); } },
-  { id:'accounts',    label:'Accounts',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchAccountsModule(),150); } },
-  { id:'delivery',     label:'Jobs',             built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchJobsModule(),150); } },
-  { id:'hr',            label:'HR & Payroll',     built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchHRModule(),150); } },
-  { id:'approvals',    label:'Approver',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
+  { id:'admin',        label:'Admin Dashboard',  built:true,  launch:()=>{ launchAdminModule(); } },
+  { id:'accounts',    label:'Accounts',         built:true,  launch:()=>{ launchAccountsModule(); } },
+  { id:'delivery',     label:'Jobs',             built:true,  launch:()=>{ launchJobsModule(); } },
+  { id:'hr',            label:'HR & Payroll',     built:true,  launch:()=>{ launchHRModule(); } },
+  { id:'approvals',    label:'Approver',         built:true,  launch:()=>{ launchApproverModule(); } },
   { id:'tally',         label:'Tally Bridge',     built:false },
   // Curtain granular role dashboards (Milestone B, 5 Aug 2026, role-based
   // access rollout) — each opens curtain.js's own already-built standalone
@@ -1421,21 +1286,21 @@ const NODES = [
   // module), bypassing the Curtain Manager's own dashboard/nav entirely —
   // matching the plan's rule that a granular role never falls back to a
   // manager's full view.
-  { id:'curtain-tracks',   label:'Curtain – Tracks Team',    built:true, launch:()=>{ closePanel(); setTimeout(()=>openTracksDashboard(),150); } },
-  { id:'curtain-qc',       label:'Curtain – QC Team',        built:true, launch:()=>{ closePanel(); setTimeout(()=>openQCDashboard(),150); } },
-  { id:'curtain-install',  label:'Curtain – Site Installer', built:true, launch:()=>{ closePanel(); setTimeout(()=>openInstallCrewDashboard(),150); } },
+  { id:'curtain-tracks',   label:'Curtain – Tracks Team',    built:true, launch:()=>{ openTracksDashboard(); } },
+  { id:'curtain-qc',       label:'Curtain – QC Team',        built:true, launch:()=>{ openQCDashboard(); } },
+  { id:'curtain-install',  label:'Curtain – Site Installer', built:true, launch:()=>{ openInstallCrewDashboard(); } },
   // Team Leader maps to the Pipeline Board (bird's-eye Kanban across every
   // active job's stages) — the closest existing fit for a coordinating
   // role that needs cross-stage visibility rather than one stage's queue.
-  { id:'curtain-pipeline', label:'Curtain – Team Leader',    built:true, launch:()=>{ closePanel(); setTimeout(()=>openPipelineBoard(),150); } },
+  { id:'curtain-pipeline', label:'Curtain – Team Leader',    built:true, launch:()=>{ openPipelineBoard(); } },
   // Upholstery granular role dashboards (Milestone C, 5 Aug 2026) —
   // reuse the existing upholstery-module-wrap but land on a restricted,
   // no-tab-bar view (renderUpholsteryTeamLeaderView/
   // renderUpholsteryQCPackagingView, upholstery.js) so Budgets/Approvals/
   // the Manager's own Dashboard are never reachable from these entry
   // points at all, not just hidden.
-  { id:'upholstery-team-leader',  label:'Upholstery – Team Leader',     built:true, launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryTeamLeaderModule(),150); } },
-  { id:'upholstery-qc-packaging', label:'Upholstery – QC/Packaging',    built:true, launch:()=>{ closePanel(); setTimeout(()=>launchUpholsteryQCPackagingModule(),150); } },
+  { id:'upholstery-team-leader',  label:'Upholstery – Team Leader',     built:true, launch:()=>{ launchUpholsteryTeamLeaderModule(); } },
+  { id:'upholstery-qc-packaging', label:'Upholstery – QC/Packaging',    built:true, launch:()=>{ launchUpholsteryQCPackagingModule(); } },
   // Joinery granular role dashboards (Milestone D, 5 Aug 2026) — reuse
   // joinery-module-wrap but land on a restricted, no-tab-bar view
   // scoped to one internal sub-stage (see the design note on
@@ -1443,279 +1308,43 @@ const NODES = [
   // needed genuinely new internal granularity, not just wiring).
   // joinery_assistant_production_manager deliberately isn't listed here
   // — it shares the 'joinery' node itself (see schema.sql).
-  { id:'joinery-drafting',       label:'Joinery – Draftsman',           built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryDraftingModule(),150); } },
-  { id:'joinery-cutting',        label:'Joinery – Cutting List Team',   built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryCuttingModule(),150); } },
-  { id:'joinery-veneer-pressing',label:'Joinery – Veneer Pressing Team',built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryVeneerPressingModule(),150); } },
+  { id:'joinery-drafting',       label:'Joinery – Draftsman',           built:true, launch:()=>{ launchJoineryDraftingModule(); } },
+  { id:'joinery-cutting',        label:'Joinery – Cutting List Team',   built:true, launch:()=>{ launchJoineryCuttingModule(); } },
+  { id:'joinery-veneer-pressing',label:'Joinery – Veneer Pressing Team',built:true, launch:()=>{ launchJoineryVeneerPressingModule(); } },
   // Team Leader / Floor Supervisor / Site Supervisor share this one
   // node (see the design note above and in schema.sql/data.js).
-  { id:'joinery-floor',          label:'Joinery – Floor Overview',      built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryFloorModule(),150); } },
+  { id:'joinery-floor',          label:'Joinery – Floor Overview',      built:true, launch:()=>{ launchJoineryFloorModule(); } },
   // Vehicle Fleet Inspector + Delivery/Scheduling (Milestone E, 5 Aug
   // 2026) — entirely new modules, see fleet-delivery.js/the design
   // note in data.js. Deliberately minimal scope, matching the plan.
-  { id:'fleet',            label:'Vehicle Fleet Inspector', built:true, launch:()=>{ closePanel(); setTimeout(()=>launchFleetModule(),150); } },
-  { id:'delivery-scheduling', label:'Delivery / Scheduling', built:true, launch:()=>{ closePanel(); setTimeout(()=>launchDeliverySchedModule(),150); } },
+  { id:'fleet',            label:'Vehicle Fleet Inspector', built:true, launch:()=>{ launchFleetModule(); } },
+  { id:'delivery-scheduling', label:'Delivery / Scheduling', built:true, launch:()=>{ launchDeliverySchedModule(); } },
 ];
 
 // Role-based access (5 Aug 2026, role-based access rollout) —
 // window.__dashboardMap (a user_type key -> its one NODES id, populated
-// at login — see finishCloudLogin() in auth.js) decides which built
-// node an actual tap is allowed to open. "owner" (Salman, and the
-// offline e2e test bypass — finishCloudLogin defaults to it when there's
-// no real per-person profile) always sees everything. Deliberately
-// fails CLOSED if the map hasn't loaded yet — a real access-control
-// check, not cosmetic, so the safe default during that brief window is
-// "can't open anything yet," never "can open everything."
+// at login — see finishCloudLogin() in auth.js) decides which node a
+// role is allowed to land on/open. "owner"/"admin" are wildcards. Real
+// enforcement lives server-side (RLS, supabase/schema.sql) — this is
+// the same "honest surface behavior, not a security boundary" level
+// every other client-side check in this app already operates at.
 function nodeAccessible(nodeId) {
   if (window.cloudUserType === 'owner' || window.cloudUserType === 'admin') return true;
   if (!window.__dashboardMap) return false;
   return window.__dashboardMap[window.cloudUserType] === nodeId;
 }
-// This file is a <script type="module">, so top-level declarations are
-// module-scoped, not global — window.__eco3d below is exposed
-// explicitly for the same reason. nodeAccessible() needs the same
-// explicit exposure so e2e tests (e2e-role-gating.js) can call it
-// directly to verify the access decision itself, not just its
-// downstream effect.
 window.nodeAccessible = nodeAccessible;
 
-const PURPLE = 0x9b5cff;       // one accent, all nodes
-const BUILT_OPACITY = 0.95;
-const BUILDING_OPACITY = 0.55; // unused today (0 modules), kept for later
-const PLANNED_OPACITY = 0.16;
-
-function statusOpacity(n) {
-  if (n.built) return BUILT_OPACITY;
-  if (n.building) return BUILDING_OPACITY;
-  return PLANNED_OPACITY;
-}
-
-const app = document.getElementById('eco3d');
-if (app) {
-  const scene = new THREE.Scene();
-  const BASE_FOV = 46, FOCUS_FOV = 30;
-  let w = app.clientWidth || 380, h = app.clientHeight || 500;
-  const camera = new THREE.PerspectiveCamera(BASE_FOV, w / h, 0.1, 100);
-  camera.position.set(0, 1.6, 5.6);
-
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(w, h);
-  app.appendChild(renderer.domElement);
-
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 0.35;
-  controls.minDistance = 2;
-  controls.maxDistance = 10;
-  controls.target.set(0, 0, 0);
-  let idleTimer = null;
-  controls.addEventListener('start', () => { controls.autoRotate = false; if (idleTimer) clearTimeout(idleTimer); });
-  controls.addEventListener('end', () => { idleTimer = setTimeout(() => { controls.autoRotate = true; }, 3500); });
-
-  function makeNode(radius, color) {
-    const geo = new THREE.IcosahedronGeometry(radius, 1);
-    const wireGeo = new THREE.WireframeGeometry(geo);
-    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
-    const mesh = new THREE.LineSegments(wireGeo, mat);
-    const hitMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ visible: false }));
-    mesh.add(hitMesh);
-    mesh.userData.hitMesh = hitMesh;
-    return mesh;
-  }
-
-  const R_BRANCH = 2.0;
-  const hub = makeNode(0.28, PURPLE);
-  Object.assign(hub.userData, { key: 'hub', isHub: true });
-  scene.add(hub);
-
-  const branchGroup = new THREE.Group();
-  scene.add(branchGroup);
-  const branches = NODES.map((n, i) => {
-    const angle = (i / NODES.length) * Math.PI * 2;
-    const mesh = makeNode(0.16, PURPLE);
-    Object.assign(mesh.userData, { node: n, baseAngle: angle, baseOpacity: statusOpacity(n) });
-    mesh.position.set(Math.cos(angle) * R_BRANCH, 0, Math.sin(angle) * R_BRANCH);
-    mesh.material.opacity = statusOpacity(n);
-    branchGroup.add(mesh);
-    return mesh;
-  });
-
-  const linkLines = branches.map((b) => {
-    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), b.position.clone()]);
-    const mat = new THREE.LineBasicMaterial({ color: PURPLE, transparent: true, opacity: b.userData.baseOpacity * 0.3 });
-    const line = new THREE.Line(geo, mat);
-    scene.add(line);
-    return line;
-  });
-
-  let selectedBranch = null;
-
-  const labelsLayer = document.createElement('div');
-  labelsLayer.style.position = 'absolute';
-  labelsLayer.style.inset = '0';
-  labelsLayer.style.pointerEvents = 'none';
-  app.style.position = 'relative';
-  app.appendChild(labelsLayer);
-
-  function makeLabel(text, isHub) {
-    const el = document.createElement('div');
-    el.className = 'eco3d-lbl' + (isHub ? ' hub' : '');
-    el.textContent = text;
-    labelsLayer.appendChild(el);
-    return el;
-  }
-  const hubLabelEl = makeLabel('S.A', true);
-  const branchLabels = branches.map(b => makeLabel(b.userData.node.label, false));
-
-  function updateLabel(el, obj3d, dim) {
-    const v = new THREE.Vector3();
-    obj3d.getWorldPosition(v);
-    v.project(camera);
-    if (v.z > 1) { el.style.left = '-999px'; return; }
-    const x = (v.x * 0.5 + 0.5) * app.clientWidth;
-    const y = (-v.y * 0.5 + 0.5) * app.clientHeight;
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
-    el.style.opacity = dim;
-  }
-
-  const raycaster = new THREE.Raycaster();
-  const pointerNDC = new THREE.Vector2();
-
-  function toNDC(e) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-  }
-
-  const ecoTooltip = document.getElementById('eco-tooltip');
-  let tooltipTimer = null;
-  function showPlannedTooltip(branch, text) {
-    if (!ecoTooltip) return;
-    ecoTooltip.textContent = text || 'Coming soon';
-    const v = new THREE.Vector3();
-    branch.getWorldPosition(v);
-    v.project(camera);
-    const x = (v.x * 0.5 + 0.5) * app.clientWidth + app.getBoundingClientRect().left;
-    const y = (-v.y * 0.5 + 0.5) * app.clientHeight + app.getBoundingClientRect().top;
-    ecoTooltip.style.left = x + 'px';
-    ecoTooltip.style.top = y + 'px';
-    ecoTooltip.classList.add('show');
-    if (tooltipTimer) clearTimeout(tooltipTimer);
-    tooltipTimer = setTimeout(() => ecoTooltip.classList.remove('show'), 1200);
-  }
-
-  // Tap detection uses the browser's native 'click' event rather than the
-  // original design reference's hand-rolled pointerdown/pointerup distance
-  // check — 'click' is reliably synthesized only for a genuine
-  // tap-without-drag on every browser and needs no manual threshold.
-  // (The actual bug that made taps do nothing on a real iPhone — reported
-  // 3 Aug 2026 — turned out to be unrelated to event type: `hub.userData =
-  // {...}`/`mesh.userData = {...}` just below overwrote the `hitMesh`
-  // property makeNode() had set moments earlier, so every raycast ran
-  // against `undefined` and threw on the very first tap, every time, on
-  // every device — silently, since it's inside an event listener. Fixed
-  // via Object.assign(...userData, {...}) instead of reassigning it.
-  // Switching pointerdown/up to 'click' here is a smaller, separate
-  // robustness improvement made at the same time, not the actual fix.)
-  renderer.domElement.addEventListener('click', (e) => {
-    toNDC(e);
-    raycaster.setFromCamera(pointerNDC, camera);
-
-    if (selectedBranch) {
-      const hubHit = raycaster.intersectObject(hub.userData.hitMesh);
-      const branchHit = raycaster.intersectObjects(branches.map(m => m.userData.hitMesh));
-      if (hubHit.length || (branchHit.length && branchHit[0].object.parent === selectedBranch)) {
-        selectedBranch = null;
-        return;
-      }
-    }
-    const hit = raycaster.intersectObjects(branches.map(m => m.userData.hitMesh));
-    if (hit.length) {
-      const branch = hit[0].object.parent;
-      const n = branch.userData.node;
-      if (n.built && nodeAccessible(n.id)) {
-        n.launch();
-      } else {
-        selectedBranch = branch;
-        showPlannedTooltip(branch, n.built ? 'Not part of your role' : undefined);
-        setTimeout(() => { if (selectedBranch === branch) selectedBranch = null; }, 1200);
-      }
-    }
-  });
-
-  function resize() {
-    if (!app.clientWidth || !app.clientHeight) return;
-    camera.aspect = app.clientWidth / app.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(app.clientWidth, app.clientHeight);
-  }
-  window.addEventListener('resize', resize);
-  // `w`/`h` above fell back to 380/500 if #eco3d had zero size at the
-  // moment this script ran (e.g. the Ecosystem tab wasn't the active tab
-  // yet) — window 'resize' never fires just from switching tabs, so the
-  // canvas could get stuck rendering at the wrong size forever, silently
-  // misaligning click/raycast coordinates from the visually rendered scene
-  // (found 3 Aug 2026 while verifying the new HR node opens via a real tap,
-  // not a direct launch() call — clicks in the undersized canvas's missing
-  // right/bottom margin didn't map to any node). ResizeObserver catches the
-  // real size the first time the container actually lays out, and any
-  // later real resize too.
-  if (window.ResizeObserver) {
-    new ResizeObserver(() => resize()).observe(app);
-  }
-
-  const clock = new THREE.Clock();
-  function animate() {
-    requestAnimationFrame(animate);
-    const t = clock.getElapsedTime();
-
-    branches.forEach(b => {
-      if (b === selectedBranch) return;
-      const a = b.userData.baseAngle + t * 0.06;
-      b.position.set(Math.cos(a) * R_BRANCH, 0, Math.sin(a) * R_BRANCH);
-      b.rotation.y += 0.002;
-      b.rotation.x += 0.001;
-    });
-
-    hub.rotation.y += 0.0015;
-    const pulse = 0.85 + Math.sin(t * 2.0) * 0.15;
-    hub.scale.setScalar(pulse);
-
-    branches.forEach((b, i) => {
-      const isFocused = b === selectedBranch;
-      const base = b.userData.baseOpacity;
-      const dim = selectedBranch ? base * 0.25 : base;
-      b.material.opacity = isFocused ? Math.max(base, 0.9) : dim;
-      linkLines[i].material.opacity = selectedBranch
-        ? (isFocused ? base * 0.6 : base * 0.08)
-        : (base * 0.25 + Math.sin(t * 1.6 - i * 0.4) * base * 0.08);
-    });
-    hub.material.opacity = selectedBranch ? 0.4 : 0.95;
-
-    const desiredTarget = selectedBranch ? selectedBranch.position : new THREE.Vector3(0, 0, 0);
-    controls.target.lerp(desiredTarget, 0.06);
-    const desiredFov = selectedBranch ? FOCUS_FOV : BASE_FOV;
-    camera.fov += (desiredFov - camera.fov) * 0.06;
-    camera.updateProjectionMatrix();
-
-    controls.update();
-    renderer.render(scene, camera);
-
-    updateLabel(hubLabelEl, hub, selectedBranch ? '0.3' : '1');
-    branches.forEach((b, i) => {
-      const base = b.userData.baseOpacity;
-      const labelOpacity = selectedBranch
-        ? (b === selectedBranch ? '1' : String(base * 0.2))
-        : String(Math.min(base + 0.35, 1));
-      updateLabel(branchLabels[i], b, labelOpacity);
-    });
-  }
-  animate();
-  window.__eco3d = { scene, camera, renderer, hub, branches, NODES };
-}
+// Back-compat shim for the existing e2e suite (~40 files), which opens
+// modules via window.__eco3d.branches.find(...).userData.node.launch()
+// — a holdover from when that path meant "find the 3D mesh for this
+// node." No 3D scene exists anymore; branches here is a plain array
+// shaped just enough like the old mesh list (each entry has the same
+// userData.node reference) for that exact lookup pattern to keep
+// working unchanged. Not real 3D data — don't build new code against
+// .branches; use NODES directly instead (see admin.js's Developer
+// Preview for the pattern).
+window.__eco3d = { NODES, branches: NODES.map(n => ({ userData: { node: n } })) };
 </script>
 <script>
 // Registers on window.load so it never competes with the initial render.

@@ -2640,6 +2640,11 @@ function curtAlert(msg) {
 function launchCurtainModule() {
   openCurtainModule();
 }
+// Nav overhaul Phase 4 (5 Aug 2026) — Curtain was the one module with no
+// close*Module() of its own (its ✕ button, index.html, called goTo('eco')
+// directly) — added for consistency with every other module's close
+// pattern, now that goTo('eco') no longer means "the hub picker."
+function closeCurtainModule() { closeModuleWrap(document.getElementById('curt-module-wrap'), 'launchCurtainModule'); }
 
 
 // ══════════════════════════════════════════════════════════════
@@ -3138,11 +3143,7 @@ function openTracksDashboard() {
 // it. `goTo('eco')` (shell.js) is the same comprehensive reset every
 // other module's own close button already uses — hides every module
 // wrap explicitly, not just two of them.
-function closeTracksDashboard() {
-  const wrap = document.getElementById('tracks-dash-wrap');
-  if (wrap) wrap.style.display = 'none';
-  if (typeof goTo === 'function') goTo('eco');
-}
+function closeTracksDashboard() { closeModuleWrap(document.getElementById('tracks-dash-wrap'), 'openTracksDashboard'); }
 
 // ── Collect all track work items ──────────────
 // Only items that actually have a rail track belong here — the track
@@ -3943,11 +3944,7 @@ function openQCDashboard() {
 }
 
 // See closeTracksDashboard()'s note above — same fix, same bug.
-function closeQCDashboard() {
-  const wrap = document.getElementById('qc-dash-wrap');
-  if (wrap) wrap.style.display = 'none';
-  if (typeof goTo === 'function') goTo('eco');
-}
+function closeQCDashboard() { closeModuleWrap(document.getElementById('qc-dash-wrap'), 'openQCDashboard'); }
 
 // Every qcHistory entry across every job, flattened, for Performance + Log
 // views. Each row carries its own job/window/treatment context.
@@ -4993,11 +4990,7 @@ function openInstallCrewDashboard() {
 }
 
 // See closeTracksDashboard()'s note above — same fix, same bug.
-function closeInstallCrewDashboard() {
-  const wrap = document.getElementById('install-crew-wrap');
-  if (wrap) wrap.style.display = 'none';
-  if (typeof goTo === 'function') goTo('eco');
-}
+function closeInstallCrewDashboard() { closeModuleWrap(document.getElementById('install-crew-wrap'), 'openInstallCrewDashboard'); }
 
 function renderInstallCrewDashboard() {
   const wrap = document.getElementById('install-crew-wrap');
@@ -5691,11 +5684,7 @@ function openPipelineBoard() {
 }
 
 // See closeTracksDashboard()'s note above — same fix, same bug.
-function closePipelineBoard() {
-  const wrap = document.getElementById('pipeline-board-wrap');
-  if (wrap) wrap.style.display = 'none';
-  if (typeof goTo === 'function') goTo('eco');
-}
+function closePipelineBoard() { closeModuleWrap(document.getElementById('pipeline-board-wrap'), 'openPipelineBoard'); }
 
 // ── Card renderer — same card shape, per-column stage label ────
 function pipelineCard(entry, colType) {

@@ -143,7 +143,15 @@ async function signUpAndApprove(page, stamp, userType) {
   record('A real tap on the storekeeper\'s own node actually opens the Storekeeper module', !tapOwn.error && storekeeperOpened ? 'PASS' : 'FAIL', JSON.stringify({ tapOwn, storekeeperOpened }));
 
   currentStep = 'back-to-ecosystem';
-  await page.evaluate(() => { if (typeof closeStorekeeperModule === 'function') closeStorekeeperModule(); });
+  // Nav overhaul Phase 1/3 (5 Aug 2026): closeStorekeeperModule() now
+  // correctly prompts Sign Out for a single-dashboard role closing their
+  // own dashboard (window.__dashboardHome is null for storekeeper) —
+  // exactly the intended behavior, not a bug. Calling the real close
+  // function here would sign this test's account out for real, breaking
+  // the next step. This is pure test cleanup (hide the wrap so the next
+  // node-tap assertion isn't confused by it), so bypass the real close
+  // logic entirely rather than trigger a real sign-out mid-test.
+  await page.evaluate(() => { const el = document.getElementById('sk-module-wrap'); if (el) el.style.display = 'none'; });
   await page.waitForTimeout(500);
 
   currentStep = 'real-tap-unauthorized-node';

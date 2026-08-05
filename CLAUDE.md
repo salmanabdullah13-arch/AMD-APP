@@ -4564,3 +4564,132 @@ mid-rollout. This entry covers Phase 1 only.
   map, `#p-eco` 3D markup, the stale `M`/`showPanel()` 2D panel system;
   repoint the 6 hardcoded `goTo('eco')` call sites; bottom nav's
   "Ecosystem" tab → "Home").
+
+### 5 Aug 2026 — Nav overhaul Phase 4 (final): 3D ecosystem hub removed
+
+- **The 3D hub is gone** — Three.js scene/canvas/raycasting/animate loop,
+  the `<script type="module">` block, the import map (`three@0.184.0` +
+  `OrbitControls`, both CDN-loaded), all deleted from `index.html`. Also
+  removed, confirmed dead and tied to the same "ecosystem idea": the
+  stale `M`/`showPanel()`/`closePanel()` 2D tap-info-panel system
+  (shell.js) — several of its own module descriptions still said
+  `status:'soon'` for Upholstery/Joinery/Painting/Owner/HR despite all
+  being built for many sessions, and it was already unreachable dead
+  code (a much earlier session log entry noted `handleNodeTap()`'s
+  direct-launch path made the panel's own launch button unreachable) —
+  plus its `#overlay`/`#info-panel` markup, the leftover 2D-SVG-hub-era
+  CSS (`.eco-svg`/`.eco-node`/`.eco-line`/`.curt-subnode`/`#eco-tooltip`,
+  ~55 lines, dead since the 3D hub replaced the 2D SVG map back on 3 Aug
+  2026 but never cleaned up then), and the dead `subNodeTouch()`/
+  `SUB_NODE_MAP` function (referenced SVG element ids that no longer
+  exist anywhere).
+- **`NODES` survives as pure data**, exactly per the plan — extracted
+  into a new plain `<script>` (no `type="module"`, no Three.js import)
+  right where the old module script was. Every `launch()` closure had
+  its `closePanel();` call dropped (nothing left to close). New
+  **back-compat shim**: `window.__eco3d = { NODES, branches: NODES.map(n
+  => ({ userData: { node: n } })) }` — `branches` isn't real 3D data
+  anymore, just a plain array shaped so the ~40 existing e2e suites'
+  `window.__eco3d.branches.find(b => b.userData.node...).userData.node
+  .launch()` pattern keeps working completely unchanged. Commented
+  clearly as a test-compat shim, not a pattern to build new code against
+  (Admin's Developer Preview already shows the real pattern: read
+  `NODES` directly).
+- **`#p-eco` itself was deliberately kept**, not deleted outright — its
+  3D canvas host, quick-stats tiles (Built/Building/Planned counts), and
+  the pipeline banner are gone, replaced with a minimal "Home" placeholder
+  (logo mark + "Sign in to reach your dashboard."). The page still exists
+  as a real `goTo()` target because too much still points at it
+  mechanically: `closeModuleWrap()`'s own `__dashboardHome === undefined`
+  fallback (Phase 1), and every existing e2e suite's "did closing a
+  module return to the hub" assertion (`#p-eco` gaining the `active`
+  class) — none of that needed to change, since `goTo('eco')` still does
+  exactly what it always did structurally. In real day-to-day use this
+  page is now essentially vestigial: direct-landing (Phase 3) means
+  regular roles never see it, and closing their own dashboard signs them
+  out rather than landing here; Owner/Admin's "Home" always returns to
+  their own dashboard instead of this placeholder.
+- **New `goHome()`** (shell.js) — the bottom nav's old "Ecosystem" tab is
+  now "Home" (🏠), and Operations' own "‹ Ecosystem" back button is now
+  "‹ Home", both calling this instead of `goTo('eco')`. Deliberately NOT
+  the same as `closeModuleWrap()`'s Sign-Out path — a nav tap should
+  never sign anyone out on its own, only the ✕ button's explicit close
+  does that. For Owner/Admin (`__dashboardHome` set) it returns to their
+  own hub; for every other role it's a plain no-op (already home); if
+  `__dashboardHome` hasn't been assigned yet (offline e2e bypass) it
+  falls back to `goTo('eco')` for backward compatibility.
+- **Repointed every `goTo('eco')` call site that was really a close
+  action** (9 in total, not the plan's originally-estimated 6 — the
+  plan's own description of "Curtain's 4 internal reset calls" turned
+  out, on actually reading the code, to be the 4 granular-dashboard
+  close functions `closeTracksDashboard()`/`closeQCDashboard()`/
+  `closeInstallCrewDashboard()`/`closePipelineBoard()`, not resets —
+  fixed based on what the code actually does, not the earlier planning
+  description): all 4 now call the shared `closeModuleWrap()`, same as
+  every other module. Curtain's own ✕ (it had no `close*Module()` at
+  all before this) got a new `closeCurtainModule()`. Purchasing's ✕ had
+  a redundant `closePurchasingModule();goTo('eco')` — simplified to just
+  the former, since `closeModuleWrap()` already handles routing
+  correctly now.
+- **Real, pre-existing bug found and fixed along the way, unrelated to
+  this phase's own edits**: `e2e-role-gating.js`'s cleanup step called
+  `closeStorekeeperModule()` directly to tidy up between two node-tap
+  assertions — since Phase 3 correctly assigns `window.__dashboardHome =
+  null` for a storekeeper account, that call now (correctly) prompts a
+  real Sign-Out confirm, which the test's own dialog auto-accept then
+  actually signed the account out and reloaded the page, crashing the
+  rest of the test (`window.__eco3d` came back `undefined` mid-test).
+  This is the exact same class of bug fixed for the app's own code in
+  Phase 3 (an internal "just tidy up" call being indistinguishable from
+  a real close) — except this instance was living in a TEST file, not
+  app code, and had apparently been silently flaking through prior
+  sweeps (sometimes fast enough to not matter, sometimes not) rather
+  than being caught as a hard failure until this session's regression
+  sweep happened to catch it outright. Fixed by having the test hide the
+  wrap directly (bypassing the real close logic) instead of calling the
+  now-correctly-behaved close function for pure test cleanup.
+- **A real, considered tradeoff, not an oversight**: the old 3D tap
+  handler was the ONE place `nodeAccessible()`'s decision actually gated
+  real navigation (`if (n.built && nodeAccessible(n.id)) n.launch();`).
+  With the picker gone, nothing client-side stops a regular role from
+  calling e.g. `launchAccountsModule()` directly in a browser console.
+  Judged acceptable and consistent with this app's own repeatedly-stated
+  philosophy (CLAUDE.md, multiple earlier entries): UI-level gating was
+  always "honest surface behavior," never the real security boundary —
+  that's the server-side RLS built across Phase 3's three slices
+  (pricing lock, customer banking, job_cards department scoping).
+  `nodeAccessible()` itself is unchanged and still tested directly
+  (`e2e-role-gating.js`) since Admin's Developer Preview and any future
+  code can still consult it. Flagging this explicitly rather than
+  silently — worth a session of its own if Salman ever wants that
+  surface-level gate re-added elsewhere (e.g. inside each module's own
+  `open*Module()`), since the old tap-gate is genuinely gone from the UI.
+- **Verification**: `node --check` on all touched/new files; repo-wide
+  duplicate-top-level-declaration scan across all 25 JS files + the
+  extracted `index.html` script (none found); grepped the whole repo for
+  every leftover reference to the removed systems (`closePanel`/
+  `showPanel`/`THREE.`/`OrbitControls`/`importmap`/`#eco3d`/
+  `#eco-tooltip`/`#info-panel`/`#overlay`/`.eco-svg`/`.eco-node`/
+  `.curt-subnode`/`quick-stats`) — only harmless doc-comment mentions
+  remain. Full 45-file regression sweep: 43 pass; the 2 failures
+  (`e2e-cloud-messages-presence.js`, `e2e-jobcards-dept-scope-rls.js`)
+  both re-ran clean standalone (12/12 for the latter) — both are
+  already-documented pre-existing flake classes from earlier sessions
+  (stateful shared live-account data; a realtime-echo race explicitly
+  called out in that test's own header), not regressions from this
+  phase.
+- **This closes out the full 4-phase nav overhaul** approved via
+  EnterPlanMode/ExitPlanMode this session: the 3D ecosystem hub picker
+  Salman asked to remove is gone, every one of the 27 roles + Owner +
+  the new Admin role lands directly on their own dashboard at login with
+  zero taps, Owner and Admin are cleanly split (business oversight vs.
+  system administration), and every module's close (✕) button now has
+  one shared, context-aware behavior (Sign Out for a single-dashboard
+  role, return-to-hub for Owner/Admin's own drill-ins) instead of 13+
+  near-identical duplicated bodies. Two things flagged as genuinely open
+  rather than silently dropped: the schema changes from Phase 2 (new
+  `admin` role + its RLS wildcard) still need Salman to run
+  `supabase/schema.sql` against the live project; and the tap-level
+  `nodeAccessible()` gate note directly above, if he ever wants
+  client-side role gating restored somewhere now that the picker is
+  gone.
