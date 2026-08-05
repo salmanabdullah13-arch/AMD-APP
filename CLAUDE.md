@@ -4148,3 +4148,35 @@ credential decision this session; he chose to hand one over.
 - Next: Phase 2 (Owner Dashboard, the flagship/reference
   implementation) through Phase 7 (lighter-touch dashboards), per the
   approved plan.
+
+### 5 Aug 2026 — Dashboard Analytics rollout, Phase 2: Owner Dashboard charts
+- `owner.js`'s `renderOwnerBody()` gets five new cards, inserted right
+  after Company Snapshot: Monthly Revenue by Division
+  (`cwStackedMonthlyBars` + `getMonthlyRevenueByDivision(6)`, company-
+  wide, no scope filter — Owner is the flagship/reference
+  implementation), Division Share (`cwHorizontalBarList`, same 6-month
+  totals as percentages), Pipeline Funnel (`cwHorizontalBarList` +
+  `getPipelineFunnel()`, ordinal-ramp colored by stage), Top Clients
+  (`cwHorizontalBarList` + `getTopClientsByValue(6)`), and Department
+  Quality (`cwRingStatCard` × 4, one ring per department).
+- **Real gap caught before it shipped**: Curtain never logs
+  `qc-pass`/`qc-fail` to `activityLog` the way the shared Joinery/
+  Upholstery/Painting pipeline does — `getQCTrendForDept('curt')` would
+  always read zero. New `ownerDeptQualityRing(deptKey)` normalizes this:
+  Curtain reads its own separate `getCurtainQCStats()` (curtain.js),
+  everyone else reads `getQCTrendForDept()`, so all four rings are
+  equally real rather than three real ones and a permanently-empty
+  fourth.
+- **Verification**: extended the existing `e2e-owner-dashboard.js`
+  (10→17 checks, all passing) rather than creating a parallel test —
+  seeded one real, fully-delivered Curtain job so the new charts render
+  actual content (not just their own empty state), then asserted each
+  new section renders with real data (SVG present for the stacked
+  chart, the seeded division/client name actually appears, exactly 4
+  ring-cards for the 4 departments). All pre-existing checks (quick-
+  link navigation, mutual exclusivity, close button) still pass
+  unchanged. Full 39-file regression sweep clean.
+- Next: Phase 3 (Sales Dashboard), company-wide (matching how its
+  existing KPIs already work — confirmed via reading
+  `getSalesKPIs()`/`renderSalesDashboard()`, neither filters by
+  salesperson today).

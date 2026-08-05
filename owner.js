@@ -54,6 +54,26 @@ ownerModuleWrap.innerHTML = `
 document.body.appendChild(ownerModuleWrap);
 
 function ownerEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
+function ownerBHD(v) { return 'BD ' + Math.round(v).toLocaleString('en-US'); }
+
+// Quality ring for one department (Dashboard Analytics rollout, 5 Aug
+// 2026). Curtain is a special case: it never logs qc-pass/qc-fail to
+// activityLog the way the shared Joinery/Upholstery/Painting pipeline
+// does (getQCTrendForDept() would always read zero for 'curt') — it
+// has its own separate stats (getCurtainQCStats(), curtain.js), read
+// here instead so all four departments' rings are equally real.
+function ownerDeptQualityRing(deptKey) {
+  let passRate, passCount, total;
+  if (deptKey === 'curt') {
+    const qc = getCurtainQCStats();
+    passRate = qc.pct; passCount = qc.passCount; total = qc.total;
+  } else {
+    const q = getQCTrendForDept(deptKey);
+    passRate = q.passRate; passCount = q.passCount; total = q.total;
+  }
+  const color = passRate == null ? 'var(--biz-text-faint)' : passRate >= 90 ? 'var(--ok)' : passRate >= 75 ? 'var(--warn)' : 'var(--bad)';
+  return cwRingStatCard(passRate || 0, passRate == null ? '—' : `${passRate}%`, dc(deptKey).n, total ? `${passCount} of ${total} passed` : 'No QC yet', color);
+}
 
 function openOwnerModule() {
   const scroll = document.getElementById('scroll');
@@ -131,6 +151,30 @@ function renderOwnerBody() {
     ? `<p style="font-size:12px;color:#64748b;">No activity recorded yet.</p>`
     : recent.map(a => `<div class="owner-activity-row"><span class="owner-activity-date">${a.date}</span><span>${ownerEsc(a.message)} <span style="color:#94a3b8;">— ${ownerEsc(a.user)}</span></span></div>`).join('');
 
+  // Dashboard Analytics rollout (5 Aug 2026), Phase 2 — Owner is the
+  // flagship/reference implementation: company-wide, no scope filter,
+  // reusing chart-widgets.js primitives + the three new data.js
+  // aggregations from Phase 1.
+  const monthlyRev = getMonthlyRevenueByDivision(6);
+  const divSeries = monthlyRev.divisions.map((d, i) => ({
+    name: d, color: cwOrdinalColor(i), values: monthlyRev.months.map(m => monthlyRev.byMonthDiv[m.key][d])
+  }));
+  const divTotals = monthlyRev.divisions.map((d, i) => ({
+    label: d, color: cwOrdinalColor(i),
+    value: monthlyRev.months.reduce((s, m) => s + monthlyRev.byMonthDiv[m.key][d], 0)
+  })).filter(r => r.value > 0).sort((a, b) => b.value - a.value);
+  const divTotalSum = divTotals.reduce((s, r) => s + r.value, 0) || 1;
+  divTotals.forEach(r => { r.sublabel = Math.round(r.value / divTotalSum * 100) + '%'; });
+
+  const funnel = getPipelineFunnel();
+  const funnelRows = funnel.stages.map((s, i) => ({
+    label: `${s} (${funnel.byStage[s].count})`, value: funnel.byStage[s].value, color: cwOrdinalColor(i)
+  }));
+
+  const topClients = getTopClientsByValue(6).map(c => ({ label: c.name, value: c.value }));
+
+  const deptQualityRings = ['carp', 'uph', 'paint', 'curt'].map(ownerDeptQualityRing).join('');
+
   body.innerHTML = `
     <div class="sales-card">
       <h3>Company Snapshot</h3>
@@ -144,6 +188,31 @@ function renderOwnerBody() {
       </div>
       <span class="owner-link" onclick="ownerGoTo('launchAccountsModule')">Open Accounts →</span>
       <span class="owner-link" style="margin-left:14px;" onclick="ownerOpenApprovals()">Pending Sign-ups${approvalQueueRows.length ? ' (' + approvalQueueRows.length + ')' : ''} →</span>
+    </div>
+
+    <div class="sales-card">
+      <h3>Monthly Revenue by Division</h3>
+      ${cwStackedMonthlyBars(monthlyRev.months, divSeries, { valueFormatter: ownerBHD, emptyMessage: 'Not enough confirmed jobs yet — this fills in as quotations are confirmed to Job Cards.' })}
+    </div>
+
+    <div class="sales-card">
+      <h3>Division Share (last 6 months, confirmed order value)</h3>
+      ${cwHorizontalBarList(divTotals, { valueFormatter: ownerBHD, emptyMessage: 'Not enough confirmed jobs yet.' })}
+    </div>
+
+    <div class="sales-card">
+      <h3>Pipeline Funnel (company-wide)</h3>
+      ${cwHorizontalBarList(funnelRows, { valueFormatter: ownerBHD, emptyMessage: 'No quotations or jobs yet.' })}
+    </div>
+
+    <div class="sales-card">
+      <h3>Top Clients (confirmed order value)</h3>
+      ${cwHorizontalBarList(topClients, { valueFormatter: ownerBHD, emptyMessage: 'No confirmed jobs yet.' })}
+    </div>
+
+    <div class="sales-card">
+      <h3>Department Quality (QC pass rate, all-time)</h3>
+      <div class="dash-rings">${deptQualityRings}</div>
     </div>
 
     <div class="sales-card">

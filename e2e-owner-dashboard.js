@@ -53,6 +53,23 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Nora', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
   });
 
+  // Dashboard Analytics rollout (5 Aug 2026), Phase 2 — seed one real,
+  // fully-delivered job so the new analytics section (monthly revenue,
+  // division share, pipeline funnel, top clients) has something real to
+  // render instead of just its own empty state.
+  await page.evaluate(() => {
+    const cust = createCustomer({ name: 'OwnerDash Analytics Client', contactPerson: 'Salim', tel: '39990033', address: 'Manama' });
+    const enq = createEnquiry({ division: 'Curtain & Blinds', customerId: cust.id, contactPerson: 'Salim', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
+    const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'OwnerDash Analytics Project', taxPercent: 10, contactPerson: 'Salim' });
+    const item = addQuotationItem(qtn.id, { product: 'Living Room Curtains', qty: 1, unit: 'Nos' });
+    item.rate = 2500; item.amount = 2500; item.netAmount = 2500;
+    approveQuotation(qtn.id, 'Salman Abdullah');
+    const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
+    job.amount = 2500;
+    confirmJobRouting(job.id, {}, 'Operations Manager');
+    job.items.forEach(it => { it.deliveredQty = it.qty; });
+  });
+
   currentStep = 'open-owner-dashboard';
   await openNode(page, 'owner', 'owner-module-wrap');
   await shot(page, 'owner-dashboard');
@@ -76,6 +93,27 @@ async function openNode(page, nodeId, wrapId) {
   record('Owner Dashboard renders HR & Compliance section', state.hasHR ? 'PASS' : 'FAIL');
   record('Owner Dashboard renders a Recent Activity feed', state.hasRecentActivity ? 'PASS' : 'FAIL');
   record('Recent Activity feed shows the just-created Enquiry (real cross-module activityLog data, not fake)', state.mentionsNewEnquiry ? 'PASS' : 'FAIL', JSON.stringify(state));
+
+  currentStep = 'analytics-charts';
+  const charts = await page.evaluate(() => {
+    const html = document.getElementById('owner-body').innerHTML;
+    return {
+      hasMonthlyRevenueSection: html.includes('Monthly Revenue by Division'),
+      hasMonthlyRevenueSvg: html.includes('cw-chart'),
+      hasDivisionShareSection: html.includes('Division Share'),
+      hasCurtainInDivisionShare: html.includes('Curtain &amp; Blinds') || html.includes('Curtain & Blinds'),
+      hasPipelineFunnelSection: html.includes('Pipeline Funnel'),
+      hasTopClientsSection: html.includes('Top Clients'),
+      mentionsAnalyticsClient: html.includes('OwnerDash Analytics Client'),
+      hasDeptQualitySection: html.includes('Department Quality'),
+      ringCardCount: (html.match(/ring-card/g) || []).length
+    };
+  });
+  record('Owner Dashboard renders the new Monthly Revenue by Division chart (real SVG, not the empty state, since a real job was just seeded)', charts.hasMonthlyRevenueSection && charts.hasMonthlyRevenueSvg ? 'PASS' : 'FAIL', JSON.stringify(charts));
+  record('Division Share section shows the seeded Curtain & Blinds division', charts.hasDivisionShareSection && charts.hasCurtainInDivisionShare ? 'PASS' : 'FAIL');
+  record('Pipeline Funnel section renders', charts.hasPipelineFunnelSection ? 'PASS' : 'FAIL');
+  record('Top Clients section renders and shows the seeded analytics client by name', charts.hasTopClientsSection && charts.mentionsAnalyticsClient ? 'PASS' : 'FAIL');
+  record('Department Quality section renders one ring gauge per department (Joinery/Upholstery/Painting/Curtain)', charts.hasDeptQualitySection && charts.ringCardCount === 4 ? 'PASS' : 'FAIL', JSON.stringify(charts));
 
   record('No console/page errors on Owner Dashboard load', consoleErrors.length === 0 && pageErrors.length === 0 ? 'PASS' : 'FAIL', `console=${consoleErrors.length} page=${pageErrors.length}`);
 
