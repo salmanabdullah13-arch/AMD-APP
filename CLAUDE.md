@@ -4966,3 +4966,60 @@ tiles permanently 0). Completed, verified, committed as one piece.
   regression sweep — 30 suites all green (including the two fixed
   ones re-run standalone). Live-cloud suites not re-run: nothing in
   this phase touches auth/RLS/cloud persistence paths.
+
+### 6 Aug 2026 — Second Fable end-to-end systems audit (all three workflows, live-probed)
+
+Salman re-ran the full audit brief (three production workflows walked
+start-to-finish, loophole hunt, per-role dashboard review, phased fix
+plan). Every finding demonstrated live via a temporary Playwright probe
+(deleted after, per precedent) — full report handed to Salman as
+`amd-app-systems-audit-2026-08-06.md` (point-in-time artifact, not
+committed). Nothing from the audit itself was built this session —
+findings need Salman's prioritization first. Headlines, so the next
+session doesn't have to re-derive them:
+- **Critical #1 — `approveQuotation()` (data.js) has zero gating.**
+  Called on an already-CONFIRMED quotation it reverts `lifecycleStatus`
+  to "open", after which `confirmQuotationToJobCard()` happily creates a
+  SECOND Job Card for the same quotation (demonstrated: two live job
+  cards from one quote). Called on a Sales-stage draft with no BOM it
+  approves it outright — the whole Estimator/Approver cycle is
+  skippable, and `lifecycleStatus` is NOT covered by the server-side
+  pricing-lock trigger, so a Sales session could do this via raw API.
+- **Critical #2 — track-making dead end.** A product named e.g.
+  "Motorized Track" keyword-routes to `metal` — which has no module, no
+  DEPARTMENT_APPROVERS entry, no budget-submission screen, and a
+  production gate that can therefore never open. Permanently stuck,
+  invisible to every queue/flag. Metal Works exists in
+  SALES_DIVISIONS/DEPTS/keywords but nowhere else — needs a
+  product decision (map track→curt under Curtain division? drop metal
+  from suggestions?).
+- **High — deliver-before-production + funnel lie**: full-qty
+  `addDeliveryNote()` allowed while a routed department hasn't even
+  started; `getPipelineFunnel()` then counts the job "Delivered".
+  Also `markDeliveryScheduleStatus('delivered')` unchecked.
+- **High — unlimited invoicing**: no cumulative cap on
+  `generateInvoiceFromJob()` — two 100% invoices on one job allowed.
+- **Medium** — `refreshJobFromQuotation()` never recomputes
+  `job.amount` (stale revenue figure demonstrated); variation value
+  buckets into the job's ORIGINAL month in
+  `getMonthlyRevenueByDivision()` (job.date bucketing); multi-dept
+  revenue attribution single-division (re-confirmed with numbers);
+  sofa frame still never suggests `carp`; QC captures no reject reason
+  (Curtain's own QC does — shared pipeline never adopted it); QC pass
+  recordable by the same identity that produced; `setJobStatus`
+  ungated; no urgent/priority/promised-date field exists; no hand-off
+  notifications (Messages system exists, pipeline never calls it).
+- **Held up well (re-verified)**: routing/hand-off queue visibility is
+  instant everywhere, budget gates incl. new maker-checker + BD 5,000
+  two-step, sub-stage gate, pre-routing blocks, cancelled locks,
+  pricing lock, all prior audit fixes.
+- **Dashboards**: rollout premise holds; keep shop-floor bare (one
+  revision: QC roles should get reject-reason trends once reasons are
+  captured). Cheap wins: per-salesperson scope params already built
+  into all three aggregations but never surfaced; Storekeeper reorder
+  tile (report exists, tile doesn't); Estimator/Approver need aging,
+  not category counts. Proposed phases A–E in the report (A: quotation
+  lifecycle gates + job.amount recompute; B: metal decision + delivery/
+  invoice caps; C: QC reasons + maker-checker decision; D: per-item
+  revenue attribution + variation timing; E: aging tiles + hand-off
+  notifications + urgent-flag decision).
