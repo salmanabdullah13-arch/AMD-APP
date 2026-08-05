@@ -4146,6 +4146,16 @@ function submitLineForQC(jobId, lineId, deptKey) {
   const entry = item && (item.departmentStatuses || []).find(d => d.department === deptKey);
   if (!entry) return { error: "Line not found for that department." };
   if (entry.status !== "in-production") return { error: "Line must be In Production before it can go to QC." };
+  // Phase 2 business-cycle audit finding #2 (5 Aug 2026): Joinery's
+  // internal sub-stages (drafting -> cutting -> veneer-pressing ->
+  // assembly, see JOINERY_SUB_STAGES below) used to be tracking-only —
+  // a carp line could jump straight to QC while still sitting at
+  // "drafting". This gate makes the sequence real. Only ever fires for
+  // deptKey === "carp" with a joinerySubStage actually set, so
+  // Upholstery/Painting (which never set this field) are unaffected.
+  if (deptKey === "carp" && entry.joinerySubStage && entry.joinerySubStage !== JOINERY_SUB_STAGES[JOINERY_SUB_STAGES.length - 1]) {
+    return { error: `This line hasn't finished Joinery's internal stages yet (currently at "${entry.joinerySubStage}" — must reach "${JOINERY_SUB_STAGES[JOINERY_SUB_STAGES.length - 1]}" first).` };
+  }
   entry.status = "qc";
   persistJobCardUpdate(job);
   return item;
@@ -5046,6 +5056,40 @@ function markDeliveryScheduleStatus(id, status) {
 }
 function getDeliverySchedule() {
   return deliverySchedule.slice().sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
+}
+
+// ═══════════════════════════════════════
+// CUSTOMER FEEDBACK (Phase 2 business-cycle audit finding #3, 5 Aug
+// 2026) — confirmed there was no function/form/array/dashboard tile
+// anywhere capturing how a job actually landed with the customer.
+// Deliberately minimal: one 1-5 rating + optional comments per job,
+// captured by Delivery/Scheduling right when a delivery is marked
+// complete (see fleet-delivery.js) — the single most natural moment to
+// ask, not a full satisfaction-survey system. LOCAL-ONLY for now, same
+// as the rest of Milestone E's vehicles[]/deliverySchedule[] (not yet
+// on Supabase) — resets on reload, consistent with that precedent.
+// ═══════════════════════════════════════
+const customerFeedback = [];
+function nextFeedbackId() { return customerFeedback.length ? Math.max(...customerFeedback.map(f => f.id)) + 1 : 1; }
+function recordCustomerFeedback(jobId, { rating, comments }, recordedBy) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const r = Number(rating);
+  if (!Number.isInteger(r) || r < 1 || r > 5) return { error: "Rating must be a whole number from 1 to 5." };
+  const entry = { id: nextFeedbackId(), jobId, rating: r, comments: (comments || "").trim(), recordedBy, recordedDate: new Date().toISOString().slice(0, 10) };
+  customerFeedback.push(entry);
+  logActivity({ type: "customer-feedback", linkedType: "job", linkedId: job.id, user: recordedBy, message: `Customer feedback recorded for ${job.id}: ${r}/5${entry.comments ? " — " + entry.comments : ""}` });
+  return entry;
+}
+function getFeedbackForJob(jobId) {
+  return customerFeedback.filter(f => f.jobId === jobId).sort((a, b) => b.id - a.id);
+}
+function getRecentFeedback(limit = 10) {
+  return customerFeedback.slice().sort((a, b) => b.id - a.id).slice(0, limit);
+}
+function getAverageRating() {
+  if (customerFeedback.length === 0) return null;
+  return Math.round((customerFeedback.reduce((s, f) => s + f.rating, 0) / customerFeedback.length) * 10) / 10;
 }
 
 // ═══════════════════════════════════════

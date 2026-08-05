@@ -35,7 +35,15 @@ function renderDeptQueue(deptKey, currentUser, modPrefix, statusFilter) {
     ${rows.map(r => {
       const c = customers.find(x => x.id === r.job.customerId);
       let action = '';
+      // Phase 2 audit finding #2 (5 Aug 2026): a carp line stuck before
+      // Joinery's final internal sub-stage (JOINERY_SUB_STAGES) can no
+      // longer submit for QC (see the gate in submitLineForQC(), data.js)
+      // — show that as a waiting message instead of an action button that
+      // would just get rejected. joinerySubStage is only ever set for
+      // "carp", so this never fires for Upholstery.
+      const notReadyForQC = r.entry.joinerySubStage && typeof JOINERY_SUB_STAGES !== 'undefined' && r.entry.joinerySubStage !== JOINERY_SUB_STAGES[JOINERY_SUB_STAGES.length - 1];
       if (r.entry.status === 'queued') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','startLineProduction','${r.job.id}',${r.item.lineId},'${deptKey}')">Start Production</button>`;
+      else if (r.entry.status === 'in-production' && notReadyForQC) action = `<span style="font-size:10.5px;color:#94a3b8;">Waiting on ${deptEsc((typeof JOINERY_SUB_STAGE_LABEL !== 'undefined' && JOINERY_SUB_STAGE_LABEL[r.entry.joinerySubStage]) || r.entry.joinerySubStage)}</span>`;
       else if (r.entry.status === 'in-production') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','submitLineForQC','${r.job.id}',${r.item.lineId},'${deptKey}')">Submit for QC</button>`;
       else if (r.entry.status === 'qc') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#0f9d58;" onclick="deptQueueAction('${modPrefix}','recordLineQCResult','${r.job.id}',${r.item.lineId},'${deptKey}',true,'${deptEsc(currentUser)}')">Pass</button> <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="deptQueueAction('${modPrefix}','recordLineQCResult','${r.job.id}',${r.item.lineId},'${deptKey}',false,'${deptEsc(currentUser)}')">Fail</button>`;
       else if (r.entry.status === 'rework') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','reworkLineBackToProduction','${r.job.id}',${r.item.lineId},'${deptKey}')">Resume Production</button>`;

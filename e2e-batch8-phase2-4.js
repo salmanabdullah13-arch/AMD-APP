@@ -107,6 +107,19 @@ async function openNode(page, nodeId, wrapId) {
   const nowInProduction = await page.evaluate((args) => getJobCard(args.jobId).items.find(it => it.lineId === args.lineId).departmentStatuses.find(d => d.department === 'carp').status, { jobId: seed.jobId, lineId: seed.cabinetLineId });
   record('Start Production works once budget is approved', nowInProduction === 'in-production' ? 'PASS' : 'FAIL', `status=${nowInProduction}`);
 
+  // Phase 2 audit finding #2 (5 Aug 2026): submitLineForQC() now gates on
+  // Joinery's internal sub-stage sequence (see JOINERY_SUB_STAGES, data.js)
+  // — a fresh carp line starts at "drafting", so it must reach "assembly"
+  // before this test's QC walkthrough below can proceed, same as any real
+  // Joinery line would.
+  await page.evaluate((args) => {
+    advanceJoinerySubStage(args.jobId, args.lineId, 'cutting');
+    advanceJoinerySubStage(args.jobId, args.lineId, 'veneer-pressing');
+    advanceJoinerySubStage(args.jobId, args.lineId, 'assembly');
+  }, { jobId: seed.jobId, lineId: seed.cabinetLineId });
+  await page.evaluate(() => renderJoineryBody());
+  await page.waitForTimeout(150);
+
   // ── Walk the line through QC fail -> rework -> QC pass -> hand-off, via real UI ──
   currentStep = 'joinery-qc-cycle-real-ui';
   await page.click('#joinery-body button:has-text("Submit for QC")');
