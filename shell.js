@@ -38,6 +38,11 @@ function goTo(p){
   if (paintingMod) paintingMod.style.cssText = 'display:none;';
   const ownerMod = document.getElementById('owner-module-wrap');
   if (ownerMod) ownerMod.style.cssText = 'display:none;';
+  // Milestone E (5 Aug 2026, role-based access rollout).
+  const fleetMod = document.getElementById('fleet-module-wrap');
+  if (fleetMod) fleetMod.style.cssText = 'display:none;';
+  const deliverySchedMod = document.getElementById('delivery-sched-module-wrap');
+  if (deliverySchedMod) deliverySchedMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 

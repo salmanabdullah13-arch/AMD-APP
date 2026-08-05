@@ -3656,3 +3656,77 @@ credential decision this session; he chose to hand one over.
   is done. Next: Milestone E (Vehicle Fleet Inspector + Delivery/
   Scheduling) — entirely new modules, nothing existing to build on;
   scoped deliberately minimal per the original plan.
+
+### 5 Aug 2026 — Role-based access rollout, Milestone E (Vehicle Fleet
+  Inspector + Delivery/Scheduling) — LAST milestone in the plan
+- Both entirely new — no live Q-Pro trace exists for either (unlike
+  most of this app) and no existing code to build on the way Curtain/
+  Upholstery/Joinery had. New file `fleet-delivery.js` (two module-
+  wraps, same open/close/launch pattern as every other module). New
+  data-layer arrays in data.js: `vehicles[]`/`vehicleInspections[]`/
+  `deliverySchedule[]` — deliberately kept LOCAL-ONLY (in-memory, same
+  as every array before its own cloud-migration slice), not persisted
+  to Supabase; real future work if these two roles need cross-device
+  sync, same as jobCards[] was local-only before Phase 2 slice 3.
+- **Vehicle Fleet Inspector**: a vehicle list + a 7-item generic
+  inspection checklist (Tyres/Brakes/Lights/Engine Oil/Coolant/Body/
+  Registration — not confirmed against any real company policy, good
+  enough to exercise a real pass/fail record). `overallStatus` is
+  derived (one failed item fails the whole inspection), not separately
+  entered. "Overdue" = no inspection in 30 days, an arbitrary,
+  reasonable default.
+- **Delivery/Scheduling — a real design decision, not an obvious
+  wiring job**: `job.deliveryNotes[]` (existing) already records an
+  ACTUAL, already-happened delivery the moment `addDeliveryNote()`
+  creates it (incrementing `deliveredQty` immediately) — there's no
+  "planned but not yet delivered" concept in that model, and
+  retrofitting one would have meant changing semantics Sales/Jobs
+  already depend on. `deliverySchedule[]` is a separate, non-invasive
+  PLANNING layer that sits alongside it: real delivery still happens
+  through the unchanged `addDeliveryNote()` flow when it actually
+  occurs; the new layer just tracks when a routed, undelivered job is
+  *planned* to go out, optionally cross-linked to a Vehicle Fleet
+  vehicle.
+- **Real bug found and fixed live**: `getInspectionsForVehicle()`
+  originally sorted by the `date` string alone to find the "latest"
+  inspection — but two inspections recorded the SAME day (a real,
+  plausible case: re-inspecting after a same-day fail) tie on that
+  string, and a stable sort's 0-comparator for ties just preserves
+  input order, silently keeping the EARLIER same-day inspection as
+  "latest" rather than the actual most recent one. Live-tested proof:
+  recording a pass then a fail inspection back to back showed
+  `failedLast: 0` in the fleet KPIs when it should have been 1. Fixed
+  by reversing creation order directly (`vehicleInspections.push()`
+  already guarantees chronological order) instead of re-deriving order
+  from a date string with no time component.
+- **Established-pattern housekeeping this milestone required**: every
+  existing module explicitly lists every sibling module's wrap id to
+  hide on open (no shared `.module{}` CSS class handles this — see
+  Milestone B's bug fix). Adding two new module wraps meant adding
+  `fleet-module-wrap`/`delivery-sched-module-wrap` to all 13 other
+  modules' hide-lists (sales/hr/owner/accounts/jobs/estimator/approver/
+  storekeeper/purchasing/curtain/painting/joinery/upholstery) plus
+  `shell.js`'s `goTo()` (Operations' own entry point, which relies on
+  `goTo()` centrally rather than its own hide-list).
+- Two new NODES entries (`fleet`/`delivery-scheduling`) + matching
+  `user_types.dashboard_node_id` values. `sw.js` cache bumped to v5.
+- **Verification**: new `e2e-fleet-delivery.js` (12/12) — adding a
+  vehicle, a passing inspection, a failing inspection (proving the
+  same-day sort bug is fixed), the fleet KPIs, scheduling a real routed
+  job's delivery, marking it delivered, and both modules opening
+  standalone with no other module wrap visible and closing cleanly.
+  Broad regression sweep (owner-dashboard, the Curtain/Upholstery/
+  Joinery granular-dashboard tests, pwa-offline, batch8 phase2-4,
+  dashboard-enhancements, back-button-check) all clean — this touched
+  every module's hide-list, so this sweep mattered more than most.
+- **Milestone E complete — this closes out the full role-based access
+  rollout (Milestones A-E)**: real self-registration gated by Owner/HR
+  approval (enforced in RLS), nav-level role gating failing closed by
+  default, and all 27 roles + Owner now have a real, scoped dashboard —
+  14 pre-existing, 13 new across this session (4 Curtain, 2 Upholstery,
+  4 Joinery distinct + 3 sharing `joinery`/`joinery-floor`, 2 entirely
+  new Fleet/Delivery modules). Full per-role RLS table restriction
+  (Sales blocked from Accounts' data, etc.) remains explicitly out of
+  scope, tracked as Phase 3. Curtain's window/install/QC/BOM progress
+  still resets on reload (curtainJobs[]/projects[] migration,
+  deliberately deferred — see Phase 2 slice 3's CLAUDE.md entry).

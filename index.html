@@ -1342,6 +1342,7 @@
 <script src="joinery.js"></script>
 <script src="upholstery.js"></script>
 <script src="painting.js"></script>
+<script src="fleet-delivery.js"></script>
 
 <script>
 // ── Curtain sub-node touch glow ─────────────────────────────
@@ -1441,6 +1442,11 @@ const NODES = [
   // Team Leader / Floor Supervisor / Site Supervisor share this one
   // node (see the design note above and in schema.sql/data.js).
   { id:'joinery-floor',          label:'Joinery – Floor Overview',      built:true, launch:()=>{ closePanel(); setTimeout(()=>launchJoineryFloorModule(),150); } },
+  // Vehicle Fleet Inspector + Delivery/Scheduling (Milestone E, 5 Aug
+  // 2026) — entirely new modules, see fleet-delivery.js/the design
+  // note in data.js. Deliberately minimal scope, matching the plan.
+  { id:'fleet',            label:'Vehicle Fleet Inspector', built:true, launch:()=>{ closePanel(); setTimeout(()=>launchFleetModule(),150); } },
+  { id:'delivery-scheduling', label:'Delivery / Scheduling', built:true, launch:()=>{ closePanel(); setTimeout(()=>launchDeliverySchedModule(),150); } },
 ];
 
 // Role-based access (5 Aug 2026, role-based access rollout) —

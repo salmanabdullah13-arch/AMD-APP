@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v4";
+const CACHE_VERSION = "amd-app-v5";
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
@@ -26,7 +26,8 @@ const CORE_ASSETS = [
   "./operations.js", "./curtain.js",
   "./purchasing.js", "./storekeeper.js", "./sales.js", "./estimator.js",
   "./approver.js", "./jobs.js", "./accounts.js", "./hr.js", "./owner.js",
-  "./dept-pipeline-ui.js", "./joinery.js", "./upholstery.js", "./painting.js"
+  "./dept-pipeline-ui.js", "./joinery.js", "./upholstery.js", "./painting.js",
+  "./fleet-delivery.js"
 ];
 
 // The Supabase client library is loaded from a CDN (auth.js, Phase 1 of

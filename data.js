@@ -4917,6 +4917,122 @@ function getJobCardKPIs() {
 }
 
 // ═══════════════════════════════════════
+// VEHICLE FLEET + DELIVERY SCHEDULING (Milestone E, 5 Aug 2026,
+// role-based access rollout)
+// Both entirely new — no live Q-Pro trace exists for either (unlike
+// most of this app), and no existing code to build on the way
+// Curtain/Upholstery/Joinery had. Scoped deliberately minimal per the
+// plan: a vehicle list + inspection checklist/log for Vehicle Fleet
+// Inspector; a lightweight PLANNING layer for Delivery/Scheduling that
+// sits entirely alongside — not inside — the existing job.deliveryNotes[]
+// system (addDeliveryNote() already records an ACTUAL, already-happened
+// delivery the moment it's created, incrementing deliveredQty
+// immediately; there's no "planned but not yet delivered" concept in
+// that model, and retrofitting one would mean changing semantics Sales/
+// Jobs already depend on). deliverySchedule[] below is a separate,
+// non-invasive plan/track layer: real delivery still happens through
+// the unchanged addDeliveryNote() flow when it actually occurs.
+//
+// Deliberately kept LOCAL-ONLY (in-memory, like every other array in
+// this file before its own cloud-migration slice) — persisting these
+// to Supabase is real future work if these two roles need cross-device
+// sync, same as jobCards[] was local-only before Phase 2 slice 3.
+// ═══════════════════════════════════════
+
+const vehicles = [];
+function nextVehicleId() { return "VEH" + String(1000 + vehicles.length); }
+function addVehicle({ plateNumber, make, model, type }) {
+  if (!plateNumber || !plateNumber.trim()) return { error: "Plate number is required." };
+  const v = { id: nextVehicleId(), plateNumber: plateNumber.trim(), make: make || "", model: model || "", type: type || "Van", status: "active" };
+  vehicles.push(v);
+  return v;
+}
+function setVehicleStatus(vehicleId, status) {
+  const v = vehicles.find(x => x.id === vehicleId);
+  if (!v) return { error: "Vehicle not found." };
+  v.status = status;
+  return v;
+}
+
+// A reasonable generic checklist — not confirmed against any real
+// company policy, good enough to exercise a real pass/fail inspection
+// record per vehicle.
+const VEHICLE_INSPECTION_CHECKLIST_ITEMS = ["Tyres", "Brakes", "Lights", "Engine Oil", "Coolant/Fluids", "Body Condition", "Registration & Insurance Valid"];
+
+const vehicleInspections = [];
+function nextInspectionId() { return "INSP" + String(1000 + vehicleInspections.length); }
+// checklist: [{ item, pass: boolean, notes }] — one entry per
+// VEHICLE_INSPECTION_CHECKLIST_ITEMS item. overallStatus is derived,
+// not separately entered — a single failed item fails the inspection.
+function recordVehicleInspection(vehicleId, checklist, inspectedBy) {
+  const v = vehicles.find(x => x.id === vehicleId);
+  if (!v) return { error: "Vehicle not found." };
+  if (!Array.isArray(checklist) || checklist.length === 0) return { error: "Checklist is required." };
+  const overallStatus = checklist.every(c => c.pass) ? "pass" : "fail";
+  const inspection = { id: nextInspectionId(), vehicleId, date: new Date().toISOString().slice(0, 10), inspectedBy, checklist, overallStatus };
+  vehicleInspections.push(inspection);
+  return inspection;
+}
+// Real bug found live-testing (5 Aug 2026): sorting by the `date`
+// string alone can't break a tie between two inspections recorded the
+// SAME day (a real, plausible case — re-inspecting after a same-day
+// fail), so "latest" wasn't reliable — a stable sort with a 0-comparator
+// tie just preserves input order, silently keeping the EARLIER same-day
+// inspection as "latest". Fixed by reversing creation order directly
+// (vehicleInspections.push() already guarantees chronological order)
+// instead of re-deriving it from a date string with no time component.
+function getInspectionsForVehicle(vehicleId) {
+  return vehicleInspections.filter(i => i.vehicleId === vehicleId).reverse();
+}
+function getLatestInspection(vehicleId) {
+  const list = getInspectionsForVehicle(vehicleId);
+  return list.length ? list[0] : null;
+}
+// Overdue = no inspection in the last 30 days — an arbitrary, reasonable
+// default, not confirmed against a real company policy.
+function isInspectionOverdue(vehicleId) {
+  const latest = getLatestInspection(vehicleId);
+  if (!latest) return true;
+  return daysBetween ? daysBetween(latest.date, todayStr()) > 30 : (new Date() - new Date(latest.date)) / 86400000 > 30;
+}
+function getVehicleFleetKPIs() {
+  const active = vehicles.filter(v => v.status === "active");
+  return {
+    total: vehicles.length,
+    active: active.length,
+    overdue: active.filter(v => isInspectionOverdue(v.id)).length,
+    failedLast: active.filter(v => { const l = getLatestInspection(v.id); return l && l.overallStatus === "fail"; }).length
+  };
+}
+
+// ── Delivery Scheduling — plan layer, see the design note above ──
+const deliverySchedule = [];
+function nextDeliveryScheduleId() { return "DS" + String(1000 + deliverySchedule.length); }
+// Jobs worth scheduling: routed, not cancelled, with at least one line
+// still short of its full qty (mirrors the same "undelivered" check
+// addDeliveryNote() itself already does per-line).
+function getJobsNeedingDeliveryScheduling() {
+  return jobCards.filter(j => j.routingConfirmed && j.status !== "cancelled" && j.items.some(it => (it.deliveredQty || 0) < it.qty));
+}
+function scheduleDelivery(jobId, { plannedDate, driver, vehicleId, notes }) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  if (!plannedDate) return { error: "Planned date is required." };
+  const entry = { id: nextDeliveryScheduleId(), jobId, plannedDate, driver: driver || "", vehicleId: vehicleId || null, notes: notes || "", status: "planned" };
+  deliverySchedule.push(entry);
+  return entry;
+}
+function markDeliveryScheduleStatus(id, status) {
+  const entry = deliverySchedule.find(e => e.id === id);
+  if (!entry) return { error: "Schedule entry not found." };
+  entry.status = status;
+  return entry;
+}
+function getDeliverySchedule() {
+  return deliverySchedule.slice().sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
+}
+
+// ═══════════════════════════════════════
 // MODULE 6 — TAX INVOICE
 // From Salman's live Q-Pro trace: a Tax Invoice is a system-generated PDF
 // tied 1:1 to a Job Card — there's no standalone "Create Invoice" form for
