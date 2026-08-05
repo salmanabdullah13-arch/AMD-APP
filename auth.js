@@ -64,6 +64,24 @@ function identityToInternalEmail(displayName) {
   return `${slug}@amd-app.internal`;
 }
 
+// Age gate (5 Aug 2026) — anyone under 18 cannot be approved. Enforced
+// in two places: here, for immediate feedback at sign-up (handleSignUp()
+// below), and again in approval-queue.js's actual approve action — a
+// determined signer could still get a bad DOB past the sign-up form
+// (e.g. the manual identity-claim fallback doesn't collect DOB at all),
+// so the approval-side check is the real gate, this one is just the
+// fast, friendly rejection.
+function calculateAge(dobStr) {
+  if (!dobStr) return null;
+  const dob = new Date(dobStr);
+  if (isNaN(dob.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
+  return age;
+}
+
 const authFieldStyle = 'width:100%;padding:13px 14px;border:1px solid var(--shell-border);border-radius:10px;font-size:15px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;';
 const authBtnStyle = 'width:100%;padding:13px;background:var(--maraya);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;';
 const authLinkStyle = 'font-size:12px;color:var(--maraya);text-align:center;margin-top:14px;cursor:pointer;font-weight:600;';
@@ -127,10 +145,21 @@ function renderAuthForms(mode, message) {
     sb.from('user_types').select('key,label,department').order('department').order('label').then(({ data: userTypes, error }) => {
       if (error) { body.innerHTML = tabsHtml + `<p style="text-align:center;font-size:13px;color:var(--bad);">Couldn't load role list: ${authEsc(error.message)}</p>`; return; }
       const userTypeOptions = userTypes.map(t => `<option value="${authEsc(t.key)}">${authEsc(t.label)}</option>`).join('');
+      // max=18-years-ago (5 Aug 2026, age gate) — the date picker itself
+      // won't let you select anything younger, which also directly
+      // closes the "just pick today's date" loophole this was built to
+      // stop. onkeydown/onpaste block manual typing — a native <input
+      // type="date"> on iOS is already a wheel picker with no keyboard
+      // involved, but desktop browsers allow typing digits into the
+      // date segments unless explicitly blocked.
+      const maxDob = new Date();
+      maxDob.setFullYear(maxDob.getFullYear() - 18);
+      const maxDobStr = maxDob.toISOString().slice(0, 10);
       body.innerHTML = tabsHtml + `
         ${messageHtml}
         <input id="auth-fullname-input" type="text" placeholder="Full Name" style="${authFieldStyle}">
-        <input id="auth-dob-input" type="date" placeholder="Date of Birth" style="${authFieldStyle}">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--shell-ink-muted);margin:-4px 0 5px;">Date of Birth <span style="font-weight:400;color:var(--shell-ink-faint);">(must be 18 or older)</span></label>
+        <input id="auth-dob-input" type="date" max="${maxDobStr}" onkeydown="return false" onpaste="return false" style="${authFieldStyle}">
         <input id="auth-phone-input" type="tel" placeholder="Telephone Number" style="${authFieldStyle}">
         <input id="auth-designation-input" type="text" placeholder="Designation (your job title)" style="${authFieldStyle}">
         <select id="auth-usertype-select" style="${authFieldStyle}">
@@ -158,7 +187,7 @@ function renderAuthForms(mode, message) {
       </select>
       <input id="auth-password-input" type="password" placeholder="Password" style="${authFieldStyle}">
       <button onclick="handleSignIn()" style="${authBtnStyle}">Sign In</button>
-      <p style="font-size:11px;color:var(--shell-ink-faint);text-align:center;margin-top:14px;line-height:1.4;">Forgot your password? Ask your admin to reset your account.</p>
+      <p onclick="handleForgotPassword()" style="font-size:11.5px;color:var(--maraya);text-align:center;margin-top:14px;line-height:1.4;font-weight:600;cursor:pointer;">Forgot your password?</p>
     `;
   });
 }
@@ -175,6 +204,21 @@ async function handleSignIn() {
   await afterSignedIn();
 }
 
+// Real notification, not a real reset (5 Aug 2026) — see the design
+// note on password_reset_requests in supabase/schema.sql. Works while
+// signed out (the whole point) since that table's insert policy is
+// `to public`. Requires the person to have already picked their name
+// in the roster dropdown above, since that's the only identity we have
+// for them without a session.
+async function handleForgotPassword() {
+  const select = document.getElementById('auth-identity-select');
+  const displayName = select ? select.value : '';
+  if (!displayName) { renderAuthForms('signin', 'Pick which of the names you are above, then tap "Forgot your password?" again.'); return; }
+  const { error } = await sb.from('password_reset_requests').insert({ display_name: displayName });
+  if (error) { renderAuthForms('signin', `Couldn't notify your admin: ${error.message}`); return; }
+  renderAuthForms('signin', `✓ An admin has been notified and will reset your password soon.`);
+}
+
 async function handleSignUp() {
   const displayName = (document.getElementById('auth-fullname-input').value || '').trim();
   const dob = document.getElementById('auth-dob-input').value || '';
@@ -185,6 +229,8 @@ async function handleSignUp() {
   const confirmPassword = document.getElementById('auth-password-confirm-input').value || '';
   if (!displayName) { renderAuthForms('signup', 'Enter your full name.'); return; }
   if (!dob) { renderAuthForms('signup', 'Enter your date of birth.'); return; }
+  const age = calculateAge(dob);
+  if (age === null || age < 18) { renderAuthForms('signup', 'You must be at least 18 years old to sign up.'); return; }
   if (!phone) { renderAuthForms('signup', 'Enter your telephone number.'); return; }
   if (!designation) { renderAuthForms('signup', 'Enter your designation.'); return; }
   if (!userType) { renderAuthForms('signup', 'Pick your User Type.'); return; }
@@ -413,6 +459,54 @@ async function cloudSignOut() {
   await sb.auth.signOut();
   window.cloudIdentity = null;
   location.reload();
+}
+
+// ── Change Password (5 Aug 2026) — self-service, for a signed-in user
+// changing their OWN password. Built after having to reset Salman's
+// account by hand (Admin API) since nothing let him do this himself.
+// supabase.auth.updateUser() only requires the current session — no
+// separate "current password" re-entry, matching Supabase's own
+// default (the active session already proves who you are).
+// ══════════════════════════════════════════
+const changePasswordModal = document.createElement('div');
+changePasswordModal.id = 'change-password-modal';
+changePasswordModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px;';
+changePasswordModal.innerHTML = `
+  <div style="background:#fff;border-radius:14px;padding:22px 20px;width:100%;max-width:340px;box-sizing:border-box;">
+    <h3 style="margin:0 0 14px;font-size:16px;">Change Password</h3>
+    <div id="change-password-body"></div>
+  </div>
+`;
+document.body.appendChild(changePasswordModal);
+
+function openChangePasswordModal() {
+  if (!window.__realCloudSession) return;
+  document.getElementById('change-password-body').innerHTML = `
+    <input id="cp-new-password" type="password" placeholder="New password (6+ characters)" style="${authFieldStyle}">
+    <input id="cp-confirm-password" type="password" placeholder="Confirm new password" style="${authFieldStyle}">
+    <p id="cp-message" style="font-size:12px;color:var(--bad);min-height:16px;margin:0 0 8px;"></p>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeChangePasswordModal()" style="flex:1;padding:11px;background:var(--shell-tint);border:none;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="submitChangePassword()" style="flex:1;padding:11px;background:var(--maraya);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;">Save</button>
+    </div>
+  `;
+  changePasswordModal.style.display = 'flex';
+}
+function closeChangePasswordModal() {
+  changePasswordModal.style.display = 'none';
+}
+async function submitChangePassword() {
+  const pw = document.getElementById('cp-new-password').value || '';
+  const confirmPw = document.getElementById('cp-confirm-password').value || '';
+  const msg = document.getElementById('cp-message');
+  if (pw.length < 6) { msg.textContent = 'Password needs to be at least 6 characters.'; return; }
+  if (pw !== confirmPw) { msg.textContent = "Passwords don't match."; return; }
+  msg.style.color = 'var(--shell-ink-muted)';
+  msg.textContent = 'Saving…';
+  const { error } = await sb.auth.updateUser({ password: pw });
+  if (error) { msg.style.color = 'var(--bad)'; msg.textContent = error.message; return; }
+  closeChangePasswordModal();
+  if (typeof commsToast === 'function') commsToast('✓ Password changed.');
 }
 
 if (sb) {

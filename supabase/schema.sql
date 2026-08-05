@@ -704,3 +704,47 @@ create policy "recipient can mark their own messages read"
   to authenticated
   using (public.is_approved() and recipient_name = (select display_name from public.profiles where id = auth.uid()))
   with check (public.is_approved() and recipient_name = (select display_name from public.profiles where id = auth.uid()));
+
+-- ══════════════════════════════════════════════════════════════
+-- Password reset requests (5 Aug 2026) — there is no self-service
+-- password reset in this app (fake @amd-app.internal addresses can't
+-- receive a real reset email — see auth.js's header note) and no
+-- in-app way for a locked-out, NOT-signed-in user to send a Message
+-- (sendMessage()'s RLS requires auth.uid(), which a signed-out user
+-- doesn't have). This table is the one thing an unauthenticated user
+-- genuinely needs to write: "it's me, I'm locked out." Owner/HR see
+-- and resolve these manually (via the Supabase dashboard or asking
+-- an admin with API access) — this is a NOTIFICATION, not an actual
+-- self-service reset.
+-- ══════════════════════════════════════════════════════════════
+create table if not exists public.password_reset_requests (
+  id bigint generated always as identity primary key,
+  display_name text not null,
+  requested_at timestamptz not null default now(),
+  resolved boolean not null default false,
+  resolved_by text,
+  resolved_date date
+);
+
+alter table public.password_reset_requests enable row level security;
+
+-- Deliberately `to public` (covers a signed-out session too) — the
+-- entire point is a locked-out user has no auth.uid() yet.
+drop policy if exists "anyone can request a password reset" on public.password_reset_requests;
+create policy "anyone can request a password reset"
+  on public.password_reset_requests for insert
+  to public
+  with check (true);
+
+drop policy if exists "owner or hr can view reset requests" on public.password_reset_requests;
+create policy "owner or hr can view reset requests"
+  on public.password_reset_requests for select
+  to authenticated
+  using (public.is_owner_or_hr());
+
+drop policy if exists "owner or hr can resolve reset requests" on public.password_reset_requests;
+create policy "owner or hr can resolve reset requests"
+  on public.password_reset_requests for update
+  to authenticated
+  using (public.is_owner_or_hr())
+  with check (public.is_owner_or_hr());

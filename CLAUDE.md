@@ -3730,3 +3730,63 @@ credential decision this session; he chose to hand one over.
   scope, tracked as Phase 3. Curtain's window/install/QC/BOM progress
   still resets on reload (curtainJobs[]/projects[] migration,
   deliberately deferred — see Phase 2 slice 3's CLAUDE.md entry).
+
+### 5 Aug 2026 — Auth fixes: DOB field UX, age gate, forgot-password alert
+- Prompted by a real, live incident: Salman himself got locked out
+  (forgot his password) right after screenshotting a confusing, blank
+  DOB field on the sign-up form. Fixed both, plus built the missing
+  self-service pieces that would have prevented needing to ask for
+  help by hand.
+- **Immediate fix**: reset Salman's password directly via the Supabase
+  Admin API (his explicit request, after being warned the password he
+  chose is weak — his call to change it later). No code change; a
+  one-off admin action, same credential-use discipline as the rest of
+  this session (used only in an ephemeral Bash call, never committed).
+- **DOB field UX**: `<input type="date">` doesn't render a `placeholder`
+  in Safari — the field was showing as a blank, unlabeled box (exactly
+  what the screenshot caught). Added a real `<label>` ("Date of Birth
+  (must be 18 or older)"), `onkeydown="return false"`/`onpaste="return
+  false"` to block manual typing (a native date input is already a
+  wheel picker on iOS with no keyboard involved; desktop browsers allow
+  typing into the date segments unless explicitly blocked), and
+  `max="<18 years ago>"` so the picker itself won't let you select
+  anything younger — directly closes the "just pick today's date"
+  loophole Salman specifically flagged.
+- **Age gate, real enforcement not just sign-up-side**: `calculateAge()`
+  (auth.js) checked at `handleSignUp()` for immediate, friendly
+  feedback — but the actual gate is `aqAgeBlockReason()`
+  (approval-queue.js), checked before rendering the Approve button
+  (hidden entirely for a blocked row, not just disabled-looking) AND
+  again inside `approvalQueueApprove()` itself (refuses even if called
+  directly, bypassing the hidden button). A missing DOB (e.g. from the
+  manual identity-claim fallback, which never collected one) is treated
+  as "can't verify — don't approve," not silently let through.
+- **Forgot Password now does something real**: new
+  `password_reset_requests` table (`to public` insert policy — the
+  entire point is a signed-out, locked-out user has no `auth.uid()` yet
+  to satisfy any other policy shape) replaces the static "ask your
+  admin" text. The Sign In screen's link now logs a request against
+  whichever name is picked in the roster dropdown; Owner/HR see and
+  resolve these in a new panel folded into the existing approval queue
+  screen. This is a NOTIFICATION, not a self-service reset — actually
+  changing the password still requires an admin action outside the app
+  (Supabase dashboard, or asking for API-level help, as just happened
+  for Salman) since there's no secure way to expose that capability to
+  the client without shipping the service_role key to the browser.
+- **New: self-service Change Password.** A 🔑 icon in the app's topbar
+  opens a small modal calling `supabase.auth.updateUser({password})` —
+  works for any signed-in user changing their own password, no separate
+  "current password" re-entry needed (the active session already proves
+  who you are, Supabase's own default). Directly closes the loop that
+  caused today's incident — next time, no admin intervention needed.
+- **Verification**: new `e2e-age-gate.js` (10/10) — the DOB field's
+  label/max/typing-block, a live sign-up rejection for a 5-year-old
+  DOB, `aqAgeBlockReason()`'s three cases (blocked/missing/allowed),
+  the approval queue UI actually hiding the Approve button for a
+  blocked row (not just styling it differently), and
+  `approvalQueueApprove()` refusing even when called directly. Full
+  regression (batch8 phase2-4, dashboard-enhancements, back-button-
+  check, pwa-offline, cloud-login) and the existing `e2e-signup-
+  approval.js` (10/10, unaffected — confirms Playwright's `.fill()`
+  bypasses the keydown block as expected, since it sets values
+  programmatically rather than simulating keystrokes) all clean.
