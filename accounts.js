@@ -217,9 +217,45 @@ function getAccountsKPIs() {
   };
 }
 
+// Dashboard Analytics rollout (5 Aug 2026), Phase 4 — a monthly-
+// bucketed variant of getAccountsKPIs().byDivision above, same source
+// (taxInvoices, accountsDivisionForInvoice()) and same real accounting
+// distinction: this is INVOICED revenue only, narrower and more
+// conservative than getMonthlyRevenueByDivision() (data.js, job-
+// confirmed value) which Owner's/Sales' dashboards use. Deliberately
+// NOT reusing that broader function here — Accounts' own revenue
+// definition is a real distinction worth preserving, not something to
+// quietly widen for a chart.
+function getAccountsMonthlyRevenueByDivision(monthsBack) {
+  monthsBack = monthsBack || 6;
+  const months = [];
+  const now = new Date();
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    months.push({ key, label: d.toLocaleString('en-US', { month: 'short' }) });
+  }
+  const byMonthDiv = {};
+  months.forEach(m => { byMonthDiv[m.key] = {}; });
+  const divisionsSeen = [];
+  taxInvoices.forEach(inv => {
+    const mk = (inv.date || '').slice(0, 7);
+    if (!byMonthDiv[mk]) return;
+    const div = accountsDivisionForInvoice(inv) || 'Unassigned';
+    if (divisionsSeen.indexOf(div) === -1) divisionsSeen.push(div);
+    byMonthDiv[mk][div] = (byMonthDiv[mk][div] || 0) + inv.totals.netTotal;
+  });
+  months.forEach(m => { divisionsSeen.forEach(d => { if (!(d in byMonthDiv[m.key])) byMonthDiv[m.key][d] = 0; }); });
+  return { months, byMonthDiv, divisions: divisionsSeen };
+}
+
 function renderAccountsDashboard() {
   const k = getAccountsKPIs();
-  const divisionRows = Object.entries(k.byDivision);
+  const monthlyRev = getAccountsMonthlyRevenueByDivision(6);
+  const divSeries = monthlyRev.divisions.map((d, i) => ({
+    name: d, color: cwOrdinalColor(i), values: monthlyRev.months.map(m => monthlyRev.byMonthDiv[m.key][d])
+  }));
+  const topClients = getTopClientsByValue(6).map(c => ({ label: c.name, value: c.value }));
   return `
     <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
       <p style="font-size:11px;color:#94a3b8;margin:0;">Accounts</p>
@@ -235,9 +271,12 @@ function renderAccountsDashboard() {
       <div class="sales-kpi-tile"><div class="num">${k.invoiceCount}</div><div class="lbl">Sales Invoices</div></div>
     </div>
     <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Revenue by Division</p>
-      ${divisionRows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No invoices generated yet.</p>` :
-        `<table class="sales-items"><tr><th>Division</th><th>Revenue (BD)</th></tr>${divisionRows.map(([div, amt]) => `<tr><td>${acEsc(div)}</td><td>${amt.toFixed(3)}</td></tr>`).join('')}</table>`}
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Revenue by Division (invoiced, monthly)</p>
+      ${cwStackedMonthlyBars(monthlyRev.months, divSeries, { valueFormatter: v => 'BD ' + v.toFixed(3), emptyMessage: 'No invoices generated yet.' })}
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Top Clients (confirmed order value)</p>
+      ${cwHorizontalBarList(topClients, { valueFormatter: v => 'BD ' + Math.round(v).toLocaleString('en-US'), emptyMessage: 'No confirmed jobs yet.' })}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Note</p>

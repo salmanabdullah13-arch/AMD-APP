@@ -4208,3 +4208,30 @@ credential decision this session; he chose to hand one over.
   `accountsDivisionForInvoice()` trace) rather than reusing the
   broader Owner/Sales one, preserving that real accounting distinction
   rather than quietly widening what "Accounts' revenue" means.
+
+### 5 Aug 2026 — Dashboard Analytics rollout, Phase 4: Accounts Dashboard charts
+- `accounts.js`'s plain "Revenue by Division" `<table>` (its ONLY
+  historical Accounts widget with no chart at all) is now a real
+  monthly stacked-bar chart, plus a new Top Clients card. New
+  `getAccountsMonthlyRevenueByDivision(monthsBack)` — same source
+  (`taxInvoices`, `accountsDivisionForInvoice()`) as the existing
+  `getAccountsKPIs().byDivision`, just bucketed by month too.
+  Deliberately NOT reusing `data.js`'s broader
+  `getMonthlyRevenueByDivision()` (job-confirmed value) here — Accounts'
+  own invoiced-only revenue definition is a real accounting distinction
+  worth preserving on its own dashboard, not something to quietly widen
+  for a nicer chart. Top Clients reuses the shared
+  `getTopClientsByValue()` as-is (that concept doesn't have the same
+  accounting-definition sensitivity revenue recognition does).
+- **Verification**: new `e2e-accounts-dashboard-charts.js` (7/7) —
+  seeds a real invoice (with VAT, to exercise the real
+  `generateInvoiceFromJob()` VAT math) and confirms the chart shows it,
+  plus an explicit check that `getAccountsMonthlyRevenueByDivision()`
+  returns the invoiced net total (BD 3300, VAT included) and not the
+  job's raw pre-VAT amount (BD 3000) — proving the accounting
+  distinction actually holds, not just that a number renders somewhere.
+  Full 41-file regression sweep clean (one pre-existing, unrelated
+  `e2e-cloud-messages-presence.js` flake).
+- Next: Phase 5 (Operations Manager Dashboard) — cross-department
+  pipeline funnel + queue-depth mini-bars per department, reusing
+  `getDepartmentQueue()` counts `operations.js` already computes.
