@@ -489,10 +489,12 @@ insert into public.user_types (key, label, dashboard_node_id, department) values
   ('joinery_veneer_pressing_team', 'Veneer Pressing Team', null, 'joinery'),
   ('painting_lead', 'Painting Lead / Work Supervisor', 'painting', 'painting'),
   ('curtain_manager', 'Curtain Manager', 'curtain', 'curtain'),
-  ('curtain_tracks_team', 'Tracks Team', null, 'curtain'),
-  ('curtain_qc_team', 'QC Team', null, 'curtain'),
-  ('curtain_team_leader', 'Team Leader', null, 'curtain'),
-  ('curtain_site_installer', 'Site Installer', null, 'curtain'),
+  -- dashboard_node_id filled in for Milestone B (5 Aug 2026) — see the
+  -- NODES entries in index.html.
+  ('curtain_tracks_team', 'Tracks Team', 'curtain-tracks', 'curtain'),
+  ('curtain_qc_team', 'QC Team', 'curtain-qc', 'curtain'),
+  ('curtain_team_leader', 'Team Leader', 'curtain-pipeline', 'curtain'),
+  ('curtain_site_installer', 'Site Installer', 'curtain-install', 'curtain'),
   ('upholstery_manager', 'Upholstery Manager', 'upholstery', 'upholstery'),
   ('upholstery_team_leader', 'Team Leader', null, 'upholstery'),
   ('upholstery_qc_packaging_team', 'QC / Packaging Team', null, 'upholstery'),

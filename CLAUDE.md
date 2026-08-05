@@ -3502,3 +3502,49 @@ credential decision this session; he chose to hand one over.
   Milestones B-E (Curtain/Upholstery/Joinery granular dashboards,
   Vehicle Fleet Inspector + Delivery/Scheduling) — see the plan file
   from this session for the full breakdown.
+
+### 5 Aug 2026 — Role-based access rollout, Milestone B (Curtain)
+- Good news found exploring `curtain.js` before writing any code:
+  Tracks Team, QC Team, and Site Installer already have genuinely
+  separate, already-built standalone full-screen dashboards
+  (`openTracksDashboard()`/`openQCDashboard()`/
+  `openInstallCrewDashboard()`, each its own `position:fixed` overlay
+  with its own z-index) — previously only reachable via an internal
+  link from inside the Curtain Manager's own module. Team Leader maps
+  to the existing Pipeline Board (`openPipelineBoard()`, a bird's-eye
+  Kanban across every active job's stages) — the closest fit for a
+  coordinating role needing cross-stage visibility. This made the
+  milestone almost entirely wiring, not new UI: added 4 NODES entries
+  in `index.html` calling these functions directly, and set the 4
+  matching `user_types.dashboard_node_id` values
+  (`curtain-tracks`/`curtain-qc`/`curtain-install`/`curtain-pipeline`).
+- **Real pre-existing bug found and fixed**: all four dashboards'
+  close functions (`closeTracksDashboard`/`closeQCDashboard`/
+  `closeInstallCrewDashboard`/`closePipelineBoard`) reset only
+  `curt-module-wrap`/`purch-module-wrap` (the two elements carrying a
+  literal `class="module"`) back to `display:''`, relying on a
+  `.module{}` CSS rule that has never existed anywhere in this
+  codebase — `display:''` falls through to the browser's block
+  default, which breaks `curt-module-wrap`'s own flex layout AND
+  leaves `purch-module-wrap` incorrectly visible on top of whatever
+  else was open. Never caught before because these dashboards were
+  only ever reachable from inside the Curtain module itself (where
+  `curt-module-wrap` being one of the two reset elements happened to
+  mostly paper over it) — became a real, immediately-visible bug the
+  moment these could be entry points on their own. Fixed all four to
+  call `goTo('eco')` (shell.js), the same comprehensive reset every
+  other module's own close button already uses.
+- **Verification**: new `e2e-curtain-granular-dashboards.js` (10/10)
+  — first-ever e2e coverage for these four screens at all (none
+  existed before, despite being substantial built features) — proves
+  each opens as a standalone entry point with no other module wrap
+  visible, AND that a real click on each one's own "← Back" button
+  returns cleanly to the ecosystem with Purchasing/Curtain correctly
+  hidden (the actual bug fix, verified via real interaction, not by
+  calling the close function directly). Live-verified the 4
+  `user_types` rows via direct SQL. Full regression (back-button-check,
+  jobcard-unification, batch7 big/small pieces, batch9) re-run clean.
+- Milestone B (Curtain) complete. Next: Milestone C (Upholstery) —
+  expected to be a similar "mostly wiring" pass; check for the same
+  kind of already-separated dashboards before assuming new UI is
+  needed.

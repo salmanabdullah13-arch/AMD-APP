@@ -1405,6 +1405,21 @@ const NODES = [
   { id:'hr',            label:'HR & Payroll',     built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchHRModule(),150); } },
   { id:'approvals',    label:'Approver',         built:true,  launch:()=>{ closePanel(); setTimeout(()=>launchApproverModule(),150); } },
   { id:'tally',         label:'Tally Bridge',     built:false },
+  // Curtain granular role dashboards (Milestone B, 5 Aug 2026, role-based
+  // access rollout) — each opens curtain.js's own already-built standalone
+  // dashboard directly (Tracks/QC/Install Crew/Pipeline Board all predate
+  // this and were already self-contained full-screen overlays, previously
+  // only reachable via an internal link from inside the main Curtain
+  // module), bypassing the Curtain Manager's own dashboard/nav entirely —
+  // matching the plan's rule that a granular role never falls back to a
+  // manager's full view.
+  { id:'curtain-tracks',   label:'Curtain – Tracks Team',    built:true, launch:()=>{ closePanel(); setTimeout(()=>openTracksDashboard(),150); } },
+  { id:'curtain-qc',       label:'Curtain – QC Team',        built:true, launch:()=>{ closePanel(); setTimeout(()=>openQCDashboard(),150); } },
+  { id:'curtain-install',  label:'Curtain – Site Installer', built:true, launch:()=>{ closePanel(); setTimeout(()=>openInstallCrewDashboard(),150); } },
+  // Team Leader maps to the Pipeline Board (bird's-eye Kanban across every
+  // active job's stages) — the closest existing fit for a coordinating
+  // role that needs cross-stage visibility rather than one stage's queue.
+  { id:'curtain-pipeline', label:'Curtain – Team Leader',    built:true, launch:()=>{ closePanel(); setTimeout(()=>openPipelineBoard(),150); } },
 ];
 
 // Role-based access (5 Aug 2026, role-based access rollout) —

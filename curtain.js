@@ -3126,12 +3126,22 @@ function openTracksDashboard() {
   renderTracksDashboard();
 }
 
+// Real pre-existing bug found and fixed 5 Aug 2026 (building the
+// role-based Curtain Tracks Team dashboard, which needed this to
+// actually work as a standalone top-level entry point): this used to
+// reset only curt-module-wrap/purch-module-wrap (the two elements
+// carrying a literal `class="module"`) back to `display:''`, relying
+// on a `.module{}` CSS rule that has never existed anywhere in this
+// codebase — meaning `display:''` fell through to the browser default
+// (`block`), which both breaks curt-module-wrap's own internal flex
+// layout AND leaves purch-module-wrap incorrectly visible on top of
+// it. `goTo('eco')` (shell.js) is the same comprehensive reset every
+// other module's own close button already uses — hides every module
+// wrap explicitly, not just two of them.
 function closeTracksDashboard() {
   const wrap = document.getElementById('tracks-dash-wrap');
   if (wrap) wrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-  document.querySelectorAll('.module').forEach(m => m.style.display = '');
+  if (typeof goTo === 'function') goTo('eco');
 }
 
 // ── Collect all track work items ──────────────
@@ -3932,12 +3942,11 @@ function openQCDashboard() {
   renderQCDashboard();
 }
 
+// See closeTracksDashboard()'s note above — same fix, same bug.
 function closeQCDashboard() {
   const wrap = document.getElementById('qc-dash-wrap');
   if (wrap) wrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-  document.querySelectorAll('.module').forEach(m => m.style.display = '');
+  if (typeof goTo === 'function') goTo('eco');
 }
 
 // Every qcHistory entry across every job, flattened, for Performance + Log
@@ -4983,12 +4992,11 @@ function openInstallCrewDashboard() {
   renderInstallCrewDashboard();
 }
 
+// See closeTracksDashboard()'s note above — same fix, same bug.
 function closeInstallCrewDashboard() {
   const wrap = document.getElementById('install-crew-wrap');
   if (wrap) wrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-  document.querySelectorAll('.module').forEach(m => m.style.display = '');
+  if (typeof goTo === 'function') goTo('eco');
 }
 
 function renderInstallCrewDashboard() {
@@ -5682,12 +5690,11 @@ function openPipelineBoard() {
   renderPipelineBoard();
 }
 
+// See closeTracksDashboard()'s note above — same fix, same bug.
 function closePipelineBoard() {
   const wrap = document.getElementById('pipeline-board-wrap');
   if (wrap) wrap.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
-  document.querySelectorAll('.module').forEach(m => m.style.display = '');
+  if (typeof goTo === 'function') goTo('eco');
 }
 
 // ── Card renderer — same card shape, per-column stage label ────
