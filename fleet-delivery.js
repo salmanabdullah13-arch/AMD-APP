@@ -109,6 +109,14 @@ function renderFleetList() {
       <div class="sales-kpi-tile"><div class="num">${k.active}</div><div class="lbl">Active</div></div>
     </div>
     <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Fleet Health</p>
+      ${cwMiniBars([
+        { label: 'Active', value: k.active, color: cwOrdinalColor(0) },
+        { label: 'Overdue', value: k.overdue, color: 'var(--warn,#c47d00)' },
+        { label: 'Failed Last', value: k.failedLast, color: 'var(--bad,#d9342b)' }
+      ])}
+    </div>
+    <div class="sales-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <p style="font-weight:700;font-size:13px;margin:0;">Fleet</p>
         <button class="secondary" style="font-size:11.5px;padding:6px 12px;" onclick="fleetView='new-vehicle';renderFleetBody();">+ Add Vehicle</button>
@@ -274,6 +282,14 @@ function renderDeliverySchedList() {
       <div class="sales-kpi-tile"><div class="num">${needsScheduling.length}</div><div class="lbl">Needs Scheduling</div></div>
       <div class="sales-kpi-tile"><div class="num">${planned}</div><div class="lbl">Planned</div></div>
       <div class="sales-kpi-tile"><div class="num">${completed}</div><div class="lbl">Completed</div></div>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Delivery Status</p>
+      ${cwMiniBars([
+        { label: 'Needs Scheduling', value: needsScheduling.length, color: cwOrdinalColor(3) },
+        { label: 'Planned', value: planned, color: cwOrdinalColor(1) },
+        { label: 'Completed', value: completed, color: cwOrdinalColor(0) }
+      ])}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Jobs needing scheduling</p>

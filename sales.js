@@ -1091,11 +1091,11 @@ function renderSalesDashboard() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>
-      <div style="display:flex;gap:16px;font-size:12.5px;color:#334155;">
-        <span>Curtain: <b>${k.categoryBreakdown.curtain}</b></span>
-        <span>Upholstery: <b>${k.categoryBreakdown.upholstery}</b></span>
-        <span>Joinery: <b>${k.categoryBreakdown.joinery}</b></span>
-      </div>
+      ${cwMiniBars([
+        { label: 'Curtain', value: k.categoryBreakdown.curtain, color: cwOrdinalColor(0) },
+        { label: 'Upholstery', value: k.categoryBreakdown.upholstery, color: cwOrdinalColor(1) },
+        { label: 'Joinery', value: k.categoryBreakdown.joinery, color: cwOrdinalColor(2) }
+      ])}
     </div>
     ${renderSalesAnalyticsSection()}
     <div class="sales-card">

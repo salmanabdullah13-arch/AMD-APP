@@ -202,6 +202,14 @@ function renderStorekeeperDashboard() {
       <div class="sk-kpi-tile"><div class="num">${summary.distinctItemsInPool}</div><div class="lbl">Distinct Items</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.releasedTodayCount}</div><div class="lbl">Released Today</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.releasedTotalCount}</div><div class="lbl">Released (Total)</div></div>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Stock Movement</p>
+      ${cwMiniBars([
+        { label: 'In-Pool', value: summary.inPoolCount, color: cwOrdinalColor(0) },
+        { label: 'Released Today', value: summary.releasedTodayCount, color: cwOrdinalColor(1) },
+        { label: 'Released (Total)', value: summary.releasedTotalCount, color: cwOrdinalColor(2) }
+      ])}
     </div>`;
 
   const tabsHtml = `

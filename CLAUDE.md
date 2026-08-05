@@ -4325,3 +4325,50 @@ credential decision this session; he chose to hand one over.
 - Next: Phase 7 (lighter-touch dashboards) — one or two small charts
   each for Estimator, Approver, Purchaser, Storekeeper, HR, Fleet/
   Delivery. Lower priority/smaller scope than Phases 2-6.
+
+### 5 Aug 2026 — Dashboard Analytics rollout, Phase 7 (final): lighter-touch dashboards
+- Final phase of the rollout — small chart additions to the remaining
+  dashboards, each reusing that dashboard's own already-computed KPI
+  data (no new `data.js` aggregation functions needed for this phase):
+  - **Sales/Estimator/Approver**: their near-identical "Category
+    Breakdown" (curtain/upholstery/joinery counts) was plain text on
+    all three — now a `cwMiniBars()` chart on all three (Sales' own
+    copy had been left as plain text back in Phase 3, since that
+    phase's focus was the bigger new analytics section; caught and
+    fixed here for consistency).
+  - **Purchaser**: new "Open Requests by Division" mini-bar chart,
+    added alongside (not replacing) the existing detailed per-division
+    text rows, which carry more detail (open/pending-approval/
+    awaiting-delivery) than a single bar could show cleanly.
+  - **Storekeeper**: new "Stock Movement" chart (In-Pool / Released
+    Today / Released Total — all three are counts, genuinely
+    comparable on one chart, unlike the KPI grid's other qty-based
+    tile).
+  - **HR**: new "Compliance Risk by Category" chart — one bar per
+    compliance category (CPR/Passport/Licence/Visa/Contract/
+    Dependent), each summing that category's existing
+    expiring+expired counts.
+  - **Vehicle Fleet Inspector**: new "Fleet Health" chart (Active /
+    Overdue / Failed Last).
+  - **Delivery/Scheduling**: new "Delivery Status" chart (Needs
+    Scheduling / Planned / Completed).
+- Verified none of these seven files has an eager init-time render
+  call the way `operations.js` does (the source of Phase 5's two
+  load-order bugs) — confirmed via a direct startup page-error check
+  (temporary diagnostic script, deleted after use) before and after
+  the edits.
+- **Verification**: new `e2e-lighter-touch-charts.js` (11/11) — opens
+  all seven dashboards in turn and confirms each new chart renders.
+  Full 43-file regression sweep completely clean.
+- **This completes the Dashboard Analytics rollout** (all 7 phases of
+  the plan Salman approved). Every management/oversight dashboard in
+  the app now has real charts instead of numbers-only tiles: Owner,
+  Sales, Accounts, Operations Manager, Joinery/Upholstery/Painting
+  managers, Estimator, Approver, Purchaser, Storekeeper, HR, Vehicle
+  Fleet Inspector, Delivery/Scheduling — 13 dashboards upgraded across
+  7 phases, all built on the one shared `chart-widgets.js` foundation
+  from Phase 1. Shop-floor/task-level dashboards (Draftsman, Cutting
+  List Team, Curtain Tracks/QC/Install, Upholstery Team Leader/
+  QC-Packaging, etc.) remain deliberately untouched, per the plan's own
+  reasoning — they're bare single-stage task tables by design, not
+  oversight dashboards.

@@ -142,6 +142,17 @@ function renderHRDashboard() {
       ${tile('dependent', 'Dependent')}
     </div>
     <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Compliance Risk by Category</p>
+      ${cwMiniBars([
+        { label: 'CPR', value: k.cpr.expiring.length + k.cpr.expired.length, color: cwOrdinalColor(0) },
+        { label: 'Passport', value: k.passport.expiring.length + k.passport.expired.length, color: cwOrdinalColor(1) },
+        { label: 'Licence', value: k.licence.expiring.length + k.licence.expired.length, color: cwOrdinalColor(2) },
+        { label: 'Visa', value: k.visa.expiring.length + k.visa.expired.length, color: cwOrdinalColor(3) },
+        { label: 'Contract', value: k.contract.expiring.length + k.contract.expired.length, color: cwOrdinalColor(4) },
+        { label: 'Dependent', value: k.dependent.expiring.length + k.dependent.expired.length, color: cwOrdinalColor(0) }
+      ])}
+    </div>
+    <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Compliance Alerts</p>
       ${allFlagged.length === 0 ? `<p class="hr-empty">Nothing expiring or expired right now.</p>` :
         `<table class="sales-items"><tr><th>Employee</th><th>Item</th><th>Date</th><th></th></tr>

@@ -255,6 +255,16 @@ function renderPurchDashboard() {
     </div>
 
     <div class="p-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Open Requests by Division</p>
+      ${cwMiniBars([
+        { label: 'Curtain', value: kpi.byDivision.curtain.openInquiries, color: cwOrdinalColor(0) },
+        { label: 'Upholstery', value: kpi.byDivision.upholstery.openRequests, color: cwOrdinalColor(1) },
+        { label: 'Joinery', value: kpi.byDivision.joinery.openRequests, color: cwOrdinalColor(2) },
+        { label: 'Metal Works', value: kpi.byDivision.metal.openRequests, color: cwOrdinalColor(3) }
+      ])}
+    </div>
+
+    <div class="p-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:10px;">By Division</p>
       ${renderDivRow('Curtain (own tracker)', `${kpi.byDivision.curtain.openInquiries} open · ${kpi.byDivision.curtain.awaitingVendor} awaiting vendor`)}
       ${renderDivRow('Upholstery', `${kpi.byDivision.upholstery.openRequests} open · ${kpi.byDivision.upholstery.pendingApprovals} pending approval · ${kpi.byDivision.upholstery.awaitingDelivery} awaiting delivery`)}
