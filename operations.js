@@ -714,6 +714,9 @@ function rejectCurtainBom(id){
 
 // ══════════════════════════════
 function renderChecklist(){
+  // #checklist lived inside the old fixture Delivery page, removed 6 Aug
+  // 2026 when that page went real — guard so the load-time call no-ops.
+  if(!document.getElementById("checklist")) return;
   const done=checks.filter(c=>c.done).length;
   document.getElementById("checklist").innerHTML=checks.map((c,i)=>`
     <div class="check-row">
@@ -736,6 +739,7 @@ renderChecklist();
 // this file) — reused here, not redeclared, to avoid a global const collision.
 function buildHeat(){
   const g=document.getElementById("heat-grid");
+  if(!g) return; // page markup replaced by the real Capacity view (6 Aug 2026)
   let h=`<div style="font-size:10px;color:var(--ink2);padding:3px 0;"></div>`+weeks.map(w=>`<div style="font-size:9px;font-weight:700;color:var(--ink2);text-align:center;padding:3px 1px;">${w}</div>`).join("");
   cap.forEach(d=>{
     h+=`<div style="font-size:10px;font-weight:700;display:flex;align-items:center;padding:2px 3px;">${d.n}</div>`;
@@ -743,7 +747,8 @@ function buildHeat(){
   });
   g.innerHTML=h;
 }
-buildHeat();
+// buildHeat() retired 6 Aug 2026 — the Capacity page now renders real
+// labour-day-log load via renderOpsCapacity() (fixture heat grid removed).
 
 // ══════════════════════════════
 // REMINDERS LOG
@@ -771,6 +776,103 @@ function opsGoTo(p){
   if(p==="budgetapprovals"){ renderOpsBudgetApprovals(); }
   if(p==="projects"){ renderProjList(); }
   if(p==="reminders"){ renderReminders(); }
+  if(p==="delivery"){ renderOpsDeliveryPage(); }
+  if(p==="capacity"){ renderOpsCapacity(); }
+}
+
+// ══════════════════════════════════════════
+// DELIVERY PAGE — real data (6 Aug 2026). Replaced hand-authored fixture
+// HTML that had been baked into index.html since the original mockup
+// ("Villa 5 Fit-out · Delivery 22 Jun") — same static-markup bug class as
+// the old dashboard, found during the Ops-Manager optimization pass.
+// ══════════════════════════════════════════
+function opsReadyToScheduleJobs() {
+  const scheduled = new Set((typeof deliverySchedule !== 'undefined' ? deliverySchedule : []).filter(d => d.status === 'planned').map(d => d.jobId));
+  return getJobsNeedingDeliveryScheduling().filter(j => jobProductionComplete(j) && !scheduled.has(j.id));
+}
+function renderOpsDeliveryPage() {
+  const el = document.getElementById('ops-delivery-body');
+  if (!el) return;
+  const ready = opsReadyToScheduleJobs();
+  const today = new Date().toISOString().slice(0, 10);
+  const planned = (typeof deliverySchedule !== 'undefined' ? deliverySchedule : [])
+    .filter(d => d.status === 'planned').slice().sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
+  el.innerHTML = `
+    <div class="card">
+      <p class="card-title">Ready to schedule (${ready.length})</p>
+      ${ready.length === 0 ? '<p style="font-size:12.5px;color:var(--ink2);">Nothing is production-complete and unscheduled.</p>' :
+        ready.map(j => {
+          const c = customers.find(x => x.id === j.customerId);
+          return `<div class="prow"><div><div class="pname">${opsEsc(j.projectName)}</div><div class="pmeta">${j.id} · ${opsEsc(c ? c.name : '—')} · ${money(j.amount)}${j.promisedDate ? ' · promised ' + j.promisedDate : ''}</div></div>
+            <button class="sm" style="background:var(--maraya);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;" onclick="event.stopPropagation();opsScheduleDeliveryHop('${j.id}')">Schedule →</button></div>`;
+        }).join('')}
+    </div>
+    <div class="card">
+      <p class="card-title">Planned deliveries (${planned.length})</p>
+      ${planned.length === 0 ? '<p style="font-size:12.5px;color:var(--ink2);">No deliveries booked.</p>' :
+        planned.map(d => {
+          const j = getJobCard(d.jobId);
+          const overdue = d.plannedDate < today;
+          return `<div class="prow"><div><div class="pname">${opsEsc(j ? j.projectName : d.jobId)}</div>
+            <div class="pmeta">${d.jobId} · ${opsEsc(d.driver || 'no driver')}${d.vehicleId ? ' · ' + d.vehicleId : ''}</div></div>
+            <span class="pill ${overdue ? 'bad' : 'ok'}">${overdue ? 'overdue ' : ''}${d.plannedDate}</span></div>`;
+        }).join('')}
+    </div>`;
+}
+// Hop into the real Delivery-Scheduling module (same hideModuleWrap
+// pattern as jobsNewVariation/salesRequestPurchase — never close*Module()).
+function opsScheduleDeliveryHop(jobId) {
+  if (typeof openDeliverySchedModule === 'function') {
+    openDeliverySchedModule();
+    if (typeof deliverySchedView !== 'undefined') { deliverySchedView = 'new-schedule'; renderDeliverySchedBody(); }
+    setTimeout(() => { const sel = document.querySelector('#delivery-sched-module-wrap select'); if (sel) sel.value = jobId; }, 250);
+  }
+}
+
+// ══════════════════════════════════════════
+// CAPACITY PAGE — real load (6 Aug 2026). The old heat grid ran on
+// fixture-era arrays; this reads the REAL cost-ledger labour day-logs:
+// hours logged this week per department vs available hours (payroll
+// roster headcount × 8h × 6 working days). Honest empty state until the
+// team leaders log — the same principle as every other de-fixtured page.
+// ══════════════════════════════════════════
+function renderOpsCapacity() {
+  const el = document.getElementById('ops-capacity-body');
+  if (!el) return;
+  const now = new Date();
+  const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const weekStart = monday.toISOString().slice(0, 10);
+  const logs = (typeof labourDayLogs !== 'undefined' ? labourDayLogs : []).filter(l => l.date >= weekStart);
+  const depts = [['carp', 'Joinery'], ['uph', 'Upholstery'], ['paint', 'Painting'], ['curt', 'Curtain']];
+  const rows = depts.map(([k, label]) => {
+    const roster = getDeptRoster(k).length;
+    const avail = roster * 8 * 6; // 6-day week
+    // paint shares Carpentry's floor roster (standing staffing fact) — its
+    // logged hours are its own, but the available pool overlaps Joinery's.
+    const logged = logs.filter(l => {
+      const j = getJobCard(l.jobId);
+      if (j) { const it = j.items.find(x => x.lineId === l.lineId); if (it) return (it.departmentSequence || []).includes(k); }
+      if (k === 'curt') return typeof curtainJobs !== 'undefined' && curtainJobs.some(cj => cj.id === l.jobId);
+      return false;
+    }).reduce((s, l) => s + l.hours, 0);
+    return { k, label, roster, avail, logged, pct: avail > 0 ? Math.round(logged / avail * 100) : 0 };
+  });
+  const anyLogs = rows.some(r => r.logged > 0);
+  el.innerHTML = `
+    <div class="card">
+      <p class="card-title">This week's real load (from team-leader day-logs, w/c ${weekStart})</p>
+      ${!anyLogs ? '<p style="font-size:12.5px;color:var(--ink2);">No hours logged yet this week — team leaders log daily hours from their own dashboards (⏱ Log work), and this fills in live.</p>' : ''}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:8px;">
+        ${rows.map(r => `
+          <div style="border:1px solid var(--line);border-radius:10px;padding:11px;background:var(--card);">
+            <p style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.3px;">${r.label}</p>
+            <p style="font-size:19px;font-weight:800;color:var(--maraya);margin-top:3px;">${r.logged.toFixed(1)}h <span style="font-size:11px;color:var(--ink3);font-weight:600;">/ ${r.avail}h</span></p>
+            <div style="height:6px;border-radius:4px;background:var(--line);margin-top:7px;overflow:hidden;"><div style="height:100%;width:${Math.min(100, r.pct)}%;background:${r.pct > 85 ? 'var(--bad)' : r.pct > 60 ? 'var(--warn)' : 'var(--ok)'};"></div></div>
+            <p style="font-size:9.5px;color:var(--ink3);margin-top:4px;">${r.roster} on the floor roster · ${r.pct}% booked</p>
+          </div>`).join('')}
+      </div>
+      <p style="font-size:10px;color:var(--ink3);margin-top:8px;">Available = roster × 8h × 6 days. Painting shares Joinery's floor roster (real staffing fact), so their pools overlap.</p>
+    </div>`;
 }
 
 // ══════════════════════════════════════════
@@ -809,6 +911,38 @@ function renderOpsDashboard() {
       </div>
     </div>
     ${renderInboxWidget('Operations Manager', 'renderOpsDashboard', 5)}`;
+
+  // ── "Your day" triage strip (6 Aug 2026, Salman's ask: "imagine you're
+  // the operations manager — what would your daily tasks be?"). The
+  // manager's real morning, in priority order, each card a live count
+  // deep-linking to the page where the work happens. Zero-count cards
+  // render quiet ("clear") instead of disappearing, so the ORDER of the
+  // day stays visible even on a good morning.
+  const routeCount = getJobsPendingRouting().length;
+  const curtainApprCount = typeof curtainPendingApprovals === 'function' ? curtainPendingApprovals().length : 0;
+  const readyToSchedule = opsReadyToScheduleJobs().length;
+  const triage = [
+    { n: routeCount, label: 'Route new jobs', sub: 'the one human checkpoint', page: 'alerts' },
+    { n: pendingApprovals, label: 'Approve budgets', sub: 'maker-checker · >BD 5,000 goes to Owner', page: 'budgetapprovals' },
+    { n: jobsWithFlags.length, label: 'Chase exceptions', sub: 'rework · stalled · over budget', page: 'projects' },
+    { n: curtainApprCount, label: 'Curtain approvals', sub: "Silva's budgets", page: 'curtapp' },
+    { n: readyToSchedule, label: 'Schedule deliveries', sub: 'production done, not booked', page: 'delivery' }
+  ];
+  const triageHtml = `
+    <div class="card" style="padding:12px;">
+      <p class="card-title" style="margin-bottom:8px;">Your day</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
+        ${triage.map((t, i) => `
+          <div onclick="opsGoTo('${t.page}')" style="cursor:pointer;border-radius:10px;padding:10px 11px;border:1px solid ${t.n > 0 ? 'var(--info-line)' : 'var(--line)'};background:${t.n > 0 ? 'var(--info-bg)' : 'var(--card)'};${t.n > 0 ? '' : 'opacity:.65;'}">
+            <div style="display:flex;align-items:center;gap:7px;">
+              <span style="width:20px;height:20px;border-radius:50%;background:${t.n > 0 ? 'var(--maraya)' : 'var(--line2)'};color:#fff;font-size:10.5px;font-weight:800;display:grid;place-items:center;flex:none;">${i + 1}</span>
+              <span style="font-size:16px;font-weight:800;color:${t.n > 0 ? 'var(--maraya)' : 'var(--ink3)'};">${t.n}</span>
+            </div>
+            <p style="font-size:12px;font-weight:700;color:var(--ink);margin-top:5px;">${t.label}</p>
+            <p style="font-size:9.5px;color:var(--ink3);margin-top:1px;">${t.n > 0 ? t.sub : 'clear'}</p>
+          </div>`).join('')}
+      </div>
+    </div>`;
 
   const kpisHtml = `
     <div class="kpis">
@@ -870,7 +1004,7 @@ function renderOpsDashboard() {
     { label: 'Curtain', value: curtainRunningJobs, color: cwOrdinalColor(3) }
   ];
 
-  el.innerHTML = commsHtml + kpisHtml + `
+  el.innerHTML = commsHtml + triageHtml + kpisHtml + `
     <div class="card">
       <p class="card-title">Pipeline Funnel (company-wide)</p>
       ${cwHorizontalBarList(funnelRows, { valueFormatter: v => money(v), emptyMessage: 'No quotations or jobs yet.' })}

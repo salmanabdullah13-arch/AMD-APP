@@ -336,64 +336,10 @@
      DELIVERY & INSTALLATION
 ══════════════════════════════════════════ -->
 <div class="page" id="p-delivery">
-  <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Pre-delivery checklist must be 100% before dispatch. Sign-off uploads the client's physical form and triggers the final invoice.</p>
-  <div class="card">
-    <p class="card-title">Villa 5 Fit-out · Delivery 22 Jun</p>
-    <div class="row2" style="margin-bottom:10px;">
-      <div class="field"><label>Date</label><input type="date" value="2026-06-22"></div>
-      <div class="field"><label>Team</label><select><option>Team A — Ahmed +2</option><option>Team B — Khalid +2</option></select></div>
-    </div>
-    <div class="field"><label>Site notes</label><input type="text" value="Villa 5, Riffa Views — call Sophia on arrival +97333285190"></div>
-    <p class="card-title" style="margin-top:14px;">Pre-delivery checklist</p>
-    <div id="checklist"></div>
-    <p id="check-prog" style="font-size:13px;font-weight:600;margin:10px 0;"></p>
-    <div class="btnrow">
-      <button class="primary" id="dispatch-btn" onclick="confirmDispatch()" disabled style="opacity:.5;">Confirm dispatch &amp; trigger final invoice →</button>
-    </div>
-    <div id="dispatch-done" style="display:none;margin-top:10px;background:var(--ok-bg);border:1px solid var(--ok-line);border-radius:var(--r2);padding:11px 13px;font-size:13px;color:var(--ok);font-weight:500;">✓ Dispatched · Accounts notified to raise BD 2,535 final invoice · Client SMS sent</div>
-  </div>
-
-  <div class="card">
-    <p class="card-title">Upcoming deliveries</p>
-    <table>
-      <thead><tr><th>Job</th><th>Date</th><th>Team</th><th>Checklist</th><th>Sign-off</th></tr></thead>
-      <tbody>
-        <tr><td style="padding:9px 6px;font-weight:600;">Villa 5</td><td style="padding:9px 6px;">22 Jun</td><td style="padding:9px 6px;">Team A</td><td style="padding:9px 6px;"><span class="pill warn">6/8</span></td><td style="padding:9px 6px;"><span class="pill grey">Pending</span></td></tr>
-        <tr style="border-top:1px solid var(--line);"><td style="padding:9px 6px;font-weight:600;">Majlis</td><td style="padding:9px 6px;">25 Jun</td><td style="padding:9px 6px;">Team B</td><td style="padding:9px 6px;"><span class="pill grey">Not started</span></td><td style="padding:9px 6px;"><span class="pill grey">Pending</span></td></tr>
-        <tr style="border-top:1px solid var(--line);"><td style="padding:9px 6px;font-weight:600;">Curtain Set</td><td style="padding:9px 6px;">12 Jun</td><td style="padding:9px 6px;">Team A</td><td style="padding:9px 6px;"><span class="pill ok">✓ Ready</span></td><td style="padding:9px 6px;"><span class="pill ok">✓ Signed</span></td></tr>
-      </tbody>
-    </table>
-  </div>
+<p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Production-complete jobs ready to book, and everything already on the schedule. Booking happens in the Delivery Scheduling module — the Schedule button takes you there with the job preselected.</p>
+<div id="ops-delivery-body"></div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     CAPACITY
-══════════════════════════════════════════ -->
-<div class="page" id="p-capacity">
-  <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Check before promising delivery dates. Use this to push back on unrealistic timelines before they're given to the client.</p>
-  <div class="card">
-    <div id="heat-grid"></div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--ink2);">
-      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#c8e6c9;margin-right:3px;vertical-align:middle;"></i>Light</span>
-      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fff3e0;margin-right:3px;vertical-align:middle;"></i>Moderate</span>
-      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ffe0b2;margin-right:3px;vertical-align:middle;"></i>Heavy</span>
-      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ffcdd2;margin-right:3px;vertical-align:middle;"></i>Near full</span>
-      <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--bad);margin-right:3px;vertical-align:middle;"></i>Full</span>
-    </div>
-  </div>
-  <div class="card">
-    <p class="card-title">Reading this</p>
-    <p style="font-size:13px;color:var(--ink2);line-height:1.6;">Joinery is <b style="color:var(--bad);">full weeks 1–2.</b> Any new joinery job confirmed today realistically starts week 3. Curtain is free from week 2. Before agreeing a delivery date with Sales or a client, open this view first.</p>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════
-     BUDGET APPROVALS (Fix Plan Phase 2, 5 Aug 2026) — Operations Manager
-     is the real, distinct approver for Joinery/Painting/Upholstery
-     department budgets (DEPARTMENT_APPROVERS, data.js), since the
-     department manager who submits a budget can no longer also approve
-     it (maker-checker fix, same session).
-══════════════════════════════════════════ -->
 <div class="page" id="p-budgetapprovals">
   <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Department budgets for Joinery, Painting, and Upholstery — the submitting manager can't also approve their own budget, so this is where it lands instead.</p>
   <div id="ops-budget-approvals-body"></div>
@@ -402,6 +348,12 @@
 <!-- ══════════════════════════════════════════
      REMINDERS & ALERTS LOG
 ══════════════════════════════════════════ -->
+
+<div class="page" id="p-capacity">
+<p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Check before promising delivery dates — real hours logged by the team leaders this week against each floor's actual headcount.</p>
+<div id="ops-capacity-body"></div>
+</div>
+
 <div class="page" id="p-reminders">
   <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;">Every alert and reminder sent from Operations — what was sent, to whom, when, and whether it was acted on.</p>
   <div class="card">

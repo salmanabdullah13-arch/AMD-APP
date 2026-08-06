@@ -759,8 +759,14 @@ execRolloutCSS.textContent = `
 .xshell .xs-content .ops-header{display:none!important;}
 .xshell .xs-content .sales-toptabs{display:none!important;}
 .xshell .xs-content #purch-nav,.xshell .xs-content #curt-nav,
-.xshell .xs-content .sk-nav,.xshell .xs-content #ops-module-wrap > .nav,
-.xshell#ops-module-wrap .xs-content > .nav{display:none!important;}
+.xshell .xs-content .sk-nav{display:none!important;}
+/* Operations' banner/.nav have no ids and land one level deeper after
+   adoption (inside the content slot) — wrap-scoped selectors match at any
+   depth. Fixed 6 Aug 2026 after Salman's iPhone screenshot caught the
+   old chrome leaking through (the original .xs-content > .nav selector
+   never matched — same false negative in the first smoke check). */
+#ops-module-wrap.xshell .topbar,
+#ops-module-wrap.xshell .nav{display:none!important;}
 /* the module's own MAIN tab bar (first child of its body div) — sub-tab
    bars deeper in a view (e.g. the Estimator's BOM Materials/Labour tabs)
    stay visible */
@@ -963,8 +969,10 @@ const EXEC_NAV_CONFIGS = {
       nv('op-bom', '🧾', 'BOM / Budget', "opsGoTo('bom')"),
       nv('op-proj', '🏗', 'All Projects', "opsGoTo('projects')"),
       nv('op-del', '🚚', 'Delivery', "opsGoTo('delivery')"),
-      nv('op-cap', '👷', 'Capacity', "opsGoTo('capacity')"),
-      nv('op-rem', '🔔', 'Reminders', "opsGoTo('reminders')")
+      nv('op-cap', '👷', 'Capacity', "opsGoTo('capacity')")
+      // Reminders page retired from the sidebar 6 Aug 2026 — the shell's
+      // own bell (real signals) owns this now; the page stays reachable
+      // for old links but isn't day-to-day navigation.
     ] }
   ]
 };

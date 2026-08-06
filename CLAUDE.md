@@ -5716,3 +5716,52 @@ EnterPlanMode (2 Explore agents; plan file hold-snoopy-kitten.md).
   polish for modules with old literal colors (Storekeeper headings dim,
   Operations/Curtain local token namespace) is best-effort pending;
   screenshots reviewed for Sales (light) + Storekeeper (dark) + Curtain.
+
+### 6 Aug 2026 (night) — Operations + Curtain finished into the new UI; Operations rebuilt around the manager's day
+
+Salman's iPhone screenshot caught Operations still wearing old chrome, and he
+asked to optimize the module itself: "imagine you're the operations manager,
+what would your daily tasks be?"
+
+- **Two rollout bugs fixed**: (1) the ops banner/.nav hide selectors never
+  matched after adoption (they sit one level deeper in the content slot) —
+  wrap-scoped `#ops-module-wrap.xshell .topbar/.nav` now kills them; the
+  rollout suite's own check had the same false negative, strengthened.
+  (2) Operations/Curtain's local token namespaces (`--ink/--line/--bg/
+  --card/...`, styles.css) held literals — VALUES repointed onto
+  `--biz-*`/`--x-wash` (names unchanged, zero JS churn): light is
+  pixel-identical, dark now cascades into both modules' content. Plus two
+  base fixes: default text color was never token-driven (invisible in
+  dark) and both wraps carry inline light backgrounds — `#..-module-wrap
+  {color:var(--ink);background:var(--bg)!important}`. Dark verified by
+  COMPUTED-STYLE probe (the screenshot's "white sidebar" was the
+  documented PNG-preview artifact again — pixel/computed checks, never
+  eyeballed previews).
+- **Operations content rebuilt around the manager's real morning** — a
+  "Your day" triage strip of five ordered, tappable, live-count cards:
+  ① Route new jobs ② Approve budgets (maker-checker) ③ Chase exceptions
+  (rework/stalled/over-budget) ④ Curtain approvals ⑤ Schedule deliveries
+  (production-complete & unbooked, via new opsReadyToScheduleJobs()).
+  Zero-count steps render quiet ("clear") so the day's ORDER stays
+  visible. KPI band/funnel/queue-depth/attention list unchanged below.
+- **Delivery page de-fixtured** — the hand-authored "Villa 5 Fit-out ·
+  Delivery 22 Jun" HTML (baked into index.html since the original mockup,
+  never wired) replaced with real data: Ready-to-schedule (with a
+  Schedule→ hop into the real Delivery-Scheduling module, preselected
+  job) + Planned deliveries (date-sorted, overdue flagged). Found and
+  restored a self-inflicted casualty: the page-slice initially swallowed
+  p-budgetapprovals (recovered from git HEAD); renderChecklist() guarded
+  (its #checklist lived in the removed fixture).
+- **Capacity page finally real** — the fixture heat grid replaced with
+  this week's REAL load from the cost-ledger labour day-logs: hours
+  logged per department vs available (roster × 8h × 6 days), honest empty
+  state until team leaders log. A direct payoff of Stages 2+3.
+- **Reminders page retired from the sidebar** (shell bell owns it; page
+  still reachable).
+- **Verification**: rollout suite strengthened (ops now must show NO
+  topbar/.nav + the triage strip) 10/10; dashboard-enhancements,
+  batch8-routing, back-button, curtain-granular, team-comms all green;
+  full offline sweep zero failures; dark-mode computed-style probes for
+  both modules; screenshots light/dark/mobile read back.
+- Phone note for Salman: the old look on his iPhone was the pre-rollout
+  deployed version — refresh/re-add after pulling this.

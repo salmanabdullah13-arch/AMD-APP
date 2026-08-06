@@ -46,7 +46,14 @@ function printReport() {
     }
     goTo('operations');
     await new Promise(r => setTimeout(r, 300));
-    out.operations = !!document.getElementById('ops-module-wrap').querySelector('.xs-side');
+    const ow = document.getElementById('ops-module-wrap');
+    // 6 Aug 2026 fix: the wrap-scoped hide selectors must actually kill the
+    // old wine banner + tab strip (the first version's .xs-content > .nav
+    // selector never matched — Salman's iPhone screenshot caught it).
+    out.operations = !!ow.querySelector('.xs-side')
+      && [...ow.querySelectorAll('.topbar')].every(t => getComputedStyle(t).display === 'none')
+      && [...ow.querySelectorAll('.nav')].every(t => getComputedStyle(t).display === 'none')
+      && document.getElementById('ops-dashboard-body').innerHTML.includes('Your day');
     return out;
   }, mods);
   const unshelled = Object.entries(shellMap).filter(([, v]) => !v).map(([k]) => k);
