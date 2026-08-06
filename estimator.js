@@ -145,6 +145,7 @@ function renderEstimatorBody() {
     case 'index': content = renderEstimationIndex(); break;
     case 'bom': content = renderJobEstimationBOM(); break;
     case 'review': content = renderEstimatorReview(); break;
+    case 'excelReview': content = renderExcelImportReview(); break;
     default: content = renderEstimatorDashboard();
   }
   body.innerHTML = content;
@@ -269,6 +270,11 @@ function renderEstimatorQuoteHub() {
         <option value="">Select…</option>
         <option value="sales">‹ Back to Sales</option>
         <option value="approver">Transfer to Approver →</option>
+      </select>
+      <div class="lbl" style="margin:10px 0 6px;">Delegate to another estimator</div>
+      <select onchange="if(this.value){estimatorDelegate('${q.id}',this.value);this.value='';}" style="width:100%;padding:9px 10px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--biz-text);background:var(--biz-card-bg);">
+        <option value="">Select…</option>
+        ${ESTIMATOR_USERS.filter(u => u !== estimatorCurrentUser).map(u => `<option value="${eEsc(u)}">${eEsc(u)}</option>`).join('')}
       </select>
     </div>
     <div class="sales-card">
@@ -416,6 +422,11 @@ function renderEstimationIndex() {
     <div class="sales-card">
       <p style="font-weight:700;font-size:14px;">${q.id} — Estimation</p>
       <p style="font-size:11.5px;color:#64748b;">${eEsc(q.projectName)}</p>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <button class="secondary" style="font-size:11.5px;" onclick="estimatorDownloadExcel('${q.id}')">⬇ Download BOM Excel</button>
+        <button class="secondary" style="font-size:11.5px;" onclick="document.getElementById('bom-xlsx-file').click()">⬆ Upload filled Excel</button>
+        <input id="bom-xlsx-file" type="file" accept=".xlsx,.xls" style="display:none;" onchange="estimatorUploadExcel('${q.id}', this.files[0]); this.value='';">
+      </div>
     </div>
     <div class="sales-card">
       <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Department routing is auto-suggested per line (tap a job's Departments cell to review/override) — the Operations Manager confirms it for real once the job is created, this is just getting it right early.</p>
@@ -496,6 +507,21 @@ function renderJobEstimationBOM() {
       <p style="font-size:10px;color:#94a3b8;margin-top:4px;">Pulling replaces this item's current BOM with the completed job's real materials + labour — review and adjust before submitting.</p>
     </div>` : '';
 
+  // STAGE 5: BOM template library — save this line's BOM as a named
+  // template / apply an existing one (repeat products are one tap).
+  const templatesBlock = `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">BOM Templates</p>
+      ${bomTemplates.length ? `<div style="display:flex;gap:8px;margin-bottom:8px;">
+        <select id="bom-tpl-apply" style="flex:1;">${bomTemplates.map(t => `<option value="${t.id}">${eEsc(t.name)} — ${eEsc(t.product)} (${t.savedDate})</option>`).join('')}</select>
+        <button class="secondary" onclick="estimatorApplyTemplate('${q.id}',${item.lineId})">Apply</button>
+      </div>` : `<p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">No templates saved yet.</p>`}
+      ${item.bom ? `<div style="display:flex;gap:8px;">
+        <input id="bom-tpl-name" type="text" placeholder="Template name (e.g. Bed & Headboard — standard)" style="flex:1;">
+        <button class="secondary" onclick="estimatorSaveTemplate('${q.id}',${item.lineId})">Save as template</button>
+      </div>` : ''}
+    </div>`;
+
   // Copy BOM from another item in the same quote — lineId is already the
   // stable per-quote serial (assigned once at addQuotationItem() time), so
   // it doubles as the "Item #N" reference shown here.
@@ -522,7 +548,7 @@ function renderJobEstimationBOM() {
   else if (estimatorBomTab === 'others') tabBody = renderBomOthersTab(item);
   else tabBody = renderBomSummaryTab(item);
 
-  return `<span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>${header}${similarBlock}${copyBlock}${tabsHtml}<div class="sales-card">${tabBody}</div>`;
+  return `<span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>${header}${similarBlock}${templatesBlock}${copyBlock}${tabsHtml}<div class="sales-card">${tabBody}</div>`;
 }
 
 // Stage 4 (cost ledger): pull a completed line's ACTUAL costing in as this
@@ -769,4 +795,201 @@ function estimatorSubmitBOM() {
   if (result.error) { estimatorAlert(result.error); return; }
   estimatorAlert(`✓ BOM saved — Selling Price BD ${result.item.rate.toFixed(3)}, Quote Amount BD ${result.item.netAmount.toFixed(3)}.`);
   openEstimationIndex(estimatorActiveQtnId);
+}
+
+// ══════════════════════════════════════════
+// STAGE 5: ESTIMATOR FAST-TRACK (merged roadmap, 6 Aug 2026)
+// Delegate · BOM templates · Excel round-trip. Arun works on desktop —
+// the Excel flow is download-prefilled / fill / upload, with a hard
+// validation review screen that mirrors every UI gate (Item Master exact
+// match, labour dept must be routed, mandatory rates). Nothing touches
+// the quote until Apply, and Apply routes through the real addBOM*()
+// functions so the gates can't be bypassed. Never auto-submits.
+// ══════════════════════════════════════════
+
+function estimatorDelegate(qtnId, toName) {
+  const note = prompt('Note for ' + toName + ' (optional):') || '';
+  const res = delegateQuotation(qtnId, toName, estimatorCurrentUser, note);
+  if (res && res.error) { estimatorAlert(res.error); return; }
+  estimatorAlert('✓ Delegated to ' + toName + ' — they have been notified.');
+  estimatorView = 'dashboard';
+  renderEstimatorBody();
+}
+
+function estimatorSaveTemplate(qtnId, lineId) {
+  const name = document.getElementById('bom-tpl-name').value;
+  const res = saveBOMTemplate(name, qtnId, lineId, estimatorCurrentUser);
+  if (res && res.error) { estimatorAlert(res.error); return; }
+  estimatorAlert('✓ Template "' + res.name + '" saved.');
+  renderEstimatorBody();
+}
+function estimatorApplyTemplate(qtnId, lineId) {
+  const sel = document.getElementById('bom-tpl-apply');
+  if (!sel || !sel.value) return;
+  if (!window.confirm('Replace this item\'s current BOM with the template? You review and adjust before submitting.')) return;
+  const res = applyBOMTemplate(sel.value, qtnId, lineId);
+  if (res && res.error) { estimatorAlert(res.error); return; }
+  estimatorAlert('✓ Template applied — review and submit.');
+  renderEstimatorBody();
+}
+
+// ── Excel round-trip ──
+const XLSX_SECTIONS = ['Material', 'Labour', 'Subcontract', 'Hiring', 'Others'];
+let excelImportState = null; // { qtnId, rows: [{...parsed, status, reason}] }
+
+function estimatorDownloadExcel(qtnId) {
+  if (typeof XLSX === 'undefined') { estimatorAlert('Excel library not loaded — check the connection and reload once.'); return; }
+  const q = quotations.find(x => x.id === qtnId);
+  if (!q) return;
+  const rows = [
+    ['AMD BOM IMPORT v1', q.id, q.items.length],
+    ['Line #', 'Product (reference — do not edit)', 'Section', 'Item / Name', 'Dept (labour)', 'Ppl (labour)', 'Qty', 'Unit', 'Rate']
+  ];
+  q.items.forEach(it => {
+    const before = rows.length;
+    if (it.bom) {
+      it.bom.materials.forEach(m => rows.push([it.lineId, it.product, 'Material', m.name, '', '', m.qty, m.unit || '', m.rate]));
+      it.bom.labour.forEach(l => rows.push([it.lineId, it.product, 'Labour', l.empCategory || 'Skilled', l.department, l.noOfPpl || 1, l.qty, l.calcMode === 'days' ? 'Days' : 'Hours', l.rate]));
+      (it.bom.subcontract || []).forEach(r => rows.push([it.lineId, it.product, 'Subcontract', r.vendor || '', '', '', 1, '', r.amount]));
+      (it.bom.hiring || []).forEach(r => rows.push([it.lineId, it.product, 'Hiring', r.vendor || '', '', '', 1, '', r.amount]));
+      (it.bom.others || []).forEach(r => rows.push([it.lineId, it.product, 'Others', r.party || '', '', '', 1, '', r.amount]));
+    }
+    if (rows.length === before) rows.push([it.lineId, it.product, 'Material', '', '', '', '', '', '']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 7 }, { wch: 45 }, { wch: 12 }, { wch: 45 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 9 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'BOM');
+  XLSX.writeFile(wb, 'BOM-' + q.id + '.xlsx');
+}
+
+function estimatorUploadExcel(qtnId, file) {
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { estimatorAlert('Excel library not loaded — check the connection and reload once.'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true });
+      processExcelImport(qtnId, aoa);
+    } catch (err) {
+      estimatorAlert('Could not read that file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Exposed separately so the e2e suite can drive the parser without a real
+// file-picker interaction.
+function processExcelImport(qtnId, aoa) {
+  const q = quotations.find(x => x.id === qtnId);
+  if (!q) return;
+  const marker = aoa[0] || [];
+  if (String(marker[0]) !== 'AMD BOM IMPORT v1' || String(marker[1]) !== q.id) {
+    estimatorAlert('This file was not exported from quotation ' + q.id + ' — download a fresh copy and refill it.');
+    return;
+  }
+  if (Number(marker[2]) !== q.items.length) {
+    estimatorAlert('The quote has changed since this file was downloaded (' + marker[2] + ' items then, ' + q.items.length + ' now) — download a fresh copy.');
+    return;
+  }
+  const deptByAny = {};
+  DEPTS.forEach(d => { deptByAny[d.k.toLowerCase()] = d.k; deptByAny[d.n.toLowerCase()] = d.k; });
+  const rows = [];
+  aoa.slice(2).forEach((r, i) => {
+    if (!r || r.every(c => c === undefined || c === null || String(c).trim() === '')) return;
+    const row = {
+      excelRow: i + 3, lineId: Number(r[0]), section: String(r[2] || '').trim(),
+      name: String(r[3] || '').trim(), dept: String(r[4] || '').trim(), ppl: Number(r[5]) || 1,
+      qty: Number(r[6]) || 0, unit: String(r[7] || '').trim(), rate: Number(r[8]) || 0,
+      status: 'ok', reason: ''
+    };
+    const flag = why => { row.status = 'flagged'; row.reason = why; };
+    const item = q.items.find(it => it.lineId === row.lineId);
+    if (!item) flag('Line #' + r[0] + ' does not exist on this quote.');
+    else if (!XLSX_SECTIONS.includes(row.section)) flag('Section must be one of: ' + XLSX_SECTIONS.join(', '));
+    else if (!row.name) flag('Item / Name is required.');
+    else if (row.section === 'Material') {
+      const master = itemMaster.find(x => x.name.toLowerCase() === row.name.toLowerCase());
+      if (!master) {
+        const close = itemMaster.find(x => x.name.toLowerCase().includes(row.name.toLowerCase().slice(0, 12)));
+        flag('"' + row.name + '" does not match any inventory item.' + (close ? ' Did you mean "' + close.name + '"?' : ''));
+      } else {
+        row.name = master.name; // canonical casing
+        if (!row.qty || row.qty <= 0) flag('Qty is required.');
+        else if (!row.rate || row.rate <= 0) flag('Rate is required (materials are never free).');
+      }
+    } else if (row.section === 'Labour') {
+      const key = deptByAny[row.dept.toLowerCase()];
+      if (!key) flag('Dept "' + row.dept + '" not recognized — use ' + DEPTS.map(d => d.k).join('/') + '.');
+      else if ((item.departmentSequence || []).length && !item.departmentSequence.includes(key)) flag('Labour dept "' + key + '" is not in this line\'s routed departments (' + item.departmentSequence.join(', ') + ').');
+      else if (!row.qty || row.qty <= 0) flag('Qty (hours/days) is required.');
+      else if (!row.rate || row.rate <= 0) flag('Rate is required (same rule as the Labour tab).');
+      else row.dept = key;
+    } else {
+      if (!row.rate || row.rate <= 0) flag('Rate/Amount is required.');
+    }
+    rows.push(row);
+  });
+  if (!rows.length) { estimatorAlert('No data rows found in the file.'); return; }
+  excelImportState = { qtnId, rows };
+  estimatorActiveQtnId = qtnId;
+  estimatorView = 'excelReview';
+  renderEstimatorBody();
+}
+
+function renderExcelImportReview() {
+  if (!excelImportState) return '<p style="font-size:12.5px;color:#64748b;">Nothing to review.</p>';
+  const { qtnId, rows } = excelImportState;
+  const flagged = rows.filter(r => r.status === 'flagged');
+  return `
+    <span class="sales-back" onclick="excelImportState=null;openEstimationIndex('${qtnId}');">‹ Back to Estimation (discard import)</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:14px;">Excel import review — ${qtnId}</p>
+      <p style="font-size:11.5px;color:${flagged.length ? 'var(--bad,#d9342b)' : 'var(--ok,#0f9d58)'};margin-top:4px;">
+        ${rows.length} rows parsed · ${flagged.length ? flagged.length + ' flagged — fix them in Excel and re-upload, or tick "drop flagged rows" to import the clean ones only.' : 'all rows valid.'}</p>
+      ${flagged.length ? `<label style="font-size:11.5px;display:flex;gap:6px;align-items:center;margin-top:6px;"><input type="checkbox" id="excel-drop-flagged"> Drop the ${flagged.length} flagged row${flagged.length === 1 ? '' : 's'} and import the rest</label>` : ''}
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      <table class="sales-items"><tr><th></th><th>Line</th><th>Section</th><th>Item / Name</th><th>Dept</th><th>Ppl</th><th>Qty</th><th>Unit</th><th>Rate</th></tr>
+      ${rows.map(r => `<tr style="${r.status === 'flagged' ? 'background:#fdeaea;' : ''}">
+        <td>${r.status === 'flagged' ? '✕' : '✓'}</td><td>${isNaN(r.lineId) ? '?' : r.lineId}</td><td>${eEsc(r.section)}</td>
+        <td>${eEsc(r.name)}${r.reason ? `<br><span style="color:var(--bad,#d9342b);font-size:10px;">${eEsc(r.reason)}</span>` : ''}</td>
+        <td>${eEsc(r.dept)}</td><td>${r.ppl}</td><td>${r.qty}</td><td>${eEsc(r.unit)}</td><td>${r.rate}</td>
+      </tr>`).join('')}
+      </table>
+    </div>
+    <button class="primary" style="width:100%;" onclick="estimatorApplyExcelImport()">Apply import (replaces the BOM on affected lines)</button>`;
+}
+
+function estimatorApplyExcelImport() {
+  if (!excelImportState) return;
+  const { qtnId, rows } = excelImportState;
+  const dropFlagged = document.getElementById('excel-drop-flagged');
+  const flagged = rows.filter(r => r.status === 'flagged');
+  if (flagged.length && !(dropFlagged && dropFlagged.checked)) {
+    estimatorAlert(flagged.length + ' row(s) are still flagged — fix them in Excel and re-upload, or tick "drop flagged rows".');
+    return;
+  }
+  const apply = rows.filter(r => r.status === 'ok');
+  if (!apply.length) { estimatorAlert('Nothing valid to import.'); return; }
+  const q = quotations.find(x => x.id === qtnId);
+  const touchedLines = [...new Set(apply.map(r => r.lineId))];
+  // Replace mode: clear each affected line's BOM, then re-add every row
+  // through the REAL add functions so all their gates apply.
+  touchedLines.forEach(lineId => { const it = q.items.find(x => x.lineId === lineId); if (it) it.bom = null; });
+  let added = 0, firstErr = null;
+  apply.forEach(r => {
+    let res;
+    if (r.section === 'Material') res = addBOMMaterial(qtnId, r.lineId, { name: r.name, qty: r.qty, unit: r.unit || 'Nos', rate: r.rate });
+    else if (r.section === 'Labour') res = addBOMLabour(qtnId, r.lineId, { department: r.dept, empCategory: r.name || 'Skilled', calcMode: (r.unit || '').toLowerCase() === 'days' ? 'days' : 'hours', noOfPpl: r.ppl, qty: r.qty, rate: r.rate });
+    else if (r.section === 'Subcontract') res = addBOMSubcontract(qtnId, r.lineId, { vendor: r.name, workType: '', amount: r.qty * r.rate || r.rate });
+    else if (r.section === 'Hiring') res = addBOMHiring(qtnId, r.lineId, { vendor: r.name, workType: '', amount: r.qty * r.rate || r.rate });
+    else res = addBOMOther(qtnId, r.lineId, { party: r.name, details: '', amount: r.qty * r.rate || r.rate });
+    if (res && res.error) { if (!firstErr) firstErr = res.error; } else added++;
+  });
+  logActivity({ type: 'bom-excel-import', linkedType: 'quotation', linkedId: qtnId, user: estimatorCurrentUser, message: added + ' BOM rows imported from Excel onto ' + touchedLines.length + ' line(s)' });
+  excelImportState = null;
+  estimatorAlert('✓ ' + added + ' rows imported onto ' + touchedLines.length + ' line(s).' + (firstErr ? ' First error: ' + firstErr : '') + ' Review each line and submit as usual.');
+  openEstimationIndex(qtnId);
 }

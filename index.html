@@ -1236,6 +1236,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0"></script>
+<!-- SheetJS for the Estimator's BOM Excel round-trip (Stage 5) — exact-version
+     pin, same policy as supabase-js; the service worker's runtime fetch
+     handler caches it after first load so offline sessions keep it too. -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="data.js"></script>
 <script src="chart-widgets.js"></script>
 <script src="auth.js"></script>

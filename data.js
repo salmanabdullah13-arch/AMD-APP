@@ -3648,6 +3648,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "supplier_payments", arr: () => payments, prefix: "spay:" },
   { table: "debit_notes", arr: () => debitNotes, prefix: "dn:" },
   { table: "labour_day_logs", arr: () => labourDayLogs, prefix: "ldl:" },
+  { table: "bom_templates", arr: () => bomTemplates, prefix: "bt:" },
   { table: "app_tasks", arr: () => tasks, prefix: "tsk:" },
   { table: "activity_log", arr: () => activityLog, prefix: "act:" },
 ];
@@ -6313,6 +6314,67 @@ function pullActualCostingToBOM(qtnId, lineId, srcJobId, srcLineId, pulledBy = n
   logActivity({ type: 'bom-pulled', linkedType: 'quotation', linkedId: qtnId, user: pulledBy || 'Estimator', message: 'Actual costing pulled from ' + srcJobId + ' line #' + srcLineId + ' onto ' + item.product + ' (BD ' + act.totalCost.toFixed(3) + ')' });
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return bom;
+}
+
+// ═══ STAGE 5: ESTIMATOR FAST-TRACK (merged roadmap, 6 Aug 2026) ═══
+
+// ── Delegate a picked quote to another estimator ──
+// Salman's ask: when the picker can't estimate it, hand it over cleanly.
+// Reassigns estimatorPickedBy (the field already persists per the pick
+// model), records it on the quote's own audit trail + the global feed,
+// and pings the new estimator through the real Messages system.
+function delegateQuotation(qtnId, toName, byName, note = "") {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  if (qtn.stage !== "estimator") return { error: "Only a quotation at the Estimator stage can be delegated." };
+  if (!toName || toName === byName) return { error: "Pick a different estimator to delegate to." };
+  const from = qtn.estimatorPickedBy || byName;
+  qtn.estimatorPickedBy = toName;
+  logQuotationAudit(qtn, { action: "Delegated from " + from + " to " + toName + (note ? " — " + note : ""), user: byName, userType: "Estimator", status: qtn.lifecycleStatus });
+  logActivity({ type: "quote-delegated", linkedType: "quotation", linkedId: qtnId, user: byName, message: qtn.id + " delegated from " + from + " to " + toName + (note ? " — " + note : "") });
+  try {
+    const p = sendMessage({ to: toName, body: "Quotation " + qtn.id + " (" + qtn.projectName + ") has been delegated to you by " + byName + (note ? ": " + note : "."), linkedType: "quotation", linkedId: qtnId });
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* notification failure never blocks the delegation */ }
+  persistQuotationUpdate(qtn);
+  return qtn;
+}
+
+// ── BOM template library ──
+// Save any finished BOM as a named template; apply it to any line in any
+// future quote. Strongest lever for repeat products (the Ewan quote was
+// three identical BOMs). Cloud-synced via CLOUD_JSON_COLLECTIONS.
+const bomTemplates = [];
+function nextBOMTemplateId() {
+  const max = bomTemplates.reduce((m, t) => {
+    const n = parseInt(String(t.id).replace(/^BT-/, ""), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return "BT-" + String(max + 1).padStart(3, "0");
+}
+function saveBOMTemplate(name, qtnId, lineId, savedBy) {
+  if (!name || !name.trim()) return { error: "Template name is required." };
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item || !item.bom) return { error: "This item has no BOM to save." };
+  const t = {
+    id: nextBOMTemplateId(), name: name.trim(), savedBy: savedBy || null,
+    savedDate: new Date().toISOString().slice(0, 10),
+    sourceQtnId: qtnId, product: item.product,
+    bom: JSON.parse(JSON.stringify(item.bom))
+  };
+  t.bom.submitted = false; t.bom.qtyAtSubmit = null; t.bom.sellingPriceOverride = null;
+  bomTemplates.push(t);
+  return t;
+}
+function applyBOMTemplate(templateId, qtnId, lineId) {
+  const t = bomTemplates.find(x => x.id === templateId);
+  if (!t) return { error: "Template not found." };
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  item.bom = JSON.parse(JSON.stringify(t.bom));
+  item.bom.submitted = false; item.bom.qtyAtSubmit = null; item.bom.sellingPriceOverride = null;
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
+  return item.bom;
 }
 
 const tasks = [];
