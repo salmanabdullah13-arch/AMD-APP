@@ -160,9 +160,65 @@ const DEMO_TRACKED_ARRAYS = {
   customers, enquiries, quotations, jobCards, curtainJobs, projects,
   suppliers, purchaseRequests, purchaseOrders, purchaseInvoices, stockEntries,
   taxInvoices, salesReceipts, vehicles, vehicleInspections, deliverySchedule,
-  customerFeedback, activityLog
+  customerFeedback, activityLog, purchaseInquiries
 };
 let demoDataStartCounts = null;
+
+// Fills a bridged curtainJobs[] entry with realistic windowGroups (the same
+// authoring schema the old fixtures used: group -> layers, each layer a
+// full window spec), rebuilds the derived flat windows[] array, marks the
+// job in execution, and raises a purchase inquiry against the main fabric.
+// variant 0 = 2 groups (wave+sheer pair, motorized slider); variant 1 adds
+// a roller blind with cord fields so every treatment family appears.
+function demoAuthorCurtainWindows(job, variant) {
+  if (!job || !job.id) return;
+  const cj = curtainJobs.find(j => j.id === job.id);
+  if (!cj) return;
+  const p = 'w-' + job.id + '-';
+  cj.windowGroups = [
+    { id: p + 'g1', room: 'Master Bedroom', width: 280, height: 260, qty: 1, layers: [
+      { id: p + '1', role: 'main', label: 'Window 1', overhang: 20,
+        treatment: 'curtain', fabricType: 'main', fabricCode: 'Nassaj N11011-002', designType: 'Wave',
+        fullness: 2.5, rollWidth: 140, patternRepeatV: 32, patternRepeatH: 0, topHem: 8, bottomHem: 12, sideHem: 5,
+        motorized: false, motorBrand: null, motorModel: null, remoteType: null,
+        railType: 'Aluminium U-Shape Head Rail — Ningbo CH016', railItemCode: 'IT001886', openingDirection: 'two_way', bracketType: 'Ceiling bracket',
+        quoteEstimateMetres: 19, calcDone: true, calc: null },
+      { id: p + '2', role: 'sheer', label: 'Window 1 — Sheer', overhang: 20,
+        treatment: 'curtain', fabricType: 'sheer', fabricCode: 'Gulf Sheer Voile', designType: 'Wave',
+        fullness: 2.5, rollWidth: 300, patternRepeatV: 0, patternRepeatH: 0, topHem: 8, bottomHem: 12, sideHem: 5,
+        motorized: false, motorBrand: null, motorModel: null, remoteType: null,
+        railType: 'Aluminium U-Shape Head Rail — Ningbo CH016', railItemCode: 'IT001886', openingDirection: 'two_way', bracketType: 'Ceiling bracket',
+        quoteEstimateMetres: 9.6, calcDone: true, calc: null }
+    ] },
+    { id: p + 'g2', room: 'Living Room', width: 420, height: 280, qty: 1, layers: [
+      { id: p + '3', role: 'single', label: 'Sliding Door — Motorized', overhang: 30,
+        treatment: 'motorized', fabricType: 'blackout', fabricCode: 'CURFAB010 FABRIC 100', designType: 'Triple pleat',
+        fullness: 2, rollWidth: 140, patternRepeatV: 0, patternRepeatH: 0, topHem: 8, bottomHem: 12, sideHem: 5,
+        motorized: true, motorBrand: 'somfy', motorModel: 'Somfy RS100', remoteType: 'Single-channel Somfy Remote',
+        railType: 'Somfy Glydea Track — raw rail', railItemCode: 'IT000450', openingDirection: 'two_way', bracketType: 'Motorised ceiling bracket',
+        quoteEstimateMetres: 23.5, calcDone: variant === 0, calc: null }
+    ] }
+  ];
+  if (variant === 1) {
+    cj.windowGroups.push({ id: p + 'g3', room: 'Study', width: 120, height: 180, qty: 1, layers: [
+      { id: p + '4', role: 'single', label: 'Roller Blind — Study', overhang: 0,
+        treatment: 'roller', fabricType: 'blackout', fabricCode: 'CURFAB007 ROLLER BLIND FABRIC-216566RFR-1-300', designType: null,
+        fullness: 1, rollWidth: 200, patternRepeatV: 0, patternRepeatH: 0, topHem: 0, bottomHem: 0, sideHem: 0,
+        motorized: false, motorBrand: null, motorModel: null, remoteType: null,
+        railType: 'Roman Blind Headrail — Unisoiel RAE01', railItemCode: 'IT000362', openingDirection: 'fixed', bracketType: 'Recess bracket',
+        cordType: 'Ball chain', cordLength: 180, cordSide: 'right',
+        quoteEstimateMetres: 2.3, calcDone: false, calc: null }
+    ] });
+  }
+  cj.windows = flattenWindowGroups(cj);
+  cj.status = 'execution';
+  cj.bomStatus = 'approved';
+  cj.budgetStatus = 'approved';
+  raiseInquiry({
+    jobId: cj.id, windowIds: [p + '1', p + '2'], vendor: 'Gulf Textiles', vendorRegion: 'Bahrain / Dubai',
+    source: 'vendor', fabricCode: 'Nassaj N11011-002', quantityOrdered: 29, notes: 'Demo inquiry — main + sheer fabric'
+  });
+}
 
 function loadDemoData() {
   if (demoDataStartCounts) { if (typeof commsToast === 'function') commsToast('Demo data is already loaded — Clear it first to reload.'); return; }
@@ -175,6 +231,7 @@ function loadDemoData() {
     // one fully delivered/invoiced, one left un-routed so the Pipeline
     // Funnel's "Job Confirmed" stage isn't empty either. Qty varies per job
     // so the monthly chart doesn't show 3 identical bar heights. ──
+    const curtainDemoJobs = [];
     for (let i = 0; i < 4; i++) {
       const monthsAgo = 3 - i;
       const { enq } = demoSeedCustomerAndEnquiry({ name: `Al Fardan Villa ${i + 1}`, division: 'Curtain & Blinds', salesPerson: 'Salman Abdullah', monthsAgo });
@@ -183,6 +240,7 @@ function loadDemoData() {
         itemDefs: [{ product: 'Blackout Curtain — Living Room', qty: 4 + i * 2, unit: 'Meters', materialQty: 4 + i * 2, materialUnit: 'Meters', materialRate: 18 }]
       });
       const job = demoConfirmToJob({ qtn, monthsAgo, confirmedBy: 'Salman Abdullah' });
+      curtainDemoJobs.push(job);
       if (i === 3) continue; // left un-routed on purpose — populates the funnel's "Job Confirmed" stage
       demoAdvanceJob(job, i === 0 ? 'done' : 'in-production', 'Operations Manager');
       if (i === 0) {
@@ -190,6 +248,13 @@ function loadDemoData() {
         demoInvoiceAndReceipt(job, monthsAgo);
       }
     }
+    // Author real window data on the first two bridged curtain jobs so
+    // Curtain's own screens (Dashboard/Windows/Tracks/QC/Pipeline/Purchase
+    // Inquiries) show content — since the old hand-seeded fixtures were
+    // cleared (6 Aug 2026), the bridge seeds windowGroups empty and this is
+    // the only demo path that fills them.
+    demoAuthorCurtainWindows(curtainDemoJobs[0], 0);
+    demoAuthorCurtainWindows(curtainDemoJobs[1], 1);
 
     // ── Joinery + Painting — a painted cabinet job, 2 months apart ──
     for (let i = 0; i < 2; i++) {
