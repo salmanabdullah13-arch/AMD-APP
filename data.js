@@ -2527,6 +2527,7 @@ function addQuotationItem(qtnId, item) {
     vatPercent: item.vatPercent || 0, discPercent: item.discPercent || 0, discAmt: qtn.withEstimation ? 0 : discAmt,
     netAmount: qtn.withEstimation ? 0 : netAmount,
     description: item.description || "", internalComments: item.internalComments || "", optional: !!item.optional,
+    imageUrl: item.imageUrl || null, // Stage 6: Sales-uploaded product photo (Supabase Storage public URL)
     approverComment: "", // Approver's per-line comment — see setLineApproverComment() below
     bom: null, // set by ensureItemBOM() once the Estimator adds a BOM — see ESTIMATOR section below
     // Job Routing (Batch 8) — auto-suggested now, editable by the Estimator

@@ -1194,3 +1194,26 @@ create policy "customers updatable, commercial roles only"
   on public.customers for update to authenticated
   using (public.is_approved() and public.caller_job_department_key() is null)
   with check (public.is_approved() and public.caller_job_department_key() is null);
+
+-- ────────────────────────────────────────────────────────────────────────
+-- STAGE 6 (rest) — item photos. Salman's call: SALES uploads them at
+-- quote level. Public-read bucket (product photos, embedded in print
+-- documents via public URLs); uploads restricted to approved users.
+-- ────────────────────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public) values ('item-images', 'item-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "item images publicly readable" on storage.objects;
+create policy "item images publicly readable"
+  on storage.objects for select using (bucket_id = 'item-images');
+
+drop policy if exists "approved users upload item images" on storage.objects;
+create policy "approved users upload item images"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'item-images' and public.is_approved());
+
+drop policy if exists "approved users replace item images" on storage.objects;
+create policy "approved users replace item images"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'item-images' and public.is_approved())
+  with check (bucket_id = 'item-images' and public.is_approved());

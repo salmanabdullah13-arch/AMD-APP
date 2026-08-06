@@ -5641,3 +5641,24 @@ landed, one commit per stage, full regression green throughout:
   2 curtain tables, the 11 Stage-1 financial tables, labour_day_logs,
   bom_templates, payroll_runs, and the Stage-8 policy tightening. Until
   then all new collections run gracefully in-memory per session.
+
+### 6 Aug 2026 (late night) — Schema live; item photos built (Sales uploads at quote level)
+
+- Salman ran schema.sql against the live project (after a real idempotency
+  bug I'd shipped was fixed — the job_cards dept-scope + Stage-8 sections
+  renamed policies without dropping the new names; every create policy now
+  has a same-name drop, audited). **Both live suites fully green**:
+  e2e-cloud-financial 8/8 (all 16 tables live, scanner persistence,
+  cross-device), e2e-cloud-curtain 11/11. The whole persistence layer is
+  now proven live end to end.
+- **Item photos (Stage 6 rest), Salman's call: "sales will upload the
+  images at quote level."** Public-read `item-images` storage bucket +
+  policies appended to schema.sql (needs ONE more idempotent re-run);
+  📷 per-item upload in the Sales wizard (real session only, 5MB cap,
+  public URL onto item.imageUrl, carried by Duplicate); the Quotation and
+  Job Order print documents render the photo in their IMAGE columns.
+- **Still owed by Salman**: the real logo + Benefit Pay QR as FILE
+  attachments (an inline paste didn't reach the filesystem) — print docs
+  keep the stylized wine mark + QR placeholder until then. Photo upload
+  itself should get a real-device test (file-picker flows can't be fully
+  exercised headless).

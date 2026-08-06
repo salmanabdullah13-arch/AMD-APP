@@ -250,7 +250,7 @@ function buildQuotationPrintHTML(qtn, settings) {
 
     bodyRows += `<tr>
       <td class="serial">${h.serial}</td>
-      ${withImage ? `<td class="img-cell">no image</td>` : ''}
+      ${withImage ? `<td class="img-cell">${it.imageUrl ? `<img src="${prEsc(it.imageUrl)}" style="max-width:86px;max-height:86px;object-fit:contain;">` : 'no image'}</td>` : ''}
       <td>${prEsc(it.product)}${it.description ? `<div class="desc">${prEsc(it.description).replace(/\n/g, '<br>')}</div>` : ''}</td>
       <td class="qty">${prFmtPlain(it.qty)}</td>
       <td class="price">${prFmt(it.rate)}/${prEsc(it.unit)}</td>
@@ -482,7 +482,7 @@ function buildJobOrderPrintHTML(job) {
     bodyRows += `<tr>
       <td>${prEsc(it.product)}${it.description ? `<div class="desc">${prEsc(it.description).replace(/\n/g, '<br>')}</div>` : ''}</td>
       <td class="qty" style="text-align:right;">${prFmtPlain(it.qty)}</td>
-      <td class="img-cell">no image</td>
+      <td class="img-cell">${it.imageUrl ? `<img src="${prEsc(it.imageUrl)}" style="max-width:86px;max-height:86px;object-fit:contain;">` : 'no image'}</td>
     </tr>`;
   });
 

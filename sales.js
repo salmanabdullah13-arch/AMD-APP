@@ -863,7 +863,7 @@ function renderWizardStep2() {
         if (h.isNewGroup) headers += `<tr style="background:#e2e8f0;"><td colspan="7" style="font-weight:700;">${esc(it.group || '(No Group)')}${it.group ? ` <span style="cursor:pointer;color:var(--biz-primary);font-weight:600;font-size:10.5px;" onclick="salesCopySection('${q.id}',${it.lineId},'group')">⧉ Copy Group</span>` : ''}</td></tr>`;
         if (h.isNewSubgroup) headers += `<tr style="background:#f1f5f9;"><td colspan="7" style="font-weight:600;text-decoration:underline;">${h.groupNo}.${h.subgroupNo} ${esc(it.subgroup || '(No Sub Group)')}${it.subgroup ? ` <span style="cursor:pointer;color:var(--biz-primary);font-weight:600;font-size:10.5px;text-decoration:none;" onclick="salesCopySection('${q.id}',${it.lineId},'subgroup')">⧉ Copy Sub Group</span>` : ''}</td></tr>`;
         return headers + `<tr><td>${h.serial}</td><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
-        <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})" title="Edit">✎</span><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesDuplicateItem('${q.id}',${it.lineId})" title="Duplicate">⧉</span><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})" title="Remove">✕</span></td></tr>` +
+        <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})" title="Edit">✎</span><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesDuplicateItem('${q.id}',${it.lineId})" title="Duplicate">⧉</span><label title="${it.imageUrl ? 'Replace photo' : 'Attach photo'}" style="cursor:pointer;color:${it.imageUrl ? 'var(--ok,#0f9d58)' : 'var(--biz-primary)'};margin-right:8px;">📷<input type="file" accept="image/*" style="display:none;" onchange="salesUploadItemImage('${q.id}',${it.lineId},this.files[0]);this.value='';"></label><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})" title="Remove">✕</span></td></tr>` +
         (salesEditingLineId === it.lineId ? `<tr><td colspan="7">${renderSalesItemEditPanel(q, it)}</td></tr>` : '');
       }).join('') +
       `</table>`;
@@ -966,6 +966,27 @@ function salesAddItem(qtnId) {
 }
 function salesRemoveItem(qtnId, lineId) { removeQuotationItem(qtnId, lineId); renderSalesBody(); }
 
+// Stage 6: product photo per quote line — Salman's call: SALES uploads at
+// quote time. Lands in the public item-images bucket; the public URL rides
+// on item.imageUrl and shows in the quotation/Job Order print documents.
+async function salesUploadItemImage(qtnId, lineId, file) {
+  if (!file) return;
+  if (!window.__realCloudSession || !sb) { salesAlert('Photo upload needs a signed-in cloud session.'); return; }
+  if (file.size > 5 * 1024 * 1024) { salesAlert('Photo is over 5MB — please use a smaller image.'); return; }
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const pathKey = qtnId + '/' + lineId + '-' + Date.now() + '.' + ext;
+  const { error } = await sb.storage.from('item-images').upload(pathKey, file, { upsert: true });
+  if (error) { salesAlert('Upload failed: ' + error.message); return; }
+  const { data } = sb.storage.from('item-images').getPublicUrl(pathKey);
+  const item = findQuotationItem(qtnId, lineId);
+  if (item) {
+    item.imageUrl = data.publicUrl;
+    persistQuotationUpdate(quotations.find(q => q.id === qtnId));
+  }
+  salesAlert('✓ Photo attached.');
+  renderSalesBody();
+}
+
 // Stage 6: the real documents' single quote-level discount — distributed
 // per-item by setQuoteDiscount() (data.js) so all existing math holds.
 function salesApplyQuoteDiscount(qtnId) {
@@ -989,7 +1010,8 @@ function salesDuplicateItem(qtnId, lineId) {
     group: item.group, subgroup: item.subgroup,
     product: item.product, qty: item.qty, unit: item.unit,
     vatPercent: item.vatPercent, discPercent: item.discPercent,
-    description: item.description, internalComments: item.internalComments
+    description: item.description, internalComments: item.internalComments,
+    imageUrl: item.imageUrl // same product, same photo — replaceable per line
   });
   salesAlert('✓ Item duplicated.');
   renderSalesBody();
