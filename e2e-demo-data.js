@@ -53,7 +53,7 @@ async function openNode(page, nodeId, wrapId) {
 
   currentStep = 'open-admin';
   await openNode(page, 'admin', 'admin-module-wrap');
-  await page.evaluate(() => { [...document.querySelectorAll('#admin-module-wrap .sales-tabbtn')].find(b => b.textContent.includes('Developer Preview'))?.click(); });
+  await page.evaluate(() => { document.getElementById('xsnav-admin-devpreview')?.click(); }); // exec-shell pilot: pill tab -> sidebar nav item
   await page.waitForTimeout(150);
   const beforeLoad = await page.evaluate(() => ({
     loadEnabled: !document.querySelector('#admin-module-wrap button[onclick="adminLoadDemoData()"]').disabled,
@@ -104,7 +104,7 @@ async function openNode(page, nodeId, wrapId) {
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
   await openNode(page, 'admin', 'admin-module-wrap');
-  await page.evaluate(() => { [...document.querySelectorAll('#admin-module-wrap .sales-tabbtn')].find(b => b.textContent.includes('Developer Preview'))?.click(); });
+  await page.evaluate(() => { document.getElementById('xsnav-admin-devpreview')?.click(); }); // exec-shell pilot: pill tab -> sidebar nav item
   await page.waitForTimeout(150);
   await page.click('#admin-module-wrap button[onclick="adminClearDemoData()"]');
   await page.waitForTimeout(200);

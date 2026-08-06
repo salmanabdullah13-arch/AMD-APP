@@ -36,23 +36,35 @@ document.head.appendChild(adminStyleTag);
 
 const adminModuleWrap = document.createElement('div');
 adminModuleWrap.id = 'admin-module-wrap';
+adminModuleWrap.className = 'xshell'; // exec-shell pilot (6 Aug 2026) — same template shell as Owner
 adminModuleWrap.style.cssText = 'display:none;';
-adminModuleWrap.innerHTML = `
-  <div class="ops-header">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:20px;">🛡️</span>
-      <div>
-        <div style="color:#fff;font-weight:700;font-size:15px;">Admin Dashboard</div>
-        <div style="color:rgba(255,255,255,.7);font-size:11px;">Approvals · Developer Preview · User &amp; Role Management</div>
-      </div>
-    </div>
-    <button onclick="closeAdminModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
-  </div>
-  <div class="admin-scroll">
-    <div id="admin-body"></div>
-  </div>
-`;
 document.body.appendChild(adminModuleWrap);
+
+function adminBuildShell() {
+  const signups = (typeof approvalQueueRows !== 'undefined' && approvalQueueRows.length) || 0;
+  adminModuleWrap.innerHTML = execShellHTML({
+    title: 'Admin Dashboard', sub: null, role: 'Admin · System administration',
+    contentId: 'admin-body', closeFn: 'closeAdminModule',
+    navGroups: [
+      {
+        label: 'Administration', items: [
+          { id: 'admin-approvals', ico: '✔', label: 'Sign-up Approvals', tag: signups || null, onclick: "adminSetView('approvals')" },
+          { id: 'admin-users', ico: '☰', label: 'User & Role Management', onclick: "adminSetView('users')" },
+          { id: 'admin-devpreview', ico: '⚙', label: 'Developer Preview', onclick: "adminSetView('devpreview')" }
+        ]
+      },
+      {
+        label: 'Workspace', items: [
+          { id: 'admin-to-owner', ico: '▦', label: 'Owner Dashboard', onclick: "adminGoToOwner()" }
+        ]
+      }
+    ]
+  });
+}
+function adminGoToOwner() {
+  hideModuleWrap(adminModuleWrap);
+  setTimeout(() => { if (typeof launchOwnerModule === 'function') launchOwnerModule(); }, 150);
+}
 
 function adminEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 
@@ -65,33 +77,39 @@ function openAdminModule() {
     if (el) el.style.display = 'none';
   });
   adminModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
+  adminBuildShell();
+  execThemeApply();
   adminView = 'approvals';
   renderAdminBody();
+  execMarkActive('admin-approvals');
+  execRefreshBadges();
 }
 function closeAdminModule() { closeModuleWrap(adminModuleWrap, 'launchAdminModule'); }
 function launchAdminModule() { openAdminModule(); }
 
 let adminView = 'approvals'; // approvals | devpreview | users
-function adminSetView(v) { adminView = v; renderAdminBody(); }
+function adminSetView(v) {
+  adminView = v;
+  renderAdminBody();
+  if (typeof execMarkActive === 'function') execMarkActive('admin-' + (v === 'devpreview' ? 'devpreview' : v));
+}
 
+// Views moved from pill tabs into the exec-shell sidebar (6 Aug 2026
+// pilot) — same three renders, navigation now lives in the sidebar.
 function renderAdminBody() {
   const body = document.getElementById('admin-body');
   if (!body) return;
-  const tab = (v, label) => `<button class="sales-tabbtn ${adminView === v ? 'active' : ''}" onclick="adminSetView('${v}')">${label}</button>`;
-  const pendingBadge = (typeof approvalQueueRows !== 'undefined' && approvalQueueRows.length) ? ` (${approvalQueueRows.length})` : '';
-  const tabsHtml = `<div class="sales-tabs">${tab('approvals', 'Approvals' + pendingBadge)}${tab('devpreview', 'Developer Preview')}${tab('users', 'User & Role Management')}</div>`;
-
   if (adminView === 'devpreview') {
-    body.innerHTML = tabsHtml + renderAdminDevPreviewTab();
+    body.innerHTML = renderAdminDevPreviewTab();
     return;
   }
   if (adminView === 'users') {
-    body.innerHTML = tabsHtml + `<div id="admin-users-body"></div>`;
+    body.innerHTML = `<div id="admin-users-body"></div>`;
     renderAdminUsersTab();
     return;
   }
   // Approvals — shared screen with Owner/HR, see approval-queue.js.
-  body.innerHTML = tabsHtml + `<div id="admin-approval-queue"></div>`;
+  body.innerHTML = `<div id="admin-approval-queue"></div>`;
   renderApprovalQueueScreen('admin-approval-queue');
 }
 

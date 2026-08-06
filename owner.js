@@ -35,23 +35,48 @@ document.head.appendChild(ownerStyleTag);
 
 const ownerModuleWrap = document.createElement('div');
 ownerModuleWrap.id = 'owner-module-wrap';
+ownerModuleWrap.className = 'xshell'; // exec-shell pilot (6 Aug 2026) — template shell, wine identity, light/dark toggle
 ownerModuleWrap.style.cssText = 'display:none;';
-ownerModuleWrap.innerHTML = `
-  <div class="ops-header">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:20px;">🧭</span>
-      <div>
-        <div style="color:#fff;font-weight:700;font-size:15px;">Owner Dashboard</div>
-        <div style="color:rgba(255,255,255,.7);font-size:11px;">Cross-department overview — read-only</div>
-      </div>
-    </div>
-    <button onclick="closeOwnerModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
-  </div>
-  <div class="owner-scroll">
-    <div id="owner-body"></div>
-  </div>
-`;
 document.body.appendChild(ownerModuleWrap);
+
+// Shell is (re)built on every open so the sidebar badges (approvals,
+// budget reviews) are fresh — cheap, it's just innerHTML.
+function ownerBuildShell() {
+  const signups = (typeof approvalQueueRows !== 'undefined' && approvalQueueRows.length) || 0;
+  const budgets = typeof getPendingBudgetApprovalsFor === 'function' ? getPendingBudgetApprovalsFor('owner').length : 0;
+  ownerModuleWrap.innerHTML = execShellHTML({
+    title: 'Owner Dashboard', sub: null, role: 'Owner · Full access',
+    contentId: 'owner-body', closeFn: 'closeOwnerModule',
+    navGroups: [
+      {
+        label: 'Workspace', items: [
+          { id: 'owner-overview', ico: '▦', label: 'Overview', onclick: "ownerNav('dashboard')" },
+          { id: 'owner-approvals', ico: '✔', label: 'Sign-up Approvals', tag: signups || null, onclick: "ownerNav('approvals')" },
+          { id: 'owner-budgets', ico: '◈', label: 'Budget Reviews', tag: budgets || null, onclick: "ownerNav('budget-review')" }
+        ]
+      },
+      {
+        label: 'Modules', items: [
+          { id: 'm-sales', ico: '◉', label: 'Sales', onclick: "ownerGoTo('launchSalesModule')" },
+          { id: 'm-accounts', ico: '▤', label: 'Accounts', onclick: "ownerGoTo('launchAccountsModule')" },
+          { id: 'm-operations', ico: '⚙', label: 'Operations', onclick: 'ownerGoToOperations()' },
+          { id: 'm-purchasing', ico: '⬡', label: 'Purchasing', onclick: "ownerGoTo('launchPurchasingModule')" },
+          { id: 'm-hr', ico: '☰', label: 'HR & Payroll', onclick: "ownerGoTo('launchHRModule')" }
+        ]
+      },
+      {
+        label: 'Administration', items: [
+          { id: 'm-admin', ico: '🛡', label: 'Admin Dashboard', onclick: "ownerGoTo('launchAdminModule')" }
+        ]
+      }
+    ]
+  });
+}
+function ownerNav(view) {
+  ownerView = view;
+  renderOwnerBody();
+  execMarkActive(view === 'dashboard' ? 'owner-overview' : view === 'approvals' ? 'owner-approvals' : 'owner-budgets');
+}
 
 function ownerEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function ownerBHD(v) { return 'BD ' + Math.round(v).toLocaleString('en-US'); }
@@ -84,8 +109,12 @@ function openOwnerModule() {
     if (el) el.style.display = 'none';
   });
   ownerModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
+  ownerBuildShell();
+  execThemeApply();
   ownerView = 'dashboard';
   renderOwnerBody();
+  execMarkActive('owner-overview');
+  execRefreshBadges();
   // Fire-and-forget count for the "Pending Sign-ups" tile above — the
   // dashboard itself renders synchronously as always, this just patches
   // the badge in shortly after, same optimistic-then-patch pattern as
@@ -111,8 +140,93 @@ function ownerGoToOperations() {
 // single static summary render it always was. Shared with HR's own
 // Approvals tab, see approval-queue.js.
 let ownerView = 'dashboard';
-function ownerOpenApprovals() { ownerView = 'approvals'; renderOwnerBody(); }
-function ownerBackToDashboard() { ownerView = 'dashboard'; renderOwnerBody(); }
+function ownerOpenApprovals() { ownerNav('approvals'); }
+function ownerBackToDashboard() { ownerNav('dashboard'); }
+
+// ── My Tasks (exec-shell pilot) — the "task code should be there" ask:
+// every task row leads with its real id (T-00001 style) plus any linked
+// job/record id, with quick-add and one-tap complete. Reuses the same
+// tasks[] primitive every other tasks panel in the app already uses.
+function ownerTasksCard() {
+  const open = getOpenTasksForAssignee(execIdentity());
+  const rows = open.length === 0
+    ? `<p style="font-size:12px;color:var(--biz-text-muted,#64748b);margin:0;">Nothing on your list.</p>`
+    : open.map(t => `
+      <div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--biz-border-light);">
+        <span class="xs-rem-code" style="margin:2px 0 0;">${ownerEsc(t.id)}</span>
+        <div style="flex:1;min-width:0;">
+          <p style="font-size:12.5px;margin:0;color:var(--biz-text,#16181d);">${ownerEsc(t.title)}</p>
+          <p style="font-size:10.5px;color:var(--biz-text-muted,#94a3b8);margin:1px 0 0;">${t.dueDate ? 'due ' + t.dueDate : 'no due date'}${t.linkedId ? ' · ' + ownerEsc(t.linkedId) : ''}</p>
+        </div>
+        <span style="font-size:11px;color:var(--ok,#0f9d58);cursor:pointer;white-space:nowrap;font-weight:600;" onclick="ownerCompleteTask('${ownerEsc(t.id)}')">✓ Done</span>
+      </div>`).join('');
+  return `
+    <div class="sales-card">
+      <h3>My Tasks${open.length ? ` <span style="color:var(--biz-text-muted);font-weight:500;">· ${open.length} open</span>` : ''}</h3>
+      ${rows}
+      <div style="display:flex;gap:7px;margin-top:9px;">
+        <input id="owner-task-input" type="text" placeholder="Add a task…" style="flex:1;padding:8px 11px;border:1px solid var(--biz-border-light);border-radius:8px;font-size:12px;font-family:inherit;background:var(--biz-card-bg);color:var(--biz-text,#16181d);" onkeydown="if(event.key==='Enter')ownerAddTask();">
+        <button class="primary" style="font-size:11.5px;padding:8px 14px;" onclick="ownerAddTask()">Add</button>
+      </div>
+    </div>`;
+}
+function ownerAddTask() {
+  const input = document.getElementById('owner-task-input');
+  if (!input || !input.value.trim()) return;
+  const r = createTask({ title: input.value.trim(), assignee: execIdentity() });
+  if (r.error) { if (typeof commsToast === 'function') commsToast(r.error); return; }
+  renderOwnerBody();
+  execRefreshBadges();
+}
+function ownerCompleteTask(id) {
+  completeTask(id);
+  renderOwnerBody();
+  execRefreshBadges();
+}
+
+// Template-style stat tiles: real numbers with a real month-over-month
+// delta where one is computable (invoiced revenue), plain values where a
+// delta would be invented.
+function ownerStatTiles(acctK, jobK) {
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const lastMonthDate = new Date(); lastMonthDate.setDate(1); lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+  const lastMonth = lastMonthDate.getFullYear() + '-' + String(lastMonthDate.getMonth() + 1).padStart(2, '0');
+  const invTotal = (mk) => taxInvoices.filter(i => (i.date || '').slice(0, 7) === mk).reduce((s, i) => s + (i.totals ? i.totals.netTotal : 0), 0);
+  const revMTD = invTotal(thisMonth), revPrev = invTotal(lastMonth);
+  const revDelta = revPrev > 0 ? Math.round((revMTD - revPrev) / revPrev * 100) : null;
+  const openQuotes = quotations.filter(q => q.lifecycleStatus === 'open');
+  const openQuoteValue = openQuotes.reduce((s, q) => s + computeQuotationTotals(q).netTotal, 0);
+  const urgentCount = jobCards.filter(j => j.status === 'open' && j.urgent).length;
+  const reminders = getExecReminders().length;
+  return `
+    <div class="xs-tiles">
+      <div class="xs-tile">
+        <div class="xs-tile-label">Revenue — invoiced MTD</div>
+        <div class="xs-tile-value"><span class="unit">BD</span>${Math.round(revMTD).toLocaleString('en-US')}</div>
+        <div class="xs-tile-foot">${revDelta === null ? '<span>first month of data</span>' : `<span class="xs-delta ${revDelta >= 0 ? 'up' : 'down'}">${revDelta >= 0 ? '▲' : '▼'} ${Math.abs(revDelta)}%</span><span>vs last month</span>`}</div>
+      </div>
+      <div class="xs-tile">
+        <div class="xs-tile-label">Open quotations</div>
+        <div class="xs-tile-value"><span class="unit">BD</span>${Math.round(openQuoteValue).toLocaleString('en-US')}</div>
+        <div class="xs-tile-foot"><span>${openQuotes.length} live quote${openQuotes.length === 1 ? '' : 's'}</span></div>
+      </div>
+      <div class="xs-tile">
+        <div class="xs-tile-label">Active jobs</div>
+        <div class="xs-tile-value">${jobK.open}</div>
+        <div class="xs-tile-foot">${urgentCount ? `<span class="xs-delta down">🔥 ${urgentCount}</span><span>urgent</span>` : '<span>none urgent</span>'}</div>
+      </div>
+      <div class="xs-tile">
+        <div class="xs-tile-label">Receivables</div>
+        <div class="xs-tile-value"><span class="unit">BD</span>${Math.round(acctK.receivables).toLocaleString('en-US')}</div>
+        <div class="xs-tile-foot"><span>outstanding balance</span></div>
+      </div>
+      <div class="xs-tile">
+        <div class="xs-tile-label">Needs attention</div>
+        <div class="xs-tile-value">${reminders}</div>
+        <div class="xs-tile-foot"><span>open reminders — see 🔔</span></div>
+      </div>
+    </div>`;
+}
 
 // Fix Plan Phase 2 (5 Aug 2026, Fable audit findings #1/#2) — a
 // department budget over BD 5,000 needs a second, Owner-only approval
@@ -218,6 +332,8 @@ function renderOwnerBody() {
   const deptQualityRings = ['carp', 'uph', 'paint', 'curt'].map(ownerDeptQualityRing).join('');
 
   body.innerHTML = `
+    ${ownerStatTiles(acctK, jobK)}
+    ${ownerTasksCard()}
     <div class="sales-card">
       <h3>Company Snapshot</h3>
       <div class="sales-kpi-grid">

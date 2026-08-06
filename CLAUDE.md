@@ -5345,3 +5345,72 @@ its own pass — done now.
   per-salesperson Sales-dashboard scope (the aggregations already accept
   `{salesPerson}`; surfacing it needs the logged-in salesperson identity
   wired into the Sales module — a small feature of its own, not a gap).
+
+### 6 Aug 2026 — Exec-shell UI pilot: template-based Owner/Admin shell, wine identity, light/dark toggle
+
+Salman uploaded a dashboard template he liked ("almarayadashboard.html" —
+dark purple, sidebar app shell, reminders bell, filter chips) and asked for
+a cleaner structured design. His calls, all honored here: **keep the wine +
+light identity (no purple)**; **add a light/dark toggle for every user**;
+**pilot on Owner + Admin only** — if he likes living in it, replicate
+app-wide later; sidebar with the important tabs; a reminders alert the
+moment the dashboard opens with the task code visible; and a pop-up chat
+window over the real communications log with unread counts.
+
+- **New `exec-shell.js`** (loads after hr.js, before owner.js) — the shared
+  shell: 230px sidebar (brand mark, grouped nav with count badges, user
+  chip), topbar (title + date, theme toggle ◐, chat 💬 with unread badge,
+  reminders 🔔 with pulsing ring + badge, close ×), reminders dropdown,
+  chat slide-over, and template-style stat tiles (.xs-tiles). Mobile
+  (<880px): the sidebar becomes a slide-in drawer behind a burger button.
+- **Light/dark toggle, persisted per device** (localStorage
+  `amd-exec-theme`). Dark mode re-defines the existing `--biz-*` token
+  VALUES on the wrap (custom properties inherit), so every already-built
+  card/chart re-themes with zero render-code changes. The dark palette
+  adapts the template's layered-surface structure but stays in the wine hue
+  family (brightened `#a83c63` accent for contrast on dark). One
+  specificity fix needed: owner/admin's id-level `.sales-card h3` color
+  rules outrank a class selector, so the dark heading rule matches at
+  id+class specificity.
+- **Reminders bell — real signals only**: pending sign-ups, Owner budget
+  reviews, jobs awaiting routing, urgent jobs, overdue promised dates,
+  reorder alerts, the signed-in identity's open tasks (each row leads with
+  its task code, e.g. TSK-00001), unread messages. Auto-opens once per page
+  load when anything critical/serious is waiting — the "alert when a person
+  opens the dashboard" ask.
+- **Chat panel** — roster from REACHABLE_PEOPLE with per-person unread
+  counts, thread view, composer; sits directly on the real messages system
+  (sendMessage/getInboxFor/markMessageRead — cloud-backed in a real
+  session, in-memory offline). Opening a thread marks its messages read.
+- **owner.js**: wrap rebuilt into the shell on every open (fresh badges);
+  sidebar = Workspace (Overview / Sign-up Approvals / Budget Reviews) +
+  Modules (Sales, Accounts, Operations, Purchasing, HR) + Administration
+  (Admin Dashboard hop). Overview gains template-style stat tiles (invoiced
+  revenue MTD with a real month-over-month delta — no invented deltas
+  elsewhere — open-quote value/count, active jobs with urgent count,
+  receivables, reminders count) and a **My Tasks card** (task code + quick
+  add + one-tap complete). All existing chart/summary cards unchanged
+  beneath. **admin.js**: same shell; the three pill tabs became sidebar nav
+  items; content renders unchanged.
+- **Integration**: `index.html` script tag; `sw.js` CORE_ASSETS +
+  CACHE_VERSION v8→v9. Wrap ids/close functions unchanged, so hide-lists,
+  direct-landing, and closeModuleWrap behavior are untouched.
+- **Verification**: new `e2e-exec-shell.js` (15/15, all real clicks) —
+  shell renders, reminders auto-open with the task code visible, badge
+  counts, theme toggle to dark (computed rgb checked) and back with
+  persistence, chat badge/roster/thread/real send landing in messages[]/
+  mark-read on open, task complete from the card, the sidebar Admin hop,
+  and the mobile burger + drawer. `e2e-admin-dashboard.js` +
+  `e2e-demo-data.js` updated (pill-tab selectors → sidebar nav ids) —
+  12/12, 12/12; `e2e-owner-dashboard.js` passes unchanged (18/18). Full
+  offline sweep green. **A debugging lesson worth recording**: full-page
+  Playwright PNGs *viewed as images* appeared to show the dark sidebar
+  still white, while getComputedStyle said dark — programmatic pixel
+  sampling of the same PNG bytes proved the file was correct all along
+  (rgb(29,23,33) everywhere); the "white sidebar" was an image-preview
+  artifact. Verify colors by sampling pixels, not by eyeballing previews.
+- **Pilot boundary, deliberately**: every other module keeps the current
+  light UI untouched. The dark toggle only affects the two shell wraps. If
+  Salman likes the pilot, the rollout plan is: shared tokens app-wide →
+  per-module re-skin in chunks (same discipline as the wine redesign),
+  with the chat + reminders components reused as-is.

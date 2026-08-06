@@ -62,12 +62,14 @@ async function openNode(page, nodeId, wrapId) {
   record('Opening Admin hides other module wraps (mutual exclusivity)', mutexState.salesHidden && mutexState.ownerHidden ? 'PASS' : 'FAIL', JSON.stringify(mutexState));
 
   currentStep = 'default-tab';
+  // Exec-shell pilot (6 Aug 2026): the three pill tabs became sidebar nav
+  // items (#xsnav-admin-*) inside the new template shell.
   const defaultTab = await page.evaluate(() => ({
-    hasThreeTabs: document.querySelectorAll('#admin-module-wrap .sales-tabbtn').length === 3,
-    approvalsActive: document.querySelector('#admin-module-wrap .sales-tabbtn.active')?.textContent.includes('Approvals'),
+    hasThreeNavItems: !!(document.getElementById('xsnav-admin-approvals') && document.getElementById('xsnav-admin-users') && document.getElementById('xsnav-admin-devpreview')),
+    approvalsActive: document.getElementById('xsnav-admin-approvals')?.classList.contains('active'),
     hasApprovalContainer: !!document.getElementById('admin-approval-queue')
   }));
-  record('Admin opens on the Approvals tab with all 3 tabs present', defaultTab.hasThreeTabs && defaultTab.approvalsActive && defaultTab.hasApprovalContainer ? 'PASS' : 'FAIL', JSON.stringify(defaultTab));
+  record('Admin opens on Approvals with all 3 sidebar sections present', defaultTab.hasThreeNavItems && defaultTab.approvalsActive && defaultTab.hasApprovalContainer ? 'PASS' : 'FAIL', JSON.stringify(defaultTab));
 
   currentStep = 'approvals-offline-degrade';
   await page.waitForTimeout(300);
@@ -75,9 +77,7 @@ async function openNode(page, nodeId, wrapId) {
   record('Approvals tab degrades gracefully without a real cloud session (no crash)', approvalsMsg.toLowerCase().includes('real cloud login') ? 'PASS' : 'FAIL', approvalsMsg.slice(0, 80));
 
   currentStep = 'devpreview-tab';
-  await page.evaluate(() => {
-    [...document.querySelectorAll('#admin-module-wrap .sales-tabbtn')].find(b => b.textContent.includes('Developer Preview'))?.click();
-  });
+  await page.evaluate(() => { document.getElementById('xsnav-admin-devpreview')?.click(); });
   await page.waitForTimeout(150);
   const devPreview = await page.evaluate(() => {
     const rows = document.querySelectorAll('#admin-module-wrap .admin-row');
@@ -103,9 +103,7 @@ async function openNode(page, nodeId, wrapId) {
 
   currentStep = 'users-tab-offline-degrade';
   await openNode(page, 'admin', 'admin-module-wrap');
-  await page.evaluate(() => {
-    [...document.querySelectorAll('#admin-module-wrap .sales-tabbtn')].find(b => b.textContent.includes('User & Role Management'))?.click();
-  });
+  await page.evaluate(() => { document.getElementById('xsnav-admin-users')?.click(); });
   await page.waitForTimeout(300);
   const usersMsg = await page.evaluate(() => document.getElementById('admin-users-body')?.textContent || '');
   record('User & Role Management tab degrades gracefully without a real cloud session (no crash)', usersMsg.toLowerCase().includes('real cloud login') ? 'PASS' : 'FAIL', usersMsg.slice(0, 80));
