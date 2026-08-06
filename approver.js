@@ -215,7 +215,7 @@ function renderApproverDashboard() {
         k.pendingToPickList.map(q => {
           const s = approverQtnRowSummary(q);
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;">
-            <div><p style="font-weight:700;font-size:12.5px;">${q.id}</p><p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p></div>
+            <div><p style="font-weight:700;font-size:12.5px;">${q.id} ${quoteAgeBadge(q)}</p><p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p></div>
             <button class="primary" style="font-size:11px;padding:6px 10px;" onclick="approverPick('${q.id}')">Pick</button>
           </div>`;
         }).join('')) + `</div>`;
@@ -225,7 +225,7 @@ function renderApproverDashboard() {
         k.forApprovalList.map(q => {
           const s = approverQtnRowSummary(q);
           return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openApproverReview('${q.id}')">
-            <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id}</p>
+            <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id} ${quoteAgeBadge(q)}</p>
             <p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p>
           </div>`;
         }).join('')) + `</div>`;

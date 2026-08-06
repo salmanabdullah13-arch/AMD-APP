@@ -191,6 +191,7 @@ function renderStorekeeperDashboard() {
     </div>
     ${renderInboxWidget('Storekeeper', 'renderStorekeeperDashboard', 5)}`;
 
+  const reorderAlerts = getReorderAlerts();
   const kpiHtml = `
     <div class="sk-kpi-grid">
       <div class="sk-kpi-tile"><div class="num">${summary.inPoolCount}</div><div class="lbl">Entries In-Pool</div></div>
@@ -198,7 +199,18 @@ function renderStorekeeperDashboard() {
       <div class="sk-kpi-tile"><div class="num">${summary.distinctItemsInPool}</div><div class="lbl">Distinct Items</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.releasedTodayCount}</div><div class="lbl">Released Today</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.releasedTotalCount}</div><div class="lbl">Released (Total)</div></div>
+      <div class="sk-kpi-tile"><div class="num" style="color:${reorderAlerts.length ? 'var(--bad,#d9342b)' : 'var(--biz-teal)'};">${reorderAlerts.length}</div><div class="lbl">Reorder Alerts</div></div>
     </div>
+    ${reorderAlerts.length ? `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Reorder alerts <span style="font-weight:400;color:#94a3b8;font-size:11px;">— open-order shortfall or below reorder level</span></p>
+      ${reorderAlerts.slice(0, 6).map(r => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">
+          <div><p style="font-size:12.5px;font-weight:600;margin:0;">${r.itemName}</p><p style="font-size:10.5px;color:#94a3b8;margin:0;">in stock ${r.closingStock}${r.reorderLevel ? ` · reorder at ${r.reorderLevel}` : ''}</p></div>
+          ${r.reqQty > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--bad,#d9342b);white-space:nowrap;">short ${r.reqQty}</span>` : `<span style="font-size:11px;font-weight:600;color:var(--warn,#c47d00);white-space:nowrap;">low stock</span>`}
+        </div>`).join('')}
+      ${reorderAlerts.length > 6 ? `<p style="font-size:10.5px;color:#94a3b8;margin-top:6px;">+ ${reorderAlerts.length - 6} more — see Job Material Requirement.</p>` : ''}
+    </div>` : ''}
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Stock Movement</p>
       ${cwMiniBars([

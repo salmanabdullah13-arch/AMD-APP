@@ -932,6 +932,24 @@ function todayStrGlobal() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Quote aging (6 Aug 2026 audit, Phase E) — how long a quotation has been
+// alive, so the Estimator/Approver queues can show what's going stale (they
+// previously showed only category counts, no time-in-queue signal). Uses the
+// quote's own `date`; returns 0 if missing/future.
+function quoteAgeDays(q) {
+  if (!q || !q.date) return 0;
+  const ms = Date.now() - new Date(q.date + "T00:00:00").getTime();
+  return Math.max(0, Math.floor(ms / 86400000));
+}
+// A small coloured age badge (HTML) for a queue row — green ≤3 days, amber
+// 4–7, red >7. Returns "" for a same-day quote so fresh rows stay clean.
+function quoteAgeBadge(q) {
+  const d = quoteAgeDays(q);
+  if (d <= 0) return "";
+  const color = d > 7 ? "var(--bad,#d9342b)" : d > 3 ? "var(--warn,#c47d00)" : "var(--ok,#0f9d58)";
+  return `<span style="font-size:10.5px;font-weight:700;color:${color};white-space:nowrap;">${d}d</span>`;
+}
+
 function getInquiryForWindow(windowId) {
   return purchaseInquiries.find(pi => pi.windowIds.includes(windowId)) || null;
 }
@@ -2318,6 +2336,24 @@ function getJobMaterialRequirement() {
     const reqQty = Math.max(0, orders - matIssued - poQty - (item.closingStock || 0));
     return { itemId: item.id, itemName: item.name, unit: item.unit, closingStock: item.closingStock || 0, orders, matIssued, poQty, reqQty };
   });
+}
+
+// Reorder alerts (6 Aug 2026 audit, Phase E dashboard win) — the report
+// (getJobMaterialRequirement / renderJobMaterialRequirementTab) already
+// existed but the Storekeeper dashboard never surfaced the signal. An item
+// is flagged when it has real open-order demand it can't cover (reqQty > 0)
+// OR its current stock has fallen at/below its own reorderLevel. Most-urgent
+// (biggest shortfall) first.
+function getReorderAlerts() {
+  return getJobMaterialRequirement()
+    .map(r => {
+      const item = itemMaster.find(i => i.id === r.itemId);
+      const reorderLevel = (item && item.reorderLevel) || 0;
+      const belowReorder = reorderLevel > 0 && r.closingStock <= reorderLevel;
+      return { ...r, reorderLevel, belowReorder };
+    })
+    .filter(r => r.reqQty > 0 || r.belowReorder)
+    .sort((a, b) => b.reqQty - a.reqQty);
 }
 
 // The "Create Purchase Request" button on Job Material Requirement — takes

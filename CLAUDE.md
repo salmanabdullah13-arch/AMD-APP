@@ -5158,3 +5158,44 @@ policy call still owed and was NOT built.
 - **Phases D/E** unchanged from the list above (revenue attribution;
   setJobStatus gating / urgent field / hand-off notifications / dashboard
   wins), plus flagged loophole #2 (enforce estimation stage before approval).
+
+### 6 Aug 2026 — Audit Phase E (dashboard wins): Storekeeper reorder alerts + Estimator/Approver quote aging
+
+Salman: "Continue to Phase E wins." Two of the three cheap dashboard wins
+built; per-salesperson Sales scope deferred (see below).
+
+- **Storekeeper reorder alerts** (data.js `getReorderAlerts()` + storekeeper.js)
+  — the Job Material Requirement report already computed shortfall (`reqQty`)
+  but the dashboard never surfaced it. New helper flags an Item Master item
+  when it has open-order demand it can't cover (`reqQty > 0`) OR its stock has
+  fallen at/below its own `reorderLevel`, biggest shortfall first. Shown as a
+  6th "Reorder Alerts" KPI tile (red when > 0) plus a compact list card
+  (item, in-stock/reorder-level, "short N" or "low stock"), quiet when there's
+  nothing to flag.
+- **Estimator/Approver quote aging** (data.js `quoteAgeDays()`/`quoteAgeBadge()`)
+  — the audit noted these dashboards showed category counts but no time-in-
+  queue signal. A small coloured age badge (green ≤3d, amber 4–7d, red >7d;
+  nothing for a same-day quote) now sits next to the quote id on both roles'
+  Pending-to-Pick and My-Quotations / For-Approval rows, so a stale quote is
+  visible at a glance. Pure display helper off the quote's own `date` — no
+  new stored state, no data-model change.
+- **Deferred (flagged, not built): per-salesperson Sales-dashboard scope.**
+  The three analytics aggregations already accept a `{salesPerson}` scope
+  param (built during the Dashboard Analytics rollout) but the Sales dashboard
+  never surfaces it. Surfacing it needs the logged-in salesperson identity
+  wired into the Sales module (it's company-wide today), which is more than a
+  display tweak — left for its own small pass rather than half-wiring it.
+- **Verification**: new `e2e-audit-phase-e-dashboards.js` (7/7) — reorder
+  flag at/below level, the Storekeeper tile + list rendering, `quoteAgeDays`/
+  `quoteAgeBadge` thresholds, and the age badge showing on a real Estimator
+  queue row. `node --check` clean; regression across Storekeeper/Estimator/
+  Approver-touching suites (lighter-touch-charts, estimator-material-search,
+  labour-copybom-approver, batch9, batch6-reports, print-preview, back-button)
+  all green.
+- **Audit fix plan status after this session**: Phase A (done), Phase B
+  metal+delivery (done), Phase C reject-reason (done; QC-pass maker-checker
+  still owed a policy answer), Phase E reorder+aging (done; per-salesperson
+  scope deferred). **Not started**: Phase D (per-item department revenue
+  attribution + variation month bucketing), the rest of Phase E (urgent/
+  promised-date field, hand-off notifications via Messages, setJobStatus
+  gating), and flagged loophole #2 (enforce estimation stage before approval).
