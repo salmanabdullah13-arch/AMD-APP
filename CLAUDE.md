@@ -5577,3 +5577,67 @@ exec-shell reminders bell + My Tasks genuinely cross-device.
   milestones), then 4+5 (Arun's actual-costing loop + delegate/templates/
   Excel). HR/inventory cloud slices remain the tail of Stage 1 if wanted
   before Stage 2.
+
+### 6 Aug 2026 (night) — Merged roadmap Stages 2–9 built in one continuous run
+
+Salman: "continue and don't stop until the whole sequence is completed."
+Every stage of the approved roadmap that was buildable without his inputs
+landed, one commit per stage, full regression green throughout:
+
+- **Stages 2+3 — Production Cost Ledger** (`7075a34`): material issues/
+  returns are line-scoped and auto-priced from the real Item Master
+  (normalizeMoveItem — the Jobs form's existing Job Item select finally
+  reaches the data layer); labourDayLogs[] costed at real per-person
+  payroll rates (roster-validated, 0.5–12h); getLineActualCost()/
+  getJobActualCost() derive actuals (never typed) exactly like the real
+  Q-Pro MATERIAL COST document; recomputeJobBudgetRollup() feeds
+  projects[].actuals from the ledger (manual entry stays the fallback and
+  owns sub/hir/oth); MATERIAL COST print doc + per-line 🧾 links on the
+  Job hub; team-leader UI — 25/50/75 progress milestones (100% ONLY via
+  QC pass, enforced), inline work-log forms in the shared Joinery/Uph
+  queue, Painting's standalone copy, Curtain Install Crew hours
+  (installation/steaming). e2e-cost-ledger.js 14/14→17/17.
+- **Stage 4 — Arun's loop** (same suite, +3): findSimilarCompletedLines()
+  offers completed items with real actuals inside BOM entry;
+  pullActualCostingToBOM() builds the draft BOM from the actual ledger
+  (grouped priced issues + blended-rate labour, always unsubmitted);
+  Estimated vs Budgeted vs Actual card on the Job hub.
+- **Stage 5 — Estimator fast-track**: delegateQuotation() (audit trail +
+  real Messages ping, delegate select on the Quote Hub); BOM template
+  library (bomTemplates, cloud-synced); Excel round-trip — prefilled
+  BOM-<qtn>.xlsx download, marker-guarded upload, validation mirroring
+  every UI gate (Item Master exact match with suggestions, routed-dept
+  labour, mandatory rates), review-screen-before-apply, apply through the
+  real addBOM*() functions, never auto-submits. SheetJS pinned
+  (xlsx-0.20.3) next to the supabase-js tag. e2e-estimator-fasttrack.js
+  12/12.
+- **Stage 6 (buildable parts)**: setQuoteDiscount() — the real documents'
+  single quote-level discount, distributed proportionally per item so all
+  existing math (netAmount, discount-aware invoicing, prints) holds;
+  SALES_CONTACTS fills PREPARED BY phone/email on the quotation print.
+  **Still needs Salman**: item images (Supabase Storage bucket +
+  who-uploads decision), real logo file, Benefit Pay QR asset.
+- **Stage 7 — payroll runs**: payrollRuns[] (cloud-synced), baseline from
+  Active employees' real Salary-tab pay heads, draft OT/deduction/advance
+  edits with live net recompute, finalize lock, per-employee PAYSLIP
+  print. HR "Payroll Runs" tab. e2e-payroll-runs.js 6/6 (Sohail 165+55
+  OT = 220, his real July figure).
+- **Stage 8 — RLS slice**: production roles (caller_job_department_key()
+  mapped) are now READ-ONLY on quotations + customers in schema.sql
+  (drops target the real existing policy names; file stays idempotent).
+  **Deliberate deviation, documented in the schema comment**: the
+  planned "re-add nodeAccessible() inside each open*Module()" client
+  gate was NOT built — legitimate cross-module hops exist for every role
+  (Request Purchase, Notify Storekeeper, jobsNewVariation, ownerGoTo)
+  and a naive per-module gate breaks them all; server-side RLS is the
+  boundary. A hop-aware gate needs its own design pass if wanted.
+- **Stage 9 — CI**: .github/workflows/e2e.yml runs the full offline
+  sweep on every push/PR (live-Supabase suites excluded by design).
+  Reorder levels = Storekeeper data-entry (not code); supplier-item
+  links = no source data yet (the stock export has no vendor column) —
+  both flagged, not faked.
+- **Standing ACTION for Salman, now covering everything**: run the
+  latest supabase/schema.sql against the live project — it carries the
+  2 curtain tables, the 11 Stage-1 financial tables, labour_day_logs,
+  bom_templates, payroll_runs, and the Stage-8 policy tightening. Until
+  then all new collections run gracefully in-memory per session.

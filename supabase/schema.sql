@@ -1153,3 +1153,38 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ────────────────────────────────────────────────────────────────────────
+-- STAGE 8 (merged roadmap, 6 Aug 2026) — RLS matrix, next slice:
+-- PRODUCTION roles (the ones caller_job_department_key() maps — joinery/
+-- painting/curtain/upholstery floor+manager roles) become READ-ONLY on
+-- quotations and customers. They never create or edit either in any real
+-- flow; commercial/operations/owner/admin roles (dept key null) keep full
+-- write. Same helper and philosophy as the job_cards department scoping.
+-- NOTE: the roadmap's "re-add nodeAccessible() inside each open*Module()"
+-- client gate was deliberately NOT built as specced: legitimate cross-
+-- module hops exist for every role (Sales -> Purchasing Request Purchase,
+-- Notify Storekeeper, jobsNewVariation, ownerGoTo), and a naive per-module
+-- gate breaks them all. The server-side RLS here is the real boundary.
+-- ────────────────────────────────────────────────────────────────────────
+drop policy if exists "quotations insertable by any signed-in user" on public.quotations;
+create policy "quotations insertable, commercial roles only"
+  on public.quotations for insert to authenticated
+  with check (public.is_approved() and public.caller_job_department_key() is null);
+
+drop policy if exists "quotations updatable by any signed-in user" on public.quotations;
+create policy "quotations updatable, commercial roles only"
+  on public.quotations for update to authenticated
+  using (public.is_approved() and public.caller_job_department_key() is null)
+  with check (public.is_approved() and public.caller_job_department_key() is null);
+
+drop policy if exists "customers insertable by any signed-in user" on public.customers;
+create policy "customers insertable, commercial roles only"
+  on public.customers for insert to authenticated
+  with check (public.is_approved() and public.caller_job_department_key() is null);
+
+drop policy if exists "customers updatable by any signed-in user" on public.customers;
+create policy "customers updatable, commercial roles only"
+  on public.customers for update to authenticated
+  using (public.is_approved() and public.caller_job_department_key() is null)
+  with check (public.is_approved() and public.caller_job_department_key() is null);
