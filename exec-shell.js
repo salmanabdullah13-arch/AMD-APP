@@ -291,8 +291,18 @@ execStyleTag.textContent = `
 @media (max-width:880px){
   #exec-chat-float .xs-chat{right:8px;left:8px;width:auto;}
 }
+/* drawer close affordances — desktop hides both (the rail Collapse button
+   owns it there); mobile shows the × and the tap-outside scrim */
+.xs-side-close{display:none;}
+.xs-side-scrim{display:none;}
 /* ---- mobile: sidebar becomes a drawer ---- */
 @media (max-width:880px){
+  .xs-side-close{
+    display:grid;place-items:center;margin-left:auto;width:32px;height:32px;flex:none;
+    border-radius:50%;border:1px solid var(--x-hairline);background:var(--x-surface-2);
+    color:var(--x-ink-2);font-size:18px;line-height:1;cursor:pointer;font-family:inherit;
+  }
+  .xs-side-scrim.open{display:block;position:absolute;inset:0;z-index:149;background:rgba(0,0,0,.35);}
   .xs-app{grid-template-columns:1fr;}
   .xs-side{
     position:absolute;top:0;left:0;bottom:0;width:min(260px,84vw);z-index:150;
@@ -511,8 +521,22 @@ async function execChatSend() {
 }
 
 // ── sidebar drawer (mobile) ──────────────────────────────────────────
-function execToggleSide() {
-  document.querySelectorAll('.xshell .xs-side').forEach(s => s.classList.toggle('open'));
+// Mobile drawer. `force` true/false opens/closes explicitly; omitted toggles.
+// The scrim moves with it so there's always a tap-outside way back — the
+// drawer previously had NO exit at all on a phone (the Collapse button is
+// desktop-only), which is exactly what Salman hit: "the task bar once
+// opened doesn't collapse back".
+function execToggleSide(force) {
+  const open = force !== undefined ? force
+    : !document.querySelector('.xshell .xs-side.open');
+  document.querySelectorAll('.xshell .xs-side').forEach(s => s.classList.toggle('open', open));
+  document.querySelectorAll('.xs-side-scrim').forEach(s => s.classList.toggle('open', open));
+}
+// Every sidebar item calls this after doing its work (appended centrally in
+// execNavHTML) — on a phone, picking a destination should close the drawer
+// so you land on the content you just chose.
+function execCloseSideOnMobile() {
+  if (window.innerWidth <= 880) execToggleSide(false);
 }
 
 // ══════════════════════════════════════════
@@ -671,7 +695,7 @@ function execNavHTML(navGroups) {
   return navGroups.map(g => `
     <div class="xs-navlabel">${execEsc(g.label)}</div>
     ${g.items.map(it => `
-      <button class="xs-item" id="xsnav-${execEsc(it.id)}" title="${execEsc(it.label)}" onclick="${it.onclick}">
+      <button class="xs-item" id="xsnav-${execEsc(it.id)}" title="${execEsc(it.label)}" onclick="${it.onclick};execCloseSideOnMobile()">
         <span class="xs-ico">${it.ico}</span><span class="xs-lbl">${execEsc(it.label)}</span>
         ${it.tag ? `<span class="xs-tag">${execEsc(String(it.tag))}</span>` : ''}
       </button>`).join('')}
@@ -684,6 +708,7 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   return `
   <div class="xs-app">
+    <div class="xs-side-scrim" onclick="execToggleSide(false)"></div>
     <aside class="xs-side">
       <div class="xs-brand">
         <div class="xs-brand-mark" style="background:#fff;overflow:hidden;"><img src="logo.jpeg" alt="AM" style="width:100%;height:100%;object-fit:contain;" onerror="this.parentElement.textContent='AM';this.parentElement.style.background=''"></div>
@@ -691,6 +716,7 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
           <div class="xs-brand-name">AL MARAYA</div>
           <div class="xs-brand-sub">Decor</div>
         </div>
+        <button class="xs-side-close" onclick="execToggleSide(false)" aria-label="Close menu">×</button>
       </div>
       <nav class="xs-nav">${navHtml}</nav>
       <div class="xs-sidepanels">${execSidePanelsHTML()}</div>

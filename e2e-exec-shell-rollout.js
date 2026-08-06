@@ -192,6 +192,35 @@ function printReport() {
   record('Granular joinery view gets NO manager sidebar tabs (access control); manager open restores them',
     !gran.hasManagerTabs && gran.managerItems >= 3 ? 'PASS' : 'FAIL', JSON.stringify(gran));
 
+  currentStep = 'mobile-drawer-close';
+  // Salman on his iPhone: "the task bar once opened doesn't collapse back" —
+  // the drawer had NO exit on mobile (Collapse is desktop-only, no scrim, and
+  // nav taps left it open). All three ways out must work.
+  const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  mobilePage.on('pageerror', err => pageErrors.push({ step: currentStep, text: err.message.slice(0, 150) }));
+  mobilePage.on('dialog', async d => { await d.accept(); });
+  await mobilePage.goto('file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/'));
+  await mobilePage.waitForSelector('#app', { state: 'visible' });
+  await mobilePage.evaluate(() => { window.__eco3d.NODES.find(n => n.id === 'sales').launch(); });
+  await mobilePage.waitForTimeout(400);
+  const openState = () => mobilePage.evaluate(() => !!document.querySelector('#sales-module-wrap .xs-side.open'));
+  await mobilePage.click('#sales-module-wrap .xs-burger'); await mobilePage.waitForTimeout(250);
+  const drawerOpened = await openState();
+  await mobilePage.click('#sales-module-wrap .xs-side-close'); await mobilePage.waitForTimeout(250);
+  const closedByX = !(await openState());
+  await mobilePage.click('#sales-module-wrap .xs-burger'); await mobilePage.waitForTimeout(250);
+  await mobilePage.evaluate(() => document.querySelector('#sales-module-wrap .xs-side-scrim').click());
+  await mobilePage.waitForTimeout(250);
+  const closedByScrim = !(await openState());
+  await mobilePage.click('#sales-module-wrap .xs-burger'); await mobilePage.waitForTimeout(250);
+  await mobilePage.click('#xsnav-sal-qtn'); await mobilePage.waitForTimeout(300);
+  const closedByNav = !(await openState());
+  const navWorked = await mobilePage.evaluate(() => salesView === 'qtn-list');
+  await mobilePage.close();
+  record('Mobile drawer closes via ×, tap-outside scrim, and picking a nav item (which still navigates)',
+    drawerOpened && closedByX && closedByScrim && closedByNav && navWorked ? 'PASS' : 'FAIL',
+    JSON.stringify({ drawerOpened, closedByX, closedByScrim, closedByNav, navWorked }));
+
   currentStep = 'dept-pipeline-roundtrip';
   const pipe = await page.evaluate(async () => {
     // dept-pipeline-ui callbacks must still work inside the shell
