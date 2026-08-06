@@ -7,3 +7,4 @@ node_modules/
 test-results/
 playwright-report/
 e2e-shots*/
+amd-app-systems-audit-*.md
