@@ -4311,6 +4311,18 @@ function submitLineForQC(jobId, lineId, deptKey) {
 // pass=true -> "ready-for-handoff" (a real stop, waits for an explicit
 // handOffLine() call below — see the stage-vocabulary note above for
 // why); pass=false -> "rework" (loops back to in-production).
+// QC-pass authority (6 Aug 2026 audit, loophole #6 — Salman's call: "the
+// production manager should do QC"). A PASS may only be recorded by the
+// department's own designated QC authority — the floor can't pass its own
+// work. A FAIL stays open to anyone on purpose: flagging a problem should
+// never be permission-gated. Painting's authority is its Lead (no manager
+// role exists there by design).
+const DEPT_QC_AUTHORITY = {
+  carp: "Joinery Production Manager",
+  uph: "Upholstery Manager",
+  paint: "Painting Lead / Work Supervisor"
+};
+
 // reason (6 Aug 2026 audit, loophole #6): an optional QC reject reason,
 // captured on a fail the same way Curtain's own QC already records one. Kept
 // optional so existing callers (incl. e2e seeds) keep working — a fail with
@@ -4330,6 +4342,9 @@ function recordLineQCResult(jobId, lineId, deptKey, pass, user, reason) {
     logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: deptKey, reason: entry.rejectReason, message: `${item.product} failed QC at ${dc(deptKey).n} (rework #${entry.reworkCount})${entry.rejectReason ? ` — ${entry.rejectReason}` : ""}` });
     persistJobCardUpdate(job);
     return item;
+  }
+  if (DEPT_QC_AUTHORITY[deptKey] && user !== DEPT_QC_AUTHORITY[deptKey]) {
+    return { error: `A QC pass at ${dc(deptKey).n} must be recorded by the ${DEPT_QC_AUTHORITY[deptKey]}.` };
   }
   entry.rejectReason = null;
   entry.status = "ready-for-handoff";
@@ -4579,6 +4594,9 @@ function recordPaintingQCResult(jobId, lineId, pass, user, reason) {
     logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, reason: entry.rejectReason, message: `${item.product} failed QC at Painting (rework #${entry.reworkCount})${entry.rejectReason ? ` — ${entry.rejectReason}` : ""}` });
     persistJobCardUpdate(job);
     return item;
+  }
+  if (user !== DEPT_QC_AUTHORITY[PAINT_DEPT_KEY]) {
+    return { error: `A QC pass at Painting must be recorded by the ${DEPT_QC_AUTHORITY[PAINT_DEPT_KEY]}.` };
   }
   entry.rejectReason = null;
   entry.status = "ready-for-handoff";
@@ -6503,6 +6521,40 @@ function getQCRejectReasonsForDept(deptKey, limit = 6) {
 // business actually confirmed/booked, the figure Sales/Owner care
 // about day to day. scope.salesPerson optionally restricts to one
 // salesperson's own enquiries.
+// Multi-department revenue split (6 Aug 2026 audit, Phase D — Salman's
+// call: split by approved department budgets). Which SALES_DIVISION each
+// production department's work counts under: paint maps to Joinery (no
+// Painting division exists, and Painting rides on Joinery work in
+// practice); metal is deliberately absent (dropped from routing earlier
+// today).
+const DEPT_REVENUE_DIVISION = { carp: "Joinery", uph: "Upholstery", curt: "Curtain & Blinds", paint: "Joinery" };
+
+// How one item's value splits across divisions: a single-department item
+// stays wholly on its enquiry's own division (status quo — the audit's
+// complaint was only multi-department ambiguity). A multi-department item
+// splits proportional to each department's APPROVED budget cost (real,
+// already-captured numbers reflecting actual work share); if no approved
+// budgets exist yet, it splits equally as the honest fallback. Weights are
+// per job+department (budgets aren't per-line), aggregated up to divisions
+// (carp+paint both land in Joinery).
+function itemDivisionShares(job, item, enqDivision) {
+  const depts = (item.departmentSequence || []).filter(k => DEPT_REVENUE_DIVISION[k]);
+  if (depts.length <= 1) return [{ division: enqDivision, share: 1 }];
+  const weights = depts.map(k => {
+    const entry = job.departmentBudgets && job.departmentBudgets[k];
+    if (!entry || entry.approvalStatus !== "approved") return 0;
+    return computeBOMTotals(entry.bom).totalCost || 0;
+  });
+  const totalW = weights.reduce((s, w) => s + w, 0);
+  const byDivision = {};
+  depts.forEach((k, i) => {
+    const share = totalW > 0 ? weights[i] / totalW : 1 / depts.length;
+    const div = DEPT_REVENUE_DIVISION[k];
+    byDivision[div] = (byDivision[div] || 0) + share;
+  });
+  return Object.entries(byDivision).map(([division, share]) => ({ division, share }));
+}
+
 function getMonthlyRevenueByDivision(monthsBack, scope) {
   monthsBack = monthsBack || 8;
   scope = scope || {};
@@ -6537,8 +6589,14 @@ function getMonthlyRevenueByDivision(monthsBack, scope) {
         const v = quotations.find(q => q.id === it.variationId);
         if (v && (v.confirmDate || v.date)) mk = (v.confirmDate || v.date).slice(0, 7);
       }
-      if (!byMonthDiv[mk] || !(div in byMonthDiv[mk])) return;
-      byMonthDiv[mk][div] += it.netAmount || it.amount || 0;
+      if (!byMonthDiv[mk]) return;
+      const val = it.netAmount || it.amount || 0;
+      // Multi-department items split across divisions by approved budget
+      // share (see itemDivisionShares above); single-department items stay
+      // wholly on the enquiry's division, as before.
+      itemDivisionShares(job, it, div).forEach(({ division, share }) => {
+        if (division in byMonthDiv[mk]) byMonthDiv[mk][division] += val * share;
+      });
     });
   });
 

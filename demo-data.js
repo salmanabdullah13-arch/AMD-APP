@@ -110,7 +110,7 @@ function demoAdvanceJob(job, targetStage, routedBy) {
         if (targetStage === 'in-production') return;
         submitPaintingForQC(job.id, item.lineId);
         if (targetStage === 'qc-fail') { recordPaintingQCResult(job.id, item.lineId, false, 'Demo Painting Lead'); return; }
-        recordPaintingQCResult(job.id, item.lineId, true, 'Demo Painting Lead');
+        recordPaintingQCResult(job.id, item.lineId, true, DEPT_QC_AUTHORITY.paint);
         if (targetStage === 'done') handOffPaintingLine(job.id, item.lineId, 'Demo Painting Lead');
       } else {
         startLineProduction(job.id, item.lineId, deptKey);
@@ -130,7 +130,9 @@ function demoAdvanceJob(job, targetStage, routedBy) {
         if (targetStage === 'in-production') return;
         submitLineForQC(job.id, item.lineId, deptKey);
         if (targetStage === 'qc-fail') { recordLineQCResult(job.id, item.lineId, deptKey, false, 'Demo Team Lead'); return; }
-        recordLineQCResult(job.id, item.lineId, deptKey, true, 'Demo Team Lead');
+        // A QC pass must come from the department's own QC authority
+        // (DEPT_QC_AUTHORITY, 6 Aug 2026 audit) — a fail can be anyone.
+        recordLineQCResult(job.id, item.lineId, deptKey, true, DEPT_QC_AUTHORITY[deptKey]);
         if (targetStage === 'done') handOffLine(job.id, item.lineId, deptKey, 'Demo Team Lead');
       }
     });
@@ -208,7 +210,7 @@ function loadDemoData() {
         });
         job.items.forEach(item => {
           const paintEntry = (item.departmentStatuses || []).find(d => d.department === 'paint');
-          if (paintEntry && paintEntry.status === 'queued') { startPaintingWork(job.id, item.lineId); submitPaintingForQC(job.id, item.lineId); recordPaintingQCResult(job.id, item.lineId, true, 'Demo Painting Lead'); }
+          if (paintEntry && paintEntry.status === 'queued') { startPaintingWork(job.id, item.lineId); submitPaintingForQC(job.id, item.lineId); recordPaintingQCResult(job.id, item.lineId, true, DEPT_QC_AUTHORITY.paint); }
         });
         demoInvoiceAndReceipt(job, monthsAgo);
       }

@@ -5268,3 +5268,46 @@ input. Also fixed a real bug in this session's own earlier Phase A commit
   before approval — trips ~18 test seeds, needs its own pass); per-
   salesperson Sales-dashboard scope (needs salesperson identity wired into
   the Sales module).
+
+### 6 Aug 2026 — Audit Phases C (part 2) + D (part 2): QC-pass authority + budget-share revenue split
+
+Both remaining policy questions answered by Salman this session and built:
+
+- **QC-pass authority (data.js)** — Salman's call: "the production manager
+  should do QC." New `DEPT_QC_AUTHORITY` map (carp → Joinery Production
+  Manager, uph → Upholstery Manager, paint → Painting Lead / Work
+  Supervisor — Painting has no manager by design, its Lead is the QC
+  authority). `recordLineQCResult()`/`recordPaintingQCResult()` now REFUSE
+  a **pass** from any other identity — the floor can't pass its own work.
+  A **fail** stays open to anyone on purpose: flagging a problem should
+  never be permission-gated. The real module UIs needed zero changes —
+  each department module's `currentUser` constant IS its authority, so the
+  Pass buttons work exactly as before (verified via a real Upholstery
+  Pass-button click); only direct calls with arbitrary identities are
+  blocked. Seed identities updated in `demo-data.js` and 4 e2e files that
+  passed QC as 'QC'/'Demo Team Lead'.
+- **Multi-department revenue split (data.js)** — Salman's call: split by
+  approved department budgets. New `DEPT_REVENUE_DIVISION` (carp→Joinery,
+  uph→Upholstery, curt→Curtain & Blinds, **paint→Joinery** — no Painting
+  division exists in SALES_DIVISIONS and Painting rides on Joinery work)
+  and `itemDivisionShares(job, item, enqDivision)`: a single-department
+  item stays wholly on its enquiry's division (status quo — the audit's
+  complaint was only multi-department ambiguity); a multi-department item
+  splits proportional to each department's APPROVED budget cost
+  (`computeBOMTotals().totalCost` per job+dept — budgets aren't per-line,
+  an accepted approximation), equal split as the honest fallback when no
+  budgets are approved yet, shares aggregated up to divisions (carp+paint
+  both land in Joinery). Wired into `getMonthlyRevenueByDivision()`'s
+  per-item loop from earlier today. The sofa case that started all this
+  now reads: frame cost share → Joinery, covering share → Upholstery.
+- **Verification**: new `e2e-qc-authority-revenue-split.js` (9/9) — rogue
+  pass blocked with a clear error naming the authority, authority pass ok,
+  anyone-fail ok, Painting gated the same way, the real Upholstery Pass
+  button still working, a 2:1 budget split checked delta-exact against
+  job.amount, the no-budget equal split, single-dept unchanged, and
+  carp+paint folding wholly into Joinery. Full offline regression sweep —
+  all 28 suites green, zero failures.
+- **Now the only remaining audit items**: loophole #2 (enforce the
+  estimation stage before approval — needs its own test-suite pass) and
+  per-salesperson Sales-dashboard scope (needs salesperson identity wired
+  into the Sales module). Both flagged, neither urgent.

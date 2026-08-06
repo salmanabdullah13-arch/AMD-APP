@@ -55,7 +55,7 @@ function printReport() {
       const entry = job.items.find(i => i.lineId === lineId).departmentStatuses.find(d => d.department === deptKey);
       if (deptKey === 'carp' && entry.joinerySubStage) ['cutting', 'veneer-pressing', 'assembly'].forEach(s => advanceJoinerySubStage(job.id, lineId, s));
       submitLineForQC(job.id, lineId, deptKey);
-      recordLineQCResult(job.id, lineId, deptKey, true, 'QC');
+      recordLineQCResult(job.id, lineId, deptKey, true, DEPT_QC_AUTHORITY[deptKey]);
       handOffLine(job.id, lineId, deptKey, 'Lead');
     };
   });

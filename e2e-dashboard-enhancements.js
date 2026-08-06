@@ -165,7 +165,7 @@ async function openNode(page, nodeId, wrapId) {
     const entry = job.items[0].departmentStatuses.find(d => d.department === 'carp');
     if (entry.joinerySubStage) ['cutting', 'veneer-pressing', 'assembly'].forEach(s => advanceJoinerySubStage(jobId, lineId, s));
     submitLineForQC(jobId, lineId, 'carp');
-    recordLineQCResult(jobId, lineId, 'carp', true, 'QC');
+    recordLineQCResult(jobId, lineId, 'carp', true, DEPT_QC_AUTHORITY.carp);
     handOffLine(jobId, lineId, 'carp', 'Lead');
     jobsSetStatus(jobId, 'completed');
   }, seed.clearJobId);

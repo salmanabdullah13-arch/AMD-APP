@@ -86,7 +86,7 @@ function printReport() {
     recordLineQCResult(jobId, lineId, 'uph', false, 'Uph QC', 'Wrong fabric');
     reworkLineBackToProduction(jobId, lineId, 'uph');
     submitLineForQC(jobId, lineId, 'uph');
-    recordLineQCResult(jobId, lineId, 'uph', true, 'Uph QC');
+    recordLineQCResult(jobId, lineId, 'uph', true, DEPT_QC_AUTHORITY.uph);
     const entry = getJobCard(jobId).items[0].departmentStatuses.find(d => d.department === 'uph');
     return { status: entry.status, rejectReason: entry.rejectReason };
   });
