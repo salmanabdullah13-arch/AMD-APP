@@ -109,6 +109,7 @@ function openAccountsModule() {
   });
   accountsModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   accountsView = 'dashboard';
+  execEnsureShell(accountsModuleWrap, { key: 'accounts', title: 'Accounts', role: 'Accounts', navGroupsFn: EXEC_NAV_CONFIGS.accounts, closeFn: 'closeAccountsModule' });
   renderAccountsBody();
 }
 function closeAccountsModule() { closeModuleWrap(accountsModuleWrap, 'launchAccountsModule'); }

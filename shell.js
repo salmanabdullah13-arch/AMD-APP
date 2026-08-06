@@ -63,6 +63,12 @@ function goTo(p){
   // the page first loaded, not real current data (4 Aug 2026 audit finding,
   // found live-testing the new dashboard right after building it).
   if (p === 'operations') {
+    // exec-shell rollout (6 Aug 2026): Operations keeps its embedded
+    // static-page architecture — the shell adopts #ops-module-wrap's
+    // existing children in place; goHome() stays the way back.
+    if (typeof execEnsureShell === 'function' && typeof EXEC_NAV_CONFIGS !== 'undefined') {
+      execEnsureShell(document.getElementById('ops-module-wrap'), { key: 'operations', title: 'Operations', role: 'Operations Manager', navGroupsFn: EXEC_NAV_CONFIGS.operations, closeFn: 'goHome' });
+    }
     if (typeof renderOpsDashboard === 'function') renderOpsDashboard();
     if (typeof updateOpsRoutingBadge === 'function') updateOpsRoutingBadge();
   }

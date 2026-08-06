@@ -94,6 +94,7 @@ function openCurtainModule() {
 
   const mod = document.getElementById('curt-module-wrap');
   mod.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:#f7f9fc;';
+  execEnsureShell(mod, { key: 'curtain', title: 'Curtain & Blinds', role: 'Production Manager', navGroupsFn: EXEC_NAV_CONFIGS.curtain, closeFn: 'closeCurtainModule' });
 
   curtGoTo('curt-dashboard');
   renderCurtDashboard();

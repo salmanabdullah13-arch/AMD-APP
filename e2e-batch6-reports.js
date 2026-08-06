@@ -82,13 +82,16 @@ async function openNode(page, nodeId, wrapId, label) {
   currentStep = 'accounts-reports';
   try {
     await openNode(page, 'accounts', 'accounts-module-wrap', 'accounts');
+    // exec-shell rollout (6 Aug 2026): main tab bars moved to the sidebar —
+    // drive the same view setters the sidebar items call.
+    const tabView = { 'Day Book': 'daybook', 'Ledger Report': 'ledger-report', 'Trial Balance': 'trial-balance', 'Profit & Loss': 'pl', 'Balance Sheet': 'balance-sheet' };
     for (const tab of ['Day Book', 'Ledger Report', 'Trial Balance', 'Profit & Loss', 'Balance Sheet']) {
-      await page.click(`#accounts-body button:has-text("${tab}")`);
+      await page.evaluate(v => accountsSetView(v), tabView[tab]);
       await page.waitForTimeout(200);
       await shot(page, `accounts-${tab.replace(/[^a-z0-9]/gi, '')}`);
     }
     // Select a Ledger on Ledger Report to confirm postings render
-    await page.click(`#accounts-body button:has-text("Ledger Report")`);
+    await page.evaluate(() => accountsSetView('ledger-report'));
     await page.waitForTimeout(150);
     await page.selectOption('#accounts-body select', { label: 'Cash (LED0001)' }).catch(() => {});
     await page.waitForTimeout(150);
@@ -101,7 +104,7 @@ async function openNode(page, nodeId, wrapId, label) {
   currentStep = 'sales-reports';
   try {
     await openNode(page, 'sales', 'sales-module-wrap', 'sales');
-    await page.click(`#sales-body .sales-toptab:has-text("Reports")`);
+    await page.evaluate(() => salesSetTopView('reports'));
     await page.waitForTimeout(200);
     await shot(page, 'sales-quotation-register');
     record('Sales Reports (Quotation Register) renders', 'PASS');
@@ -111,7 +114,7 @@ async function openNode(page, nodeId, wrapId, label) {
   currentStep = 'accounts-sales-bill-os';
   try {
     await openNode(page, 'accounts', 'accounts-module-wrap', 'accounts');
-    await page.click(`#accounts-body button:has-text("Sales Bill Outstanding")`);
+    await page.evaluate(() => accountsSetView('bill-os'));
     await page.waitForTimeout(200);
     await shot(page, 'accounts-sales-bill-outstanding-byparty');
     await page.click(`#accounts-body button:has-text("All")`);
@@ -127,7 +130,7 @@ async function openNode(page, nodeId, wrapId, label) {
   currentStep = 'purchasing-reports';
   try {
     await openNode(page, 'purchasing', 'purch-module-wrap', 'purchasing');
-    await page.click(`#purch-nav button:has-text("Bill O/s")`);
+    await page.evaluate(() => purchGoTo('purch-billos'));
     await page.waitForTimeout(300);
     await shot(page, 'purchasing-bill-os');
     record('Purchasing Bill O/s renders', 'PASS');
@@ -159,7 +162,7 @@ async function openNode(page, nodeId, wrapId, label) {
   currentStep = 'hr-reports';
   try {
     await openNode(page, 'hr', 'hr-module-wrap', 'hr');
-    await page.click(`#hr-body button:has-text("Payroll Report")`);
+    await page.evaluate(() => hrSetView('payroll'));
     await page.waitForTimeout(200);
     await shot(page, 'hr-payroll-report');
     record('HR Payroll Report renders', 'PASS');

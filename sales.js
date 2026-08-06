@@ -153,6 +153,7 @@ function openSalesModule() {
   salesModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   salesTopView = 'dashboard';
   salesView = 'dashboard';
+  execEnsureShell(salesModuleWrap, { key: 'sales', title: 'Sales', role: 'Sales', navGroupsFn: EXEC_NAV_CONFIGS.sales, closeFn: 'closeSalesModule' });
   renderSalesBody();
 }
 function closeSalesModule() { closeModuleWrap(salesModuleWrap, 'launchEnquiryModule'); }

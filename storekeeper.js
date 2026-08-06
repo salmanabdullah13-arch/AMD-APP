@@ -146,6 +146,7 @@ function openStorekeeperModule() {
   });
 
   skModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
+  execEnsureShell(skModuleWrap, { key: 'storekeeper', title: 'Storekeeper', role: 'Inventory', navGroupsFn: EXEC_NAV_CONFIGS.storekeeper, closeFn: 'closeStorekeeperModule' });
   skGoTo('dashboard');
 }
 

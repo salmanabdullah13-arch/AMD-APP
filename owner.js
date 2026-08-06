@@ -110,6 +110,7 @@ function openOwnerModule() {
   });
   ownerModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   ownerBuildShell();
+  execSetContext('owner', 'renderOwnerBody');
   execThemeApply();
   ownerView = 'dashboard';
   renderOwnerBody();
@@ -333,7 +334,7 @@ function renderOwnerBody() {
 
   body.innerHTML = `
     ${ownerStatTiles(acctK, jobK)}
-    ${ownerTasksCard()}
+    
     <div class="sales-card">
       <h3>Company Snapshot</h3>
       <div class="sales-kpi-grid">

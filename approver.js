@@ -124,6 +124,7 @@ function openApproverModule() {
   const sel = document.getElementById('approver-user-select');
   if (sel) sel.innerHTML = APPROVER_USERS.map(u => `<option value="${u}" ${u === approverCurrentUser ? 'selected' : ''}>${u}</option>`).join('');
   approverView = 'dashboard';
+  execEnsureShell(approverModuleWrap, { key: 'approver', title: 'Approvals', role: 'Approver', navGroupsFn: EXEC_NAV_CONFIGS.approver, closeFn: 'closeApproverModule' });
   renderApproverBody();
 }
 function closeApproverModule() { closeModuleWrap(approverModuleWrap, 'launchApproverModule'); }

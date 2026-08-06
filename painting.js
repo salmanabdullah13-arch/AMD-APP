@@ -97,6 +97,7 @@ function openPaintingModule() {
   });
   paintingModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   paintingView = 'dashboard';
+  execEnsureShell(paintingModuleWrap, { key: 'painting', title: 'Painting', role: 'Painting Lead', navGroupsFn: EXEC_NAV_CONFIGS.painting, closeFn: 'closePaintingModule' });
   renderPaintingBody();
 }
 function closePaintingModule() { closeModuleWrap(paintingModuleWrap, 'launchPaintingModule'); }

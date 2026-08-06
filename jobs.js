@@ -150,6 +150,7 @@ function openJobsModule(jumpToJobId) {
     if (el) el.style.display = 'none';
   });
   jobsModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
+  execEnsureShell(jobsModuleWrap, { key: 'jobs', title: 'Job Cards', role: 'Jobs', navGroupsFn: EXEC_NAV_CONFIGS.jobs, closeFn: 'closeJobsModule' });
   if (jumpToJobId) { openJobHub(jumpToJobId); }
   else { jobsView = 'list'; renderJobsBody(); }
 }

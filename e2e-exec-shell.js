@@ -46,7 +46,7 @@ function printReport() {
     hasTopbar: !!document.querySelector('#owner-module-wrap .xs-top'),
     hasTiles: document.querySelectorAll('#owner-module-wrap .xs-tile').length >= 4,
     overviewActive: document.getElementById('xsnav-owner-overview')?.classList.contains('active'),
-    hasTasksCard: document.getElementById('owner-body').innerHTML.includes('My Tasks')
+    hasTasksCard: (document.querySelector('#owner-module-wrap .xs-sidepanels')?.innerHTML || '').includes('My Tasks')
   }));
   record('Owner renders in the new shell (sidebar, topbar, stat tiles, tasks card)', Object.values(shell).every(Boolean) ? 'PASS' : 'FAIL', JSON.stringify(shell));
 
@@ -87,26 +87,26 @@ function printReport() {
 
   // ── chat: unread badge, roster, thread, real send, mark-read ──
   currentStep = 'chat';
-  const chatBadge = await page.evaluate(() => Number(document.querySelector('#owner-module-wrap .xs-chat-badge')?.textContent || 0));
+  const chatBadge = await page.evaluate(() => Number(document.querySelector('#exec-chat-float .xs-chat-badge')?.textContent || 0));
   record('Chat badge shows the unread count', chatBadge === 1 ? 'PASS' : 'FAIL', `badge=${chatBadge}`);
-  await page.click('#owner-module-wrap button[onclick="execToggleChat()"]');
+  await page.click('#exec-chat-float .xs-chat-fab');
   await page.waitForTimeout(250);
   const roster = await page.evaluate(() => {
-    const person = [...document.querySelectorAll('#owner-module-wrap .xs-person')].find(p => p.textContent.includes('Karthik Silva'));
-    return { hasRoster: document.querySelectorAll('#owner-module-wrap .xs-person').length > 3, karthikUnread: person ? person.querySelector('.xs-unread')?.textContent : null };
+    const person = [...document.querySelectorAll('#exec-chat-float .xs-person')].find(p => p.textContent.includes('Karthik Silva'));
+    return { hasRoster: document.querySelectorAll('#exec-chat-float .xs-person').length > 3, karthikUnread: person ? person.querySelector('.xs-unread')?.textContent : null };
   });
   record('Chat roster lists people with per-person unread counts', roster.hasRoster && roster.karthikUnread === '1' ? 'PASS' : 'FAIL', JSON.stringify(roster));
   await page.evaluate(() => {
-    [...document.querySelectorAll('#owner-module-wrap .xs-person')].find(p => p.textContent.includes('Karthik Silva'))?.click();
+    [...document.querySelectorAll('#exec-chat-float .xs-person')].find(p => p.textContent.includes('Karthik Silva'))?.click();
   });
   await page.waitForTimeout(400);
-  const thread = await page.evaluate(() => document.querySelector('#owner-module-wrap .xs-chat-body')?.innerHTML || '');
+  const thread = await page.evaluate(() => document.querySelector('#exec-chat-float .xs-chat-body')?.innerHTML || '');
   record('Opening a thread shows the incoming message', thread.includes('Track fabric for Villa 3 arrived.') ? 'PASS' : 'FAIL');
-  await page.fill('#owner-module-wrap .xs-chat-compose input', 'Great — start tomorrow morning.');
-  await page.click('#owner-module-wrap .xs-chat-compose button');
+  await page.fill('#exec-chat-float .xs-chat-compose input', 'Great — start tomorrow morning.');
+  await page.click('#exec-chat-float .xs-chat-compose button');
   await page.waitForTimeout(300);
   const afterSend = await page.evaluate((s) => ({
-    threadShowsReply: (document.querySelector('#owner-module-wrap .xs-chat-body')?.innerHTML || '').includes('start tomorrow morning'),
+    threadShowsReply: (document.querySelector('#exec-chat-float .xs-chat-body')?.innerHTML || '').includes('start tomorrow morning'),
     landedInData: messages.some(m => m.from === s.me && m.to === 'Karthik Silva' && m.body.includes('start tomorrow morning')),
     unreadNow: getUnreadCountFor(s.me)
   }), seed);
@@ -117,7 +117,7 @@ function printReport() {
   // ── tasks card: complete via real click ──
   currentStep = 'tasks-card';
   await page.evaluate(() => {
-    [...document.querySelectorAll('#owner-body span')].find(el => el.getAttribute('onclick')?.includes('ownerCompleteTask'))?.click();
+    [...document.querySelectorAll('#owner-module-wrap .xs-sidepanels button')].find(el => el.getAttribute('onclick')?.includes('execCompleteTask'))?.click();
   });
   await page.waitForTimeout(200);
   const taskDone = await page.evaluate((s) => tasks.find(t => t.id === s.taskId)?.status, seed);

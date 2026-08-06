@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v9"; // v9: exec-shell.js (Owner/Admin template-shell pilot)
+const CACHE_VERSION = "amd-app-v10"; // v10: exec-shell app-wide rollout (sidebar everywhere, tasks/calendar panels, floating chat)
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

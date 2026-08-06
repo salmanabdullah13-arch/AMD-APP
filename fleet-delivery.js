@@ -68,6 +68,7 @@ function openFleetModule() {
   fleetModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   fleetView = 'list';
   fleetActiveVehicleId = null;
+  execEnsureShell(fleetModuleWrap, { key: 'fleet', title: 'Vehicle Fleet', role: 'Fleet Inspector', navGroupsFn: EXEC_NAV_CONFIGS.fleet, closeFn: 'closeFleetModule' });
   renderFleetBody();
 }
 function closeFleetModule() { closeModuleWrap(fleetModuleWrap, 'launchFleetModule'); }
@@ -230,6 +231,7 @@ function openDeliverySchedModule() {
   ALL_MODULE_WRAP_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
   deliverySchedModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   deliverySchedView = 'list';
+  execEnsureShell(deliverySchedModuleWrap, { key: 'delivery', title: 'Delivery Scheduling', role: 'Delivery', navGroupsFn: EXEC_NAV_CONFIGS.delivery, closeFn: 'closeDeliverySchedModule' });
   renderDeliverySchedBody();
 }
 function closeDeliverySchedModule() { closeModuleWrap(deliverySchedModuleWrap, 'launchDeliverySchedModule'); }

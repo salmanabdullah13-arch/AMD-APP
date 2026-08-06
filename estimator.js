@@ -125,6 +125,7 @@ function openEstimatorModule() {
   const sel = document.getElementById('estimator-user-select');
   if (sel) sel.innerHTML = ESTIMATOR_USERS.map(u => `<option value="${u}" ${u === estimatorCurrentUser ? 'selected' : ''}>${u}</option>`).join('');
   estimatorView = 'dashboard';
+  execEnsureShell(estimatorModuleWrap, { key: 'estimator', title: 'Estimation', role: 'Estimator', navGroupsFn: EXEC_NAV_CONFIGS.estimator, closeFn: 'closeEstimatorModule' });
   renderEstimatorBody();
 }
 function closeEstimatorModule() { closeModuleWrap(estimatorModuleWrap, 'launchEstimatorModule'); }

@@ -6464,6 +6464,38 @@ function finalizePayrollRun(runId, by) {
   return run;
 }
 
+// ═══ CALENDAR EVENTS (exec-shell rollout, 6 Aug 2026) ═══
+// Feeds the sidebar Calendar panel: my open tasks with due dates, job
+// promised dates (role-filtered per module so each user sees what matters
+// to THEM — Salman's instruction), and planned deliveries. Pure read-side
+// aggregation, no new stored state.
+const CAL_DEPT_OF_MODULE = { joinery: "carp", upholstery: "uph", painting: "paint", curtain: "curt" };
+function getCalendarEvents(identity, moduleKey) {
+  const ev = [];
+  try {
+    if (typeof getOpenTasksForAssignee === "function") {
+      getOpenTasksForAssignee(identity).forEach(t => { if (t.dueDate) ev.push({ date: t.dueDate, type: "task", label: t.title, ref: t.id }); });
+    }
+    const allJobs = ["owner", "admin", "operations", "jobs", null, undefined].includes(moduleKey);
+    jobCards.filter(j => j.status === "open" && j.promisedDate).forEach(j => {
+      let incl = allJobs;
+      if (!incl && moduleKey === "sales") {
+        const qtn = quotations.find(q => q.id === j.quotationId);
+        const enq = qtn && enquiries.find(e => e.id === qtn.enquiryId);
+        incl = !!(enq && enq.salesPerson === identity);
+      } else if (!incl && CAL_DEPT_OF_MODULE[moduleKey]) {
+        incl = j.items.some(it => (it.departmentSequence || []).includes(CAL_DEPT_OF_MODULE[moduleKey]));
+      }
+      if (incl) ev.push({ date: j.promisedDate, type: "promised", label: j.projectName + " — promised", ref: j.id });
+    });
+    if (["owner", "admin", "operations", "delivery", "fleet", null, undefined].includes(moduleKey)) {
+      (typeof deliverySchedule !== "undefined" ? deliverySchedule : []).filter(d => d.status === "planned" && d.plannedDate)
+        .forEach(d => ev.push({ date: d.plannedDate, type: "delivery", label: "Delivery — " + d.jobId, ref: d.id }));
+    }
+  } catch (e) { /* one broken source must never blank the calendar */ }
+  return ev.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 const tasks = [];
 function nextTaskId() {
   // Max-based, not length-based — tasks hydrate from the cloud now, so

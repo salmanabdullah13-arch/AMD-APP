@@ -5662,3 +5662,57 @@ landed, one commit per stage, full regression green throughout:
   keep the stylized wine mark + QR placeholder until then. Photo upload
   itself should get a real-device test (file-picker flows can't be fully
   exercised headless).
+
+### 6 Aug 2026 (late) — EXEC-SHELL EVERYWHERE: one coherent layout for all users
+
+Salman compared the Owner pilot against the old Sales layout and asked for
+the sidebar shell app-wide, with My Tasks + a Calendar in the sidebar
+(circled its empty lower half), the sidebar collapsible, a floating chat
+box, and per-role content ("act like each single user"). Plan approved via
+EnterPlanMode (2 Explore agents; plan file hold-snoopy-kitten.md).
+
+- **Adopt-once shell (`execEnsureShell()`, exec-shell.js)** — the key
+  design discovery: most wraps carry STATIC markup (index.html pages for
+  Purchasing/Curtain/Operations, load-time templates elsewhere), so
+  rebuilding innerHTML per open would destroy them. The shell is built
+  around the wrap's EXISTING children exactly once (moved into the content
+  slot); later opens refresh nav badges/panels only. Legacy chrome (old
+  wine .ops-header bars, .sales-toptabs, #purch-nav/#curt-nav/.sk-nav/ops
+  .nav, and each module's main .sales-tabs bar via a first-child selector)
+  is hidden by shared CSS — view logic, ids, and IN-VIEW sub-tabs (e.g.
+  the Estimator's BOM Materials/Labour tabs) untouched. **All 17
+  dashboards** (15 floating wraps + both fleet-delivery modules +
+  embedded Operations via goTo()) now carry the shell.
+- **`EXEC_NAV_CONFIGS`** — per-role sidebars with live badges, driving the
+  EXISTING view dispatchers (accountsSetView/salesSetTopView/purchGoTo/
+  skGoTo/curtGoTo/opsGoTo/...). Accounts grouped Money → GL → Reports →
+  Customer tools; Sales gets a +New Enquiry quick action; Storekeeper
+  leads with reorder alerts; etc. **Access control preserved**: joinery/
+  upholstery granular views return an EMPTY nav (guard inside the config)
+  — verified by the rollout suite that drafting shows no manager tabs.
+- **Sidebar panels**: shared My Tasks (extracted from owner.js's private
+  pilot card; quick-add + complete; duplicate-id bug found by the suite's
+  first run — inputs are class-based now) and the NEW **Calendar** —
+  month grid + day agenda over `getCalendarEvents(identity, moduleKey)`
+  (data.js): my due-dated tasks + role-filtered job promised dates
+  (sales = own jobs via salesperson trace; departments via
+  departmentSequence; owner/admin/ops/jobs = all) + planned deliveries.
+- **Collapsible sidebar** — « Collapse to a 64px icon rail, persisted
+  (`amd-exec-side-collapsed`); mobile drawer behavior unchanged.
+- **Floating chat** — ONE document.body-level bubble + popup (reuses the
+  pilot's chat functions), available in every module AND on the home
+  page; per-shell chat slide-overs removed. Reveals when #app is visible.
+- **Verification**: new `e2e-exec-shell-rollout.js` 10/10 (all-17 shell
+  check, sidebar→dispatcher, collapse persistence, tasks from inside
+  Estimator, calendar events incl. the sales role-filter, floating chat
+  real send from home, dark-mode rgb pixel check, granular access
+  control, dept-pipeline round trip). Full offline sweep: the ONLY
+  fallout was e2e-batch6-reports' 5 legacy tab clicks (repointed to the
+  same view setters, 8/8) and the pilot suite's moved-chat selectors
+  (15/15 after repoint). Owner 18/18, Admin 12/12, demo-data 12/12.
+  sw.js → v10.
+- **Open from this rollout**: Part 4 comms parity (inbox widget on
+  Purchasing/Jobs/Fleet/Delivery dashboards) not yet added; dark-mode
+  polish for modules with old literal colors (Storekeeper headings dim,
+  Operations/Curtain local token namespace) is best-effort pending;
+  screenshots reviewed for Sales (light) + Storekeeper (dark) + Curtain.
