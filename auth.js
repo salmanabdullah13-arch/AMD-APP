@@ -522,11 +522,12 @@ function finishCloudLogin(displayName, isRealSession = true, userType = 'owner')
       typeof initCloudEnquiriesCache === 'function' ? initCloudEnquiriesCache() : Promise.resolve(),
       typeof initCloudQuotationsCache === 'function' ? initCloudQuotationsCache() : Promise.resolve(),
       typeof initCloudJobCardsCache === 'function' ? initCloudJobCardsCache() : Promise.resolve(),
-      // Curtain data (curtainJobs[] + purchaseInquiries[]) must be hydrated
-      // BEFORE bridgeAllJobCards() runs below — the bridge only creates a
-      // curtainJobs entry when none exists yet for a job id, so loading
-      // after the bridge would duplicate every persisted curtain job.
-      typeof initCloudCurtainCache === 'function' ? initCloudCurtainCache() : Promise.resolve(),
+      // The generic json-collection sync (curtain data + the financial
+      // record + tasks/activity, Stage 1 of the merged roadmap). Must be
+      // hydrated BEFORE bridgeAllJobCards() runs below — the bridge only
+      // creates a curtainJobs entry when none exists yet for a job id, so
+      // loading after the bridge would duplicate every persisted curtain job.
+      typeof initCloudJsonCollections === 'function' ? initCloudJsonCollections() : Promise.resolve(),
       // Phase 3 (5 Aug 2026) — independent of the other four/the bridge
       // step below; a non-Accounts/Owner session just gets an empty
       // cache back (RLS), not an error.

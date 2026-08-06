@@ -1116,3 +1116,39 @@ begin
     alter publication supabase_realtime add table public.curtain_purchase_inquiries;
   end if;
 end $$;
+
+-- ────────────────────────────────────────────────────────────────────────
+-- STAGE 1 (6 Aug 2026, merged roadmap) — the financial record + tasks +
+-- activity log join the generic json-collection sync (see
+-- CLOUD_JSON_COLLECTIONS in data.js): one (id, payload jsonb, updated_at)
+-- row per record, snapshot-diff autosave, realtime. Same baseline RLS as
+-- the other business tables (any approved user; finer per-role scoping is
+-- the roadmap's Stage 8). Idempotent like the rest of this file.
+-- ────────────────────────────────────────────────────────────────────────
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'tax_invoices','sales_receipts','sales_credit_notes','suppliers',
+    'purchase_requests','purchase_orders','purchase_invoices',
+    'supplier_payments','debit_notes','app_tasks','activity_log'
+  ]
+  loop
+    execute format('create table if not exists public.%I (id text primary key, payload jsonb not null default ''{}''::jsonb, updated_at timestamptz not null default now())', t);
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "%s readable by approved users" on public.%I', t, t);
+    execute format('create policy "%s readable by approved users" on public.%I for select to authenticated using (public.is_approved())', t, t);
+    execute format('drop policy if exists "%s insertable by approved users" on public.%I', t, t);
+    execute format('create policy "%s insertable by approved users" on public.%I for insert to authenticated with check (public.is_approved())', t, t);
+    execute format('drop policy if exists "%s updatable by approved users" on public.%I', t, t);
+    execute format('create policy "%s updatable by approved users" on public.%I for update to authenticated using (public.is_approved()) with check (public.is_approved())', t, t);
+    execute format('drop policy if exists "%s deletable by approved users" on public.%I', t, t);
+    execute format('create policy "%s deletable by approved users" on public.%I for delete to authenticated using (public.is_approved())', t, t);
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;

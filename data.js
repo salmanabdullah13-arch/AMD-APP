@@ -3595,24 +3595,27 @@ function persistJobCardUpdate(job) {
 }
 
 // ═══════════════════════════════════════
-// CURTAIN CLOUD SYNC — Phase 2, final slice (6 Aug 2026)
-// curtainJobs[] and purchaseInquiries[] persist to Supabase as whole-object
-// jsonb payloads via a SNAPSHOT-DIFF AUTOSAVE rather than per-mutation
-// persist calls: curtain.js (~5,900 lines) mutates these objects inline all
-// over its render/handler code, so instrumenting every mutation site was
-// never going to be reliable (the reason this slice was deferred when
-// jobCards migrated). A 3s scanner JSON-serializes each record, compares it
-// to the last-persisted snapshot, and upserts only what changed; pagehide
-// fires one final best-effort flush. Accepted trade-off: a hard crash can
-// lose up to ~3s of the newest edits; a normal tab close/navigation
-// flushes. The derived flat job.windows[] array is stripped before save
-// and rebuilt from windowGroups on hydrate; the val/deptVal getters
-// (live windows onto jobCards[].amount, see the bridge above) serialize
-// as plain values and are re-defined as getters on hydrate so the
-// no-drift guarantee survives the round trip.
+// GENERIC CLOUD JSON-COLLECTION SYNC — snapshot-diff autosave
+// Born as the Curtain cloud sync (6 Aug 2026, Phase 2 final slice) and
+// GENERALIZED the same day for Stage 1 of the merged roadmap: whole-object
+// jsonb persistence for every collection whose objects are mutated in
+// place across many call sites (per-mutation persist calls don't scale
+// there — the reason the curtain slice was deferred originally, and
+// equally true for invoices whose paidAmount is bumped by receipts,
+// POs flipped by approvals, etc.). A 3s scanner JSON-serializes each
+// record, compares against the last-persisted snapshot, and upserts only
+// what changed; pagehide fires one final best-effort flush. Records need
+// a unique id. Hydration REPLACES the local array with cloud content —
+// real sessions read the cloud; offline/e2e sessions keep in-memory
+// seeds, exactly like customers/jobCards. A table missing from the live
+// project (schema.sql not yet run) marks that collection not-live: it
+// keeps working in-memory and the scanner skips it silently instead of
+// erroring every tick.
+// Accepted trade-off (unchanged): a hard crash can lose up to ~3s of the
+// newest edits; a normal tab close/navigation flushes via pagehide.
 // ═══════════════════════════════════════
-let cloudCurtainCacheInitialized = false;
-const cloudCurtainSnapshots = {};   // "cj:<id>" / "pi:<id>" -> last-persisted payload JSON
+let cloudJsonCollectionsInitialized = false;
+const cloudCollectionSnapshots = {};   // "<prefix><id>" -> last-persisted payload JSON
 
 function curtainJobToPayload(cj) {
   const { windows, ...rest } = cj;   // windows is derived — rebuilt on hydrate
@@ -3630,70 +3633,94 @@ function hydrateCurtainJob(payload) {
   return cj;
 }
 
-async function initCloudCurtainCache() {
-  if (!window.__realCloudSession || !sb || cloudCurtainCacheInitialized) return;
-  cloudCurtainCacheInitialized = true;
-  const [cjRes, piRes] = await Promise.all([
-    sb.from("curtain_jobs").select("*").order("updated_at", { ascending: true }),
-    sb.from("curtain_purchase_inquiries").select("*").order("updated_at", { ascending: true })
-  ]);
-  if (!cjRes.error && cjRes.data) {
-    curtainJobs.length = 0;
-    cjRes.data.forEach(row => { curtainJobs.push(hydrateCurtainJob(row.payload)); cloudCurtainSnapshots["cj:" + row.id] = JSON.stringify(row.payload); });
-  }
-  if (!piRes.error && piRes.data) {
-    purchaseInquiries.length = 0;
-    piRes.data.forEach(row => { purchaseInquiries.push(row.payload); cloudCurtainSnapshots["pi:" + row.id] = JSON.stringify(row.payload); });
-  }
-  const applyRemote = (payload, array, prefix, hydrate) => {
-    if (payload.eventType === "DELETE") {
-      const oldId = payload.old && payload.old.id;
-      if (!oldId) return;
-      const i = array.findIndex(r => String(r.id) === String(oldId));
-      if (i >= 0) array.splice(i, 1);
-      delete cloudCurtainSnapshots[prefix + oldId];
-    } else {
-      const row = payload.new;
-      if (!row) return;
-      const json = JSON.stringify(row.payload);
-      if (cloudCurtainSnapshots[prefix + row.id] === json) return; // our own echo
-      const idx = array.findIndex(r => String(r.id) === String(row.id));
-      const mapped = hydrate ? hydrate(row.payload) : row.payload;
-      if (idx >= 0) array[idx] = mapped; else array.push(mapped);
-      cloudCurtainSnapshots[prefix + row.id] = json;
-    }
-    notifyLiveUpdateListeners();
-  };
-  sb.channel("curtain-sync")
-    .on("postgres_changes", { event: "*", schema: "public", table: "curtain_jobs" }, p => applyRemote(p, curtainJobs, "cj:", hydrateCurtainJob))
-    .on("postgres_changes", { event: "*", schema: "public", table: "curtain_purchase_inquiries" }, p => applyRemote(p, purchaseInquiries, "pi:", null))
-    .subscribe();
-  startCurtainAutosave();
+// One row per record: (id text pk, payload jsonb, updated_at). `live` is
+// stamped at init when the table actually exists on the project.
+const CLOUD_JSON_COLLECTIONS = [
+  { table: "curtain_jobs", arr: () => curtainJobs, prefix: "cj:", hydrate: hydrateCurtainJob, toPayload: curtainJobToPayload },
+  { table: "curtain_purchase_inquiries", arr: () => purchaseInquiries, prefix: "pi:" },
+  { table: "tax_invoices", arr: () => taxInvoices, prefix: "inv:" },
+  { table: "sales_receipts", arr: () => salesReceipts, prefix: "rcpt:" },
+  { table: "sales_credit_notes", arr: () => salesCreditNotes, prefix: "scn:" },
+  { table: "suppliers", arr: () => suppliers, prefix: "sup:" },
+  { table: "purchase_requests", arr: () => purchaseRequests, prefix: "pr:" },
+  { table: "purchase_orders", arr: () => purchaseOrders, prefix: "po:" },
+  { table: "purchase_invoices", arr: () => purchaseInvoices, prefix: "pinv:" },
+  { table: "supplier_payments", arr: () => payments, prefix: "spay:" },
+  { table: "debit_notes", arr: () => debitNotes, prefix: "dn:" },
+  { table: "app_tasks", arr: () => tasks, prefix: "tsk:" },
+  { table: "activity_log", arr: () => activityLog, prefix: "act:" },
+];
+
+async function initCloudJsonCollections() {
+  if (!window.__realCloudSession || !sb || cloudJsonCollectionsInitialized) return;
+  cloudJsonCollectionsInitialized = true;
+  await Promise.all(CLOUD_JSON_COLLECTIONS.map(async col => {
+    const { data, error } = await sb.from(col.table).select("*").order("updated_at", { ascending: true });
+    if (error || !data) { col.live = false; return; }   // table not on the live project yet
+    col.live = true;
+    const arr = col.arr();
+    arr.length = 0;
+    data.forEach(row => {
+      arr.push(col.hydrate ? col.hydrate(row.payload) : row.payload);
+      cloudCollectionSnapshots[col.prefix + row.id] = JSON.stringify(row.payload);
+    });
+  }));
+  const ch = sb.channel("json-collections-sync");
+  CLOUD_JSON_COLLECTIONS.forEach(col => {
+    if (!col.live) return;
+    ch.on("postgres_changes", { event: "*", schema: "public", table: col.table }, p => applyRemoteCollectionChange(col, p));
+  });
+  ch.subscribe();
+  startCollectionsAutosave();
 }
 
-function scanAndPersistCurtainData() {
+function applyRemoteCollectionChange(col, payload) {
+  const arr = col.arr();
+  if (payload.eventType === "DELETE") {
+    const oldId = payload.old && payload.old.id;
+    if (!oldId) return;
+    const i = arr.findIndex(r => String(r.id) === String(oldId));
+    if (i >= 0) arr.splice(i, 1);
+    delete cloudCollectionSnapshots[col.prefix + oldId];
+  } else {
+    const row = payload.new;
+    if (!row) return;
+    const json = JSON.stringify(row.payload);
+    if (cloudCollectionSnapshots[col.prefix + row.id] === json) return; // our own echo
+    const idx = arr.findIndex(r => String(r.id) === String(row.id));
+    const mapped = col.hydrate ? col.hydrate(row.payload) : row.payload;
+    if (idx >= 0) arr[idx] = mapped; else arr.push(mapped);
+    cloudCollectionSnapshots[col.prefix + row.id] = json;
+  }
+  notifyLiveUpdateListeners();
+}
+
+function scanAndPersistCollections() {
   if (!window.__realCloudSession || !sb) return;
-  const persistChanged = (record, payload, prefix, table) => {
-    const json = JSON.stringify(payload);
-    const key = prefix + record.id;
-    if (cloudCurtainSnapshots[key] === json) return;
-    cloudCurtainSnapshots[key] = json;   // set BEFORE the write so the realtime echo is recognized
-    serializedPersist("curtain:" + key, () => sb.from(table).upsert({ id: record.id, payload, updated_at: new Date().toISOString() }).then(({ error }) => {
-      if (error) {
-        delete cloudCurtainSnapshots[key];   // retry on the next scan
-        if (typeof commsToast === "function") commsToast(`Couldn't sync Curtain data (${record.id}): ${error.message}`);
-      }
-    }));
-  };
-  curtainJobs.forEach(cj => persistChanged(cj, curtainJobToPayload(cj), "cj:", "curtain_jobs"));
-  purchaseInquiries.forEach(pi => persistChanged(pi, JSON.parse(JSON.stringify(pi)), "pi:", "curtain_purchase_inquiries"));
+  CLOUD_JSON_COLLECTIONS.forEach(col => {
+    if (!col.live) return;
+    col.arr().forEach(rec => {
+      if (!rec || rec.id === undefined || rec.id === null) return;
+      const payload = col.toPayload ? col.toPayload(rec) : JSON.parse(JSON.stringify(rec));
+      const json = JSON.stringify(payload);
+      const key = col.prefix + rec.id;
+      if (cloudCollectionSnapshots[key] === json) return;
+      cloudCollectionSnapshots[key] = json;   // set BEFORE the write so the realtime echo is recognized
+      serializedPersist("jsoncol:" + key, () => sb.from(col.table).upsert({ id: String(rec.id), payload, updated_at: new Date().toISOString() }).then(({ error }) => {
+        if (error) {
+          delete cloudCollectionSnapshots[key];   // retry on the next scan
+          if (typeof commsToast === "function") commsToast(`Couldn't sync ${col.table} (${rec.id}): ${error.message}`);
+        }
+      }));
+    });
+  });
 }
 
-let curtainAutosaveTimer = null;
-function startCurtainAutosave() {
-  if (curtainAutosaveTimer) return;
-  curtainAutosaveTimer = setInterval(scanAndPersistCurtainData, 3000);
-  window.addEventListener("pagehide", scanAndPersistCurtainData);
+let collectionsAutosaveTimer = null;
+function startCollectionsAutosave() {
+  if (collectionsAutosaveTimer) return;
+  collectionsAutosaveTimer = setInterval(scanAndPersistCollections, 3000);
+  window.addEventListener("pagehide", scanAndPersistCollections);
 }
 
 // "Confirm Quote" — the action that actually creates the Job Card. Only
@@ -6096,7 +6123,15 @@ function getProjectWiseInvoiceReceipt(jobId) {
 // ═══════════════════════════════════════
 
 const tasks = [];
-function nextTaskId() { return "TSK-" + String(tasks.length + 1).padStart(5, "0"); }
+function nextTaskId() {
+  // Max-based, not length-based — tasks hydrate from the cloud now, so
+  // length no longer tracks the highest id (same fix as nextItemStockCode).
+  const max = tasks.reduce((m, t) => {
+    const n = parseInt(String(t.id).replace(/^TSK-/, ""), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return "TSK-" + String(max + 1).padStart(5, "0");
+}
 function createTask({ title, assignee, dueDate = null, linkedType = null, linkedId = null, notes = "" } = {}) {
   if (!title || !title.trim()) return { error: "Task title is required." };
   if (!assignee) return { error: "Assignee is required." };
@@ -6130,7 +6165,10 @@ const activityLog = [];
 // name back out of the free-text message string.
 function logActivity({ type, linkedType = null, linkedId = null, user, message, dept = null, reason = null }) {
   const entry = {
-    id: activityLog.length + 1, date: new Date().toISOString().slice(0, 10), time: new Date().toISOString(),
+    // Unique string id (not length+1): with the log cloud-synced, two
+    // devices appending simultaneously must never mint the same id.
+    id: "A" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    date: new Date().toISOString().slice(0, 10), time: new Date().toISOString(),
     type, linkedType, linkedId, user, message, dept, reason
   };
   activityLog.push(entry);

@@ -69,9 +69,9 @@ async function signIn(page, fileUrl) {
   currentStep = 'cache-init';
   const cacheState = await page.evaluate(() => ({
     real: !!window.__realCloudSession,
-    curtainInit: typeof cloudCurtainCacheInitialized !== 'undefined' && cloudCurtainCacheInitialized
+    curtainInit: typeof cloudJsonCollectionsInitialized !== 'undefined' && cloudJsonCollectionsInitialized
   }));
-  record('Real cloud session + initCloudCurtainCache ran', cacheState.real && cacheState.curtainInit ? 'PASS' : 'FAIL', JSON.stringify(cacheState));
+  record('Real cloud session + initCloudJsonCollections ran', cacheState.real && cacheState.curtainInit ? 'PASS' : 'FAIL', JSON.stringify(cacheState));
 
   currentStep = 'seed-curtain-job';
   // Real flow with FK-gap pauses (same accepted cross-record race as the
