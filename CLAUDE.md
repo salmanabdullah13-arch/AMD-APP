@@ -44,7 +44,7 @@ Q-Pro ERP. Vanilla JS/HTML/CSS only — no frameworks. Dark shell theme, light
 Operations theme. Deployed via GitHub Pages (manual upload, historically —
 this has since moved to a Claude Code + git workflow on the branch above).
 
-**People:** Silva (Curtain & Blinds PM) · Stitch: Waseem, Aslam, Rijwan,
+**People:** Silva (Curtain & Blinds PM) · **Arun Kumar A (Estimator — confirmed by Salman 6 Aug 2026; earlier sessions guessed Jinesh, who is not the estimator)** · Stitch: Waseem, Aslam, Rijwan,
 Ibrahim · Track: Abdullah, Prince · Install: Shibu, Sohail, Mushraf, Furqan,
 Shahzad, Saeed · Nettworksy (external dev, receives handoff snippets) ·
 Salman (owner, approves budgets over BD 5,000).

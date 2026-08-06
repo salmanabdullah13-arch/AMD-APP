@@ -88,7 +88,7 @@ const DISC_PCT = 377.727 / 1605 * 100;
       const l = addBOMLabour(qtnId, lineId, { department: 'uph', empCategory: 'Skilled', calcMode: 'days', noOfPpl: 2, qty: 3, rate: 5 });
       const l2 = addBOMLabour(qtnId, lineId, { department: 'carp', empCategory: 'Skilled', calcMode: 'days', noOfPpl: 1, qty: 2, rate: 6 });
       setBOMSellingOverride(qtnId, lineId, 535); // the real quoted 535.000/Nos
-      const sub = submitItemBOM(qtnId, lineId, 'Jinesh Valiyavalappil Jayarajan');
+      const sub = submitItemBOM(qtnId, lineId, 'Arun Kumar A');
       out.push({ material: m && !m.error, itemLinked: !!(matLine && matLine.itemId), labour: l && !l.error && l2 && !l2.error, rate: sub.item ? sub.item.rate : null });
     });
     return out;
@@ -110,7 +110,7 @@ const DISC_PCT = 377.727 / 1605 * 100;
 
   currentStep = 'approve-confirm';
   const job = await page.evaluate(({ qtnId }) => {
-    transferQuotationStage(qtnId, 'approver', 'Jinesh Valiyavalappil Jayarajan');
+    transferQuotationStage(qtnId, 'approver', 'Arun Kumar A');
     const ap = approveQuotation(qtnId, 'Salman Abdullah');
     if (ap && ap.error) return { error: 'approve: ' + ap.error };
     const j = confirmQuotationToJobCard(qtnId, 'Altaf Hasan Ali Ghare');
