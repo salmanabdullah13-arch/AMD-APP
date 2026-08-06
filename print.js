@@ -516,3 +516,84 @@ function buildJobOrderPrintHTML(job) {
     ${printPageFooter()}
   </body></html>`;
 }
+
+// ── MATERIAL COST (per line item) — matches the real Q-Pro template ──
+// The derived actual-cost ledger for one job line: header block (Job /
+// Group / Sub Group / Product / Description / Qty), priced Material Cost
+// rows, per-employee Labour Cost rows, Job Purchase, Job Expense, TOTAL
+// COST band. Everything is read from the ledger (getLineActualCost) —
+// nothing on this document is ever hand-entered.
+function printMaterialCost(jobId, lineId) {
+  const job = jobCards.find(j => j.id === jobId);
+  if (!job) return;
+  printOpenHTML(buildMaterialCostPrintHTML(job, Number(lineId)));
+}
+function buildMaterialCostPrintHTML(job, lineId) {
+  const qtn = quotations.find(q => q.id === job.quotationId);
+  const c = customers.find(x => x.id === job.customerId);
+  const qi = qtn ? qtn.items.find(i => i.lineId === lineId) : null;
+  const ji = job.items.find(i => i.lineId === lineId) || {};
+  const serial = (() => {
+    if (!qtn) return '';
+    const h = computeQuoteHierarchy(qtn.items).find(x => x.item.lineId === lineId);
+    return h ? h.serial + ' / ' : '';
+  })();
+  const actual = getLineActualCost(job.id, lineId) || { materials: [], materialTotal: 0, labour: [], labourTotal: 0, totalCost: 0 };
+  const jobLevel = getJobActualCost(job.id);
+  const purchases = jobLevel ? jobLevel.purchases : [];
+
+  const matRows = actual.materials.map(m => `<tr>
+    <td>${prEsc(m.type)}</td><td>${prEsc(m.date)}</td><td>${prEsc(m.name)}</td>
+    <td class="qty">${m.qty}</td><td style="text-align:center;">${prEsc(m.unit)}</td>
+    <td class="amount">${prFmtPlain(m.rate)}</td><td class="amount">${prFmtPlain(m.amount)}</td></tr>`).join('');
+  const labRows = actual.labour.map(l => `<tr>
+    <td>${prEsc(l.date)}</td><td>${prEsc(l.employeeName)}${l.activity && l.activity !== 'production' ? ` <span style="color:#777;">(${prEsc(l.activity)})</span>` : ''}</td>
+    <td class="amount">${prFmtPlain(l.cost)}</td></tr>`).join('');
+  const purRows = purchases.map(pi => `<tr><td>${prEsc(pi.date || '')}</td><td>${prEsc(pi.supplierName || pi.vendor || '')}</td><td>${prEsc(pi.id)}</td><td class="amount">${prFmtPlain((pi.totals && (pi.totals.netTotal ?? pi.totals.total)) || 0)}</td></tr>`).join('');
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Material Cost ${prEsc(job.id)} #${lineId}</title>
+  <style>${printBaseCSS()}
+    body{font-family:Arial,Helvetica,sans-serif;}
+    table.hdr{width:100%;border-collapse:collapse;margin-bottom:10px;}
+    table.hdr td{border:1px solid #cfcfcf;padding:6px 8px;font-size:11.5px;vertical-align:top;}
+    table.hdr td.k{width:130px;font-weight:700;background:#eef3f9;}
+    .mc-title{border:1px solid #cfcfcf;text-align:center;font-weight:700;font-size:15px;padding:8px;margin-bottom:0;}
+    .sec{background:#b8b8c8;font-weight:700;padding:6px 8px;border:1px solid #cfcfcf;font-size:12.5px;}
+    table.items th{background:#d6d6e8;color:#111;}
+    tr.sec-total td{background:#eef3e2;font-weight:700;color:#b03030;}
+    .grand-band{background:#ffff99;font-weight:700;display:flex;justify-content:space-between;padding:8px 10px;border:1px solid #cfcfcf;font-size:13px;}
+  </style></head>
+  <body>
+    <div class="print-btn"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
+    <p class="mc-title">MATERIAL COST</p>
+    <table class="hdr">
+      <tr><td class="k">Job Number</td><td>${prEsc(job.id)}</td></tr>
+      <tr><td class="k">Job Name</td><td>${prEsc(c ? c.name : '—')}</td></tr>
+      <tr><td class="k">Project</td><td>${prEsc(job.projectName)}</td></tr>
+      <tr><td class="k">GROUP</td><td>${prEsc(qi ? qi.group : '')}</td></tr>
+      <tr><td class="k">SUB GROUP</td><td>${prEsc(qi ? qi.subgroup : '')}</td></tr>
+      <tr><td class="k">PRODUCT NAME</td><td>${serial}${prEsc(ji.product || (qi && qi.product) || '')}</td></tr>
+      <tr><td class="k">DESCRIPTION</td><td style="white-space:pre-wrap;">${prEsc(qi ? qi.description : '')}</td></tr>
+      <tr><td class="k">QUANTITY / UNIT</td><td>${prFmtPlain(ji.qty || 0)} / ${prEsc(ji.unit || '')}</td></tr>
+    </table>
+    <div class="sec">Material Cost</div>
+    <table class="items"><tr><th>Type</th><th>Date</th><th>Materials Details</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr>
+      ${matRows || '<tr><td colspan="7" style="color:#888;">No material issues logged against this item yet.</td></tr>'}
+      <tr class="sec-total"><td colspan="6" style="text-align:right;">Material Total</td><td class="amount">${prFmtPlain(actual.materialTotal)}</td></tr>
+    </table>
+    <div class="sec">Labour Cost</div>
+    <table class="items"><tr><th>Date</th><th>Employee</th><th>Total Salary</th></tr>
+      ${labRows || '<tr><td colspan="3" style="color:#888;">No labour logged against this item yet.</td></tr>'}
+      <tr class="sec-total"><td colspan="2" style="text-align:right;">Labour Total</td><td class="amount">${prFmtPlain(actual.labourTotal)}</td></tr>
+    </table>
+    <div class="sec">Job Purchase <span style="font-weight:400;font-size:10.5px;">(job level — not split per item)</span></div>
+    <table class="items"><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th>Amount</th></tr>
+      ${purRows || ''}
+      <tr class="sec-total"><td colspan="3" style="text-align:right;">Total</td><td class="amount">${prFmtPlain(jobLevel ? jobLevel.purchaseTotal : 0)}</td></tr>
+    </table>
+    <div class="sec">Job Expense</div>
+    <table class="items"><tr class="sec-total"><td colspan="3" style="text-align:right;">Total</td><td class="amount">0.000</td></tr></table>
+    <div class="grand-band"><span>TOTAL COST (this item)</span><span>${prFmtPlain(actual.totalCost)}</span></div>
+    ${printPageFooter()}
+  </body></html>`;
+}

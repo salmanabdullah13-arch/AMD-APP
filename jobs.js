@@ -350,8 +350,13 @@ function renderJobHub() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Items (${job.items.length})</p>
-      <table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Delivered</th><th>Rate</th><th>Net</th><th></th></tr>
-      ${job.items.map(it => `<tr><td>${jEsc(it.product)}</td><td>${it.qty} ${jEsc(it.unit)}</td><td>${it.deliveredQty}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td><td>${it.variationId ? `<span class="sales-pill open" style="font-size:9.5px;">${jEsc(it.variationId)}</span>` : ''}</td></tr>`).join('')}
+      <table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Delivered</th><th>Rate</th><th>Net</th><th>Actual</th><th></th></tr>
+      ${job.items.map(it => {
+        const act = getLineActualCost(job.id, it.lineId);
+        return `<tr><td>${jEsc(it.product)}</td><td>${it.qty} ${jEsc(it.unit)}</td><td>${it.deliveredQty}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
+          <td><span style="color:var(--biz-primary);cursor:pointer;white-space:nowrap;" title="Material Cost sheet — derived from real issues + labour day-logs" onclick="printMaterialCost('${job.id}',${it.lineId})">🧾 ${act && act.totalCost ? act.totalCost.toFixed(3) : '0.000'}</span></td>
+          <td>${it.variationId ? `<span class="sales-pill open" style="font-size:9.5px;">${jEsc(it.variationId)}</span>` : ''}</td></tr>`;
+      }).join('')}
       </table>
     </div>
     ${renderJobVariations(job)}

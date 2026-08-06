@@ -4992,6 +4992,26 @@ function openInstallCrewDashboard() {
 // See closeTracksDashboard()'s note above — same fix, same bug.
 function closeInstallCrewDashboard() { closeModuleWrap(document.getElementById('install-crew-wrap'), 'openInstallCrewDashboard'); }
 
+// Stage 3 (cost ledger): the install crew's own hours log. jobId here is
+// the curtain job id (= the Job Card id for bridged jobs, so the ledger
+// rolls these hours into the same job's derived actual cost).
+function icEsc(x) { return String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function installCrewSaveLog() {
+  const jobId = document.getElementById('ic-log-job').value;
+  const activity = document.getElementById('ic-log-activity').value;
+  const names = Array.from(document.getElementById('ic-log-emps').selectedOptions).map(o => o.value);
+  const hours = Number(document.getElementById('ic-log-hours').value);
+  if (!jobId) { alert('Pick a job.'); return; }
+  if (!names.length) { alert('Pick at least one crew member.'); return; }
+  let ok = 0, err = null;
+  names.forEach(n => {
+    const res = logLabourDay({ jobId, lineId: null, employeeName: n, hours, activity, loggedBy: 'Install Crew Lead' });
+    if (res && res.error) err = res.error; else ok++;
+  });
+  if (err) { alert(err); return; }
+  alert(`✓ Logged ${ok} ${activity} day-entr${ok === 1 ? 'y' : 'ies'}.`);
+}
+
 function renderInstallCrewDashboard() {
   const wrap = document.getElementById('install-crew-wrap');
   if (!wrap) return;
@@ -5156,6 +5176,23 @@ function renderInstallCrewDashboard() {
         <p style="color:#94a3b8;font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
       </div>
       <button onclick="closeInstallCrewDashboard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
+    </div>
+
+    <!-- STAGE 3 (cost ledger): install/steaming hours log — the crew lead
+         logs on behalf of the team; entries land in labourDayLogs costed
+         at real payroll rates and feed the job's derived actual cost. -->
+    <div style="background:#fff;border-bottom:1px solid #e8ecf0;padding:10px 16px;flex:none;">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">⏱ Log installation / steaming hours</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+        <label style="font-size:10.5px;color:#64748b;">Job<br>
+          <select id="ic-log-job" style="min-width:150px;font-size:11.5px;padding:5px;">${curtainJobs.map(j => `<option value="${j.id}">${j.id} — ${icEsc(j.name)}</option>`).join('')}</select></label>
+        <label style="font-size:10.5px;color:#64748b;">Activity<br>
+          <select id="ic-log-activity" style="font-size:11.5px;padding:5px;"><option value="installation">Installation</option><option value="steaming">Steaming</option></select></label>
+        <label style="font-size:10.5px;color:#64748b;">Crew<br>
+          <select id="ic-log-emps" multiple size="3" style="min-width:170px;font-size:11px;">${getDeptRoster('curt').map(n => `<option value="${icEsc(n)}">${icEsc(n)}</option>`).join('')}</select></label>
+        <label style="font-size:10.5px;color:#64748b;">Hours each<br><input id="ic-log-hours" type="number" step="0.5" min="0.5" max="12" value="4" style="width:65px;padding:5px;"></label>
+        <button onclick="installCrewSaveLog()" style="background:var(--maraya);color:#fff;border:0;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;">Save</button>
+      </div>
     </div>
 
     <!-- KPIs -->

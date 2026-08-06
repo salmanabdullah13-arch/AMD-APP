@@ -3647,6 +3647,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "purchase_invoices", arr: () => purchaseInvoices, prefix: "pinv:" },
   { table: "supplier_payments", arr: () => payments, prefix: "spay:" },
   { table: "debit_notes", arr: () => debitNotes, prefix: "dn:" },
+  { table: "labour_day_logs", arr: () => labourDayLogs, prefix: "ldl:" },
   { table: "app_tasks", arr: () => tasks, prefix: "tsk:" },
   { table: "activity_log", arr: () => activityLog, prefix: "act:" },
 ];
@@ -4041,6 +4042,7 @@ function recordLineQCResult(jobId, lineId, deptKey, pass, user, reason) {
   }
   entry.rejectReason = null;
   entry.status = "ready-for-handoff";
+  entry.progressPct = 100; // Stage 3: 100% is only ever reached via a QC pass
   logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: deptKey, message: `${item.product} passed QC at ${dc(deptKey).n}` });
   persistJobCardUpdate(job);
   return item;
@@ -4293,6 +4295,7 @@ function recordPaintingQCResult(jobId, lineId, pass, user, reason) {
   }
   entry.rejectReason = null;
   entry.status = "ready-for-handoff";
+  entry.progressPct = 100; // Stage 3: 100% only via QC pass
   logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, message: `${item.product} passed QC at Painting` });
   persistJobCardUpdate(job);
   return item;
@@ -4431,6 +4434,15 @@ function recomputeJobBudgetRollup(job) {
     actualTotals.mat += a.material || 0; actualTotals.lab += a.labour || 0; actualTotals.sub += a.subcontract || 0;
     actualTotals.hir += a.hiring || 0; actualTotals.oth += a.others || 0;
   });
+  // Stage 2 (cost ledger): material/labour actuals are DERIVED from the
+  // real ledger (priced line-scoped issues + labour day-logs) whenever any
+  // logging exists — the manual recordDepartmentActual() path stays as the
+  // fallback for departments that don't log, and still owns sub/hir/oth.
+  const derived = typeof getJobActualCost === "function" ? getJobActualCost(job.id) : null;
+  if (derived) {
+    if (derived.materialTotal > 0) actualTotals.mat = derived.materialTotal;
+    if (derived.labourTotal > 0) actualTotals.lab = derived.labourTotal;
+  }
   const round = n => Math.round(n * 1000) / 1000;
   proj.budget.mat = round(budgetTotals.mat); proj.budget.lab = round(budgetTotals.lab); proj.budget.sub = round(budgetTotals.sub);
   proj.budget.hir = round(budgetTotals.hir); proj.budget.oth = round(budgetTotals.oth);
@@ -4879,13 +4891,36 @@ function nextMaterialsMoveId(job, kind) { return kind + "-" + job.id + "-" + (jo
 // Item Master (as opposed to free-text stock item names) move the needle on
 // itemMaster[].closingStock, matching the real system's own distinction
 // between Inventory-tracked items and free-text/job-direct material names.
+// ── STAGE 2 (production cost ledger): normalize a material-move row ──
+// Modeled on the real Q-Pro MATERIAL COST document: every issue row is
+// line-scoped and priced. Resolves itemId from an exact Item Master name
+// match when missing (the Jobs form captures stockItemName free-text),
+// carries the job-line link (the Jobs form's jobItemLineId select already
+// existed — it just never reached the data layer), and auto-prices the
+// row from the real Item Master (avgCost || cost) when no rate was given.
+function normalizeMoveItem(raw) {
+  const it = { ...raw };
+  if (!it.itemId && it.stockItemName) {
+    const m = itemMaster.find(x => x.name.toLowerCase() === String(it.stockItemName).toLowerCase().trim());
+    if (m) it.itemId = m.id;
+  }
+  it.lineId = (it.lineId !== undefined && it.lineId !== "" && it.lineId !== null) ? Number(it.lineId)
+    : (it.jobItemLineId !== undefined && it.jobItemLineId !== "" && it.jobItemLineId !== null) ? Number(it.jobItemLineId) : null;
+  if ((it.rate === undefined || it.rate === null || it.rate === "") && it.itemId) {
+    const m = itemMaster.find(x => x.id === it.itemId);
+    it.rate = m ? (m.avgCost || m.cost || 0) : 0;
+  }
+  it.rate = Number(it.rate) || 0;
+  if (!it.name) it.name = it.stockItemName || (itemMaster.find(x => x.id === it.itemId) || {}).name || "";
+  return it;
+}
 function addMaterialsIssue(jobId, { location, items }) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
   if (job.status === "cancelled") return { error: "This job is cancelled." };
   if (!location) return { error: "Location is required." };
-  const move = { id: nextMaterialsMoveId(job, "MI"), date: new Date().toISOString().slice(0, 10), location, items, status: "confirmed" };
+  const move = { id: nextMaterialsMoveId(job, "MI"), date: new Date().toISOString().slice(0, 10), location, items: items.map(normalizeMoveItem), status: "confirmed" };
   job.materialsIssues.push(move);
   items.forEach(it => {
     if (!it.itemId) return;
@@ -4902,7 +4937,7 @@ function addMaterialsReturn(jobId, { location, items }) {
   if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
   if (job.status === "cancelled") return { error: "This job is cancelled." };
   if (!location) return { error: "Location is required." };
-  const move = { id: nextMaterialsMoveId(job, "MR"), date: new Date().toISOString().slice(0, 10), location, items, status: "confirmed" };
+  const move = { id: nextMaterialsMoveId(job, "MR"), date: new Date().toISOString().slice(0, 10), location, items: items.map(normalizeMoveItem), status: "confirmed" };
   job.materialsReturns.push(move);
   items.forEach(it => {
     if (!it.itemId) return;
@@ -6121,6 +6156,107 @@ function getProjectWiseInvoiceReceipt(jobId) {
 // Card hub (jobs.js). A fuller cross-module task inbox is a natural
 // follow-up, not built here.
 // ═══════════════════════════════════════
+
+// ═══════════════════════════════════════
+// PRODUCTION COST LEDGER — Stage 2 of the merged roadmap (6 Aug 2026).
+// Modeled on the real Q-Pro MATERIAL COST document (JB26AMD02232): each
+// line item accumulates dated, priced Material Issues plus per-employee
+// per-day labour rows costed at the REAL payroll rates (EMPLOYEE_RATES),
+// and the item's actual cost is DERIVED from this ledger — never typed.
+// ═══════════════════════════════════════
+// Stage 3: fixed progress milestones (25/50/75) set by the producing
+// team's own one-tap buttons — a deliberate design against a free %
+// field (which becomes a vanity number). 100% is NOT settable here: it
+// only ever comes from a QC pass (recordLineQCResult /
+// recordPaintingQCResult set it), so "finished" always means "passed QC".
+function setLineProgress(jobId, lineId, deptKey, pct, by) {
+  if (![0, 25, 50, 75].includes(Number(pct))) return { error: "Progress must be 0, 25, 50 or 75 — 100% comes from QC." };
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  const item = job.items.find(it => it.lineId === lineId);
+  const entry = item && (item.departmentStatuses || []).find(d => d.department === deptKey);
+  if (!entry) return { error: "Line/department not found." };
+  entry.progressPct = Number(pct);
+  persistJobCardUpdate(job);
+  return entry;
+}
+// Department floor roster for the team-leader work-log picker — real
+// payroll names only. paint/metal share Carpentry's floor (same staffing
+// fact as LABOUR_DEPT_PAYROLL_MAP / DEPARTMENT_APPROVERS).
+const LEDGER_DEPT_ROSTER = { carp: "Carpentry", uph: "Upholstery", curt: "Curtain & Blinds", paint: "Carpentry", metal: "Carpentry" };
+function getDeptRoster(deptKey) {
+  const dep = LEDGER_DEPT_ROSTER[deptKey] || null;
+  return Object.entries(EMPLOYEE_RATES)
+    .filter(([, r]) => r.category === "Production" && (!dep || r.department === dep))
+    .map(([n]) => n).sort();
+}
+const labourDayLogs = [];
+// Team leaders log on behalf of the floor (workers have no logins — only
+// the 27 roles do): one entry per employee per day per item. activity:
+// "production" | "installation" | "steaming" | free text (Curtain install
+// crews log the last two against windows).
+function logLabourDay({ jobId, lineId = null, date = null, employeeName, hours, activity = "production", loggedBy = null }) {
+  if (!jobId) return { error: "Job is required." };
+  const emp = EMPLOYEE_RATES[employeeName];
+  if (!emp) return { error: "Unknown employee — pick a name from the payroll roster." };
+  const h = Number(hours);
+  if (!h || h < 0.5 || h > 12) return { error: "Hours must be between 0.5 and 12." };
+  const entry = {
+    id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    jobId, lineId: (lineId === "" || lineId === undefined) ? null : lineId,
+    date: date || new Date().toISOString().slice(0, 10),
+    employeeName, hours: h, activity: activity || "production", loggedBy,
+    cost: Math.round(h * emp.rate * 1000) / 1000   // real fully-loaded hourly rate
+  };
+  labourDayLogs.push(entry);
+  return entry;
+}
+function getLabourLogsForLine(jobId, lineId) {
+  return labourDayLogs.filter(l => l.jobId === jobId && String(l.lineId) === String(lineId));
+}
+function getLabourLogsForJob(jobId) {
+  return labourDayLogs.filter(l => l.jobId === jobId);
+}
+
+// Derived per-line actual cost — the MATERIAL COST document's own math:
+// priced issues (returns negative) + labour day rows. Purchases surface at
+// job level (the doc's separate Job Purchase section) via the PR/PO
+// chain's linkedJobId. Nothing here is ever hand-typed.
+function getLineActualCost(jobId, lineId) {
+  const job = getJobCard(jobId);
+  if (!job) return null;
+  const round = n => Math.round(n * 1000) / 1000;
+  const materials = [];
+  const collect = (moves, type, sign) => (moves || []).forEach(mv => {
+    if (mv.status === "cancelled") return;
+    (mv.items || []).forEach(it => {
+      if (String(it.lineId === undefined ? null : it.lineId) !== String(lineId)) return;
+      const qty = Number(it.qty) || 0, rate = Number(it.rate) || 0;
+      materials.push({ type, date: mv.date, name: it.name || it.stockItemName || "", qty: sign * qty, unit: it.unit || "", rate, amount: round(sign * qty * rate) });
+    });
+  });
+  collect(job.materialsIssues, "Material Issue", 1);
+  collect(job.materialsReturns, "Material Return", -1);
+  const labour = getLabourLogsForLine(jobId, lineId);
+  const materialTotal = round(materials.reduce((s, m) => s + m.amount, 0));
+  const labourTotal = round(labour.reduce((s, l) => s + l.cost, 0));
+  return { materials, materialTotal, labour, labourTotal, totalCost: round(materialTotal + labourTotal) };
+}
+function getJobActualCost(jobId) {
+  const job = getJobCard(jobId);
+  if (!job) return null;
+  const round = n => Math.round(n * 1000) / 1000;
+  const lines = job.items.map(it => Object.assign({ lineId: it.lineId, product: it.product }, getLineActualCost(jobId, it.lineId)));
+  const unallocated = getLineActualCost(jobId, null);
+  const purchases = purchaseInvoices.filter(pi => pi.linkedJobId === jobId);
+  const purchaseTotal = round(purchases.reduce((s, pi) => {
+    const t = pi.totals || {};
+    return s + (Number(t.netTotal ?? t.total ?? pi.netTotal ?? pi.total) || 0);
+  }, 0));
+  const materialTotal = round(lines.reduce((s, l) => s + l.materialTotal, 0) + unallocated.materialTotal);
+  const labourTotal = round(lines.reduce((s, l) => s + l.labourTotal, 0) + unallocated.labourTotal);
+  return { lines, unallocated, purchases, purchaseTotal, materialTotal, labourTotal, totalCost: round(materialTotal + labourTotal + purchaseTotal) };
+}
 
 const tasks = [];
 function nextTaskId() {
