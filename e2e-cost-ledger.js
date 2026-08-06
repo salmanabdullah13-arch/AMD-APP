@@ -149,6 +149,51 @@ function printReport() {
   }, seed);
   record('QC pass automatically sets 100%', qc === 100 ? 'PASS' : 'FAIL', String(qc));
 
+  currentStep = 'stage4-arun-loop';
+  const s4 = await page.evaluate(({ jobId, lineId }) => {
+    // Finish the job so it counts as "completed with actuals".
+    const job = getJobCard(jobId);
+    handOffLine(jobId, lineId, 'carp', 'Joinery Production Manager');
+    // paint stop: walk to done
+    startPaintingWork(jobId, lineId); submitPaintingForQC(jobId, lineId);
+    recordPaintingQCResult(jobId, lineId, true, DEPT_QC_AUTHORITY.paint);
+    handOffPaintingLine(jobId, lineId, 'Painting Lead / Work Supervisor');
+    addDeliveryNote(jobId, job.items.map(it => ({ lineId: it.lineId, requiredQty: it.qty })));
+    setJobStatus(jobId, 'completed', 'Operations Manager');
+    // New quote for a similar product — the prompt should find the completed line.
+    const cust = createCustomer({ name: 'Similar Prompt Client', contactPerson: 'S', tel: '39990222', address: 'Manama' });
+    const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'S', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
+    const q2 = convertEnquiryToQuotation(enq.id, { projectName: 'Similar TV Unit', taxPercent: 10, contactPerson: 'S' });
+    const it2 = addQuotationItem(q2.id, { product: 'Painted TV Unit Cabinet — Large', qty: 1, unit: 'Nos', rate: 0 });
+    const similar = findSimilarCompletedLines(it2.product, q2.id);
+    const pulled = similar.length ? pullActualCostingToBOM(q2.id, it2.lineId, similar[0].jobId, similar[0].lineId, 'Arun Kumar A') : { error: 'none found' };
+    const act = getLineActualCost(jobId, lineId);
+    return {
+      similarCount: similar.length,
+      firstActual: similar.length ? similar[0].actualTotal : null,
+      realActual: act.totalCost,
+      pulledOk: !pulled.error,
+      pulledMatCount: pulled.materials ? pulled.materials.length : 0,
+      pulledMatLinked: pulled.materials ? pulled.materials.every(m => m.itemId) : false,
+      pulledLabAmount: pulled.labour && pulled.labour[0] ? pulled.labour[0].amount : 0,
+      labExpected: act.labourTotal,
+      unsubmitted: pulled.submitted === false,
+      q2: q2.id, line2: it2.lineId
+    };
+  }, seed);
+  record('Similar completed items found for a like-named product', s4.similarCount >= 1 && s4.firstActual === s4.realActual ? 'PASS' : 'FAIL', JSON.stringify({ n: s4.similarCount, actual: s4.firstActual }));
+  record('Pull actual costing builds a draft BOM from the real ledger (materials linked, labour at blended real rate, unsubmitted)',
+    s4.pulledOk && s4.pulledMatCount >= 1 && s4.pulledMatLinked && s4.pulledLabAmount === s4.labExpected && s4.unsubmitted ? 'PASS' : 'FAIL', JSON.stringify(s4));
+
+  currentStep = 'stage4-comparison-card';
+  await page.evaluate(({ jobId }) => { const n = window.__eco3d.NODES.find(n => n.id === 'delivery'); n.launch(); openJobHub(jobId); }, seed);
+  await page.waitForTimeout(500);
+  const cmp = await page.evaluate(() => {
+    const html = document.getElementById('jobs-module-wrap').innerHTML;
+    return { hasCard: html.includes('Estimated vs Budgeted vs Actual'), hasSheetLink: html.includes('printMaterialCost(') };
+  });
+  record('Job hub shows the Estimated vs Budgeted vs Actual card + per-line cost-sheet links', cmp.hasCard && cmp.hasSheetLink ? 'PASS' : 'FAIL', JSON.stringify(cmp));
+
   currentStep = 'material-cost-doc';
   const doc = await page.evaluate(({ jobId, lineId }) => buildMaterialCostPrintHTML(getJobCard(jobId), lineId), seed);
   record('MATERIAL COST document: header block, priced issue rows, labour rows, TOTAL COST band',

@@ -481,6 +481,21 @@ function renderJobEstimationBOM() {
       ${item.approverComment ? `<p><b>Comments (line-item):</b> ${eEsc(item.approverComment)}</p>` : ''}
     </div>`;
 
+  // STAGE 4 (cost ledger): similar COMPLETED items with real derived
+  // actuals — pull the actual costing in as the draft BOM, adjust, submit.
+  const similar = findSimilarCompletedLines(item.product, q.id);
+  const similarBlock = similar.length ? `
+    <div class="sales-card" style="border-left:3px solid var(--biz-primary);">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">📊 ${similar.length} similar completed item${similar.length === 1 ? '' : 's'} with real actual costs</p>
+      ${similar.map(s => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--biz-border-light);font-size:11px;">
+          <span>${eEsc(s.product)} <span style="color:#94a3b8;">· ${s.jobId} · sold @ ${s.soldRate.toFixed(3)}</span><br>
+            <span style="color:#64748b;">actual BD ${s.actualTotal.toFixed(3)} (mat ${s.materialTotal.toFixed(3)} + lab ${s.labourTotal.toFixed(3)})</span></span>
+          <button class="secondary" style="font-size:10.5px;padding:5px 8px;white-space:nowrap;" onclick="estimatorPullActual('${q.id}',${item.lineId},'${s.jobId}',${s.lineId})">Pull actual costing</button>
+        </div>`).join('')}
+      <p style="font-size:10px;color:#94a3b8;margin-top:4px;">Pulling replaces this item's current BOM with the completed job's real materials + labour — review and adjust before submitting.</p>
+    </div>` : '';
+
   // Copy BOM from another item in the same quote — lineId is already the
   // stable per-quote serial (assigned once at addQuotationItem() time), so
   // it doubles as the "Item #N" reference shown here.
@@ -507,7 +522,17 @@ function renderJobEstimationBOM() {
   else if (estimatorBomTab === 'others') tabBody = renderBomOthersTab(item);
   else tabBody = renderBomSummaryTab(item);
 
-  return `<span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>${header}${copyBlock}${tabsHtml}<div class="sales-card">${tabBody}</div>`;
+  return `<span class="sales-back" onclick="openEstimationIndex('${q.id}');">‹ Back to Estimation</span>${header}${similarBlock}${copyBlock}${tabsHtml}<div class="sales-card">${tabBody}</div>`;
+}
+
+// Stage 4 (cost ledger): pull a completed line's ACTUAL costing in as this
+// item's draft BOM. Replaces the current BOM wholesale — confirmed first.
+function estimatorPullActual(qtnId, lineId, srcJobId, srcLineId) {
+  if (!window.confirm('Replace this item\'s current BOM with the actual costing from ' + srcJobId + '? You review and adjust before submitting.')) return;
+  const res = pullActualCostingToBOM(qtnId, lineId, srcJobId, srcLineId, estimatorCurrentUser);
+  if (res && res.error) { estimatorAlert(res.error); return; }
+  estimatorAlert('✓ Actual costing pulled in — review the Materials/Labour tabs and submit.');
+  renderEstimatorBody();
 }
 
 function estimatorCopyBOMFromItem() {

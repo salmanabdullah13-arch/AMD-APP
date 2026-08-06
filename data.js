@@ -6258,6 +6258,63 @@ function getJobActualCost(jobId) {
   return { lines, unallocated, purchases, purchaseTotal, materialTotal, labourTotal, totalCost: round(materialTotal + labourTotal + purchaseTotal) };
 }
 
+// ═══ STAGE 4 (cost ledger): close the loop for the Estimator ═══
+// When Arun opens BOM entry for a line, similar COMPLETED items with real
+// derived actuals are offered — pull the actual costing in as the draft
+// BOM, adjust, submit. Salman's exact ask: estimate the next headboard
+// from what the last one really cost, not from a guess.
+function findSimilarCompletedLines(product, excludeQtnId = null) {
+  const words = String(product || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  if (!words.length) return [];
+  const out = [];
+  jobCards.filter(j => j.status === 'completed').forEach(job => {
+    if (excludeQtnId && job.quotationId === excludeQtnId) return;
+    job.items.forEach(it => {
+      const p = String(it.product).toLowerCase();
+      const score = words.filter(w => p.includes(w)).length;
+      if (score === 0) return;
+      const act = getLineActualCost(job.id, it.lineId);
+      if (!act || act.totalCost <= 0) return;
+      out.push({ jobId: job.id, lineId: it.lineId, product: it.product, qty: it.qty,
+        actualTotal: act.totalCost, materialTotal: act.materialTotal, labourTotal: act.labourTotal,
+        soldRate: it.rate, score });
+    });
+  });
+  return out.sort((a, b) => b.score - a.score).slice(0, 5);
+}
+// Builds a draft BOM on a quote line straight from a completed line's
+// ACTUAL ledger: materials grouped from the priced issue rows (returns
+// already netted), labour summarized as total hours at the blended real
+// rate. Replaces the line's current BOM wholesale; always lands
+// unsubmitted so the Estimator reviews before anything is priced.
+function pullActualCostingToBOM(qtnId, lineId, srcJobId, srcLineId, pulledBy = null) {
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: 'Item not found.' };
+  const act = getLineActualCost(srcJobId, srcLineId);
+  if (!act || act.totalCost <= 0) return { error: 'No actual costing recorded on that line.' };
+  const bom = ensureItemBOM(item);
+  const round = n => Math.round(n * 1000) / 1000;
+  const grouped = {};
+  act.materials.forEach(m => {
+    const g = grouped[m.name] = grouped[m.name] || { name: m.name, qty: 0, unit: m.unit, rate: m.rate, amount: 0 };
+    g.qty += m.qty; g.amount += m.amount;
+  });
+  bom.materials = Object.values(grouped).filter(g => g.qty > 0).map((g, i) => {
+    const master = itemMaster.find(x => x.name === g.name);
+    return { id: i + 1, itemId: master ? master.id : null, name: g.name, description: '', qty: round(g.qty), unit: g.unit, rate: g.rate, amount: round(g.amount) };
+  });
+  const totH = act.labour.reduce((sum, l) => sum + l.hours, 0);
+  bom.labour = totH > 0 ? [{
+    id: 1, department: (item.departmentSequence || [])[0] || 'carp', empCategory: 'Skilled',
+    calcMode: 'hours', noOfPpl: 1, qty: round(totH), manQty: round(totH),
+    rate: round(act.labourTotal / totH), amount: round(act.labourTotal)
+  }] : [];
+  bom.submitted = false; bom.qtyAtSubmit = null; bom.sellingPriceOverride = null;
+  logActivity({ type: 'bom-pulled', linkedType: 'quotation', linkedId: qtnId, user: pulledBy || 'Estimator', message: 'Actual costing pulled from ' + srcJobId + ' line #' + srcLineId + ' onto ' + item.product + ' (BD ' + act.totalCost.toFixed(3) + ')' });
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
+  return bom;
+}
+
 const tasks = [];
 function nextTaskId() {
   // Max-based, not length-based — tasks hydrate from the cloud now, so

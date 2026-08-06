@@ -359,8 +359,41 @@ function renderJobHub() {
       }).join('')}
       </table>
     </div>
+    ${renderJobCostComparison(job)}
     ${renderJobVariations(job)}
     ${renderJobTasksAndActivity(job)}`;
+}
+
+// ── STAGE 4 (cost ledger): Estimated vs Budgeted vs Actual ──
+// Estimated = the Estimator's BOM cost (per line, from the linked
+// quotation); Budgeted = the approved department budgets (job-level —
+// budgets aren't per-line); Actual = the derived ledger (issues +
+// labour day-logs). Nothing here is typed; it's all read-side.
+function renderJobCostComparison(job) {
+  const qtn = quotations.find(q => q.id === job.quotationId);
+  const lines = job.items.map(it => {
+    const qi = qtn ? qtn.items.find(x => x.lineId === it.lineId) : null;
+    const est = qi && qi.bom ? computeBOMTotals(qi.bom).totalCostInclOH : null;
+    const act = getLineActualCost(job.id, it.lineId);
+    return { it, est, actual: act ? act.totalCost : 0 };
+  });
+  const estTotal = lines.reduce((s, l) => s + (l.est || 0), 0);
+  const budgets = job.departmentBudgets ? Object.values(job.departmentBudgets)
+    .filter(e => e.approvalStatus === 'approved')
+    .reduce((s, e) => s + computeBOMTotals(e.bom).totalCost, 0) : 0;
+  const jobAct = getJobActualCost(job.id);
+  const actTotal = jobAct ? jobAct.totalCost : 0;
+  if (estTotal === 0 && budgets === 0 && actTotal === 0) return '';
+  const fmt = n => n === null ? '—' : n.toFixed(3);
+  const delta = (a, b) => (a === null || !b) ? '' : ` <span style="font-size:9.5px;color:${a > b ? 'var(--bad,#d9342b)' : 'var(--ok,#0f9d58)'};">${a > b ? '+' : ''}${(a - b).toFixed(3)}</span>`;
+  return `<div class="sales-card">
+    <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Estimated vs Budgeted vs Actual</p>
+    <table class="sales-items"><tr><th>Line</th><th>Estimated</th><th>Actual</th></tr>
+      ${lines.map(l => `<tr><td>${jEsc(l.it.product)}</td><td>${fmt(l.est)}</td><td>${fmt(l.actual)}${delta(l.actual, l.est)}</td></tr>`).join('')}
+      <tr style="font-weight:700;"><td>Job totals — Est / Budgeted / Actual</td><td>${estTotal.toFixed(3)} / ${budgets.toFixed(3)}</td><td>${actTotal.toFixed(3)}${delta(actTotal, budgets || estTotal)}</td></tr>
+    </table>
+    <p style="font-size:10px;color:#94a3b8;margin-top:4px;">Actuals derive from priced material issues + labour day-logs (Budgeted is job-level — department budgets aren't split per line). Tap 🧾 on an item above for its full MATERIAL COST sheet.</p>
+  </div>`;
 }
 
 function jobsSetStatus(jobId, status) {
