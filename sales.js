@@ -972,7 +972,9 @@ function salesRemoveItem(qtnId, lineId) { removeQuotationItem(qtnId, lineId); re
 async function salesUploadItemImage(qtnId, lineId, file) {
   if (!file) return;
   if (!window.__realCloudSession || !sb) { salesAlert('Photo upload needs a signed-in cloud session.'); return; }
-  if (file.size > 5 * 1024 * 1024) { salesAlert('Photo is over 5MB — please use a smaller image.'); return; }
+  // 500 KB cap — Salman's call (6 Aug 2026): keeps quote documents light
+  // and uploads fast on site connections.
+  if (file.size > 500 * 1024) { salesAlert('Photo is over 500 KB — please use a smaller/compressed image.'); return; }
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
   const pathKey = qtnId + '/' + lineId + '-' + Date.now() + '.' + ext;
   const { error } = await sb.storage.from('item-images').upload(pathKey, file, { upsert: true });
