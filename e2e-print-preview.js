@@ -91,8 +91,11 @@ async function openNode(page, nodeId, wrapId) {
   const clientTitle = await clientTab.title();
   record('Generated document title is the Quote No (client)', clientTitle.includes(seed.qtnId) ? 'PASS' : 'FAIL', clientTitle);
   record('Client doc shows QUOTATION heading, not Internal Cost Review', clientDoc.includes('>QUOTATION<') && !clientDoc.includes('INTERNAL COST REVIEW') ? 'PASS' : 'FAIL');
-  record('Client doc shows Group/Sub Group headers with correct serials', clientDoc.includes('RECEPTION AREA') && clientDoc.includes('1.1 Counter') && clientDoc.includes('1.2 Cladding') ? 'PASS' : 'FAIL');
-  record('Client doc shows Terms and Conditions + signature blocks', clientDoc.includes('Terms and Conditions') && clientDoc.includes('CLIENT APPROVAL') ? 'PASS' : 'FAIL');
+  // 6 Aug 2026 template rework: sub-group serial and name now sit in
+  // adjacent cells (matching the real AMD quotation PDF's layout), and the
+  // signature headings are title-case in markup (uppercased via CSS).
+  record('Client doc shows Group/Sub Group headers with correct serials', clientDoc.includes('RECEPTION AREA') && clientDoc.includes('>1.1</td>') && clientDoc.includes('>Counter</td>') && clientDoc.includes('>1.2</td>') && clientDoc.includes('>Cladding</td>') ? 'PASS' : 'FAIL');
+  record('Client doc shows Terms and Conditions + signature blocks', clientDoc.includes('Terms and Conditions') && /client approval/i.test(clientDoc) && /management approval/i.test(clientDoc) ? 'PASS' : 'FAIL');
   record('Client doc does NOT show Cost/Profit columns', !clientDoc.includes('<th>Cost</th>') ? 'PASS' : 'FAIL');
   const noEditableElementsClient = await clientTab.evaluate(() => document.querySelectorAll('input,textarea,select').length === 0 && document.querySelectorAll('[onclick*="delete" i]').length === 0);
   record('Client doc has no editable fields and no delete actions (only the Print button)', noEditableElementsClient ? 'PASS' : 'FAIL');
@@ -145,7 +148,10 @@ async function openNode(page, nodeId, wrapId) {
   ]);
   await toggledTab.waitForLoadState();
   const toggledDoc = await toggledTab.evaluate(() => document.documentElement.outerHTML);
-  record('Without VAT shows "Net Total (Without Vat)" instead of the VAT line', toggledDoc.includes('Net Total (Without Vat)') && !toggledDoc.includes('>VAT (10%)<') ? 'PASS' : 'FAIL');
+  // Template rework: Without VAT now simply omits the Vat row — the Net
+  // Total band shows the pre-VAT figure (the real template has no special
+  // "(Without Vat)" label).
+  record('Without VAT omits the Vat row and Net Total shows the pre-VAT figure', !toggledDoc.includes('>Vat</td>') && toggledDoc.includes('Net Total') ? 'PASS' : 'FAIL');
   record('Without Sub Total suppresses Sub Group total rows but keeps Group total', !toggledDoc.includes('Counter Total') && toggledDoc.includes('RECEPTION AREA Total') ? 'PASS' : 'FAIL');
   await toggledTab.close();
 

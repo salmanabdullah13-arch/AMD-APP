@@ -5414,3 +5414,109 @@ window over the real communications log with unread counts.
   Salman likes the pilot, the rollout plan is: shared tokens app-wide →
   per-module re-skin in chunks (same discipline as the wine redesign),
   with the chat + reminders components reused as-is.
+
+### 6 Aug 2026 — Real data everywhere: July payroll salaries, live stock export, Curtain cloud migration, template-accurate print documents, Ewan real-quote replication
+
+Salman uploaded three real Excel exports (July 2026 production + admin
+payroll, the live 200-item Stock Item export) and five real print
+documents (Ewan Properties AMD-14740-0 / Qreative AMD-10788-2 / Cubique
+AMD-15400-1 quotations, the Job Order + Job Order Costing for
+JB26AMD02232), and asked for: real salaries + inventory populated,
+dashboard mock data for the charts, a Curtain data-storage restructure
+("clear out the data and we can repopulate it. make sure the idea for
+the function stays"), and real-quote replicas run start → final delivery
+with print PDFs matching the templates. All five landed this session,
+four commits.
+
+- **Real salaries (EMPLOYEE_SALARIES, data.js)** — all 70 staff carry
+  their real July 2026 payslip (Basic/OT/HRA/Allowance/net) as HR
+  Salary-tab pay heads, real 9-digit CPRs (Excel strips leading zeros —
+  restored), and real designations from the per-person timesheet sheets.
+  Admin file authoritative for ADMIN staff, production file for the
+  rest; name-spelling aliases handled (Munden/Mundel, Rajaneesh/
+  Rajneesh, VenkateswaraRao). Zero-payslip months (leave) stay empty
+  rather than invented. Abdullah Abdul Haq corrected from the invented
+  "Track Lead" to Director; fictional CPR overrides in the compliance
+  seed removed so real CPRs win. **Data-quality flag for Salman**: the
+  payroll sheet itself gives Ammar Bahadur / Suneel Kumar / Mohammad
+  Abdullah one shared CPR (871287684).
+- **Real Item Master** — the full 200-item live export seeded with real
+  Q-Pro codes (IT003318–IT003517), cost/selling/closing stock/last
+  purchase rate; negative book stock kept honestly. Category/unit
+  inferred from item-code prefixes (editable). The 5 legacy rail items
+  re-keyed to their REAL codes and the Curtain stock-pool itemCode refs
+  aligned (IT000330/IT000450/IT000362 padded form) — pool ↔ master now
+  resolve. createItemMasterEntry accepts explicit id/lastPurchaseRate;
+  nextItemStockCode is max-based. **Real-data-exposed bug fixed**:
+  getJobMaterialRequirement treated negative closing stock as open
+  demand (−100 stock, zero orders → phantom shortfall of 100 → 23 false
+  Reorder Alerts). closingStock clamps at 0 in the requirement math now.
+- **Curtain cloud migration (Phase 2's genuinely final slice)** — the 3
+  hand-seeded fixture jobs, the purchaseInquiries fixtures, and the
+  projects[] fixtures (same demo jobs, Operations' view) are CLEARED;
+  all three arrays start empty and fill from real confirmed Job Cards
+  via the existing bridge or from the cloud. curtainJobs[] +
+  purchaseInquiries[] now persist to Supabase (curtain_jobs /
+  curtain_purchase_inquiries, whole-object jsonb) via a SNAPSHOT-DIFF
+  AUTOSAVE — a 3s scanner + pagehide flush, NOT per-mutation persist
+  calls, because curtain.js (~5,900 lines) mutates these objects inline
+  everywhere (the exact reason this slice was deferred). Derived
+  windows[] stripped on save/rebuilt on hydrate; val/deptVal re-defined
+  as live getters post-hydration; initCloudCurtainCache() runs before
+  bridgeAllJobCards() so hydrated jobs aren't duplicated. nextPIId()
+  max-based now. **ACTION NEEDED (Salman): run the latest
+  supabase/schema.sql against the live project** — e2e-cloud-curtain.js
+  passes its mechanics checks and correctly fails its 6 table-touching
+  checks with relation-does-not-exist until then (no PAT was available
+  this session).
+- **Demo data now authors real Curtain windows** —
+  demoAuthorCurtainWindows() fills two bridged curtain demo jobs with
+  realistic windowGroups (wave+sheer pair, motorized slider, roller
+  with cord fields), so Curtain's Dashboard/Tracks/QC/Pipeline screens
+  show real content after Admin → Developer Preview → Load Demo Data
+  (screenshot-verified: populated Tracks board with rail specs and
+  assignment chips).
+- **Print documents rebuilt against the real templates** (print.js
+  rewrite): client **Quotation** (logo head, meta block, grey group
+  bands, underlined sub-group rows, x.y.z serials, IMAGE column,
+  Total/Discount/Gross/Vat/Net stack, amount-in-words via a new
+  numberToWordsBD(), Benefit Pay + bank block, the REAL 11-clause T&C
+  — TERMS_TEMPLATES replaced, PREPARED BY/MANAGEMENT/CLIENT signature
+  grid); internal **Job Order Costing** (slate header band,
+  yellow-group/pink-subgroup/green-totals banding, Job Amount/Est.
+  Amount/Cost/Profit/Profit% from real BOMs, Job Total row); production
+  **Job Order** (Name/Description | Qty | Image, NO price columns —
+  fabric spec rates inside descriptions are template-faithful). Job
+  Card hub's dead "Print Job" stub replaced with real Job Order + Job
+  Costing tiles (printJobOrder/printJobCosting).
+- **Ewan real-quote replication (e2e-real-quote-ewan.js, 11/11)** —
+  rebuilds AMD-14740-0 exactly (3 groups × Bed & Headboard, real
+  descriptions, real 535.000/Nos via BOM selling override, the real
+  BD 377.727 discount spread per-item) and runs it end to end:
+  Estimator BOM linked to the real Nassaj N11011-002 inventory row →
+  Approver → Job Card → routing (carp+uph) → department budgets →
+  Joinery sub-stages → authority-gated QC → hand-off → Upholstery →
+  done → Delivery Note → 100% invoice → full receipt → completed.
+  Money checks match the real document to the fils at every step.
+  **Real billing bug found by this run and fixed**:
+  generateInvoiceFromJob() billed from PRE-discount line amounts — the
+  replica invoiced BD 1765.500 against a contracted BD 1350.000. Now
+  bills net of the line's discPercent.
+- **GAPS surfaced by the replication, for Salman's roadmap** (reported,
+  not silently absorbed): (1) no quote-LEVEL discount field — a single
+  document discount has to be spread per-item as a %; (2) no per-item
+  image attachment — the real docs carry product photos, ours print
+  "no image" placeholders (needs a storage decision — likely Supabase
+  Storage); (3) salesperson phone/email aren't on any record — the real
+  PREPARED BY block prints them, ours prints the name only; (4) item
+  serials are 0-based (1.1.0) matching the Qreative document's own
+  convention, while the Ewan document shows 1.1.1 — the real system is
+  internally inconsistent here, ours picked one; (5) the Benefit Pay QR
+  prints as a placeholder box until a real QR asset is supplied; (6)
+  page-x-of-y counters aren't reproducible in browser print (footer
+  repeats per page via fixed positioning instead).
+- **Verification**: full offline e2e sweep green both before commit
+  (all 44 suites) and after the print/invoice work (45 incl. the new
+  Ewan suite); e2e-print-preview updated to the new template layout
+  (15/15); screenshots of all three generated documents read back and
+  compared against the real PDFs.

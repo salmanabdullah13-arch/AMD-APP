@@ -297,7 +297,8 @@ function renderJobHub() {
     ${cancelled ? `<div class="sales-banner">This job is cancelled — Delivery Note, Material Issue/Return, and Invoice generation are locked permanently.</div>`
       : !routed ? `<div class="sales-banner">Awaiting Operations Routing — Delivery Note, Material Issue/Return, and Invoice generation unlock once the Operations Manager confirms department routing for this job.</div>` : ''}
     <div class="sales-tile-row">
-      <div class="sales-tile t-blue" onclick="jobsAlert('Print Job — not wired to a document generator yet.')"><span class="sales-tile-icon">🖨</span>Print Job</div>
+      <div class="sales-tile t-blue" onclick="printJobOrder('${job.id}')"><span class="sales-tile-icon">🖨</span>Job Order</div>
+      <div class="sales-tile t-blue" onclick="printJobCosting('${job.id}')"><span class="sales-tile-icon">📊</span>Job Costing</div>
       <div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>
       ${routed ? `<div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>` : jobsLockedTile('t-teal', '🚚', 'Delivery Note', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}
       ${routed ? `<div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>` : jobsLockedTile('t-amber', '📦', 'Material Issue', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}

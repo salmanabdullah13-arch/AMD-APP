@@ -2069,7 +2069,20 @@ const SALES_DIVISIONS = ["Curtain & Blinds", "Furniture", "Joinery", "Upholstery
 // good enough until that full list is captured.
 const COUNTRIES = ["Bahrain", "Saudi Arabia", "United Arab Emirates", "Kuwait", "Qatar", "Oman", "India", "Pakistan", "Bangladesh", "Philippines", "Sri Lanka", "Nepal", "Egypt", "Jordan", "Lebanon", "United Kingdom", "United States", "Other"];
 const COVERING_LETTER_TEMPLATES = { "Al Maraya decor.": (project) => `Sub: ${project}\n\nDear Sir/Madam,\n\nThank you for the opportunity to quote for the above-mentioned project. Please find our detailed quotation enclosed.\n\nWe look forward to being of service.\n\nRegards,\nAl Maraya Decor` };
-const TERMS_TEMPLATES = { "Al Maraya Decor Standard.": `1. This quotation is valid for 30 days from the date of issue.\n2. 50% advance payment required to confirm the order, balance on completion.\n3. Delivery/installation timeline to be confirmed upon order confirmation.\n4. Prices are subject to change if scope of work changes.\n5. Any additional work outside this quotation will be charged separately.` };
+// The REAL 11-clause T&C list from Al Maraya's live quotation documents
+// (verified against the Ewan/Qreative/Cubique PDFs, 6 Aug 2026) — replaces
+// the invented 5-liner that stood in before.
+const TERMS_TEMPLATES = { "Al Maraya Decor Standard.": `1- For Orders Less than BD 500, 100% Advance payment
+2- For orders more than BD 500, 70% Advance payment and 30% upon completion/delivery of work.
+3- Payment must be in cash or cheque in favor of "M/s Al Maraya Décor - Material co w.l.l.
+4- The offer is valid for 5 days.
+5- Warranty and grantee on Fabric, if mentioned, does not cover damage from wear & tear, natural calamities of user damage.
+6- Guarantee on heavy duty rails is subjected only to rails and not to accessories such as runner, master runners, brackets and baton rods.
+7- Any change in measurement /size will change the price quoted.
+8- Changes in color/texture disparity maybe expected against the sample submitted.
+9- Any onsite complaints following the installation should be registered within 2 days of installation.
+10- Any change after confirming the order will be on your account.
+11- Kindly return a copy of this order duly signed in acceptance.` };
 
 // ── CUSTOMERS ──
 // Customer Code format matches the live reference (C1508) — sequential from
@@ -5186,8 +5199,16 @@ function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } =
   if (alreadyInvoicedPct + invoicedPercent > 100 + 1e-6) {
     return { error: `Only ${(100 - alreadyInvoicedPct).toFixed(1)}% of this job remains uninvoiced.` };
   }
-  const total = job.items.reduce((s, it) => s + it.amount, 0);
-  const vat = job.items.reduce((s, it) => s + (it.amount * (it.vatPercent || 0) / 100), 0) * (invoicedPercent / 100);
+  // Line value bills NET OF DISCOUNT (6 Aug 2026, found by the Ewan
+  // real-quote replication run): it.amount is the pre-discount figure, and
+  // billing from it silently overcharged any discounted quote — the Ewan
+  // replica invoiced BD 1765.500 against a contracted BD 1350.000. The
+  // Job Card line carries discPercent (not discAmt), so discount is
+  // re-derived from it here; netAmount can't be used directly because a
+  // partial (invoicedPercent < 100) invoice needs the pre-VAT base.
+  const lineNet = it => it.amount * (1 - (it.discPercent || 0) / 100);
+  const total = job.items.reduce((s, it) => s + lineNet(it), 0);
+  const vat = job.items.reduce((s, it) => s + (lineNet(it) * (it.vatPercent || 0) / 100), 0) * (invoicedPercent / 100);
   const invoicedTotal = total * (invoicedPercent / 100);
   const netTotal = invoicedTotal + vat;
   const inv = {

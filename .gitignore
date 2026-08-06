@@ -6,3 +6,4 @@ node_modules/
 *.log
 test-results/
 playwright-report/
+e2e-shots*/
