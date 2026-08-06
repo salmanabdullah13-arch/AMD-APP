@@ -1001,6 +1001,7 @@ as $$
 $$;
 
 drop policy if exists "job_cards readable by any signed-in user" on public.job_cards;
+drop policy if exists "job_cards readable, department-scoped for production roles" on public.job_cards;
 create policy "job_cards readable, department-scoped for production roles"
   on public.job_cards for select
   to authenticated
@@ -1015,6 +1016,7 @@ create policy "job_cards readable, department-scoped for production roles"
   );
 
 drop policy if exists "job_cards updatable by any signed-in user" on public.job_cards;
+drop policy if exists "job_cards updatable, department-scoped for production roles" on public.job_cards;
 create policy "job_cards updatable, department-scoped for production roles"
   on public.job_cards for update
   to authenticated
@@ -1168,22 +1170,26 @@ end $$;
 -- gate breaks them all. The server-side RLS here is the real boundary.
 -- ────────────────────────────────────────────────────────────────────────
 drop policy if exists "quotations insertable by any signed-in user" on public.quotations;
+drop policy if exists "quotations insertable, commercial roles only" on public.quotations;
 create policy "quotations insertable, commercial roles only"
   on public.quotations for insert to authenticated
   with check (public.is_approved() and public.caller_job_department_key() is null);
 
 drop policy if exists "quotations updatable by any signed-in user" on public.quotations;
+drop policy if exists "quotations updatable, commercial roles only" on public.quotations;
 create policy "quotations updatable, commercial roles only"
   on public.quotations for update to authenticated
   using (public.is_approved() and public.caller_job_department_key() is null)
   with check (public.is_approved() and public.caller_job_department_key() is null);
 
 drop policy if exists "customers insertable by any signed-in user" on public.customers;
+drop policy if exists "customers insertable, commercial roles only" on public.customers;
 create policy "customers insertable, commercial roles only"
   on public.customers for insert to authenticated
   with check (public.is_approved() and public.caller_job_department_key() is null);
 
 drop policy if exists "customers updatable by any signed-in user" on public.customers;
+drop policy if exists "customers updatable, commercial roles only" on public.customers;
 create policy "customers updatable, commercial roles only"
   on public.customers for update to authenticated
   using (public.is_approved() and public.caller_job_department_key() is null)
