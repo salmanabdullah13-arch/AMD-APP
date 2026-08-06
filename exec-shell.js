@@ -686,7 +686,7 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
   <div class="xs-app">
     <aside class="xs-side">
       <div class="xs-brand">
-        <div class="xs-brand-mark">AM</div>
+        <div class="xs-brand-mark" style="background:#fff;overflow:hidden;"><img src="logo.jpeg" alt="AM" style="width:100%;height:100%;object-fit:contain;" onerror="this.parentElement.textContent='AM';this.parentElement.style.background=''"></div>
         <div>
           <div class="xs-brand-name">AL MARAYA</div>
           <div class="xs-brand-sub">Decor</div>

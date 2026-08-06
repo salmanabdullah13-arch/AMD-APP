@@ -18,9 +18,9 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v10"; // v10: exec-shell app-wide rollout (sidebar everywhere, tasks/calendar panels, floating chat)
+const CACHE_VERSION = "amd-app-v11"; // v11: real logo asset (logo.jpeg) in shell + print docs
 const CORE_ASSETS = [
-  "./", "./index.html", "./styles.css", "./manifest.json",
+  "./", "./index.html", "./styles.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./data.js", "./chart-widgets.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
   "./operations.js", "./curtain.js",
