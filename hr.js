@@ -97,12 +97,13 @@ function renderHRBody() {
   // Approvals (5 Aug 2026, role-based access rollout) — self-registered
   // sign-ups pending Owner/HR approval before they get any app access.
   // Shared with the Owner dashboard, see approval-queue.js.
-  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'HR Dashboard')}${tab('emp-list', 'Employee')}${tab('payroll', 'Payroll Report')}${tab('approvals', 'Approvals')}</div>`;
+  const tabsHtml = `<div class="sales-tabs">${tab('dashboard', 'HR Dashboard')}${tab('emp-list', 'Employee')}${tab('payroll', 'Payroll Report')}${tab('payroll-runs', 'Payroll Runs')}${tab('approvals', 'Approvals')}</div>`;
   let content = '';
   if (hrView === 'dashboard') content = renderHRDashboard();
   else if (hrView === 'emp-list') content = renderEmployeeList();
   else if (hrView === 'emp-detail') content = renderEmployeeDetail();
   else if (hrView === 'payroll') content = renderPayrollReport();
+  else if (hrView === 'payroll-runs') content = renderPayrollRuns();
   else if (hrView === 'approvals') content = '<div id="hr-approval-queue"></div>';
   body.innerHTML = (hrView === 'emp-detail' ? '' : tabsHtml) + content;
   if (hrView === 'approvals') renderApprovalQueueScreen('hr-approval-queue');
@@ -346,4 +347,129 @@ function renderPayrollReport() {
         <tr style="font-weight:700;"><td colspan="${PAY_HEADS.length + 2}">Grand Total</td><td>${grandTotal.toFixed(3)}</td></tr>
         </table>`}
     </div>`;
+}
+
+// ══════════════════════════════════════════
+// STAGE 7 (merged roadmap): MONTHLY PAYROLL RUNS
+// Create a month's run (baseline from each Active employee's Salary-tab
+// pay heads), edit OT/deductions/advance on the draft, finalize, print
+// per-employee payslips through the shared print engine. Replaces the
+// monthly Excel payroll files.
+// ══════════════════════════════════════════
+let hrActiveRunId = null;
+
+function renderPayrollRuns() {
+  const run = hrActiveRunId ? payrollRuns.find(r => r.id === hrActiveRunId) : null;
+  if (run) return renderPayrollRunDetail(run);
+  const now = new Date();
+  return `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Create a payroll run</p>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <label style="font-size:11px;color:#64748b;">Month<br>
+          <select id="prun-month">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${i === now.getMonth() ? 'selected' : ''}>${new Date(2000, i, 1).toLocaleString('en', { month: 'long' })}</option>`).join('')}</select></label>
+        <label style="font-size:11px;color:#64748b;">Year<br><input id="prun-year" type="number" value="${now.getFullYear()}" style="width:90px;"></label>
+        <button class="primary" onclick="hrCreatePayrollRun()">Create run</button>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:4px;">Baseline comes from each Active employee's Salary tab (real July 2026 figures) — OT, deductions and advances are entered per month on the draft.</p>
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Runs</p>
+      ${payrollRuns.length === 0 ? '<p style="font-size:12px;color:#64748b;">No payroll runs yet.</p>' :
+      `<table class="sales-items"><tr><th>Run</th><th>Status</th><th>Staff</th><th>Total Net</th><th></th></tr>
+        ${payrollRuns.slice().reverse().map(r => `<tr>
+          <td>${hrEsc(r.id)}</td>
+          <td><span class="sales-pill ${r.status === 'finalized' ? 'confirmed' : 'draft'}">${r.status}</span></td>
+          <td>${r.rows.length}</td>
+          <td>BD ${r.rows.reduce((s, x) => s + x.net, 0).toFixed(3)}</td>
+          <td><span style="color:var(--biz-primary);cursor:pointer;" onclick="hrActiveRunId='${r.id}';renderHRBody();">Open ›</span></td>
+        </tr>`).join('')}</table>`}
+    </div>`;
+}
+
+function renderPayrollRunDetail(run) {
+  const draft = run.status === 'draft';
+  const tot = k => run.rows.reduce((s, r) => s + r[k], 0);
+  const cell = (r, k) => draft
+    ? `<input type="number" step="0.001" value="${r[k]}" style="width:72px;font-size:11px;padding:3px;" onchange="hrRunRowChanged('${run.id}','${r.employeeId}','${k}',this.value)">`
+    : r[k].toFixed(3);
+  return `
+    <span class="sales-back" onclick="hrActiveRunId=null;renderHRBody();">‹ Back to Payroll Runs</span>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:14px;">${hrEsc(run.id)} <span class="sales-pill ${draft ? 'draft' : 'confirmed'}">${run.status}</span></p>
+      <p style="font-size:11.5px;color:#64748b;margin-top:2px;">${run.rows.length} active staff · created ${run.createdDate}${run.finalizedDate ? ' · finalized ' + run.finalizedDate + ' by ' + hrEsc(run.finalizedBy || '') : ''}</p>
+      ${draft ? `<button class="primary" style="margin-top:8px;" onclick="hrFinalizeRun('${run.id}')">Finalize run</button>` : ''}
+    </div>
+    <div class="sales-card" style="overflow-x:auto;">
+      <table class="sales-items">
+        <tr><th>Employee</th><th>Basic</th><th>OT</th><th>Allow</th><th>HRA</th><th>Other</th><th>Deduct</th><th>Advance</th><th>Net</th><th></th></tr>
+        ${run.rows.map(r => `<tr>
+          <td>${hrEsc(r.name)}<br><span style="color:#94a3b8;font-size:9.5px;">${hrEsc(r.department)}</span></td>
+          <td>${cell(r, 'basic')}</td><td>${cell(r, 'ot')}</td><td>${cell(r, 'allow')}</td>
+          <td>${cell(r, 'hra')}</td><td>${cell(r, 'other')}</td><td>${cell(r, 'deductions')}</td><td>${cell(r, 'advance')}</td>
+          <td style="font-weight:700;">${r.net.toFixed(3)}</td>
+          <td><span style="color:var(--biz-primary);cursor:pointer;font-size:10.5px;white-space:nowrap;" onclick="printPayslip('${run.id}','${r.employeeId}')">🧾 Payslip</span></td>
+        </tr>`).join('')}
+        <tr style="font-weight:700;background:#f4e6ec;">
+          <td>Totals</td><td>${tot('basic').toFixed(3)}</td><td>${tot('ot').toFixed(3)}</td><td>${tot('allow').toFixed(3)}</td>
+          <td>${tot('hra').toFixed(3)}</td><td>${tot('other').toFixed(3)}</td><td>${tot('deductions').toFixed(3)}</td><td>${tot('advance').toFixed(3)}</td>
+          <td>${tot('net').toFixed(3)}</td><td></td>
+        </tr>
+      </table>
+    </div>`;
+}
+
+function hrCreatePayrollRun() {
+  const res = createPayrollRun(document.getElementById('prun-year').value, document.getElementById('prun-month').value, 'HR');
+  if (res && res.error) { hrAlert(res.error); return; }
+  hrActiveRunId = res.id;
+  renderHRBody();
+}
+function hrRunRowChanged(runId, empId, key, val) {
+  const res = updatePayrollRunRow(runId, empId, { [key]: val });
+  if (res && res.error) { hrAlert(res.error); return; }
+  renderHRBody();
+}
+function hrFinalizeRun(runId) {
+  if (!window.confirm('Finalize this payroll run? No further edits after this.')) return;
+  const res = finalizePayrollRun(runId, 'HR');
+  if (res && res.error) { hrAlert(res.error); return; }
+  hrAlert('✓ Run finalized.');
+  renderHRBody();
+}
+
+// Payslip document — company header, month, earnings/deductions, net.
+function printPayslip(runId, employeeId) {
+  const run = payrollRuns.find(r => r.id === runId);
+  const row = run && run.rows.find(r => r.employeeId === employeeId);
+  if (!row) return;
+  const monthName = new Date(run.year, run.month - 1, 1).toLocaleString('en', { month: 'long' });
+  const earn = [['Basic Salary', row.basic], ['Overtime', row.ot], ['Allowance', row.allow], ['HRA', row.hra], ['Other Allowances', row.other]].filter(e => e[1] > 0);
+  const ded = [['Deductions', row.deductions], ['Salary Advance', row.advance]].filter(e => e[1] > 0);
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Payslip ${hrEsc(row.name)} ${run.id}</title>
+  <style>${printBaseCSS()} body{font-family:Arial,sans-serif;max-width:640px;}
+    table.ps{width:100%;border-collapse:collapse;margin:10px 0;}
+    table.ps td,table.ps th{border:1px solid #d7d7d7;padding:7px 9px;font-size:12px;}
+    table.ps th{background:#ececec;text-align:left;}
+    .net-band{background:#600131;color:#fff;font-weight:700;display:flex;justify-content:space-between;padding:9px 12px;font-size:13.5px;}
+  </style></head><body>
+    <div class="print-btn"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
+    <div class="doc-head">${printLogoBlock()}<div><p class="doc-title" style="font-size:22px;">PAYSLIP</p><p class="doc-no">${monthName} ${run.year}</p></div></div>
+    <table class="ps">
+      <tr><th style="width:150px;">Employee</th><td>${hrEsc(row.name)}</td></tr>
+      <tr><th>CPR</th><td>${hrEsc(row.cpr || '')}</td></tr>
+      <tr><th>Department</th><td>${hrEsc(row.department)}</td></tr>
+      <tr><th>Run</th><td>${run.id} (${run.status})</td></tr>
+    </table>
+    <table class="ps"><tr><th colspan="2">Earnings</th></tr>
+      ${earn.map(e => `<tr><td>${e[0]}</td><td style="text-align:right;">${e[1].toFixed(3)}</td></tr>`).join('') || '<tr><td colspan="2">—</td></tr>'}
+      <tr><th>Total Earnings</th><th style="text-align:right;">${(row.basic + row.ot + row.allow + row.hra + row.other).toFixed(3)}</th></tr>
+    </table>
+    <table class="ps"><tr><th colspan="2">Deductions</th></tr>
+      ${ded.map(e => `<tr><td>${e[0]}</td><td style="text-align:right;">${e[1].toFixed(3)}</td></tr>`).join('') || '<tr><td colspan="2">—</td></tr>'}
+    </table>
+    <div class="net-band"><span>NET SALARY</span><span>BD ${row.net.toFixed(3)}</span></div>
+    ${printPageFooter()}
+  </body></html>`;
+  printOpenHTML(html);
 }

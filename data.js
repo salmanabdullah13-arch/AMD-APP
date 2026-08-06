@@ -3649,6 +3649,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "debit_notes", arr: () => debitNotes, prefix: "dn:" },
   { table: "labour_day_logs", arr: () => labourDayLogs, prefix: "ldl:" },
   { table: "bom_templates", arr: () => bomTemplates, prefix: "bt:" },
+  { table: "payroll_runs", arr: () => payrollRuns, prefix: "prun:" },
   { table: "app_tasks", arr: () => tasks, prefix: "tsk:" },
   { table: "activity_log", arr: () => activityLog, prefix: "act:" },
 ];
@@ -6410,6 +6411,57 @@ const SALES_CONTACTS = {
   "Mohammad Shafeel": { phone: "38440322", email: "sales1@almarayadecor.com" },
   "Salman Abdullah": { phone: "39051580", email: "salman@almarayadecor.com" }
 };
+
+// ═══ STAGE 7 (merged roadmap): MONTHLY PAYROLL RUNS ═══
+// EMPLOYEE_SALARIES is a static July 2026 snapshot; a payroll RUN is one
+// month's live sheet — baseline earnings from each Active employee's
+// Salary-tab pay heads, per-month OT/deductions/advance edited on the
+// draft, then finalized. Replaces the Excel payroll files.
+const payrollRuns = [];
+function payrollRunId(year, month) { return "PRUN-" + year + "-" + String(month).padStart(2, "0"); }
+function createPayrollRun(year, month, createdBy) {
+  const y = Number(year), m = Number(month);
+  if (!y || !m || m < 1 || m > 12) return { error: "Pick a valid month/year." };
+  const id = payrollRunId(y, m);
+  if (payrollRuns.some(r => r.id === id)) return { error: "A payroll run for that month already exists." };
+  const head = (e, name) => { const h = e.payHeads.find(p => p.head === name); return h ? h.amount : 0; };
+  const rows = employees.filter(e => e.status === "Active").map(e => {
+    const row = {
+      employeeId: e.id, name: e.name, department: e.department, cpr: e.cpr,
+      basic: head(e, "Basic Salary"), ot: 0, allow: head(e, "Allowance"),
+      hra: head(e, "HRA"), other: head(e, "Other Allowances"),
+      deductions: 0, advance: 0, net: 0
+    };
+    row.net = Math.round((row.basic + row.ot + row.allow + row.hra + row.other - row.deductions - row.advance) * 1000) / 1000;
+    return row;
+  });
+  const run = { id, year: y, month: m, status: "draft", rows, createdBy: createdBy || null, createdDate: new Date().toISOString().slice(0, 10), finalizedBy: null, finalizedDate: null };
+  payrollRuns.push(run);
+  logActivity({ type: "payroll-run-created", linkedType: "payroll", linkedId: id, user: createdBy || "HR", message: "Payroll run " + id + " created (" + rows.length + " active staff)" });
+  return run;
+}
+function updatePayrollRunRow(runId, employeeId, patch) {
+  const run = payrollRuns.find(r => r.id === runId);
+  if (!run) return { error: "Run not found." };
+  if (run.status !== "draft") return { error: "This run is finalized — no further edits." };
+  const row = run.rows.find(r => r.employeeId === employeeId);
+  if (!row) return { error: "Employee not on this run." };
+  ["basic", "ot", "allow", "hra", "other", "deductions", "advance"].forEach(k => {
+    if (patch[k] !== undefined) row[k] = Number(patch[k]) || 0;
+  });
+  row.net = Math.round((row.basic + row.ot + row.allow + row.hra + row.other - row.deductions - row.advance) * 1000) / 1000;
+  return row;
+}
+function finalizePayrollRun(runId, by) {
+  const run = payrollRuns.find(r => r.id === runId);
+  if (!run) return { error: "Run not found." };
+  if (run.status !== "draft") return { error: "Already finalized." };
+  run.status = "finalized";
+  run.finalizedBy = by || null;
+  run.finalizedDate = new Date().toISOString().slice(0, 10);
+  logActivity({ type: "payroll-run-finalized", linkedType: "payroll", linkedId: runId, user: by || "HR", message: "Payroll run " + runId + " finalized — BD " + run.rows.reduce((s, r) => s + r.net, 0).toFixed(3) + " total net" });
+  return run;
+}
 
 const tasks = [];
 function nextTaskId() {
