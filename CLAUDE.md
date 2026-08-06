@@ -5311,3 +5311,37 @@ Both remaining policy questions answered by Salman this session and built:
   estimation stage before approval — needs its own test-suite pass) and
   per-salesperson Sales-dashboard scope (needs salesperson identity wired
   into the Sales module). Both flagged, neither urgent.
+
+### 6 Aug 2026 — Audit loophole #2 closed: approval requires the Approver stage
+
+The last critical-severity audit finding, deliberately deferred from the
+morning's Phase A commit so its test-suite blast radius could be handled as
+its own pass — done now.
+
+- **`approveQuotation()` gains the stage gate** (data.js): a quotation can
+  only be approved while `stage === "approver"` — a Sales-stage draft (or
+  one sitting with the Estimator) can no longer be approved in one direct
+  call, which used to make the entire Estimator/Approver cycle skippable.
+  The one real UI caller (approver.js) only ever fires at the approver
+  stage, so no UI change was needed.
+- **The promised test-suite pass**: 24 e2e files' seed steps approved a
+  fresh Sales-stage draft directly — each now transfers to the approver
+  stage first (`transferQuotationStage(id, 'approver', 'Estimator')`),
+  applied mechanically via one regex pass over the 22 files with the bare
+  pattern plus 2 hand-fixed call sites in files that already transferred
+  elsewhere (activity-log-retrofit's second seed, batch7-big-pieces'
+  curtain seed). `demo-data.js` needed nothing — it bypasses
+  `approveQuotation()` entirely by design (documented in its header).
+- **Live-cloud suite fixed along the way**: `e2e-cloud-jobcards.js` (the
+  one touched live suite, so it was re-run live per practice) surfaced a
+  stale fixture against the morning's deliver-before-production gate — its
+  delivery step ran with the carp line still `queued`. Now walks the line
+  through budget→production→QC→hand-off first; 8/8 live.
+- **Verification**: two new checks in `e2e-audit-fixes-2026-08-06.js`
+  (19/19) — direct approval blocked at Sales stage AND at Estimator stage.
+  Full offline regression: all 38 suites green, zero failures. Live:
+  cloud-jobcards 8/8.
+- **The audit fix plan is now fully closed except one item**:
+  per-salesperson Sales-dashboard scope (the aggregations already accept
+  `{salesPerson}`; surfacing it needs the logged-in salesperson identity
+  wired into the Sales module — a small feature of its own, not a gap).

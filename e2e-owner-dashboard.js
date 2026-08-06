@@ -63,7 +63,7 @@ async function openNode(page, nodeId, wrapId) {
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'OwnerDash Analytics Project', taxPercent: 10, contactPerson: 'Salim' });
     const item = addQuotationItem(qtn.id, { product: 'Living Room Curtains', qty: 1, unit: 'Nos' });
     item.rate = 2500; item.amount = 2500; item.netAmount = 2500;
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     job.amount = 2500;
     confirmJobRouting(job.id, {}, 'Operations Manager');

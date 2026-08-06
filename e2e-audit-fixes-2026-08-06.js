@@ -83,6 +83,18 @@ function printReport() {
   });
   record('Re-approving an already-Open quotation is blocked', na.again !== 'ALLOWED' ? 'PASS' : 'FAIL', na.again);
 
+  const sg2 = await page.evaluate(() => {
+    // Loophole #2 (closed in its own pass): a Sales-stage draft can't be
+    // approved directly — the quote must actually be with the Approver.
+    const { q } = window.__seedQuote('Joinery', 'Cabinet SkipCycle', 100);
+    const direct = approveQuotation(q.id, 'Rogue Sales');           // stage is still 'sales'
+    transferQuotationStage(q.id, 'estimator', 'S');
+    const atEstimator = approveQuotation(q.id, 'Rogue Estimator');  // not the Approver either
+    return { direct: direct.error || 'ALLOWED', atEstimator: atEstimator.error || 'ALLOWED' };
+  });
+  record('Approving a Sales-stage draft directly is blocked (stage gate)', sg2.direct !== 'ALLOWED' ? 'PASS' : 'FAIL', sg2.direct);
+  record('Approving at the Estimator stage is blocked too', sg2.atEstimator !== 'ALLOWED' ? 'PASS' : 'FAIL', sg2.atEstimator);
+
   const happy = await page.evaluate(() => {
     const { q } = window.__seedQuote('Joinery', 'Cabinet Happy', 200);
     const a = window.__fullApprove(q.id);

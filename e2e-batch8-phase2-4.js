@@ -58,7 +58,7 @@ async function openNode(page, nodeId, wrapId) {
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Batch8 Mixed Project', taxPercent: 10, contactPerson: 'Nasser' });
     const cabinetItem = addQuotationItem(qtn.id, { product: 'Painted Cabinet Unit', qty: 1, unit: 'Nos' });
     const sofaItem = addQuotationItem(qtn.id, { product: 'Custom Sofa', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations');
     return { jobId: job.id, cabinetLineId: cabinetItem.lineId, sofaLineId: sofaItem.lineId };

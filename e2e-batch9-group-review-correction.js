@@ -167,7 +167,7 @@ async function openNode(page, nodeId, wrapId) {
   currentStep = 'sales-my-jobs';
   const jobId = await page.evaluate((id) => {
     const qtn = quotations.find(q => q.id === id);
-    approveQuotation(id, 'Salman Abdullah');
+    transferQuotationStage(id, 'approver', 'Estimator'); approveQuotation(id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(id, 'Salman Abdullah');
     return job.id;
   }, qtnId);

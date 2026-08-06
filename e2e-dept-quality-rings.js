@@ -64,7 +64,7 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Yara', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Quality Ring Joinery Project', taxPercent: 10, contactPerson: 'Yara' });
     const item = addQuotationItem(qtn.id, { product: 'Wardrobe Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'carp', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Joinery Production Manager');
@@ -96,7 +96,7 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Upholstery', customerId: cust.id, contactPerson: 'Noor', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Quality Ring Upholstery Project', taxPercent: 10, contactPerson: 'Noor' });
     const item = addQuotationItem(qtn.id, { product: 'Sofa Set', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'uph', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Upholstery Manager');
@@ -124,7 +124,7 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Reem', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Quality Ring Painting Project', taxPercent: 10, contactPerson: 'Reem' });
     const item = addQuotationItem(qtn.id, { product: 'Painted TV Unit Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'carp', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Joinery Production Manager');

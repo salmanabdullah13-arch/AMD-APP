@@ -47,7 +47,7 @@ function printReport() {
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Mixed Division Project', taxPercent: 10, contactPerson: 'Fatima' });
     const curtainItem = addQuotationItem(qtn.id, { product: 'Living Room Curtains', qty: 3, unit: 'Nos' });
     const tvUnitItem = addQuotationItem(qtn.id, { product: 'Painted TV Unit Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     const cj = curtainJobs.find(j => j.id === job.id);
     confirmJobRouting(job.id, {}, 'Operations Manager');
@@ -79,7 +79,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Reem', tel: '39001111', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'No Curtain Project', taxPercent: 10, contactPerson: 'Reem' });
     addQuotationItem(qtn.id, { product: 'Wardrobe Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     return { curtainJobsEntryExists: !!curtainJobs.find(j => j.id === job.id) };
   });
@@ -92,7 +92,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Curtain & Blinds', customerId: cust.id, contactPerson: 'Noor', tel: '39002222', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Pure Curtain Project', taxPercent: 10, contactPerson: 'Noor' });
     const item = addQuotationItem(qtn.id, { product: 'Bedroom Drapes', qty: 2, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     return { itemSeq: item.departmentSequence, curtainJobsEntryExists: !!curtainJobs.find(j => j.id === job.id) };
   });

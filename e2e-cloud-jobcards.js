@@ -96,7 +96,7 @@ async function signInOrUp(page, fileUrl) {
   const qtnResult = await page.evaluate((enqId) => {
     const qtn = convertEnquiryToQuotation(enqId, { projectName: 'E2E Job Card Project', taxPercent: 10, contactPerson: 'Tester' });
     addQuotationItem(qtn.id, { product: 'E2E Test Joinery Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'E2E Test Account');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'E2E Test Account');
     return qtn.id;
   }, enqResult.id);
   await page.waitForTimeout(1000);
@@ -126,6 +126,21 @@ async function signInOrUp(page, fileUrl) {
 
   currentStep = 'delivery-note-live';
   const lineId = jobResult.job.items[0].lineId;
+  // addDeliveryNote() refuses until production is finished (6 Aug 2026
+  // audit, deliver-before-production gate) — walk the carp line to done
+  // first, the way a real job becomes deliverable.
+  await page.evaluate((args) => {
+    submitDepartmentBudget(args.id, 'carp', { materials: 50, labour: 20, subcontract: 0, hiring: 0, others: 0 }, 'E2E Estimator');
+    approveDepartmentBudget(args.id, 'carp', 'Operations Manager');
+    startLineProduction(args.id, args.lineId, 'carp');
+    const job = getJobCard(args.id);
+    const entry = job.items[0].departmentStatuses.find(d => d.department === 'carp');
+    if (entry.joinerySubStage) ['cutting', 'veneer-pressing', 'assembly'].forEach(s => advanceJoinerySubStage(args.id, args.lineId, s));
+    submitLineForQC(args.id, args.lineId, 'carp');
+    recordLineQCResult(args.id, args.lineId, 'carp', true, DEPT_QC_AUTHORITY.carp);
+    handOffLine(args.id, args.lineId, 'carp', 'Lead');
+  }, { id: jobResult.job.id, lineId });
+  await page.waitForTimeout(800);
   const deliveryResult = await page.evaluate((args) => addDeliveryNote(args.id, [{ lineId: args.lineId, requiredQty: 1 }]), { id: jobResult.job.id, lineId });
   await page.waitForTimeout(1500);
   const deliveryPersisted = await page.evaluate(async (id) => {

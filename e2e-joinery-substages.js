@@ -55,7 +55,7 @@ const OTHER_WRAPS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Joinery Substage Test Project', taxPercent: 10, contactPerson: 'Arun' });
     const item = addQuotationItem(qtn.id, { product: 'TV Unit', qty: 1, unit: 'Nos' });
     item.departmentSequence = ['carp'];
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'carp', { materials: 200, labour: 100, subcontract: 0, hiring: 0, others: 0 }, 'Joinery Production Manager');
@@ -137,7 +137,7 @@ const OTHER_WRAPS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Joinery Floor Test Project 2', taxPercent: 10, contactPerson: 'Arun' });
     const item = addQuotationItem(qtn.id, { product: 'Wardrobe', qty: 1, unit: 'Nos' });
     item.departmentSequence = ['carp'];
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'carp', { materials: 200, labour: 100, subcontract: 0, hiring: 0, others: 0 }, 'Joinery Production Manager');

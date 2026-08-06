@@ -81,7 +81,7 @@ async function openNode(page, nodeId, wrapId) {
   // ── Approve + confirm to Job Card, land in routing queue ──
   currentStep = 'confirm-to-job';
   const jobId = await page.evaluate((id) => {
-    approveQuotation(id, 'Salman Abdullah');
+    transferQuotationStage(id, 'approver', 'Estimator'); approveQuotation(id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(id, 'Salman Abdullah');
     return job.id;
   }, seed.qtnId);

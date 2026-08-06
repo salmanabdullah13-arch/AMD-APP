@@ -52,7 +52,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Curtain & Blinds', customerId: cust.id, contactPerson: 'Reem', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const q = convertEnquiryToQuotation(enq.id, { projectName: 'Unification Test Project', taxPercent: 10, contactPerson: 'Reem' });
     addQuotationItem(q.id, { product: 'Curtain Set', qty: 1, unit: 'Nos', rate: 0 });
-    approveQuotation(q.id, 'Salman Abdullah');
+    transferQuotationStage(q.id, 'approver', 'Estimator'); approveQuotation(q.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
     return { jobId: job.id, jobAmount: job.amount };
   });
@@ -112,7 +112,7 @@ function printReport() {
     // this test is verifying.
     const item = quotations.find(q => q.id === variation.id).items[0];
     item.rate = 250; item.amount = 250; item.netAmount = 275;
-    approveQuotation(variation.id, 'Salman Abdullah');
+    transferQuotationStage(variation.id, 'approver', 'Estimator'); approveQuotation(variation.id, 'Salman Abdullah');
     const mergedJob = confirmVariationToJobCard(variation.id, 'Salman Abdullah');
     const proj = projects.find(p => p.id === jobId);
     const cj = curtainJobs.find(j => j.id === jobId);

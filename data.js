@@ -3731,11 +3731,13 @@ function approveQuotation(qtnId, approvedBy) {
   // for the same quotation (double production + double billing). Re-approving
   // an already-Open quote is a no-op-shaped mistake worth refusing too.
   // (Backed by the confirm-side existing-job guard below.)
-  // NOT gated here: requiring the quote to have actually gone through the
-  // Estimator/Approver stage before approval (audit Critical #2, "approve a
-  // Sales draft directly"). That needs a stage gate that ~18 existing e2e
-  // seeds would trip on, and it's a broader change than the double-billing
-  // fix this commit is scoped to — flagged open in the audit report instead.
+  // Stage gate (audit Critical #2, closed in its own pass after the
+  // double-billing fix): approval must happen where approval lives — a
+  // quotation still sitting at Sales (or Estimator) can't be approved
+  // directly, which used to make the entire Estimator/Approver cycle
+  // skippable in one call. Every e2e seed was updated to transfer through
+  // the real stages the same day.
+  if (qtn.stage !== "approver") return { error: `Quotation must be with the Approver before it can be approved (currently at ${qtn.stage === "sales" ? "Sales" : "Estimator"}).` };
   if (qtn.lifecycleStatus === "confirmed") return { error: "This quotation is already confirmed into a Job Card — it can't be approved again." };
   if (qtn.lifecycleStatus === "open") return { error: "This quotation is already approved (Open)." };
   qtn.stage = "sales";

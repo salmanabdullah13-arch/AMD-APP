@@ -52,7 +52,7 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Curtain & Blinds', customerId: cust.id, contactPerson: 'Huda', tel: '39445566', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Batch7 Curtain Project', taxPercent: 10, contactPerson: 'Huda' });
     addQuotationItem(qtn.id, { product: 'Curtain Set A', qty: 2, unit: 'Nos', vatPercent: 10 });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     const projEntry = projects.find(p => p.id === job.id);
     const curtEntry = curtainJobs.find(j => j.id === job.id);

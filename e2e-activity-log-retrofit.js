@@ -90,7 +90,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Sara', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const q = convertEnquiryToQuotation(enq.id, { projectName: 'StockRelease Project', taxPercent: 10, contactPerson: 'Sara' });
     addQuotationItem(q.id, { product: 'Test Item', qty: 1, unit: 'Nos' });
-    approveQuotation(q.id, 'Salman Abdullah');
+    transferQuotationStage(q.id, 'approver', 'Estimator'); approveQuotation(q.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
     stockEntries.push({ id: 'STK-TEST-01', sourceInvoice: 'INV-TEST', itemName: 'Test Plank', qty: 20, unit: 'Nos', status: 'in-pool', dateReceived: '2026-08-04' });
     releaseStockEntry('STK-TEST-01', { department: 'carp', jobId: job.id, qty: 5, issuedBy: 'Storekeeper User' });

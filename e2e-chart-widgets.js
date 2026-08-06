@@ -109,7 +109,7 @@ function printReport() {
       const qtn = convertEnquiryToQuotation(enq.id, { projectName: product, taxPercent: 10, contactPerson: 'Tester' });
       const item = addQuotationItem(qtn.id, { product, qty: 1, unit: 'Nos' });
       item.rate = amountRate; item.amount = amountRate; item.netAmount = amountRate;
-      approveQuotation(qtn.id, 'Salman Abdullah');
+      transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
       const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
       job.date = d.toISOString().slice(0, 10);
       job.amount = amountRate;

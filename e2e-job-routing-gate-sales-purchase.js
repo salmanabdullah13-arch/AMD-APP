@@ -58,7 +58,7 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Tariq', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const q = convertEnquiryToQuotation(enq.id, { projectName: 'RoutingGate Project', taxPercent: 10, contactPerson: 'Tariq' });
     addQuotationItem(q.id, { product: 'Test Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(q.id, 'Salman Abdullah');
+    transferQuotationStage(q.id, 'approver', 'Estimator'); approveQuotation(q.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
     return { jobId: job.id, routingConfirmed: job.routingConfirmed };
   });
@@ -167,7 +167,7 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Zara', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const q = convertEnquiryToQuotation(enq.id, { projectName: 'CancelGate Project', taxPercent: 10, contactPerson: 'Zara' });
     addQuotationItem(q.id, { product: 'Test Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(q.id, 'Salman Abdullah');
+    transferQuotationStage(q.id, 'approver', 'Estimator'); approveQuotation(q.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     jobsSetStatus(job.id, 'cancelled');

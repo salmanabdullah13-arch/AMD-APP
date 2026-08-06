@@ -66,7 +66,7 @@ async function openNode(page, nodeId, wrapId, label) {
       const enq = createEnquiry({ division: 'Furniture', customerId: cust.id, contactPerson: 'Ali', tel: '39001122', source: 'walk inn', salesPerson: 'Salman Abdullah' });
       const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Batch6 Test Project', taxPercent: 10, contactPerson: 'Ali' });
       addQuotationItem(qtn.id, { product: 'Curtain Set', qty: 2, unit: 'Nos', rate: 100, vatPercent: 10, discPercent: 0 });
-      approveQuotation(qtn.id, 'Salman Abdullah');
+      transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
       const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
       confirmJobRouting(job.id, {}, 'Operations Manager'); // Generate Invoice requires routing to be confirmed (4 Aug 2026 audit fix)
       const inv = generateInvoiceFromJob(job.id);

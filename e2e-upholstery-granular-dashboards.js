@@ -60,7 +60,7 @@ const OTHER_WRAPS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap
     const item2 = addQuotationItem(qtn.id, { product: 'Armchair B', qty: 1, unit: 'Nos' });
     item1.departmentSequence = ['uph'];
     item2.departmentSequence = ['uph'];
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'uph', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Upholstery Manager');

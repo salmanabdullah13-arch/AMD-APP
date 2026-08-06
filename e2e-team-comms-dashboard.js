@@ -137,7 +137,7 @@ async function openNode(page, nodeId, wrapId) {
     const item = q.items[0];
     addBOMMaterial(q.id, item.lineId, { name: 'Board', qty: 1, unit: 'Nos', rate: 200 });
     submitItemBOM(q.id, item.lineId, 'Estimator User');
-    approveQuotation(q.id, 'Salman Abdullah');
+    transferQuotationStage(q.id, 'approver', 'Estimator'); approveQuotation(q.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     return job.id;

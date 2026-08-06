@@ -80,7 +80,7 @@ async function openNode(page, nodeId, wrapId) {
       const item = q.items[0];
       addBOMMaterial(q.id, item.lineId, { name: 'Board', qty: 1, unit: 'Nos', rate });
       submitItemBOM(q.id, item.lineId, 'Estimator User');
-      approveQuotation(q.id, 'Salman Abdullah');
+      transferQuotationStage(q.id, 'approver', 'Estimator'); approveQuotation(q.id, 'Salman Abdullah');
       const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
       if (route) confirmJobRouting(job.id, {}, 'Operations Manager');
       return job;
@@ -91,7 +91,7 @@ async function openNode(page, nodeId, wrapId) {
     const budgetJobEnq = createEnquiry({ division: 'Joinery', customerId: createCustomer({ name: 'Dash Budget Client', contactPerson: 'X', tel: '39887799', address: 'Manama' }).id, contactPerson: 'X', tel: '39887799', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const budgetQ = convertEnquiryToQuotation(budgetJobEnq.id, { projectName: 'Dash Budget Job', taxPercent: 10, contactPerson: 'X' });
     addQuotationItem(budgetQ.id, { product: 'Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(budgetQ.id, 'Salman Abdullah');
+    transferQuotationStage(budgetQ.id, 'approver', 'Estimator'); approveQuotation(budgetQ.id, 'Salman Abdullah');
     const budgetJob = confirmQuotationToJobCard(budgetQ.id, 'Salman Abdullah');
     confirmJobRouting(budgetJob.id, {}, 'Operations Manager');
     submitDepartmentBudget(budgetJob.id, 'carp', { mat: 100, lab: 50, sub: 0, hir: 0, oth: 0 }, 'Joinery Production Manager');

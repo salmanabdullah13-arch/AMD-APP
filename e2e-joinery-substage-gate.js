@@ -44,7 +44,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Yusuf', tel: '39113344', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Substage Gate Project', taxPercent: 10, contactPerson: 'Yusuf' });
     const item = addQuotationItem(qtn.id, { product: 'Wardrobe Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     const entryBudget = job.departmentBudgets.carp;
@@ -86,7 +86,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Upholstery', customerId: cust.id, contactPerson: 'Huda', tel: '39115566', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Upholstery Regression Project', taxPercent: 10, contactPerson: 'Huda' });
     const item = addQuotationItem(qtn.id, { product: 'Sofa Set', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'uph', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Upholstery Manager');
@@ -105,7 +105,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Ali', tel: '39117788', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'UI Gate Project', taxPercent: 10, contactPerson: 'Ali' });
     const item = addQuotationItem(qtn.id, { product: 'Wardrobe Cabinet', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     submitDepartmentBudget(job.id, 'carp', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Joinery Production Manager');

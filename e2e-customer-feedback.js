@@ -46,7 +46,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Furniture', customerId: cust.id, contactPerson: 'Layla', tel: '39119900', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Feedback Test Project', taxPercent: 10, contactPerson: 'Layla' });
     addQuotationItem(qtn.id, { product: 'Coffee Table', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     return { jobId: job.id };
@@ -103,7 +103,7 @@ function printReport() {
     const enq = createEnquiry({ division: 'Furniture', customerId: cust.id, contactPerson: 'Omar', tel: '39119901', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Feedback Skip Project', taxPercent: 10, contactPerson: 'Omar' });
     addQuotationItem(qtn.id, { product: 'Coffee Table', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     return { jobId: job.id };

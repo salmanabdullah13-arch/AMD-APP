@@ -108,7 +108,7 @@ async function openNode(page, nodeId, wrapId) {
   await shot(page, 'qtn-hub-draft-no-print');
   record('Print Quote hidden while draft', !printBeforeApproval ? 'PASS' : 'FAIL');
 
-  await page.evaluate((id) => { approveQuotation(id, 'Salman Abdullah'); }, qtnId);
+  await page.evaluate((id) => { transferQuotationStage(id, 'approver', 'Estimator'); approveQuotation(id, 'Salman Abdullah'); }, qtnId);
   await page.evaluate((id) => { salesActiveQtnId = id; salesView = 'qtn-hub'; renderSalesBody(); }, qtnId);
   await page.waitForTimeout(200);
   const printAfterApproval = await page.evaluate(() => Array.from(document.querySelectorAll('#sales-body .sales-tile')).some(t => t.textContent.includes('Print Quote')));

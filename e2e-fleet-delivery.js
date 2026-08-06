@@ -113,7 +113,7 @@ const OTHER_WRAPS = ['sales-module-wrap', 'purch-module-wrap', 'curt-module-wrap
     const enq = createEnquiry({ division: 'Furniture', customerId: cust.id, contactPerson: 'Reem', tel: '39007788', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'Delivery Sched Test Project', taxPercent: 10, contactPerson: 'Reem' });
     addQuotationItem(qtn.id, { product: 'Dining Table', qty: 1, unit: 'Nos' });
-    approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     confirmJobRouting(job.id, {}, 'Operations Manager');
     return { jobId: job.id };
