@@ -153,7 +153,22 @@ async function openNode(page, nodeId, wrapId) {
   currentStep = 'operations-refreshes-on-hub-navigation';
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
-  await page.evaluate((jobId) => { jobsSetStatus(jobId, 'completed'); }, seed.clearJobId);
+  await page.evaluate((jobId) => {
+    // setJobStatus('completed') now (6 Aug 2026 audit) refuses while routed
+    // production is unfinished — walk the clear job's line to done first,
+    // the same way a real job would actually reach completed.
+    const job = getJobCard(jobId);
+    const lineId = job.items[0].lineId;
+    submitDepartmentBudget(jobId, 'carp', { materials: 100, labour: 50, subcontract: 0, hiring: 0, others: 0 }, 'Estimator User');
+    approveDepartmentBudget(jobId, 'carp', 'Operations Manager');
+    startLineProduction(jobId, lineId, 'carp');
+    const entry = job.items[0].departmentStatuses.find(d => d.department === 'carp');
+    if (entry.joinerySubStage) ['cutting', 'veneer-pressing', 'assembly'].forEach(s => advanceJoinerySubStage(jobId, lineId, s));
+    submitLineForQC(jobId, lineId, 'carp');
+    recordLineQCResult(jobId, lineId, 'carp', true, 'QC');
+    handOffLine(jobId, lineId, 'carp', 'Lead');
+    jobsSetStatus(jobId, 'completed');
+  }, seed.clearJobId);
   await openNode(page, 'operations', 'p-operations');
   const refreshedKpi = await page.evaluate(() => document.querySelector('#ops-dashboard-body .kpi .kv').textContent.trim());
   record('Re-entering Operations from the ecosystem hub shows fresh data (not stale from first load)', refreshedKpi === '1' ? 'PASS' : 'FAIL', `activeJobs now shows ${refreshedKpi}, expected 1 (clear job marked completed)`);

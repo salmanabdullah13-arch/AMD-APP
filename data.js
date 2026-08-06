@@ -4145,7 +4145,10 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
     poNo: null, poDate: null, vendor: null,
     deliveryNotes: [], materialsIssues: [], materialsReturns: [], labourCostEntries: [],
     linkedInvoiceIds: [], variationIds: [],
-    routingConfirmed: false, routingConfirmedBy: null, routingConfirmedDate: null
+    routingConfirmed: false, routingConfirmedBy: null, routingConfirmedDate: null,
+    // 6 Aug 2026 audit, loophole #8 — no urgency/deadline concept existed
+    // anywhere. Set via setJobUrgent()/setJobPromisedDate() (Operations).
+    urgent: false, promisedDate: null
   };
   jobCards.push(job);
   qtn.lifecycleStatus = "confirmed";
@@ -4196,6 +4199,21 @@ function confirmJobRouting(jobId, lineOverrides = {}, confirmedBy) {
   logActivity({
     type: "job-routed", linkedType: "job", linkedId: job.id, user: confirmedBy,
     message: `Routing confirmed — ${job.items.length} line(s) dispatched to ${deptNames.length ? deptNames.join(', ') : 'no department'}`
+  });
+  // Routing is the pipeline's FIRST hand-off — ping each department that
+  // just received queued work, one message per department per job
+  // (6 Aug 2026 audit, loophole #8; same mechanism as notifyDeptHandoff).
+  const firstStops = [...new Set(job.items.map(it => (it.departmentSequence || [])[0]).filter(Boolean))];
+  firstStops.forEach(deptKey => {
+    const to = DEPT_HANDOFF_RECIPIENT[deptKey];
+    if (!to) return;
+    try {
+      Promise.resolve(sendMessage({
+        from: confirmedBy || "Operations Manager", to,
+        body: `New job routed to ${dc(deptKey).n}: ${job.id} (${job.items.length} line${job.items.length === 1 ? '' : 's'}) is now in your queue.`,
+        linkedType: "job", linkedId: job.id
+      })).catch(() => {});
+    } catch (e) { /* notification must never break routing */ }
   });
   persistJobCardUpdate(job);
   return job;
@@ -4352,12 +4370,39 @@ function handOffLine(jobId, lineId, deptKey, user) {
     if (nextEntry) {
       nextEntry.status = "queued";
       logActivity({ type: "handoff", linkedType: "job", linkedId: job.id, user, message: `${item.product} handed off from ${dc(deptKey).n} to ${dc(nextDept).n}` });
+      notifyDeptHandoff(nextDept, job, item, deptKey, user);
     }
   } else {
     logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
   }
   persistJobCardUpdate(job);
   return item;
+}
+
+// Hand-off notification (6 Aug 2026 audit, loophole #8) — the Messages
+// system existed but the pipeline never called it, so a receiving
+// department only found out about new work by opening its own queue. On
+// every hand-off the NEXT department's lead identity now gets a real
+// message (their dashboards already render the shared inbox widget with an
+// unread badge). Fire-and-forget: sendMessage() is async, but its failure
+// must never break the hand-off itself. Curtain is skipped — its work is
+// tracked in curtainJobs[], not this pipeline's queues.
+const DEPT_HANDOFF_RECIPIENT = {
+  carp: "Joinery Production Manager",
+  uph: "Upholstery Manager",
+  paint: "Painting Lead / Work Supervisor"
+};
+function notifyDeptHandoff(nextDept, job, item, fromDeptKey, user) {
+  const to = DEPT_HANDOFF_RECIPIENT[nextDept];
+  if (!to) return;
+  try {
+    Promise.resolve(sendMessage({
+      from: user || dc(fromDeptKey).n,
+      to,
+      body: `Incoming from ${dc(fromDeptKey).n}: ${item.product} (${job.id}) is now queued for ${dc(nextDept).n}.`,
+      linkedType: "job", linkedId: job.id
+    })).catch(() => {});
+  } catch (e) { /* never let a notification failure break the hand-off */ }
 }
 
 // ═══════════════════════════════════════
@@ -4569,6 +4614,7 @@ function handOffPaintingLine(jobId, lineId, user) {
     if (nextEntry) {
       nextEntry.status = "queued";
       logActivity({ type: "handoff", linkedType: "job", linkedId: job.id, user, message: `${item.product} handed off from Painting to ${dc(nextDept).n}` });
+      notifyDeptHandoff(nextDept, job, item, PAINT_DEPT_KEY, user);
     }
   } else {
     logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
@@ -4829,6 +4875,11 @@ function getAllPendingBudgetApprovals() {
 // left out rather than faked).
 function getJobAttentionFlags(job) {
   const flags = [];
+  // Urgency/deadline signals (6 Aug 2026 audit, loophole #8).
+  if (job.urgent && job.status === "open") flags.push({ label: "URGENT", tone: "bad" });
+  if (job.promisedDate && job.status === "open" && job.promisedDate < todayStrGlobal() && !jobProductionComplete(job)) {
+    flags.push({ label: `Promised ${job.promisedDate} — overdue`, tone: "bad" });
+  }
   if (!job.routingConfirmed && job.status !== "cancelled") flags.push({ label: "Awaiting Routing", tone: "warn" });
   // Fix Plan Phase 1 (5 Aug 2026, Fable audit finding #3) — defense in
   // depth alongside the confirmVariationToJobCard() fix above: flags ANY
@@ -5043,7 +5094,12 @@ function refreshJobFromQuotation(jobId) {
   // (6 Aug 2026 audit, Medium). Previously this synced each line but left
   // job.amount frozen at its confirm-time value, so an Approver correction
   // to the quote left the job's revenue figure stale everywhere it's read.
-  job.amount = Math.round(job.items.reduce((s, it) => s + (it.amount || 0), 0) * 1000) / 1000;
+  // Sums netAmount (VAT-inclusive) — job.amount has always been the
+  // quotation's netTotal, which computeQuotationTotals() defines as the sum
+  // of item netAmounts (an earlier draft of this fix summed pre-VAT
+  // it.amount, silently shrinking job.amount by the VAT share on refresh —
+  // corrected same day).
+  job.amount = Math.round(job.items.reduce((s, it) => s + (it.netAmount || it.amount || 0), 0) * 1000) / 1000;
   persistJobCardUpdate(job);
   return job;
 }
@@ -5214,7 +5270,37 @@ function addLabourCostEntry(jobId, { employee, jobItemLineId, normalHrs = 0, otH
 function setJobStatus(jobId, status) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
+  // A job can't be marked COMPLETED while routed departments are still
+  // mid-flight (6 Aug 2026 audit, loophole #8 — this was completely
+  // ungated). Same production-complete rule as delivery, so "completed"
+  // can never be less finished than "deliverable". Cancelling stays
+  // ungated — cancelling mid-production is a legitimate real-world action,
+  // and re-opening a cancelled job was already supported.
+  if (status === "completed" && !jobProductionComplete(job)) {
+    return { error: "Can't mark completed — production isn't finished for every line on this job yet." };
+  }
   job.status = status;
+  persistJobCardUpdate(job);
+  return job;
+}
+
+// Urgency + promised delivery date (6 Aug 2026 audit, loophole #8 — no
+// urgent/priority/deadline field existed anywhere on a job). Set by
+// Operations; surfaced via getJobAttentionFlags() and a 🔥 marker on the
+// department queues, so shop-floor prioritisation has a real signal.
+function setJobUrgent(jobId, urgent, user) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  job.urgent = !!urgent;
+  logActivity({ type: "job-priority", linkedType: "job", linkedId: job.id, user, message: `${job.id} marked ${job.urgent ? "URGENT" : "normal priority"}` });
+  persistJobCardUpdate(job);
+  return job;
+}
+function setJobPromisedDate(jobId, promisedDate, user) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  job.promisedDate = promisedDate || null;
+  logActivity({ type: "job-promised-date", linkedType: "job", linkedId: job.id, user, message: `${job.id} promised date ${job.promisedDate ? "set to " + job.promisedDate : "cleared"}` });
   persistJobCardUpdate(job);
   return job;
 }
@@ -6432,14 +6518,28 @@ function getMonthlyRevenueByDivision(monthsBack, scope) {
 
   jobCards.forEach(job => {
     if (job.status === "cancelled") return;
-    const mk = (job.date || "").slice(0, 7);
-    if (!byMonthDiv[mk]) return;
+    const jobMk = (job.date || "").slice(0, 7);
     const qtn = quotations.find(q => q.id === job.quotationId);
     const enq = qtn ? enquiries.find(e => e.id === qtn.enquiryId) : null;
     if (scope.salesPerson && (!enq || enq.salesPerson !== scope.salesPerson)) return;
     const div = enq ? enq.division : null;
-    if (!div || !(div in byMonthDiv[mk])) return;
-    byMonthDiv[mk][div] += job.amount || 0;
+    if (!div) return;
+    // Bucket per ITEM, not per job (6 Aug 2026 audit, Phase D): a Variation
+    // merged months after confirmation used to have its whole value counted
+    // in the job's ORIGINAL month — a variation item now lands in the month
+    // its own variation was actually confirmed. Base items keep the job's
+    // confirm month. Values are netAmount (VAT-inclusive) — the same
+    // definition job.amount has always had (the quotation's netTotal is the
+    // sum of item netAmounts, see computeQuotationTotals()).
+    job.items.forEach(it => {
+      let mk = jobMk;
+      if (it.variationId) {
+        const v = quotations.find(q => q.id === it.variationId);
+        if (v && (v.confirmDate || v.date)) mk = (v.confirmDate || v.date).slice(0, 7);
+      }
+      if (!byMonthDiv[mk] || !(div in byMonthDiv[mk])) return;
+      byMonthDiv[mk][div] += it.netAmount || it.amount || 0;
+    });
   });
 
   return { months, byMonthDiv, divisions: SALES_DIVISIONS.slice() };

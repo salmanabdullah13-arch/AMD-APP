@@ -5199,3 +5199,72 @@ built; per-salesperson Sales scope deferred (see below).
   attribution + variation month bucketing), the rest of Phase E (urgent/
   promised-date field, hand-off notifications via Messages, setJobStatus
   gating), and flagged loophole #2 (enforce estimation stage before approval).
+
+### 6 Aug 2026 — Audit Phases E (rest) + D (part): hand-off notifications, setJobStatus gate, urgent/promised-date, variation month bucketing
+
+Salman: "Keep going" — built everything left that needed no further policy
+input. Also fixed a real bug in this session's own earlier Phase A commit
+(see the VAT note below) and caught one more missed metal call site.
+
+- **Hand-off notifications (data.js, loophole #8)** — the Messages system
+  existed but the pipeline never called it. New `notifyDeptHandoff()` +
+  `DEPT_HANDOFF_RECIPIENT` map (carp → Joinery Production Manager, uph →
+  Upholstery Manager, paint → Painting Lead / Work Supervisor; Curtain
+  skipped — it works its own `curtainJobs[]`): every `handOffLine()`/
+  `handOffPaintingLine()` now messages the RECEIVING department's lead, and
+  `confirmJobRouting()` pings each first-stop department (routing is the
+  pipeline's first hand-off) — one message per department per job. All
+  fire-and-forget: a notification failure can never break the hand-off/
+  routing itself. Their dashboards already render the shared inbox widget
+  with an unread badge, so no new UI was needed.
+- **`setJobStatus('completed')` gated (data.js, loophole #8)** — was
+  completely ungated; now refuses while routed production is unfinished
+  (same `jobProductionComplete()` rule as delivery, so "completed" can never
+  be less finished than "deliverable"). Cancelling stays ungated on purpose
+  (cancelling mid-production is legitimate; re-opening was already
+  supported).
+- **Urgent + promised date (data.js/operations.js/dept-pipeline-ui.js/
+  painting.js, loophole #8)** — no urgency/deadline field existed anywhere.
+  New `job.urgent`/`job.promisedDate` (+ `setJobUrgent()`/
+  `setJobPromisedDate()`, both activity-logged), set from the Operations
+  routing card (checkbox + date input). Surfaced: `getJobAttentionFlags()`
+  gains "URGENT" and "Promised <date> — overdue" flags; both department
+  queue tables (shared + Painting's own) show 🔥 and a due-date line (red
+  once past).
+- **Variation month bucketing (data.js, Phase D part)** —
+  `getMonthlyRevenueByDivision()` now buckets per ITEM: base items at the
+  job's confirm month, variation-tagged items at their own variation's
+  confirm month (previously the whole growing `job.amount` sat in the job's
+  original month). Values are per-item `netAmount` — the same VAT-inclusive
+  definition `job.amount` has always had. The rest of Phase D (per-item
+  DEPARTMENT attribution for multi-dept jobs) still needs Salman's
+  allocation-rule decision and was NOT built.
+- **Bug fixed in this session's own Phase A commit**:
+  `refreshJobFromQuotation()`'s recompute summed pre-VAT `it.amount`,
+  silently shrinking `job.amount` by the VAT share on every refresh
+  (`job.amount` is the quotation's netTotal = sum of item `netAmount`s, per
+  `computeQuotationTotals()`). Caught while building the bucketing fix —
+  now sums `netAmount`, e2e-checked against the item's real VAT-inclusive
+  figure.
+- **One more missed metal call site** — Operations' routing-override
+  checkboxes (`renderJobRouting()`, operations.js) still listed all of
+  `DEPTS` incl. Metal Works; now `ROUTABLE_DEPTS`, matching the Estimator
+  fix from earlier today.
+- **Verification**: new `e2e-audit-phase-de-rest.js` (10/10) — routing +
+  hand-off pings actually landing in the recipients' inboxes, the completed
+  gate (blocked mid-flight / cancel allowed / allowed once done), urgent +
+  promised-date flags and the 🔥/due-date queue display, delta-checked
+  variation-vs-base month bucketing, and the VAT-correct refresh.
+  `e2e-dashboard-enhancements.js` updated (its refresh check marked a
+  never-produced job "completed" — now walks the line to done first, the
+  way a real job reaches completed) — 19/19. Full offline regression sweep
+  green, including `e2e-chart-widgets.js` 15/15 — confirming its earlier
+  one-check failure was the documented time-of-day UTC-rollover flake
+  (fails shortly after local midnight, passes later), not a code issue.
+- **Still open, all needing Salman's input**: QC-pass maker-checker (who is
+  the independent checker per department, given single-person roles);
+  Phase D's multi-department revenue allocation rule (how to split one
+  item's value across carp+uph etc.); loophole #2 (enforce estimation stage
+  before approval — trips ~18 test seeds, needs its own pass); per-
+  salesperson Sales-dashboard scope (needs salesperson identity wired into
+  the Sales module).

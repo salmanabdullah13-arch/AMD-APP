@@ -327,7 +327,7 @@ function renderPaintingQueue() {
       else if (r.entry.status === 'rework') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="paintingAction('reworkPaintingBackToProduction','${r.job.id}',${r.item.lineId})">Resume Production</button>`;
       else if (r.entry.status === 'ready-for-handoff') action = `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="paintingAction('handOffPaintingLine','${r.job.id}',${r.item.lineId},'${ptEsc(paintingCurrentUser)}')">Hand Off →</button>`;
       return `<tr>
-        <td>${ptEsc(r.job.id)}<br><span style="color:#94a3b8;font-size:10.5px;">${ptEsc(c ? c.name : '—')}</span></td>
+        <td>${r.job.urgent ? '<span title="Urgent">🔥</span> ' : ''}${ptEsc(r.job.id)}${r.job.promisedDate ? `<br><span style="color:${r.job.promisedDate < todayStrGlobal() ? 'var(--bad,#d9342b)' : '#94a3b8'};font-size:10px;">due ${r.job.promisedDate}</span>` : ''}<br><span style="color:#94a3b8;font-size:10.5px;">${ptEsc(c ? c.name : '—')}</span></td>
         <td>${ptEsc(r.item.product)}${r.entry.reworkCount ? ` <span style="color:#b91c1c;font-size:9.5px;">(rework ×${r.entry.reworkCount})</span>` : ''}${r.entry.rejectReason ? `<br><span style="color:#b91c1c;font-size:9.5px;">✕ ${ptEsc(r.entry.rejectReason)}</span>` : ''}</td>
         <td>${r.item.qty} ${ptEsc(r.item.unit)}</td>
         <td>${matCell}</td>

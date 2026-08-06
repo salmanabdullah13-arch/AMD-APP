@@ -969,7 +969,7 @@ function renderJobRouting() {
         <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:8px;">
           <p style="font-size:12.5px;font-weight:600;">${it.product} <span style="font-weight:400;color:var(--ink2);">· ${it.qty} ${it.unit}</span></p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
-            ${DEPTS.map(d => `<label style="font-size:11px;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${seq.includes(d.k) ? 'checked' : ''} onchange="opsToggleRoutingDept('${job.id}',${it.lineId},'${d.k}',this.checked)"> ${d.n}</label>`).join('')}
+            ${ROUTABLE_DEPTS.map(d => `<label style="font-size:11px;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${seq.includes(d.k) ? 'checked' : ''} onchange="opsToggleRoutingDept('${job.id}',${it.lineId},'${d.k}',this.checked)"> ${d.n}</label>`).join('')}
           </div>
         </div>`;
       }).join('');
@@ -980,6 +980,10 @@ function renderJobRouting() {
           <span class="pill info">Assign now</span>
         </div>
         ${rowsHtml}
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:8px;margin-top:8px;">
+          <label style="font-size:12px;display:flex;align-items:center;gap:5px;"><input type="checkbox" ${job.urgent ? 'checked' : ''} onchange="setJobUrgent('${job.id}', this.checked, 'Operations Manager'); renderJobRouting();"> 🔥 Urgent</label>
+          <label style="font-size:12px;display:flex;align-items:center;gap:5px;">Promised date <input type="date" value="${job.promisedDate || ''}" onchange="setJobPromisedDate('${job.id}', this.value, 'Operations Manager');"></label>
+        </div>
         <div class="btnrow">
           <button class="primary" onclick="opsConfirmRouting('${job.id}')">Confirm routing &amp; dispatch →</button>
         </div>

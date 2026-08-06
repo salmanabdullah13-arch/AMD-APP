@@ -49,7 +49,7 @@ function renderDeptQueue(deptKey, currentUser, modPrefix, statusFilter) {
       else if (r.entry.status === 'rework') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','reworkLineBackToProduction','${r.job.id}',${r.item.lineId},'${deptKey}')">Resume Production</button>`;
       else if (r.entry.status === 'ready-for-handoff') action = `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','handOffLine','${r.job.id}',${r.item.lineId},'${deptKey}','${deptEsc(currentUser)}')">Hand Off →</button>`;
       return `<tr>
-        <td>${deptEsc(r.job.id)}<br><span style="color:#94a3b8;font-size:10.5px;">${deptEsc(c ? c.name : '—')}</span></td>
+        <td>${r.job.urgent ? '<span title="Urgent">🔥</span> ' : ''}${deptEsc(r.job.id)}${r.job.promisedDate ? `<br><span style="color:${r.job.promisedDate < todayStrGlobal() ? 'var(--bad,#d9342b)' : '#94a3b8'};font-size:10px;">due ${r.job.promisedDate}</span>` : ''}<br><span style="color:#94a3b8;font-size:10.5px;">${deptEsc(c ? c.name : '—')}</span></td>
         <td>${deptEsc(r.item.product)}${r.entry.reworkCount ? ` <span style="color:#b91c1c;font-size:9.5px;">(rework ×${r.entry.reworkCount})</span>` : ''}${r.entry.rejectReason ? `<br><span style="color:#b91c1c;font-size:9.5px;">✕ ${deptEsc(r.entry.rejectReason)}</span>` : ''}</td>
         <td>${r.item.qty} ${deptEsc(r.item.unit)}</td>
         <td><span class="stage-pill ${r.entry.status}">${DEPT_QUEUE_STAGE_LABEL[r.entry.status] || r.entry.status}</span></td>
