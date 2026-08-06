@@ -2333,7 +2333,13 @@ function getJobMaterialRequirement() {
       po.items.forEach(it => { if (it.itemId === item.id) poQty += Number(it.qty) || 0; });
     });
 
-    const reqQty = Math.max(0, orders - matIssued - poQty - (item.closingStock || 0));
+    // closingStock clamps at 0 here: the real Item Master seed carries
+    // genuinely negative book stock (uncorrected drift in the live system),
+    // and a raw subtraction would turn "-100 in stock, zero demand" into a
+    // phantom shortfall of 100. Negative stock is a data-quality signal,
+    // not open demand — an item only shows required qty when real orders
+    // exist beyond whatever non-negative stock can cover.
+    const reqQty = Math.max(0, orders - matIssued - poQty - Math.max(0, item.closingStock || 0));
     return { itemId: item.id, itemName: item.name, unit: item.unit, closingStock: item.closingStock || 0, orders, matIssued, poQty, reqQty };
   });
 }
@@ -2511,6 +2517,102 @@ const EMPLOYEE_RATES = {
   'Ammar Bahadur': { rate: 0.704, department: 'Watchman', category: 'Production' },
 };
 
+// ── REAL MONTHLY SALARIES — July 2026 payroll (production + admin files,
+// uploaded 6 Aug 2026). basic/ot/allow/hra/other are the real BD payslip
+// figures; net is that month's actual net salary; cpr is the real CPR
+// (9-digit, leading zeros restored — Excel strips them). designation comes
+// from the production file's per-person timesheet sheets where present.
+// Employees showing 0 across the board had a zero July payslip in the real
+// file (leave/vacation) — their pay heads are left empty rather than
+// invented. NOTE (real data-quality issue in the source file, not a bug
+// here): Ammar Bahadur / Suneel Kumar / Mohammad Abdullah share one CPR
+// (871287684) in the payroll sheet itself — flag to correct in HR.
+const EMPLOYEE_SALARIES = {
+  "Sohail Qureshi": { basic: 165, ot: 55, allow: 0, hra: 0, other: 0, net: 220, cpr: "911023640", designation: "Sales Executive" },
+  "Vinod Sharma": { basic: 160, ot: 38.75, allow: 0, hra: 0, other: 10, net: 208.75, cpr: "870715496" },
+  "Manoj Sharma": { basic: 130, ot: 37.714, allow: 0, hra: 0, other: 10, net: 177.714, cpr: "990449254" },
+  "Upendra Paswan": { basic: 110, ot: 30.938, allow: 0, hra: 0, other: 0, net: 140.938, cpr: "000120472" },
+  "Gufran Ahmed": { basic: 250, ot: 82.292, allow: 0, hra: 0, other: 50, net: 382.292, cpr: "740320653", designation: "Carpenter / Driver" },
+  "Subhan": { basic: 180, ot: 80.531, allow: 0, hra: 0, other: 0, net: 260.531, cpr: "940128454", designation: "Carpenter" },
+  "Sainath Vangala": { basic: 0, ot: 0, allow: 0, hra: 0, other: 0, net: 0, cpr: "851473970" },
+  "Elakkiyaselvan Maharajan": { basic: 120, ot: 30.625, allow: 0, hra: 0, other: 0, net: 147.625, cpr: "010634843", designation: "Carpenter" },
+  "Raj Kumar": { basic: 162, ot: 27.844, allow: 0, hra: 0, other: 0, net: 189.844, cpr: "930175620", designation: "Carpenter" },
+  "Jai Prakash": { basic: 155, ot: 24.375, allow: 0, hra: 0, other: 10, net: 189.375, cpr: "088140746", designation: "Painter" },
+  "Ajay Paswan": { basic: 225, ot: 121.875, allow: 0, hra: 0, other: 0, net: 346.875, cpr: "901317810", designation: "Carpenter" },
+  "Amith Sharma": { basic: 150, ot: 47.266, allow: 0, hra: 0, other: 0, net: 197.266, cpr: "881370274", designation: "Carpenter" },
+  "Vijay Kumar": { basic: 110, ot: 34.661, allow: 0, hra: 0, other: 10, net: 154.661, cpr: "040127249", designation: "Carpenter" },
+  "Jithendra": { basic: 130, ot: 47.193, allow: 0, hra: 0, other: 0, net: 177.193, cpr: "940193027", designation: "Helper" },
+  "Govind Kharwar": { basic: 120, ot: 48.25, allow: 0, hra: 0, other: 0, net: 168.25, cpr: "020142960", designation: "Helper" },
+  "Shameer Shah": { basic: 180, ot: 51.563, allow: 0, hra: 0, other: 0, net: 231.563, cpr: "901376370", designation: "Store Keeper" },
+  "Mohammed Khalid": { basic: 120, ot: 26.125, allow: 0, hra: 0, other: 0, net: 146.125, cpr: "040431924", designation: "Helper" },
+  "Mohammed Raza": { basic: 48, ot: 2.188, allow: 0, hra: 0, other: 0, net: 50.188, cpr: "020634641", designation: "Helper" },
+  "Ravindar Gadde": { basic: 0, ot: 0, allow: 0, hra: 0, other: 0, net: 0, cpr: "790772701", designation: "Carpenter" },
+  "Balwinder Signh": { basic: 140, ot: 43.359, allow: 0, hra: 0, other: 10, net: 193.359, cpr: "810772531", designation: "Carpenter" },
+  "Brijanandan": { basic: 0, ot: 0, allow: 0, hra: 0, other: 0, net: 0, cpr: "970248970", designation: "Carpenter" },
+  "Mahendra Sahani": { basic: 160, ot: 35.25, allow: 0, hra: 0, other: 0, net: 195.25, cpr: "801519950", designation: "Painter" },
+  "Raheed Mohammed": { basic: 119, ot: 43.313, allow: 0, hra: 0, other: 0, net: 162.313, cpr: "850152801", designation: "Carpenter" },
+  "Subutktgin (SHIBU)": { basic: 170, ot: 46.042, allow: 0, hra: 0, other: 20, net: 236.042, cpr: "800727509", designation: "Technician" },
+  "Mohammad Naeem": { basic: 0, ot: 0, allow: 0, hra: 0, other: 0, net: 0, cpr: "771051549", designation: "Tailor" },
+  "Ibrahim Khurshid": { basic: 120, ot: 0, allow: 0, hra: 0, other: 0, net: 120, cpr: "950851841", designation: "Tailor" },
+  "Mohd. Javed": { basic: 180, ot: 0, allow: 0, hra: 0, other: 0, net: 180, cpr: "880744642", designation: "Technician" },
+  "Amran Mia Md Rahis Mia": { basic: 180, ot: 8.438, allow: 0, hra: 0, other: 0, net: 188.438, cpr: "870193929", designation: "Technician" },
+  "Murugaiya Pillai Selvaraj": { basic: 250, ot: 0, allow: 0, hra: 0, other: 0, net: 250, cpr: "600083004", designation: "Technician" },
+  "Muhammad Jamshed": { basic: 140, ot: 6.563, allow: 0, hra: 0, other: 0, net: 146.563, cpr: "800147286", designation: "Carpenter" },
+  "Mohammed Waseem Rahmani": { basic: 135, ot: 0, allow: 0, hra: 0, other: 0, net: 110, cpr: "990133656", designation: "Technician" },
+  "Jamaluddin": { basic: 140, ot: 0, allow: 0, hra: 0, other: 0, net: 140, cpr: "631112715", designation: "Technician" },
+  "Mohammed Rubel Miah": { basic: 120, ot: 38.25, allow: 0, hra: 0, other: 0, net: 158.25, cpr: "880182695", designation: "Technician" },
+  "Prince Kaler": { basic: 120, ot: 14.813, allow: 0, hra: 0, other: 0, net: 134.813, cpr: "010164375", designation: "Technician" },
+  "Muhammad Aslam": { basic: 110, ot: 18.792, allow: 0, hra: 0, other: 0, net: 128.792, cpr: "851285635", designation: "Tailor" },
+  "Ifran Hussain": { basic: 120, ot: 18.75, allow: 0, hra: 0, other: 0, net: 138.75, cpr: "020728387", designation: "Upholsterer" },
+  "Mushraf Hussain": { basic: 145, ot: 33.984, allow: 0, hra: 0, other: 0, net: 178.984, cpr: "860269760", designation: "Technician" },
+  "Shahzad Farooq": { basic: 110, ot: 18.161, allow: 0, hra: 0, other: 0, net: 128.161, cpr: "990550893", designation: "Technician" },
+  "Saeed Ahmad": { basic: 170, ot: 59.943, allow: 0, hra: 0, other: 20, net: 249.943, cpr: "721306292", designation: "Technician" },
+  "Muhammad Furqan": { basic: 120, ot: 48.938, allow: 0, hra: 0, other: 30, net: 198.938, cpr: "980739284" },
+  "Sameer Pasha": { basic: 0, ot: 0, allow: 0, hra: 0, other: 0, net: 0, cpr: "010327320", designation: "Driver" },
+  "Rajendra Kumar": { basic: 110, ot: 14.036, allow: 0, hra: 0, other: 0, net: 124.036, cpr: "751435503", designation: "Carpenter" },
+  "Md Alenabi": { basic: 100, ot: 10.417, allow: 0, hra: 0, other: 0, net: 110.417, cpr: "851468209", designation: "Helper" },
+  "Rijwan Alam": { basic: 110, ot: 0, allow: 0, hra: 0, other: 0, net: 110, cpr: "930136888", designation: "Tailor" },
+  "Mhd Sahil": { basic: 100, ot: 20, allow: 0, hra: 0, other: 0, net: 120, cpr: "990163288", designation: "Helper" },
+  "Soheb Ahmed": { basic: 120, ot: 28.125, allow: 0, hra: 0, other: 0, net: 148.125, cpr: "040233286", designation: "Helper" },
+  "Shamim Ansari": { basic: 120, ot: 17.25, allow: 0, hra: 0, other: 0, net: 137.25, cpr: "881494771", designation: "Helper" },
+  "Ammar Bahadur": { basic: 120, ot: 0, allow: 0, hra: 0, other: 0, net: 120, cpr: "871287684", designation: "Helper" },
+  "Suneel Kumar": { basic: 160, ot: 42.333, allow: 0, hra: 0, other: 0, net: 202.333, cpr: "871287684", designation: "Carpenter" },
+  "Mohammad Abdullah": { basic: 110, ot: 14.781, allow: 0, hra: 0, other: 0, net: 124.781, cpr: "871287684", designation: "Helper" },
+  "Abdul Raheem Mohammed": { basic: 220, ot: 10, allow: 0, hra: 0, other: 30, net: 260, cpr: "730724387" },
+  "Karthikeyan Selvaraj": { basic: 220, ot: 10, allow: 0, hra: 0, other: 30, net: 260, cpr: "010724150" },
+  "Altaf Hasan Ali Ghare": { basic: 400, ot: 0, allow: 0, hra: 0, other: 50, net: 450, cpr: "760524637" },
+  "Jinesh Valiyavalappil Jayarajan": { basic: 400, ot: 0, allow: 0, hra: 0, other: 50, net: 450, cpr: "850317720" },
+  "Arbaz Iqbal Malim": { basic: 120, ot: 0, allow: 0, hra: 0, other: 20, net: 140, cpr: "970454481" },
+  "Rajneesh Vailezhath": { basic: 250, ot: 0, allow: 0, hra: 100, other: 50, net: 400, cpr: "860555666" },
+  "Shuhaib Mundel Kattil": { basic: 160, ot: 0, allow: 0, hra: 0, other: 0, net: 117.333, cpr: "881470350" },
+  "Venkateswara Rao Neredimilli": { basic: 110, ot: 0, allow: 0, hra: 0, other: 0, net: 110, cpr: "890593043" },
+  "Arun Kumar A": { basic: 250, ot: 0, allow: 0, hra: 0, other: 50, net: 300, cpr: "001133870" },
+  "Sujith Kumar Angadipurath": { basic: 375, ot: 0, allow: 0, hra: 0, other: 125, net: 500, cpr: "771061412" },
+  "Sidharth Sathyan": { basic: 90, ot: 10, allow: 0, hra: 0, other: 0, net: 100, cpr: "980447844" },
+  "Sharad Kumar Viswakarma": { basic: 750, ot: 0, allow: 0, hra: 0, other: 100, net: 850, cpr: "851031471" },
+  "Sampath Suresh Kumar": { basic: 350, ot: 0, allow: 0, hra: 0, other: 0, net: 338.333, cpr: "950722685" },
+  "Latif Ullah": { basic: 300, ot: 0, allow: 0, hra: 0, other: 0, net: 300, cpr: "" },
+  "Zahra Abdullah": { basic: 500, ot: 0, allow: 0, hra: 150, other: 150, net: 800, cpr: "911210679" },
+  "Aysha Aslam Qureshi": { basic: 450, ot: 0, allow: 0, hra: 0, other: 0, net: 375, cpr: "020812302" },
+  "Abdul Rehman Aslam Qureshi": { basic: 500, ot: 0, allow: 0, hra: 150, other: 50, net: 650, cpr: "990510565" },
+  "Aslam Abdul Rehman Qureshi": { basic: 2250, ot: 0, allow: 0, hra: 0, other: 0, net: 2250, cpr: "670604658" },
+  "Abdullah Abdul Haq": { basic: 2250, ot: 0, allow: 0, hra: 0, other: 0, net: 2250, cpr: "560091060" },
+  "Salman Abdullah": { basic: 1000, ot: 0, allow: 0, hra: 250, other: 250, net: 1500, cpr: "940210444" },
+};
+
+// Builds the HR Employee record's Salary-tab rows from a real
+// EMPLOYEE_SALARIES entry. Zero heads are skipped, not stored as 0-rows.
+function buildPayHeadsFromSalary(s) {
+  if (!s) return [];
+  const heads = [];
+  if (s.basic) heads.push({ head: "Basic Salary", amount: s.basic });
+  if (s.ot) heads.push({ head: "Overtime", amount: s.ot });
+  if (s.allow) heads.push({ head: "Allowance", amount: s.allow });
+  if (s.hra) heads.push({ head: "HRA", amount: s.hra });
+  if (s.other) heads.push({ head: "Other Allowances", amount: s.other });
+  return heads;
+}
+
 // ═══════════════════════════════════════
 // HR & PAYROLL MODULE DATA — Masters → Payroll → Employee, Dashboards → HR
 // Built session: 3 Aug 2026, traced from
@@ -2552,7 +2654,7 @@ const PAY_HEADS = ["Basic Salary", "Allowance", "Overtime", "HRA", "Air Ticket",
 let employees = Object.entries(EMPLOYEE_RATES).map(([name, r], i) => ({
   id: "E" + String(10001 + i),
   name, nickName: "",
-  designation: r.category === "Admin" ? "Office Staff" : "Production Staff",
+  designation: (EMPLOYEE_SALARIES[name] && EMPLOYEE_SALARIES[name].designation) || (r.category === "Admin" ? "Office Staff" : "Production Staff"),
   department: EMP_RATE_DEPT_TO_REAL_DEPT[r.department] || "Administration",
   function: "", location: "Main Workshop", doj: "", group: "Emp Group 1",
   status: "Active", terminationDate: "", terminationReason: "",
@@ -2561,11 +2663,11 @@ let employees = Object.entries(EMPLOYEE_RATES).map(([name, r], i) => ({
   email: "", mobile: "", localContact: "", officeTel: "", landline: "",
   contactPersonNo: "", homeContact: "", homeContactNo: "", localAddress: "", homeAddress: "", spouseName: "",
   bankName: "", bankBranch: "", bankAccountNo: "", iban: "",
-  cpr: "", cprExpiry: "", licenceNo: "", licenceExpiry: "",
+  cpr: (EMPLOYEE_SALARIES[name] || {}).cpr || "", cprExpiry: "", licenceNo: "", licenceExpiry: "",
   passportNo: "", passportCountry: "", passportIssue: "", passportExpiry: "", visaNo: "", visaExpiry: "",
   contractStart: "", contractExpiry: "",
   normalRate: r.rate, otRate: +(r.rate * 1.5).toFixed(3),
-  payHeads: [], dependents: [], assets: [],
+  payHeads: buildPayHeadsFromSalary(EMPLOYEE_SALARIES[name]), dependents: [], assets: [],
   notes1: "", notes2: "", notes3: ""
 }));
 
@@ -2576,9 +2678,9 @@ let employees = Object.entries(EMPLOYEE_RATES).map(([name, r], i) => ({
 (function seedEmployeeCompliance() {
   const find = n => employees.find(e => e.name === n);
   const set = (name, patch) => { const e = find(name); if (e) Object.assign(e, patch); };
-  set("Abdullah Abdul Haq", { // Curtain Track lead — expired CPR, expiring passport
-    designation: "Track Lead", doj: "2019-03-12", nationality: "Bahrain", gender: "Male",
-    cpr: "880412345", cprExpiry: "2026-06-15", licenceNo: "BH-44120", licenceExpiry: "2027-01-10",
+  set("Abdullah Abdul Haq", { // Director — expired CPR, expiring passport (demo compliance dates)
+    designation: "Director", doj: "2019-03-12", nationality: "Bahrain", gender: "Male",
+    cprExpiry: "2026-06-15", licenceNo: "BH-44120", licenceExpiry: "2027-01-10",
     passportNo: "P1122334", passportCountry: "Bangladesh", passportIssue: "2020-02-01", passportExpiry: "2026-08-20",
     visaNo: "V9988", visaExpiry: "2027-04-01", contractStart: "2025-01-01", contractExpiry: "2027-01-01",
     dependents: [{ name: "Sohela Begum", relation: "Wife", dob: "1990-05-14", cpr: "", cprExpiry: "", passport: "P2233445", passportExpiry: "2026-09-05", visa: "", visaExpiry: "" }],
@@ -2586,23 +2688,23 @@ let employees = Object.entries(EMPLOYEE_RATES).map(([name, r], i) => ({
   });
   set("Subutktgin (SHIBU)", { // Install crew — valid across the board
     designation: "Install Crew Lead", doj: "2018-07-01", nationality: "India", gender: "Male",
-    cpr: "870112233", cprExpiry: "2027-11-01", licenceNo: "BH-30219", licenceExpiry: "2028-02-14",
+    cprExpiry: "2027-11-01", licenceNo: "BH-30219", licenceExpiry: "2028-02-14",
     passportNo: "K4455667", passportCountry: "India", passportIssue: "2021-06-01", passportExpiry: "2031-06-01",
     visaNo: "V5566", visaExpiry: "2027-09-01", contractStart: "2025-07-01", contractExpiry: "2027-07-01",
   });
   set("Muhammad Furqan", { // expiring driving licence + expired visa
     designation: "Install Crew", doj: "2021-02-20", nationality: "Pakistan", gender: "Male",
-    cpr: "900233445", cprExpiry: "2027-02-01", licenceNo: "BH-51002", licenceExpiry: "2026-08-25",
+    cprExpiry: "2027-02-01", licenceNo: "BH-51002", licenceExpiry: "2026-08-25",
     passportNo: "AB123456", passportCountry: "Pakistan", passportIssue: "2019-03-01", passportExpiry: "2029-03-01",
     visaNo: "V7712", visaExpiry: "2026-07-10", contractStart: "2024-03-01", contractExpiry: "2026-09-01",
   });
   set("Salman Abdullah", { // owner — valid, seeded for realism
     designation: "Owner", doj: "2015-01-01", nationality: "Bahrain", gender: "Male",
-    cpr: "800112233", cprExpiry: "2029-01-01", contractStart: "2015-01-01", contractExpiry: "2030-01-01",
+    cprExpiry: "2029-01-01", contractStart: "2015-01-01", contractExpiry: "2030-01-01",
   });
   set("Sharad Kumar Viswakarma", { // expired contract
     designation: "Account Clerk", doj: "2020-05-10", nationality: "India", gender: "Male",
-    cpr: "910445566", cprExpiry: "2027-05-10", passportNo: "L9988776", passportCountry: "India",
+    cprExpiry: "2027-05-10", passportNo: "L9988776", passportCountry: "India",
     passportIssue: "2020-01-01", passportExpiry: "2030-01-01", visaNo: "V3344", visaExpiry: "2027-01-01",
     contractStart: "2024-05-10", contractExpiry: "2026-07-20",
   });
@@ -3392,24 +3494,31 @@ function createCatelog({ name, vendorId = null } = {}) {
 // from this real master via searchItemMaster()/ITEM_MASTER below).
 const itemMaster = [];
 function nextItemStockCode() {
-  return "IT" + String(3500 + itemMaster.length).padStart(6, "0");
+  // Continues after the highest real Q-Pro code in the seeded master
+  // (the real export runs IT003318-IT003517), not a length-based counter —
+  // seeded items carry their real ids, so length no longer tracks the max.
+  const max = itemMaster.reduce((m, it) => {
+    const n = parseInt(String(it.id).replace(/^IT/, ""), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 3499);
+  return "IT" + String(max + 1).padStart(6, "0");
 }
 function createItemMasterEntry({
-  stockCategory, vendorId = null, catelogId = null, vatPercent = 10, name,
+  id = null, stockCategory, vendorId = null, catelogId = null, vatPercent = 10, name,
   rollWidth = null, packing = "", unit, cost = 0, sellingPrice = 0, reorderLevel = 0,
   description = "", purchaseAllowed = true, salesAllowed = true, rawMaterial = false,
-  openingStock = 0
+  openingStock = 0, lastPurchaseRate = 0
 } = {}) {
   if (!stockCategory) return { error: "Stock Category is required." };
   if (!name || !name.trim()) return { error: "Stock Name is required." };
   if (!unit) return { error: "Units is required." };
   const item = {
-    id: nextItemStockCode(), stockCategory, vendorId, catelogId, vatPercent: Number(vatPercent) || 0,
+    id: id || nextItemStockCode(), stockCategory, vendorId, catelogId, vatPercent: Number(vatPercent) || 0,
     name: name.trim(), rollWidth: rollWidth ? Number(rollWidth) : null, packing, unit,
     cost: Number(cost) || 0, avgCost: Number(cost) || 0, sellingPrice: Number(sellingPrice) || 0,
     reorderLevel: Number(reorderLevel) || 0, description,
     purchaseAllowed: !!purchaseAllowed, salesAllowed: !!salesAllowed, rawMaterial: !!rawMaterial,
-    openingStock: Number(openingStock) || 0, closingStock: Number(openingStock) || 0, lastPurchaseRate: 0
+    openingStock: Number(openingStock) || 0, closingStock: Number(openingStock) || 0, lastPurchaseRate: Number(lastPurchaseRate) || 0
   };
   itemMaster.push(item);
   return item;
@@ -3421,16 +3530,232 @@ function updateItemMasterEntry(itemId, patch) {
   return it;
 }
 
-// Small starter catalogue — same items the old placeholder seed carried —
-// so the Estimator typeahead and the Reports below have something to work
-// with immediately.
+// Curtain rail/track items — now carrying their REAL legacy Q-Pro item
+// codes, matching the Storekeeper stock-pool's itemCode references above
+// (IT002395/IT001886/IT330/IT450/IT362 — the short legacy codes are padded
+// to the IT000NNN shape here so one parser handles all ids).
+// "Test Curtain Fabric" is the hand-authored trace record the seed
+// quotation references — kept, parked on an out-of-range id.
 [
-  { name: "Aluminium U-Shape Head Rail — Ningbo CH016", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 4.2, openingStock: 120 },
-  { name: "Cord Rail — Heavy Duty White (COR001)", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 3.6, openingStock: 85 },
-  { name: "Somfy Glydea Track — raw rail", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 28.5, openingStock: 14 },
-  { name: "Unisoiel Cord Track — DC01 Heavy", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 5.1, openingStock: 60 },
-  { name: "Roman Blind Headrail — Unisoiel RAE01", stockCategory: "Roller Blind & Accessories", unit: "Nos", cost: 6.8, openingStock: 22 },
-  { name: "Test Curtain Fabric - Mapping Exercise", stockCategory: "Non Stock Fabrics", unit: "Meters", cost: 2.0, openingStock: 500 }
+  { id: "IT001886", name: "Aluminium U-Shape Head Rail — Ningbo CH016", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 4.2, openingStock: 120 },
+  { id: "IT002395", name: "Cord Rail — Heavy Duty White (COR001)", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 3.6, openingStock: 85 },
+  { id: "IT000450", name: "Somfy Glydea Track — raw rail", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 28.5, openingStock: 14 },
+  { id: "IT000330", name: "Unisoiel Cord Track — DC01 Heavy", stockCategory: "Curtain Tracks & Accessories", unit: "Meters", cost: 5.1, openingStock: 60 },
+  { id: "IT000362", name: "Roman Blind Headrail — Unisoiel RAE01", stockCategory: "Roller Blind & Accessories", unit: "Nos", cost: 6.8, openingStock: 22 },
+  { id: "IT000001", name: "Test Curtain Fabric - Mapping Exercise", stockCategory: "Non Stock Fabrics", unit: "Meters", cost: 2.0, openingStock: 500 }
+].forEach(seed => createItemMasterEntry(seed));
+
+// ── REAL ITEM MASTER — StockItemExcelExport, uploaded 6 Aug 2026 ──
+// The full live stock item export: 200 items, real Q-Pro codes
+// (IT003318-IT003517), real cost / selling price / closing stock / last
+// purchase rate. Negative closing stock is real source data (uncorrected
+// stock drift in the live system), kept honestly rather than zeroed.
+// stockCategory/unit are INFERRED from the item-code prefix conventions
+// (ACC/CHA/HIN->Joinery Consumables, UPHACC/FOA->Upholstery, CURACC->Curtain
+// Tracks, PAI/PRI/HAR/PUT->Chemical, TOO/BIT->Tools, unprefixed names are
+// fabric collections->Balance Fabrics, ...) — correct any wrong guesses in
+// Storekeeper -> Item Master, they're plain editable fields.
+[
+  { id: "IT003517", name: "ACC046 CHALK LINE POWDER SET", stockCategory: "Joinery Consumables", unit: "Nos", cost: 1.2, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 1.2 },
+  { id: "IT003516", name: "ACC045 THREAD BUSH FOR WOOD", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.02, sellingPrice: 0, openingStock: -100, lastPurchaseRate: 0 },
+  { id: "IT003515", name: "MDF039 MFC PVC EDGE/BNDG 22X1MM BRIGHT WHITE-S 511 (AG)", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.2, sellingPrice: 0, openingStock: 50, lastPurchaseRate: 0.2 },
+  { id: "IT003514", name: "UPHACC021 SOFA CLIP-26MM -4 HOLE", stockCategory: "Upholstery Consumables", unit: "Nos", cost: 0.01, sellingPrice: 0, openingStock: -96, lastPurchaseRate: 0 },
+  { id: "IT003513", name: "ACC044 EVA Hot Melt Edgetherm Unfilled Clear 20Kg", stockCategory: "Joinery Consumables", unit: "Nos", cost: 2.25, sellingPrice: 0, openingStock: 20, lastPurchaseRate: 2.25 },
+  { id: "IT003512", name: "KALIMA 4545/20", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.2, sellingPrice: 0, openingStock: 65, lastPurchaseRate: 0 },
+  { id: "IT003511", name: "CURACC020 PLAIN PIPE (SILVER)", stockCategory: "Curtain Tracks & Accessories", unit: "Nos", cost: 0.825, sellingPrice: 0, openingStock: 60, lastPurchaseRate: 0.863 },
+  { id: "IT003510", name: "ELE035 ELECTRICAL DIMMER", stockCategory: "Others", unit: "Nos", cost: 4.5, sellingPrice: 0, openingStock: -3, lastPurchaseRate: 0 },
+  { id: "IT003509", name: "ELE034 LED DRIVER 400 WATT-24V", stockCategory: "Others", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003508", name: "ELE033 LED DRIVER 200 WATT-24V", stockCategory: "Others", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003507", name: "ELE032 LED DRIVER 100 WATT-24", stockCategory: "Others", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003506", name: "ACC043 KLEIBERIT 773.3 EVA HOT MELT BEIGE TRANSPARENT-20 KG", stockCategory: "Joinery Consumables", unit: "Nos", cost: 3.5, sellingPrice: 0, openingStock: 20, lastPurchaseRate: 3.5 },
+  { id: "IT003505", name: "ACC042 KLEIBERIT HOT PRESS ADHESIVE-25 KG", stockCategory: "Joinery Consumables", unit: "Nos", cost: 1.8, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 1.8 },
+  { id: "IT003504", name: "UPHACC012 VELCRO HOOK & LOOP-50MM-WHITE-NORMAL M/F", stockCategory: "Upholstery Consumables", unit: "Nos", cost: 0.067, sellingPrice: 0, openingStock: 259.5, lastPurchaseRate: 0 },
+  { id: "IT003503", name: "Nassaj 5027 / 03", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.5, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003502", name: "NASSAJ N11024-002", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 17.992, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003501", name: "NASSAJ N9091-024C", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 21.992, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003500", name: "NASSAJ N8051-015", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 12.99, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003499", name: "NASSAJ N9049-002", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 12.99, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003498", name: "NASSAJ N9049-006", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 12.99, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003497", name: "NASSAJ N9033-007", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.8, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 1.837 },
+  { id: "IT003496", name: "TOO099 CORDLESS DRILL(TIGHTER) 18V", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 65, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 65 },
+  { id: "IT003495", name: "Nassaj N9039-003", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.6, sellingPrice: 0, openingStock: 2.5, lastPurchaseRate: 2.652 },
+  { id: "IT003494", name: "Nassaj A11010-021", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2, sellingPrice: 0, openingStock: 3, lastPurchaseRate: 2.04 },
+  { id: "IT003493", name: "Nassaj N7003-006", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.9, sellingPrice: 0, openingStock: 2.01, lastPurchaseRate: 1.836 },
+  { id: "IT003492", name: "CURACC013 CURTAIN TAPE(50 MTR)", stockCategory: "Curtain Tracks & Accessories", unit: "Nos", cost: 0.07, sellingPrice: 0, openingStock: -43, lastPurchaseRate: 0 },
+  { id: "IT003491", name: "Nassaj N11011-002", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.5, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 1.4 },
+  { id: "IT003490", name: "Nassaj N9067-002", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.7, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 1.587 },
+  { id: "IT003489", name: "Nassaj N9033-009", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.8, sellingPrice: 0, openingStock: 2.5, lastPurchaseRate: 1.68 },
+  { id: "IT003488", name: "CURFAB010 FABRIC 100 (1 MTR @ 1.5 BD)", stockCategory: "Non Stock Fabrics", unit: "Meters", cost: 1.5, sellingPrice: 0, openingStock: -10.5, lastPurchaseRate: 0 },
+  { id: "IT003487", name: "PAI072 WB COLOR SYSTEM BASE EXTERIOR WHITE + COLORANT(JAZZ WHITE)", stockCategory: "Chemical Items", unit: "Nos", cost: 6, sellingPrice: 0, openingStock: -6, lastPurchaseRate: 0 },
+  { id: "IT003486", name: "BOL033 LN BOLT 8MM X 40MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.5, sellingPrice: 0, openingStock: 100, lastPurchaseRate: 0.09 },
+  { id: "IT003485", name: "PIN012 STAPLES 14/08", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.03, sellingPrice: 0, openingStock: -75, lastPurchaseRate: 0 },
+  { id: "IT003484", name: "CURFAB007 ROLLER BLIND FABRIC-216566RFR-1-300", stockCategory: "Roller Blind & Accessories", unit: "Nos", cost: 6.79, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003483", name: "CURFAB006 ROLLER BLIND FABRIC-263112-1-290", stockCategory: "Roller Blind & Accessories", unit: "Nos", cost: 3.63, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003482", name: "CURFAB005 LINING PLAIN 53117-4331011016", stockCategory: "Non Stock Fabrics", unit: "Meters", cost: 3.082, sellingPrice: 0, openingStock: 3, lastPurchaseRate: 3.082 },
+  { id: "IT003481", name: "BOL032 BOLT 8MM X 3.5 CM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.03, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003480", name: "CURACC010 SEWING NEEDLE-NORMAL", stockCategory: "Curtain Tracks & Accessories", unit: "Nos", cost: 0.364, sellingPrice: 0, openingStock: 6, lastPurchaseRate: 0.364 },
+  { id: "IT003479", name: "UPHACC006 ZIPPER-20''(1 PKT-50 NOS) MIXED COLOURS", stockCategory: "Upholstery Consumables", unit: "Nos", cost: 0.018, sellingPrice: 0, openingStock: 1388, lastPurchaseRate: 0.021 },
+  { id: "IT003478", name: "GUTHMI - 4848011048", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.2, sellingPrice: 0, openingStock: 6, lastPurchaseRate: 0 },
+  { id: "IT003477", name: "5125 010051", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.5, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003476", name: "Deera 20235-8", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 0.909, sellingPrice: 0, openingStock: 3, lastPurchaseRate: 0 },
+  { id: "IT003475", name: "Nassaj M 9010/11A", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.836, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003474", name: "Dazzle - DF 380 / 17", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 3.937, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003473", name: "Dazzle - DF 380 / 14", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.901, sellingPrice: 0, openingStock: 18, lastPurchaseRate: 0 },
+  { id: "IT003472", name: "5033 010 052", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.455, sellingPrice: 0, openingStock: 20, lastPurchaseRate: 0 },
+  { id: "IT003471", name: "Warwick Chambray Feather with FR", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 7.128, sellingPrice: 0, openingStock: 7, lastPurchaseRate: 0 },
+  { id: "IT003470", name: "Varenna AC InFR Col. 300 Width: +/-140cm", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 13.545, sellingPrice: 0, openingStock: 21, lastPurchaseRate: 0 },
+  { id: "IT003469", name: "Nassaj 5002-21", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.326, sellingPrice: 0, openingStock: 0.5, lastPurchaseRate: 0 },
+  { id: "IT003468", name: "Nassaj N 9024 - 019 B", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.856, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003467", name: "KL Himalayas -14", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 3.9, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003466", name: "Nassaj 9016/01", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.53, sellingPrice: 0, openingStock: 1.5, lastPurchaseRate: 0 },
+  { id: "IT003465", name: "Nassaj 9016/06", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.53, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003464", name: "Nassaj :N 9095/002D", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.222, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003463", name: "Sahim Cesar 1068/11", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.04, sellingPrice: 0, openingStock: 2.5, lastPurchaseRate: 0 },
+  { id: "IT003462", name: "Guthmi 13125 / 01", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 4.6, sellingPrice: 0, openingStock: 25.5, lastPurchaseRate: 0 },
+  { id: "IT003461", name: "Nassaj 9016/07", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.53, sellingPrice: 0, openingStock: 0.2, lastPurchaseRate: 0 },
+  { id: "IT003460", name: "Guthmi 13199/ 4", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.3, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003459", name: "Kilani Fabric 2465 / 22", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.9, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003458", name: "Janoub 4170 - 9", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.465, sellingPrice: 0, openingStock: 1.5, lastPurchaseRate: 0 },
+  { id: "IT003457", name: "Fibre Guard - Evoke, Design: MOOD, Colour: 30 - Canyon", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 9.55, sellingPrice: 0, openingStock: 1.5, lastPurchaseRate: 0 },
+  { id: "IT003456", name: "5051/32", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.2, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003455", name: "MANTILLA-19-RUSTIC-MANTILLA", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 14.42, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 0 },
+  { id: "IT003454", name: "Nassaj - 9061 B - 32", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.836, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003453", name: "N7047-10 CHENILLE SMART 1C 4040", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.04, sellingPrice: 0, openingStock: 1.5, lastPurchaseRate: 0 },
+  { id: "IT003452", name: "Nassaj 9016/03", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.53, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003451", name: "Hamasat 501 / 30", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.36, sellingPrice: 0, openingStock: 8, lastPurchaseRate: 0 },
+  { id: "IT003450", name: "ALCANTA - 152/01", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 9.246, sellingPrice: 0, openingStock: 0.5, lastPurchaseRate: 0 },
+  { id: "IT003449", name: "Home Ideas 1011 / 7", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.1, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003448", name: "D3 515 /19", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 5.6, sellingPrice: 0, openingStock: 5, lastPurchaseRate: 0 },
+  { id: "IT003447", name: "Guthmi - 13090 / 44", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 4.3, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003446", name: "DF 420-01", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 3.937, sellingPrice: 0, openingStock: 2.5, lastPurchaseRate: 0 },
+  { id: "IT003445", name: "Nassaj 9024/02", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.856, sellingPrice: 0, openingStock: 0.5, lastPurchaseRate: 0 },
+  { id: "IT003444", name: "Gadeer 792/31", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.1, sellingPrice: 0, openingStock: 12, lastPurchaseRate: 0 },
+  { id: "IT003443", name: "Guthmi 13147 / 17", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2, sellingPrice: 0, openingStock: 1.5, lastPurchaseRate: 0 },
+  { id: "IT003442", name: "Ghadeer 5051/03", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003441", name: "Janoub 4170/04", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.58, sellingPrice: 0, openingStock: 8, lastPurchaseRate: 0 },
+  { id: "IT003440", name: "Signature Leather - 12 - Black", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 3.937, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003439", name: "Fibre guard Sitout 09 Aluminum", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 11.55, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003438", name: "Riyami - Micro Suede SEN-3053", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.761, sellingPrice: 0, openingStock: 2.5, lastPurchaseRate: 0 },
+  { id: "IT003437", name: "Nomenclatura combinata/Hs Customs code : 41071291 Pelli bovine fiore - Tanned bovine leathers", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 13.696, sellingPrice: 0, openingStock: 4.5, lastPurchaseRate: 0 },
+  { id: "IT003436", name: "York - Beverly M1316", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 10.774, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003435", name: "YORK - CHELSEA M1223", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 10.774, sellingPrice: 0, openingStock: 1.5, lastPurchaseRate: 0 },
+  { id: "IT003434", name: "5033 010 041", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.364, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003433", name: "Guthmi 13305 / 15", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 7.6, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003432", name: "York - 152 / 07", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 9.246, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003431", name: "Fabric: HF Beige", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 12.95, sellingPrice: 0, openingStock: 5, lastPurchaseRate: 0 },
+  { id: "IT003430", name: "Kilani - 2330 / 24", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 5, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003429", name: "Guthmi-4928010037", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 6.5, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003428", name: "Guthmi - 4314013014", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 14.2, sellingPrice: 0, openingStock: 0.5, lastPurchaseRate: 0 },
+  { id: "IT003427", name: "Guthmi 4881011014", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 4, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003426", name: "D3 201 -18", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.8, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003425", name: "Nassaj N9027-17A", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.8, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003424", name: "Nassaj M 889 - 05", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 3.978, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003423", name: "Guthmi 4881014014", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 4, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003422", name: "5125 010 032", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.5, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0 },
+  { id: "IT003421", name: "Guthmi 4738 010 038", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 4, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003420", name: "D3 231/16", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 3.8, sellingPrice: 0, openingStock: 3.5, lastPurchaseRate: 0 },
+  { id: "IT003419", name: "Guthmi - Arqana Chenille - 13125 / 7", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 4.6, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003418", name: "Nassaj - 9067 - 07", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.734, sellingPrice: 0, openingStock: 8, lastPurchaseRate: 0 },
+  { id: "IT003417", name: "Guthmi 13147 / 4", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2, sellingPrice: 0, openingStock: 3, lastPurchaseRate: 0 },
+  { id: "IT003416", name: "5110010101", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2, sellingPrice: 0, openingStock: 5, lastPurchaseRate: 0 },
+  { id: "IT003415", name: "D3 503/33 - Leather", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 5.4, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003414", name: "CURACC009 NORMAL THREAD-MIXED COLOURS", stockCategory: "Curtain Tracks & Accessories", unit: "Nos", cost: 1, sellingPrice: 0, openingStock: -1.65, lastPurchaseRate: 0 },
+  { id: "IT003413", name: "CAB017 ELECTRICAL WIRE 1 CORE 4.0MM (1X91MTR)", stockCategory: "Others", unit: "Nos", cost: 0.2, sellingPrice: 0, openingStock: 180, lastPurchaseRate: 0 },
+  { id: "IT003412", name: "ELE031 ELECTRICAL ISOLATOR SWITCH", stockCategory: "Others", unit: "Nos", cost: 2, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003411", name: "ELE030 ELECTRICAL FLOOR SOCKET DOUBLE(STEEL) 13A", stockCategory: "Others", unit: "Nos", cost: 1.5, sellingPrice: 0, openingStock: 5, lastPurchaseRate: 0 },
+  { id: "IT003410", name: "UPHACC005 PIPING 5MM (ROLL 50MTR)", stockCategory: "Upholstery Consumables", unit: "Roll", cost: 0.04, sellingPrice: 0, openingStock: 490, lastPurchaseRate: 0.04 },
+  { id: "IT003409", name: "SUN MAR NATURAL SUNB 5020 152 - SUNBRELLA", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 6.539, sellingPrice: 0, openingStock: 12, lastPurchaseRate: 0 },
+  { id: "IT003408", name: "SUN MAR MARINE BLUSUNB 5031 152 - SUNBRELLA", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 6.539, sellingPrice: 0, openingStock: 70, lastPurchaseRate: 0 },
+  { id: "IT003407", name: "TOO098 NUT SOCKET SET(3 IN 1 SET)-13 MM", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 2, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003406", name: "CURACC008 WAXED LEATHER THREAD-MIXED COLOURS", stockCategory: "Curtain Tracks & Accessories", unit: "Nos", cost: 2.548, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003405", name: "UPHACC004 PIPING 6MM (ROLL 50MTR)", stockCategory: "Upholstery Consumables", unit: "Roll", cost: 0.027, sellingPrice: 0, openingStock: 240, lastPurchaseRate: 0.027 },
+  { id: "IT003404", name: "Sheer - Nassaj - C 811 / 03", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.2, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003403", name: "Kilani - 1710 / 18", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 1.5, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 0 },
+  { id: "IT003402", name: "4629013024", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 11.05, sellingPrice: 0, openingStock: 0.75, lastPurchaseRate: 0 },
+  { id: "IT003401", name: "4430010022", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 6.1, sellingPrice: 0, openingStock: 0.3, lastPurchaseRate: 0 },
+  { id: "IT003400", name: "4031010014", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.5, sellingPrice: 0, openingStock: 0.8, lastPurchaseRate: 0 },
+  { id: "IT003399", name: "Nassaaj 9091/ 25", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.5, sellingPrice: 0, openingStock: 5, lastPurchaseRate: 0 },
+  { id: "IT003398", name: "Nassaj 9055 - Z 15", stockCategory: "Balance Fabrics (Curtain/Upholstery)", unit: "Meters", cost: 2.3, sellingPrice: 0, openingStock: 0.5, lastPurchaseRate: 0 },
+  { id: "IT003397", name: "FOA124 FOAM-200X180X2.5CM-100D", stockCategory: "Upholstery Consumables", unit: "Nos", cost: 6.4, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 6.4 },
+  { id: "IT003396", name: "ELE029 DP SWITCH WHITE NEON", stockCategory: "Others", unit: "Nos", cost: 2.375, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 2.375 },
+  { id: "IT003395", name: "HAR005 WB HARDNER BASECOAT", stockCategory: "Chemical Items", unit: "Nos", cost: 13, sellingPrice: 0, openingStock: 1.6, lastPurchaseRate: 13 },
+  { id: "IT003394", name: "PRI010 THIXOTROPIC EXTERIOR WHITE PRIMER-25 KG", stockCategory: "Chemical Items", unit: "Nos", cost: 4.2, sellingPrice: 0, openingStock: 14, lastPurchaseRate: 4.2 },
+  { id: "IT003393", name: "LOC011 DRAWER LOCK 20 & 30 MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.5, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 0.5 },
+  { id: "IT003392", name: "TOO097 SPRAY PAINT GUN W-77G 2MM NOZLE", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 18, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 18 },
+  { id: "IT003391", name: "ACC041 CAM BOLT STEEL - KD", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.04, sellingPrice: 0, openingStock: 1000, lastPurchaseRate: 0 },
+  { id: "IT003390", name: "ACC040 PLASTIC BUSH", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.001, sellingPrice: 0, openingStock: 500, lastPurchaseRate: 0 },
+  { id: "IT003389", name: "ACC039 CAM LOCK NUT - KD", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.001, sellingPrice: 0, openingStock: 1000, lastPurchaseRate: 0 },
+  { id: "IT003388", name: "CHA051 SIDE CHANEL SOF CLOSE 250 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003387", name: "CHA050 SIDE CHANEL PUSH OPEN 250 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003386", name: "CHA049 SIDE CHANEL PUSH OPEN 550 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003385", name: "CHA048 SIDE CHANEL SOFT CLOSE 600 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003384", name: "CHA047 SIDE CHANEL PUSH OPEN 600 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003383", name: "NUT004 NUT 10MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.008, sellingPrice: 0, openingStock: -5, lastPurchaseRate: 0 },
+  { id: "IT003382", name: "NUT003 NUT 8MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.006, sellingPrice: 0, openingStock: -16, lastPurchaseRate: 0 },
+  { id: "IT003381", name: "CHA046 SIDE CHANEL SOFT CLOSE 500 MM LENGTH - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 2.2, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 2.4 },
+  { id: "IT003380", name: "HIN035 HINGES MOUNTING PLATE - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.15, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0.2 },
+  { id: "IT003379", name: "HIN034 HNGES THREE QUARTER SOFT CLOSE - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.55, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 0.6 },
+  { id: "IT003378", name: "CHA045 BOTTOM CHANEL PUSH OPEN 500 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.714 },
+  { id: "IT003377", name: "CHA044 BOTTOM CHANEL PUSH OPEN 450 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.4, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.609 },
+  { id: "IT003376", name: "CHA043 BOTTOM CHANEL PUSH OPEN 400 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.2, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.399 },
+  { id: "IT003375", name: "CHA042 BOTTOM CHANEL PUSH OPEN 300 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.19 },
+  { id: "IT003374", name: "CHA041 BOTTOM CHANEL SOFT CLOSE 550 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.8, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 5.028 },
+  { id: "IT003373", name: "CHA040 BOTTOM CHANEL NORMAL 400 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.3, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.504 },
+  { id: "IT003372", name: "CHA039 BOTTOM CHANEL NORMAL 350 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.1, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.295 },
+  { id: "IT003371", name: "CHA038 BOTTOM CHANEL SOFT CLOSE 300 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.19 },
+  { id: "IT003370", name: "CURACC005 PVC ROD (1Lenght x 6 Mtr)", stockCategory: "Curtain Tracks & Accessories", unit: "Nos", cost: 0.1, sellingPrice: 0, openingStock: -12, lastPurchaseRate: 0 },
+  { id: "IT003369", name: "HIN033 CONCEALED HINGES 2.5 INCH (PAIR)", stockCategory: "Joinery Consumables", unit: "Nos", cost: 3.5, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 3.5 },
+  { id: "IT003368", name: "NAI022 HEAD NAIL 2 INCH (1PktX100Nos)", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.002, sellingPrice: 0, openingStock: 16, lastPurchaseRate: 0.25 },
+  { id: "IT003367", name: "NAI021 HEAD NAIL 1.5 INCH (1PktX100Nos)", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.002, sellingPrice: 0, openingStock: 16, lastPurchaseRate: 0.25 },
+  { id: "IT003366", name: "NAI020 HEAD NAIL 3'' INCH", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.003, sellingPrice: 0, openingStock: 16, lastPurchaseRate: 0.25 },
+  { id: "IT003365", name: "ACC037 SHELF BUTTON WHITE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.016, sellingPrice: 0, openingStock: 382, lastPurchaseRate: 0.016 },
+  { id: "IT003364", name: "ACC036 SHELF BUTTON BROWN", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.016, sellingPrice: 0, openingStock: 360, lastPurchaseRate: 0.016 },
+  { id: "IT003363", name: "ACC035 SHELF BUTTON CLEAR", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.016, sellingPrice: 0, openingStock: 494, lastPurchaseRate: 0.016 },
+  { id: "IT003362", name: "MDF038 MFC PVC EDGE/BNDG 22X1MM LIGHT GREY", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.2, sellingPrice: 0, openingStock: 50, lastPurchaseRate: 0.2 },
+  { id: "IT003361", name: "MDF037 MFC (INNOVUS) 2800X2070X18mm BS LIGHT GREY", stockCategory: "Joinery Consumables", unit: "Nos", cost: 29, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 29 },
+  { id: "IT003360", name: "MDF036 MDF BEECH VENEER 2 SIDE 4X8X18MM (CROWN)", stockCategory: "Joinery Consumables", unit: "Nos", cost: 12.5, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 12.5 },
+  { id: "IT003359", name: "PAI071 NC NATIONAL MATT S8500-N 3.6 Ltr", stockCategory: "Chemical Items", unit: "Nos", cost: 3.194, sellingPrice: 0, openingStock: 25.2, lastPurchaseRate: 3.194 },
+  { id: "IT003358", name: "ELE026 SOLDERING WIRE (for Soldering)", stockCategory: "Others", unit: "Nos", cost: 3, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003357", name: "ACC034 HANGING CLIP PLASTIC", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.15, sellingPrice: 0, openingStock: -60, lastPurchaseRate: 0 },
+  { id: "IT003356", name: "VEN018 RECON VENEER - Oak 633S 0.5mm", stockCategory: "Joinery Consumables", unit: "Nos", cost: 1.6, sellingPrice: 0, openingStock: 21.25, lastPurchaseRate: 1.6 },
+  { id: "IT003355", name: "TOO096 PAINT ROLLER HANDLE (LONG) 4 INCH", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 0.5, sellingPrice: 0, openingStock: -2, lastPurchaseRate: 0 },
+  { id: "IT003354", name: "ACC033 NAIL BUSH BROWN & WHITE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.04, sellingPrice: 0, openingStock: -54, lastPurchaseRate: 0 },
+  { id: "IT003353", name: "ACC032 PLASTIC / MAGNETIC PUSHOPEN WHITE 5 CM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.25, sellingPrice: 0, openingStock: -8, lastPurchaseRate: 0 },
+  { id: "IT003352", name: "PUT021 PUTTY MAHOGANY NO 10 (200Grm Bottle)", stockCategory: "Chemical Items", unit: "Nos", cost: 0.6, sellingPrice: 0, openingStock: 16, lastPurchaseRate: 0 },
+  { id: "IT003351", name: "PAI070 RICH GOLD 4000 (PAINT POWDER) 500ML", stockCategory: "Chemical Items", unit: "Nos", cost: 2.5, sellingPrice: 0, openingStock: 2, lastPurchaseRate: 0 },
+  { id: "IT003350", name: "PAI069 NC TOP COAT COMFORT WHITE PAINT (1X3.6LTR)", stockCategory: "Chemical Items", unit: "Nos", cost: 1.83, sellingPrice: 0, openingStock: 14.4, lastPurchaseRate: 2.638 },
+  { id: "IT003349", name: "PAI068 NC WOOD STAIN - 38 (1X3.6LTR)", stockCategory: "Chemical Items", unit: "Nos", cost: 1.638, sellingPrice: 0, openingStock: 3.6, lastPurchaseRate: 0 },
+  { id: "IT003348", name: "VEN017 VENEER WALNUT (A.GR) QTR PANEL lgth", stockCategory: "Joinery Consumables", unit: "Nos", cost: 3.6, sellingPrice: 0, openingStock: 39.33, lastPurchaseRate: 3.6 },
+  { id: "IT003347", name: "WAS007 GI Washer 30MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.004, sellingPrice: 0, openingStock: -39, lastPurchaseRate: 0 },
+  { id: "IT003346", name: "WAS006 GI Washer 20MM-Large O", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.002, sellingPrice: 0, openingStock: -20, lastPurchaseRate: 0 },
+  { id: "IT003345", name: "WAS005 GI Washer 20MM-Small O", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.002, sellingPrice: 0, openingStock: -127, lastPurchaseRate: 0 },
+  { id: "IT003344", name: "WAS004 GI Washer 30MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 0.003, sellingPrice: 0, openingStock: -35, lastPurchaseRate: 0 },
+  { id: "IT003343", name: "LOC010 DOOR STOPER MAGNATIC", stockCategory: "Joinery Consumables", unit: "Nos", cost: 1, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003342", name: "CURACC007 BATON ROD 150 CMS", stockCategory: "Curtain Tracks & Accessories", unit: "Nos", cost: 2.25, sellingPrice: 0, openingStock: 40, lastPurchaseRate: 1.865 },
+  { id: "IT003341", name: "WOO028 IROKO WOOD KD2", stockCategory: "Joinery Consumables", unit: "Nos", cost: 45, sellingPrice: 0, openingStock: 3.564, lastPurchaseRate: 45 },
+  { id: "IT003340", name: "BIT076 HSS COBALT TWIST DRILL BIT-5MM", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 0.9, sellingPrice: 0, openingStock: 3, lastPurchaseRate: 0.9 },
+  { id: "IT003339", name: "BIT075 POWERBIT/TIGHTER 100MM(GOLDEN COLOUR)", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 0.37, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 0.37 },
+  { id: "IT003338", name: "TOO095 STRAIGHT FILES 200MM-08''", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 1.25, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 1.25 },
+  { id: "IT003337", name: "TOO094 HALF ROUND FILES 200MM-08''", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 1.25, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 1.25 },
+  { id: "IT003336", name: "ROP001 CURTAIN ROPE WEIGHT 2KG/ROLL(50G/M", stockCategory: "Curtain Tracks & Accessories", unit: "Roll", cost: 6.091, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 6.091 },
+  { id: "IT003335", name: "MET012 METAL TUBE 80X40X3MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 9, sellingPrice: 0, openingStock: -6, lastPurchaseRate: 0 },
+  { id: "IT003334", name: "CHA037 BOTTOM CHANEL PUSH OPEN 350 MM - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.1, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.295 },
+  { id: "IT003333", name: "CHA036 BOTTOM CHANEL SOFT CLOSE 350 MM 30 KG - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.1, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003332", name: "CHA035 BOTTOM CHANEL SOFT CLOSE 450 MM 30 KG - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.5, sellingPrice: 0, openingStock: 8, lastPurchaseRate: 4.725 },
+  { id: "IT003331", name: "CHA034 BOTTOM CHANEL SOFT CLOSE 500 MM 30 KG - HAFELE", stockCategory: "Joinery Consumables", unit: "Nos", cost: 4.6, sellingPrice: 0, openingStock: 4, lastPurchaseRate: 4.818 },
+  { id: "IT003330", name: "HIN032 AHDC96292 / DC962 Ultimate DC962 Concealed Cam Action Door Closer", stockCategory: "Joinery Consumables", unit: "Nos", cost: 36, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 36 },
+  { id: "IT003329", name: "CHA033 ZHACS1130 MBL CONCEALED HINGE FR 134X24MM", stockCategory: "Joinery Consumables", unit: "Nos", cost: 9, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 9 },
+  { id: "IT003328", name: "TOO093 WOOD WORKING VENEER INDUSTRIAL IRON BOX(MD#GW1211)", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 24.08, sellingPrice: 0, openingStock: 0, lastPurchaseRate: 0 },
+  { id: "IT003327", name: "SWI007 ROCKER SWITCH (LED) KCD1 BLACK", stockCategory: "Others", unit: "Nos", cost: 0.5, sellingPrice: 0, openingStock: 30, lastPurchaseRate: 0.5 },
+  { id: "IT003326", name: "VEN016 LIPPING VENEER WALNUT-21 X50-ROLL", stockCategory: "Joinery Consumables", unit: "Roll", cost: 0, sellingPrice: 0, openingStock: -25, lastPurchaseRate: 0 },
+  { id: "IT003325", name: "VEN015 NATURAL WOOD VENEER EUROPEAN", stockCategory: "Joinery Consumables", unit: "Nos", cost: 3.83, sellingPrice: 0, openingStock: -51, lastPurchaseRate: 0 },
+  { id: "IT003324", name: "PAI065 SILKALASTIC 505-BH WATER PROOF PAINT- 20KG", stockCategory: "Chemical Items", unit: "Nos", cost: 0.55, sellingPrice: 0, openingStock: 20, lastPurchaseRate: 0.55 },
+  { id: "IT003323", name: "BIT074 STEEL DRILL BIT 10 MM", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 1.2, sellingPrice: 0, openingStock: 5, lastPurchaseRate: 1.2 },
+  { id: "IT003322", name: "BIT073 STEEL DRILL BIT 4.5 MM", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 0.25, sellingPrice: 0, openingStock: 10, lastPurchaseRate: 0.25 },
+  { id: "IT003321", name: "TOO092 SPANNER 15''", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 1.3, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 1.3 },
+  { id: "IT003320", name: "TOO091 SPANNER 13''", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 1, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 1 },
+  { id: "IT003319", name: "TOO090 SPANNER 14''", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 1.2, sellingPrice: 0, openingStock: 1, lastPurchaseRate: 1.2 },
+  { id: "IT003318", name: "BIT072 HILTI BIT 6MM X 210 L", stockCategory: "Workshop Tools & Accessories", unit: "Nos", cost: 0.7, sellingPrice: 0, openingStock: 5, lastPurchaseRate: 0.7 },
 ].forEach(seed => createItemMasterEntry(seed));
 
 // Estimator's Materials tab was built against a flat `ITEM_MASTER` array

@@ -1036,3 +1036,40 @@ create policy "job_cards updatable, department-scoped for production roles"
       )
     )
   );
+
+-- ────────────────────────────────────────────────────────────────────────
+-- CURTAIN JOBS — Phase 2, final slice (6 Aug 2026).
+-- Curtain's own production tracker (curtainJobs[] in data.js: window groups,
+-- stitching/track/QC/install progress, BOM, item cards). Stored as one jsonb
+-- payload per job rather than normalized tables — curtain.js treats the whole
+-- job as one object it mutates in place across ~5,900 lines, and the client
+-- syncs via a snapshot-diff autosave (see initCloudCurtainJobsCache /
+-- autosaveCurtainJobs in data.js), so a whole-row upsert is the natural unit.
+-- The derived flat `windows` array is stripped client-side before save and
+-- rebuilt from windowGroups on hydrate.
+-- RLS: any approved user (same baseline as customers/enquiries/quotations —
+-- finer per-role scoping is Phase 3 territory, same note as those tables).
+-- ────────────────────────────────────────────────────────────────────────
+create table if not exists public.curtain_jobs (
+  id text primary key,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.curtain_jobs enable row level security;
+
+drop policy if exists "curtain_jobs readable by any signed-in user" on public.curtain_jobs;
+create policy "curtain_jobs readable by any signed-in user"
+  on public.curtain_jobs for select to authenticated using (public.is_approved());
+
+drop policy if exists "curtain_jobs insertable by any signed-in user" on public.curtain_jobs;
+create policy "curtain_jobs insertable by any signed-in user"
+  on public.curtain_jobs for insert to authenticated with check (public.is_approved());
+
+drop policy if exists "curtain_jobs updatable by any signed-in user" on public.curtain_jobs;
+create policy "curtain_jobs updatable by any signed-in user"
+  on public.curtain_jobs for update to authenticated using (public.is_approved()) with check (public.is_approved());
+
+drop policy if exists "curtain_jobs deletable by any signed-in user" on public.curtain_jobs;
+create policy "curtain_jobs deletable by any signed-in user"
+  on public.curtain_jobs for delete to authenticated using (public.is_approved());
