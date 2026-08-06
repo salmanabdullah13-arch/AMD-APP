@@ -4257,7 +4257,12 @@ function submitLineForQC(jobId, lineId, deptKey) {
 // pass=true -> "ready-for-handoff" (a real stop, waits for an explicit
 // handOffLine() call below — see the stage-vocabulary note above for
 // why); pass=false -> "rework" (loops back to in-production).
-function recordLineQCResult(jobId, lineId, deptKey, pass, user) {
+// reason (6 Aug 2026 audit, loophole #6): an optional QC reject reason,
+// captured on a fail the same way Curtain's own QC already records one. Kept
+// optional so existing callers (incl. e2e seeds) keep working — a fail with
+// no reason just stores null. The reason is stamped on the entry AND threaded
+// into the activity-log entry so getQCRejectReasonsForDept() can trend it.
+function recordLineQCResult(jobId, lineId, deptKey, pass, user, reason) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   const item = job.items.find(it => it.lineId === lineId);
@@ -4267,10 +4272,12 @@ function recordLineQCResult(jobId, lineId, deptKey, pass, user) {
   if (!pass) {
     entry.status = "rework";
     entry.reworkCount = (entry.reworkCount || 0) + 1;
-    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: deptKey, message: `${item.product} failed QC at ${dc(deptKey).n} (rework #${entry.reworkCount})` });
+    entry.rejectReason = (reason || "").trim() || null;
+    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: deptKey, reason: entry.rejectReason, message: `${item.product} failed QC at ${dc(deptKey).n} (rework #${entry.reworkCount})${entry.rejectReason ? ` — ${entry.rejectReason}` : ""}` });
     persistJobCardUpdate(job);
     return item;
   }
+  entry.rejectReason = null;
   entry.status = "ready-for-handoff";
   logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: deptKey, message: `${item.product} passed QC at ${dc(deptKey).n}` });
   persistJobCardUpdate(job);
@@ -4477,7 +4484,7 @@ function submitPaintingForQC(jobId, lineId) {
   return item;
 }
 
-function recordPaintingQCResult(jobId, lineId, pass, user) {
+function recordPaintingQCResult(jobId, lineId, pass, user, reason) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   const item = job.items.find(it => it.lineId === lineId);
@@ -4487,10 +4494,12 @@ function recordPaintingQCResult(jobId, lineId, pass, user) {
   if (!pass) {
     entry.status = "rework";
     entry.reworkCount = (entry.reworkCount || 0) + 1;
-    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, message: `${item.product} failed QC at Painting (rework #${entry.reworkCount})` });
+    entry.rejectReason = (reason || "").trim() || null; // 6 Aug 2026 audit loophole #6 — see recordLineQCResult()
+    logActivity({ type: "qc-fail", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, reason: entry.rejectReason, message: `${item.product} failed QC at Painting (rework #${entry.reworkCount})${entry.rejectReason ? ` — ${entry.rejectReason}` : ""}` });
     persistJobCardUpdate(job);
     return item;
   }
+  entry.rejectReason = null;
   entry.status = "ready-for-handoff";
   logActivity({ type: "qc-pass", linkedType: "job", linkedId: job.id, user, dept: PAINT_DEPT_KEY, message: `${item.product} passed QC at Painting` });
   persistJobCardUpdate(job);
@@ -6305,10 +6314,10 @@ const activityLog = [];
 // reliably filtered by department for the Joinery/Upholstery/Painting
 // dashboards' new quality-trend view, instead of parsing the department
 // name back out of the free-text message string.
-function logActivity({ type, linkedType = null, linkedId = null, user, message, dept = null }) {
+function logActivity({ type, linkedType = null, linkedId = null, user, message, dept = null, reason = null }) {
   const entry = {
     id: activityLog.length + 1, date: new Date().toISOString().slice(0, 10), time: new Date().toISOString(),
-    type, linkedType, linkedId, user, message, dept
+    type, linkedType, linkedId, user, message, dept, reason
   };
   activityLog.push(entry);
   return entry;
@@ -6335,6 +6344,25 @@ function getQCTrendForDept(deptKey, limit = 8) {
     passRate: total > 0 ? Math.round((passCount / total) * 100) : null,
     recent: entries.slice().sort((a, b) => b.time.localeCompare(a.time)).slice(0, limit)
   };
+}
+
+// QC reject-reason trend for a department (6 Aug 2026 audit, loophole #6) —
+// counts each captured reason across this department's qc-fail activity
+// entries, most-common first, so a QC dashboard can show WHY work fails, not
+// just how often. Fails logged before reason capture (or with no reason
+// entered) fall under "Unspecified".
+function getQCRejectReasonsForDept(deptKey, limit = 6) {
+  const counts = {};
+  activityLog
+    .filter(a => a.dept === deptKey && a.type === "qc-fail")
+    .forEach(a => {
+      const key = (a.reason && a.reason.trim()) || "Unspecified";
+      counts[key] = (counts[key] || 0) + 1;
+    });
+  return Object.entries(counts)
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
 }
 
 // ══════════════════════════════════════════

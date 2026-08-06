@@ -45,12 +45,12 @@ function renderDeptQueue(deptKey, currentUser, modPrefix, statusFilter) {
       if (r.entry.status === 'queued') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','startLineProduction','${r.job.id}',${r.item.lineId},'${deptKey}')">Start Production</button>`;
       else if (r.entry.status === 'in-production' && notReadyForQC) action = `<span style="font-size:10.5px;color:#94a3b8;">Waiting on ${deptEsc((typeof JOINERY_SUB_STAGE_LABEL !== 'undefined' && JOINERY_SUB_STAGE_LABEL[r.entry.joinerySubStage]) || r.entry.joinerySubStage)}</span>`;
       else if (r.entry.status === 'in-production') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','submitLineForQC','${r.job.id}',${r.item.lineId},'${deptKey}')">Submit for QC</button>`;
-      else if (r.entry.status === 'qc') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#0f9d58;" onclick="deptQueueAction('${modPrefix}','recordLineQCResult','${r.job.id}',${r.item.lineId},'${deptKey}',true,'${deptEsc(currentUser)}')">Pass</button> <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="deptQueueAction('${modPrefix}','recordLineQCResult','${r.job.id}',${r.item.lineId},'${deptKey}',false,'${deptEsc(currentUser)}')">Fail</button>`;
+      else if (r.entry.status === 'qc') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#0f9d58;" onclick="deptQueueAction('${modPrefix}','recordLineQCResult','${r.job.id}',${r.item.lineId},'${deptKey}',true,'${deptEsc(currentUser)}')">Pass</button> <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="deptQCFail('${modPrefix}','${r.job.id}',${r.item.lineId},'${deptKey}','${deptEsc(currentUser)}')">Fail</button>`;
       else if (r.entry.status === 'rework') action = `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','reworkLineBackToProduction','${r.job.id}',${r.item.lineId},'${deptKey}')">Resume Production</button>`;
       else if (r.entry.status === 'ready-for-handoff') action = `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="deptQueueAction('${modPrefix}','handOffLine','${r.job.id}',${r.item.lineId},'${deptKey}','${deptEsc(currentUser)}')">Hand Off →</button>`;
       return `<tr>
         <td>${deptEsc(r.job.id)}<br><span style="color:#94a3b8;font-size:10.5px;">${deptEsc(c ? c.name : '—')}</span></td>
-        <td>${deptEsc(r.item.product)}${r.entry.reworkCount ? ` <span style="color:#b91c1c;font-size:9.5px;">(rework ×${r.entry.reworkCount})</span>` : ''}</td>
+        <td>${deptEsc(r.item.product)}${r.entry.reworkCount ? ` <span style="color:#b91c1c;font-size:9.5px;">(rework ×${r.entry.reworkCount})</span>` : ''}${r.entry.rejectReason ? `<br><span style="color:#b91c1c;font-size:9.5px;">✕ ${deptEsc(r.entry.rejectReason)}</span>` : ''}</td>
         <td>${r.item.qty} ${deptEsc(r.item.unit)}</td>
         <td><span class="stage-pill ${r.entry.status}">${DEPT_QUEUE_STAGE_LABEL[r.entry.status] || r.entry.status}</span></td>
         <td>${action}</td>
@@ -69,6 +69,17 @@ function deptQueueAction(modPrefix, fnName, ...args) {
   if (result && result.error) { alertFn(result.error); return; }
   alertFn('✓ Updated.');
   if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
+}
+
+// QC fail prompts for a reason (6 Aug 2026 audit, loophole #6). The reason is
+// optional: OK with a blank field records the fail with no reason; Cancel
+// aborts the fail entirely (nothing recorded). Playwright's default dialog
+// accept returns "" here, so existing Fail-path e2e tests still record a
+// reasonless fail exactly as before.
+function deptQCFail(modPrefix, jobId, lineId, deptKey, user) {
+  const reason = prompt('Reason this line failed QC (optional — leave blank if none):');
+  if (reason === null) return; // cancelled — don't record a fail
+  deptQueueAction(modPrefix, 'recordLineQCResult', jobId, lineId, deptKey, false, user, reason);
 }
 
 // ══════════════════════════════════════════
@@ -135,7 +146,29 @@ function renderDeptQualityCard(deptKey) {
           ${cwRingStatCard(t.passRate, t.passRate + '%', 'First-Pass QC Rate', `${t.passCount} passed, ${t.failCount} failed (all-time)`, color)}
         </div>
       `}
+      ${renderQCRejectReasonList(deptKey)}
       ${recentRows}
+    </div>`;
+}
+
+// Top QC reject reasons for a department (6 Aug 2026 audit, loophole #6) —
+// the dashboard payoff of capturing reasons: WHY work fails, not just how
+// often. Shared by Joinery/Upholstery here and reused by Painting's own
+// quality card (painting.js). Renders nothing until at least one fail with a
+// real (non-Unspecified) reason exists, so it stays quiet on a clean board.
+function renderQCRejectReasonList(deptKey) {
+  const reasons = getQCRejectReasonsForDept(deptKey).filter(r => r.reason !== 'Unspecified');
+  if (reasons.length === 0) return '';
+  const max = Math.max(...reasons.map(r => r.count));
+  return `
+    <div style="margin:8px 0;">
+      <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:0 0 4px;">Top reject reasons</p>
+      ${reasons.map(r => `
+        <div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
+          <span style="flex:0 0 auto;font-size:11px;min-width:16px;color:var(--bad,#d9342b);font-weight:700;">${r.count}</span>
+          <div style="flex:1;height:8px;background:var(--biz-border-light,#e2e8f0);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${Math.round((r.count / max) * 100)}%;background:var(--bad,#d9342b);"></div></div>
+          <span style="flex:0 0 auto;font-size:11px;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${deptEsc(r.reason)}</span>
+        </div>`).join('')}
     </div>`;
 }
 

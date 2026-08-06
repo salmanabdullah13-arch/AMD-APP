@@ -5107,3 +5107,54 @@ products go to the Curtain (Tracks) department**.
   wins (per-salesperson scope already built but unsurfaced, Storekeeper
   reorder tile, Estimator/Approver aging) (loophole #8). Plus the flagged
   loophole #2 (enforce the estimation stage before approval) noted above.
+
+### 6 Aug 2026 — Audit fix Phase C (part 1): QC reject-reason capture
+
+Continued the audit fix plan (Salman: "Continue to Phase C"). Built the
+reject-reason half of loophole #6; the maker-checker-on-QC-pass half is a
+policy call still owed and was NOT built.
+
+- **Reject reason captured on every shared-pipeline + Painting QC fail**
+  (data.js) — `recordLineQCResult()` and `recordPaintingQCResult()` gain an
+  **optional trailing `reason` param** (kept optional so the ~6 existing
+  callers/e2e seeds passing no reason keep working — a reasonless fail stores
+  `null`). The reason is stamped on the line's `departmentStatuses` entry
+  (`entry.rejectReason`) and threaded into the activity-log entry. A
+  subsequent QC pass clears the stale reason. Adopts what Curtain's own QC
+  already did — the shared Joinery/Upholstery/Painting pipeline just never
+  had it.
+- **`logActivity()` gains a `reason` field** — it destructures a fixed field
+  set and was silently dropping the reason (caught live: the aggregation read
+  "Unspecified" while the entry held the real reason). Now threaded through.
+- **New `getQCRejectReasonsForDept(deptKey)`** — counts each captured reason
+  across that department's `qc-fail` activity, most-common first; fails with
+  no reason fall under "Unspecified".
+- **UI** — the shared pipeline's Fail button now routes through a new
+  `deptQCFail()` (dept-pipeline-ui.js) and Painting's through `paintingQCFail()`
+  (painting.js): both `prompt()` for an optional reason (Cancel aborts the
+  fail entirely; a blank OK records a reasonless fail — so Playwright's
+  default dialog-accept keeps existing Fail-path tests recording exactly as
+  before). The captured reason shows inline on the rework row, and a compact
+  "Top reject reasons" bar list was added to the Quality dashboard card
+  (shared `renderQCRejectReasonList()` for Joinery/Upholstery; an inlined
+  `renderPaintingRejectReasons()` for standalone Painting) — quiet until a
+  real reason exists, so a clean board shows nothing.
+- **Verification**: new `e2e-qc-reject-reasons.js` (7/7) — data-layer capture
+  + trim, aggregation, legacy 5-arg backward-compat, reason-clears-on-pass,
+  Painting equivalent, and the **real Fail-button UI path** with a reason
+  typed into the prompt and shown in the queue row. `node --check` + repo-
+  wide duplicate-declaration scan clean. Regression across every QC/activity-
+  log/dashboard-touching suite (batch8-phase2-4, dept-quality-rings, joinery-
+  substages/-gate, upholstery-granular, demo-data, activity-log-retrofit,
+  owner/dashboard-enhancements/lighter-touch/team-comms, curtain-bridge,
+  job-routing-gate, jobcard-unification, batch6-reports, variation-new-dept,
+  customer-feedback, fleet-delivery) — all green. Live-cloud/pwa suites not
+  re-run (nothing touches those paths).
+- **Still owed on Phase C — needs Salman's call**: maker-checker on QC
+  *pass* (`recordLineQCResult`/`recordPaintingQCResult` accept any name,
+  including the producer's own — no identity check). Whether to block a
+  self-pass, and who the second checker is per department, is a staffing/
+  policy decision like the budget maker-checker was — flagged, not guessed.
+- **Phases D/E** unchanged from the list above (revenue attribution;
+  setJobStatus gating / urgent field / hand-off notifications / dashboard
+  wins), plus flagged loophole #2 (enforce estimation stage before approval).
