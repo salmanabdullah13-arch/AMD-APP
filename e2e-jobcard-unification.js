@@ -37,13 +37,14 @@ function printReport() {
   await page.waitForSelector('#app', { state: 'visible' });
   record('App loads (real Supabase login replaced the old PIN, 4 Aug 2026)', 'PASS');
 
-  currentStep = 'seed-data-untouched';
-  const seedIntact = await page.evaluate(() => {
-    const cj = curtainJobs.find(j => j.id === 'AMD-15002');
-    const desc = Object.getOwnPropertyDescriptor(cj, 'val');
-    return { val: cj.val, deptVal: cj.deptVal, isPlainValue: desc && 'value' in desc };
-  });
-  record('Pre-existing seed curtainJob (AMD-15002) keeps its plain hardcoded val/deptVal, untouched by the getter change', seedIntact.val === 8450 && seedIntact.deptVal === 2800 && seedIntact.isPlainValue ? 'PASS' : 'FAIL', JSON.stringify(seedIntact));
+  currentStep = 'fixtures-cleared';
+  // 6 Aug 2026: the hand-seeded fixture jobs (AMD-15002 etc.) were cleared
+  // with the Curtain cloud migration — offline, all three arrays start empty
+  // and only fill via the bridge from real confirmed Job Cards.
+  const fixturesGone = await page.evaluate(() => ({
+    curtainJobs: curtainJobs.length, projects: projects.length, inquiries: purchaseInquiries.length
+  }));
+  record('Fixture curtainJobs/projects/purchaseInquiries are cleared (start empty offline)', fixturesGone.curtainJobs === 0 && fixturesGone.projects === 0 && fixturesGone.inquiries === 0 ? 'PASS' : 'FAIL', JSON.stringify(fixturesGone));
 
   currentStep = 'curtain-job-bridge-getter';
   const seed = await page.evaluate(() => {

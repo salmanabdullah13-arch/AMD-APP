@@ -1,8 +1,9 @@
 // Verification for cloud-backed job cards (4 Aug 2026, Phase 2 slice 3) —
 // same local-cache + optimistic-write pattern as customers/enquiries/
-// quotations, extended to jobCards[]. Scoped to jobCards[] only —
-// curtainJobs[]/projects[] deliberately stay local-only (see the design
-// note in supabase/schema.sql). Goes through the REAL cloud-login flow
+// quotations, extended to jobCards[]. (curtainJobs[]/purchaseInquiries[]
+// gained their own cloud sync on 6 Aug 2026 — see e2e-cloud-curtain.js;
+// projects[] stays a derived, rebuilt-on-load rollup with no table.)
+// Goes through the REAL cloud-login flow
 // as the dedicated 'E2E Test Account', same as the other cloud tests.
 //
 // Minimal path to a confirmed Job Card mirrors e2e-batch8-routing.js's

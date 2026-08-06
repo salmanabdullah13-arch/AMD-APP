@@ -1073,3 +1073,46 @@ create policy "curtain_jobs updatable by any signed-in user"
 drop policy if exists "curtain_jobs deletable by any signed-in user" on public.curtain_jobs;
 create policy "curtain_jobs deletable by any signed-in user"
   on public.curtain_jobs for delete to authenticated using (public.is_approved());
+
+-- Curtain's own purchase-inquiry tracker (purchaseInquiries[] in data.js) —
+-- same whole-payload jsonb + snapshot-diff autosave pattern as curtain_jobs.
+create table if not exists public.curtain_purchase_inquiries (
+  id text primary key,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.curtain_purchase_inquiries enable row level security;
+
+drop policy if exists "curtain_pi readable by any signed-in user" on public.curtain_purchase_inquiries;
+create policy "curtain_pi readable by any signed-in user"
+  on public.curtain_purchase_inquiries for select to authenticated using (public.is_approved());
+
+drop policy if exists "curtain_pi insertable by any signed-in user" on public.curtain_purchase_inquiries;
+create policy "curtain_pi insertable by any signed-in user"
+  on public.curtain_purchase_inquiries for insert to authenticated with check (public.is_approved());
+
+drop policy if exists "curtain_pi updatable by any signed-in user" on public.curtain_purchase_inquiries;
+create policy "curtain_pi updatable by any signed-in user"
+  on public.curtain_purchase_inquiries for update to authenticated using (public.is_approved()) with check (public.is_approved());
+
+drop policy if exists "curtain_pi deletable by any signed-in user" on public.curtain_purchase_inquiries;
+create policy "curtain_pi deletable by any signed-in user"
+  on public.curtain_purchase_inquiries for delete to authenticated using (public.is_approved());
+
+-- Realtime for both curtain tables (idempotent, same pattern as the rest)
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'curtain_jobs'
+  ) then
+    alter publication supabase_realtime add table public.curtain_jobs;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'curtain_purchase_inquiries'
+  ) then
+    alter publication supabase_realtime add table public.curtain_purchase_inquiries;
+  end if;
+end $$;

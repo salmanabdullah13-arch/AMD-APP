@@ -90,630 +90,15 @@ function suggestDepartmentSequence(product, enquiryDivision) {
 //   windowIds[] and every other id reference elsewhere continue to work unchanged.
 //   Migrating individual dashboards to read windowGroups/layers natively (and
 //   retiring the flatten step) is next-session scope.
-const curtainJobs = [
-  // ═══════════════════════════════════════
-  // AMD-15002 — Villa 5 Fit-out (Discovery Development)
-  // Migrated to current schema — was on the old flat calc engine
-  // ═══════════════════════════════════════
-  {
-    id: "AMD-15002",
-    name: "Villa 5 Fit-out",
-    client: "Discovery Development",
-    val: 8450,
-    deptVal: 2800, // curtain dept value within project — Operations use only, not shown in Curtain module UI
-    status: "execution", // stages: bom_pending | bom_submitted | budget_pending | budget_approved | execution | complete
-    bomStatus: "approved", // bom_pending | submitted | approved
-    budgetStatus: "approved", // pending | approved | rejected
-    bomRejectionComment: null, // string set by Operations on reject; cleared on (re)submit — single current comment, not a log
-    wastageBuffer: 10, // % — adjustable per job
-    windowGroups: [
-      // ── Master Bedroom ──
-      { id:"wg-15002-1", room:"Master Bedroom", width:280, height:260, qty:1, // 2 layers
-        layers: [
-          { id:"w001", role:"main", label:"Window 1", overhang:20,
-            treatment:"curtain", fabricType:"main", fabricCode:"Kravet Boucle", designType:"Wave",
-            fullness:2.5, rollWidth:140, patternRepeatV:32, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Aluminium U-Shape Head Rail — Ningbo CH016", railItemCode:"IT001886", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:19, calcDone:true, calc:null },
-          { id:"w002", role:"sheer", label:"Window 2 — Sheer", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"Gulf Sheer Voile", designType:"Wave",
-            fullness:2.5, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Aluminium U-Shape Head Rail — Ningbo CH016", railItemCode:"IT001886", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:9.6, calcDone:true, calc:null }
-        ] },
-      // ── Living Room ──
-      { id:"w003", room:"Living Room", width:420, height:280, qty:1, // single-layer
-        layers: [
-          { id:"w003", role:"single", label:"Sliding Door — Motorized", overhang:30,
-            treatment:"motorized", fabricType:"blackout", fabricCode:"Gulf Blackout 320", designType:"Triple pleat",
-            fullness:2, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy RS100", remoteType:"Single-channel Somfy Remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:23.5, calcDone:true, calc:null }
-        ] },
-      // ── Study ──
-      { id:"w004", room:"Study", width:120, height:180, qty:1, // single-layer
-        layers: [
-          { id:"w004", role:"single", label:"Roller Blind — Study", overhang:0,
-            treatment:"roller", fabricType:"blackout", fabricCode:"Gulf Blackout 320", designType:null,
-            fullness:1, rollWidth:200, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Roller Blind Bracket", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            cordType:"Ball chain", cordLength:180, cordSide:"right",
-            quoteEstimateMetres:2.3, calcDone:true, calc:null }
-        ] }
-    ],
-    bom: {
-      fabric: [
-        {type:"Main Fabric",   supplier:"Premium Fabric House", unitCost:18.5, budgeted:600, actual:650},
-        {type:"Sheer Fabric",  supplier:"Gulf Textiles",        unitCost:8.0,  budgeted:180, actual:180},
-        {type:"Blackout",      supplier:"Gulf Textiles",        unitCost:12.0, budgeted:220, actual:0}
-      ],
-      tracks: [
-        {type:"Manual Track",    qty:3, unitCost:35, budgeted:105, actual:105},
-        {type:"Motorized Track", qty:1, unitCost:320, budgeted:320, actual:320}
-      ],
-      motors: [
-        {brand:"Somfy", model:"RS100", qty:1, unitCost:285, budgeted:285, actual:285}
-      ],
-      accessories: [
-        {item:"Brackets",    qty:24, unitCost:1.2, budgeted:29,  actual:29},
-        {item:"Gliders",     qty:200,unitCost:0.15,budgeted:30,  actual:30},
-        {item:"Lead Weights",qty:12, unitCost:0.8, budgeted:10,  actual:10},
-        {item:"Tie Backs",   qty:4,  unitCost:8.5, budgeted:34,  actual:0}
-      ],
-      labour: [
-        {task:"Measuring",          hrs:3,  rate:8, budgeted:24,  actual:24},
-        {task:"Track Assembly",     hrs:6,  rate:8, budgeted:48,  actual:48},
-        {task:"Cutting & Sewing",   hrs:18, rate:8, budgeted:144, actual:160},
-        {task:"Blind Fabrication",  hrs:0,  rate:8, budgeted:0,   actual:0},
-        {task:"Installation",       hrs:8,  rate:8, budgeted:64,  actual:0}
-      ],
-      subcon: []
-    },
-    alerts: [],
-    procurement: [
-      {item:"Kravet Boucle fabric", supplier:"Premium Fabric House", ordered:"3 Jun", expected:"10 Jun", status:"pending", paid:false, cost:650},
-      {item:"Somfy RS100 motor",    supplier:"Somfy BH",             ordered:"3 Jun", expected:"8 Jun",  status:"received",paid:true,  cost:285}
-    ],
-    installation: {
-      scheduledDate: null,
-      team: null,
-      siteContact: null,
-      status: "pending", // pending | scheduled | complete
-      handoverSigned: false
-    }
-  },
-
-  // ═══════════════════════════════════════
-  // AMD-13374 — Poliform (id derived from Qtn No AMD-13374-1)
-  // Q-Pro Job Card JB26AMD01863 · Jan 2026 · Salesman Salman Abdullah
-  // Reference job — villa fit-out, ground + first floor
-  // ═══════════════════════════════════════
-  {
-    id: "AMD-13374",
-    name: "Poliform Villa — Drapery",
-    client: "Poliform",
-    qproJobCardNo: "JB26AMD01863",
-    qproQuoteNo: "AMD-13374-1",
-    val: null, // Operations-only value, not modeled for this reference job
-    deptVal: null,
-    status: "execution",
-    bomStatus: "approved",
-    budgetStatus: "approved",
-    bomRejectionComment: null,
-    wastageBuffer: 10,
-    windowGroups: [
-      // ── Living Room ──
-      { id:"pf-lr1", room:"Living Room", width:292, height:330, qty:2, // single-layer
-        layers: [
-          { id:"pf-lr1", role:"single", label:"Sheer A", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.9, calcDone:true, calc:null }
-        ] },
-      { id:"pf-lr2", room:"Living Room", width:280, height:330, qty:2, // single-layer
-        layers: [
-          { id:"pf-lr2", role:"single", label:"Sheer B", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.9, calcDone:true, calc:null }
-        ] },
-      { id:"pf-lr3", room:"Living Room", width:290, height:330, qty:4, // single-layer
-        layers: [
-          { id:"pf-lr3", role:"single", label:"Sheer C", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.9, calcDone:true, calc:null }
-        ] },
-      // ── Dining Room ──
-      { id:"pf-dr1", room:"Dining Room", width:307, height:330, qty:2, // single-layer
-        layers: [
-          { id:"pf-dr1", role:"single", label:"Sheer A", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.9, calcDone:true, calc:null }
-        ] },
-      { id:"pf-dr2", room:"Dining Room", width:310, height:330, qty:1, // single-layer
-        layers: [
-          { id:"pf-dr2", role:"single", label:"Sheer B", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.9, calcDone:true, calc:null }
-        ] },
-      { id:"pf-dr3", room:"Dining Room", width:300, height:330, qty:1, // single-layer
-        layers: [
-          { id:"pf-dr3", role:"single", label:"Sheer C", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.9, calcDone:true, calc:null }
-        ] },
-      { id:"pf-dr4", room:"Dining Room", width:255, height:330, qty:2, // single-layer
-        layers: [
-          { id:"pf-dr4", role:"single", label:"Sheer D", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:8, calcDone:true, calc:null }
-        ] },
-      // ── Gym Area ──
-      { id:"pf-gy1", room:"Gym Area", width:260, height:330, qty:3, // single-layer
-        layers: [
-          { id:"pf-gy1", role:"single", label:"Sheer A", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:8, calcDone:true, calc:null }
-        ] },
-      { id:"pf-gy2", room:"Gym Area", width:255, height:330, qty:1, // single-layer
-        layers: [
-          { id:"pf-gy2", role:"single", label:"Sheer B", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:8, calcDone:true, calc:null }
-        ] },
-      { id:"pf-gy3", room:"Gym Area", width:370, height:330, qty:1, // single-layer
-        layers: [
-          { id:"pf-gy3", role:"single", label:"Sheer C", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.9, calcDone:true, calc:null }
-        ] },
-      { id:"pf-gy4", room:"Gym Area", width:600, height:330, qty:1, // single-layer
-        layers: [
-          { id:"pf-gy4", role:"single", label:"Sheer D", overhang:15,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:19.6, calcDone:true, calc:null }
-        ] },
-      // ── Bedroom - 1 ──
-      { id:"wg-poliform-br1", room:"Bedroom - 1", width:565, height:354, qty:1, // 2 layers
-        layers: [
-          { id:"pf-br1-main", role:"main", label:"Blackout", overhang:20,
-            treatment:"curtain", fabricType:"blackout", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:41.5, calcDone:true, calc:null },
-          { id:"pf-br1-sheer", role:"sheer", label:"Sheer", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:20.9, calcDone:true, calc:null }
-        ] },
-      // ── Bedroom - 2 ──
-      { id:"wg-poliform-br2", room:"Bedroom - 2", width:565, height:354, qty:1, // 2 layers
-        layers: [
-          { id:"pf-br2-main", role:"main", label:"Blackout", overhang:20,
-            treatment:"curtain", fabricType:"blackout", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:41.5, calcDone:true, calc:null },
-          { id:"pf-br2-sheer", role:"sheer", label:"Sheer", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:20.9, calcDone:true, calc:null }
-        ] },
-      // ── Bedroom - 3 ──
-      { id:"wg-poliform-br3", room:"Bedroom - 3", width:565, height:354, qty:1, // 2 layers
-        layers: [
-          { id:"pf-br3-main", role:"main", label:"Blackout", overhang:20,
-            treatment:"curtain", fabricType:"blackout", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:41.5, calcDone:true, calc:null },
-          { id:"pf-br3-sheer", role:"sheer", label:"Sheer", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:20.9, calcDone:true, calc:null }
-        ] },
-      // ── Bedroom - 4 ──
-      { id:"wg-poliform-br4", room:"Bedroom - 4", width:565, height:354, qty:1, // 2 layers
-        layers: [
-          { id:"pf-br4-main", role:"main", label:"Blackout", overhang:20,
-            treatment:"curtain", fabricType:"blackout", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:41.5, calcDone:true, calc:null },
-          { id:"pf-br4-sheer", role:"sheer", label:"Sheer", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Cord Rail — Heavy Duty White (COR001)", railItemCode:"IT002395", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:20.9, calcDone:true, calc:null }
-        ] },
-      // ── First Floor - Master Living ──
-      { id:"wg-poliform-ffml", room:"First Floor - Master Living", width:588, height:354, qty:1, // 2 layers
-        layers: [
-          { id:"pf-ffml-main", role:"main", label:"Blackout — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"blackout", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy Glydea 60 RTS", remoteType:"Multi-channel Somfy Remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:31, calcDone:true, calc:null },
-          { id:"pf-ffml-sheer", role:"sheer", label:"Sheer — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy Glydea 35 WT", remoteType:"Multi-channel Somfy Remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:20.9, calcDone:true, calc:null }
-        ] },
-      // ── First Floor - Master Bedroom ──
-      { id:"wg-poliform-ffmb", room:"First Floor - Master Bedroom", width:565, height:354, qty:1, // 2 layers
-        layers: [
-          { id:"pf-ffmb-main", role:"main", label:"Blackout — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"blackout", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy Glydea 60 RTS", remoteType:"Multi-channel Somfy Remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:41.5, calcDone:true, calc:null },
-          { id:"pf-ffmb-sheer", role:"sheer", label:"Sheer — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"TBS", designType:"Triple pleat",
-            fullness:2.3, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy Glydea 35 WT", remoteType:"Multi-channel Somfy Remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:20.9, calcDone:true, calc:null }
-        ] }
-    ],
-    bom: {
-      fabric: [], tracks: [], motors: [], accessories: [], labour: [], subcon: []
-    },
-    alerts: [],
-    procurement: [],
-    installation: { scheduledDate: null, team: null, siteContact: null, status: "pending", handoverSigned: false }
-  },
-
-  // ═══════════════════════════════════════
-  // AMD-13898 — Abdulla Bokhowa (id derived from Qtn No AMD-13898-1)
-  // Q-Pro Job Card JB25AMD01739 · Nov 2025 · Salesman Salman Abdullah
-  // Reference job — large villa, ground + first floor + basement + toilets
-  // Mixed treatments: motorized curtains, manual curtains, Roman blinds,
-  // wooden venetian blinds, roller blinds. Fabric metreage in the quote is
-  // the ESTIMATE only — Silva's calc sheet remains the real figure.
-  // ═══════════════════════════════════════
-  {
-    id: "AMD-13898",
-    name: "Bokhowa Villa — Drapery",
-    client: "Abdulla Bokhowa",
-    qproJobCardNo: "JB25AMD01739",
-    qproQuoteNo: "AMD-13898-1",
-    val: null,
-    deptVal: null,
-    status: "execution",
-    bomStatus: "approved",
-    budgetStatus: "approved",
-    bomRejectionComment: null,
-    wastageBuffer: 10,
-    windowGroups: [
-      // ── External Majlis ──
-      { id:"wg-bokhowa-w1", room:"External Majlis", width:540, height:350, qty:1, // 2 layers
-        layers: [
-          { id:"bk-w1-curtain", role:"curtain", label:"W1 — Curtain", overhang:20,
-            treatment:"curtain", fabricType:"main", fabricCode:"YRK 408/02", designType:null,
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:37, calcDone:true, calc:null },
-          { id:"bk-w1-roman", role:"roman_blind", label:"W1 — Roman Blind (2 pcs)", overhang:0,
-            treatment:"roman", fabricType:"main", fabricCode:"Rhyme 02 — Pearl", designType:"2 pieces",
-            fullness:1, rollWidth:280, patternRepeatV:0, patternRepeatH:0, topHem:5, bottomHem:5, sideHem:3,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Roman Blind Headrail — Unisoiel RAE01", railItemCode:"IT362", openingDirection:"fixed", bracketType:"Recess bracket",
-            quoteEstimateMetres:8.3, calcDone:true, calc:null }
-        ] },
-      { id:"wg-bokhowa-w2", room:"External Majlis", width:420, height:350, qty:1, // 2 layers
-        layers: [
-          { id:"bk-w2-curtain", role:"curtain", label:"W2 — Curtain", overhang:20,
-            treatment:"curtain", fabricType:"main", fabricCode:"YRK 408/02", designType:null,
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:28.8, calcDone:true, calc:null },
-          { id:"bk-w2-roman", role:"roman_blind", label:"W2 — Roman Blind (2 pcs)", overhang:0,
-            treatment:"roman", fabricType:"main", fabricCode:"Rhyme 02 — Pearl", designType:"2 pieces",
-            fullness:1, rollWidth:280, patternRepeatV:0, patternRepeatH:0, topHem:5, bottomHem:5, sideHem:3,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Roman Blind Headrail — Unisoiel RAE01", railItemCode:"IT362", openingDirection:"fixed", bracketType:"Recess bracket",
-            quoteEstimateMetres:8.3, calcDone:true, calc:null }
-        ] },
-      // ── GF Foyer ──
-      { id:"bk-w3", room:"GF Foyer", width:540, height:350, qty:1, // single-layer
-        layers: [
-          { id:"bk-w3", role:"single", label:"W3 — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"DF324/46", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:16.6, calcDone:true, calc:null }
-        ] },
-      // ── GF Formal Living ──
-      { id:"bk-w4w5", room:"GF Formal Living", width:160, height:350, qty:2, // single-layer
-        layers: [
-          { id:"bk-w4w5", role:"single", label:"W4 & W5 — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"DF324/46", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:8.5, calcDone:true, calc:null }
-        ] },
-      { id:"bk-w6", room:"GF Formal Living", width:500, height:350, qty:1, // single-layer
-        layers: [
-          { id:"bk-w6", role:"single", label:"W6 — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"DF324/46", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:16.6, calcDone:true, calc:null }
-        ] },
-      { id:"bk-w7", room:"GF Formal Living", width:550, height:350, qty:1, // single-layer
-        layers: [
-          { id:"bk-w7", role:"single", label:"W7 — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"DF324/46", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:20.7, calcDone:true, calc:null }
-        ] },
-      { id:"bk-w8", room:"GF Formal Living", width:350, height:350, qty:1, // single-layer
-        layers: [
-          { id:"bk-w8", role:"single", label:"W8 — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"DF324/46", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:12.6, calcDone:true, calc:null }
-        ] },
-      // ── GF Dining Area ──
-      { id:"bk-w9", room:"GF Dining Area", width:550, height:350, qty:1, // single-layer
-        layers: [
-          { id:"bk-w9", role:"single", label:"W9 — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"DF324/46", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:20.7, calcDone:true, calc:null }
-        ] },
-      // ── GF Kitchen Area ──
-      { id:"bk-w10", room:"GF Kitchen Area", width:697, height:350, qty:1, // single-layer
-        layers: [
-          { id:"bk-w10", role:"single", label:"W10 — Motorized", overhang:20,
-            treatment:"motorized", fabricType:"sheer", fabricCode:"DF324/46", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:24.8, calcDone:true, calc:null }
-        ] },
-      // ── Master Bedroom ──
-      { id:"wg-bokhowa-w11", room:"Master Bedroom", width:700, height:320, qty:1, // 2 layers
-        layers: [
-          { id:"bk-w11-main", role:"main", label:"W11 — Main (Motorized)", overhang:20,
-            treatment:"motorized", fabricType:"main", fabricCode:"YRK 408-41", designType:"Pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 60 RTS with DCT", remoteType:"Multichannel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:45.2, calcDone:true, calc:null },
-          { id:"bk-w11-sheer", role:"sheer", label:"W11 — Sheer (Manual)", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"DF324/02", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:22.8, calcDone:true, calc:null }
-        ] },
-      { id:"wg-bokhowa-w12", room:"Master Bedroom", width:125, height:320, qty:1, // 2 layers
-        layers: [
-          { id:"bk-w12-main", role:"main", label:"W12 — Main (Manual)", overhang:20,
-            treatment:"curtain", fabricType:"main", fabricCode:"YRK 408-41", designType:"Wave",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:11.6, calcDone:true, calc:null },
-          { id:"bk-w12-sheer", role:"sheer", label:"W12 — Sheer (Manual)", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"DF324/02", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:4.1, calcDone:true, calc:null }
-        ] },
-      // ── Girls Bedroom ──
-      { id:"wg-bokhowa-w13", room:"Girls Bedroom", width:485, height:320, qty:1, // 2 layers
-        layers: [
-          { id:"bk-w13-main", role:"main", label:"W13 — Main (Motorized)", overhang:20,
-            treatment:"motorized", fabricType:"main", fabricCode:"YRK 408-29", designType:"Wave",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"1-channel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:34, calcDone:true, calc:null },
-          { id:"bk-w13-sheer", role:"sheer", label:"W13 — Sheer (Manual)", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"DF324/02", designType:"Wave",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:15.3, calcDone:true, calc:null }
-        ] },
-      { id:"bk-w14", room:"Girls Bedroom", width:150, height:320, qty:1, // single-layer
-        layers: [
-          { id:"bk-w14", role:"single", label:"W14 — Wooden Venetian Blind", overhang:0,
-            treatment:"wooden", fabricType:null, fabricCode:null, designType:"50mm slats, manual",
-            fullness:1, rollWidth:0, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Wooden Pole", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            quoteEstimateMetres:null, calcDone:true, calc:null }
-        ] },
-      // ── Bader's Bedroom ──
-      { id:"wg-bokhowa-w15w16", room:"Bader's Bedroom", width:160, height:320, qty:2, // 2 layers
-        layers: [
-          { id:"bk-w15w16-main", role:"main", label:"W15 & W16 — Main (Motorized)", overhang:20,
-            treatment:"motorized", fabricType:"main", fabricCode:"YRK 408-29", designType:"Pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"5-channel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:11.6, calcDone:true, calc:null },
-          { id:"bk-w15w16-sheer", role:"sheer", label:"W15 & W16 — Sheer (Manual)", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"DF324/02", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:7.8, calcDone:true, calc:null }
-        ] },
-      // ── Faisal's Room ──
-      { id:"wg-bokhowa-w17", room:"Faisal's Room", width:500, height:330, qty:1, // 2 layers
-        layers: [
-          { id:"bk-w17-main", role:"main", label:"W17 — Main (Motorized)", overhang:20,
-            treatment:"motorized", fabricType:"main", fabricCode:"YRK 408/39", designType:"Pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 35 RTS with DCT", remoteType:"5-channel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:35, calcDone:true, calc:null },
-          { id:"bk-w17-sheer", role:"sheer", label:"W17 — Sheer (Manual)", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"DF324/02", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:15.7, calcDone:true, calc:null }
-        ] },
-      { id:"wg-bokhowa-w18", room:"Faisal's Room", width:680, height:330, qty:1, // 2 layers
-        layers: [
-          { id:"bk-w18-main", role:"main", label:"W18 — Main (Motorized)", overhang:20,
-            treatment:"motorized", fabricType:"main", fabricCode:"YRK 408/39", designType:"Pleat",
-            fullness:2.3, rollWidth:140, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:true, motorBrand:"somfy", motorModel:"Somfy 60 RTS with DCT", remoteType:"5-channel remote",
-            railType:"Somfy Glydea Track — raw rail", railItemCode:"IT450", openingDirection:"two_way", bracketType:"Motorised ceiling bracket",
-            quoteEstimateMetres:38, calcDone:true, calc:null },
-          { id:"bk-w18-sheer", role:"sheer", label:"W18 — Sheer (Manual)", overhang:20,
-            treatment:"curtain", fabricType:"sheer", fabricCode:"DF324/02", designType:"Pleat",
-            fullness:2.2, rollWidth:300, patternRepeatV:0, patternRepeatH:0, topHem:8, bottomHem:12, sideHem:5,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Unisoiel Cord Track — DC01 Heavy", railItemCode:"IT330", openingDirection:"two_way", bracketType:"Ceiling bracket",
-            quoteEstimateMetres:23.5, calcDone:true, calc:null }
-        ] },
-      // ── Basement ──
-      { id:"bk-w19", room:"Basement", width:280, height:270, qty:1, // single-layer
-        layers: [
-          { id:"bk-w19", role:"single", label:"W19 — Wooden Venetian Blind (2 pcs)", overhang:0,
-            treatment:"wooden", fabricType:null, fabricCode:null, designType:"50mm slats, manual, 2 pieces",
-            fullness:1, rollWidth:0, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Wooden Pole", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            quoteEstimateMetres:null, calcDone:true, calc:null }
-        ] },
-      { id:"bk-basement2", room:"Basement", width:175, height:185, qty:1, // single-layer
-        layers: [
-          { id:"bk-basement2", role:"single", label:"Wooden Venetian Blind", overhang:0,
-            treatment:"wooden", fabricType:null, fabricCode:null, designType:"50mm slats, manual",
-            fullness:1, rollWidth:0, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Wooden Pole", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            quoteEstimateMetres:null, calcDone:true, calc:null }
-        ] },
-      // ── Master Bathroom ──
-      { id:"bk-w21", room:"Master Bathroom", width:250, height:290, qty:1, // single-layer
-        layers: [
-          { id:"bk-w21", role:"single", label:"W21 — Wooden Venetian Blind", overhang:0,
-            treatment:"wooden", fabricType:null, fabricCode:null, designType:"50mm slats, manual",
-            fullness:1, rollWidth:0, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Wooden Pole", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            quoteEstimateMetres:null, calcDone:true, calc:null }
-        ] },
-      // ── Basement — Driver Room ──
-      { id:"bk-driverroom", room:"Basement — Driver Room", width:175, height:265, qty:1, // single-layer
-        layers: [
-          { id:"bk-driverroom", role:"single", label:"Wooden Venetian Blind", overhang:0,
-            treatment:"wooden", fabricType:null, fabricCode:null, designType:"50mm slats, manual",
-            fullness:1, rollWidth:0, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Wooden Pole", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            quoteEstimateMetres:null, calcDone:true, calc:null }
-        ] },
-      // ── Laundry ──
-      { id:"bk-laundry", room:"Laundry", width:150, height:130, qty:1, // single-layer
-        layers: [
-          { id:"bk-laundry", role:"single", label:"Manual Roller Blind", overhang:0,
-            treatment:"roller", fabricType:"main", fabricCode:"TBS", designType:null,
-            fullness:1, rollWidth:200, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Roller Blind Bracket", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            cordType:"Ball chain", cordLength:120, cordSide:"right",
-            quoteEstimateMetres:null, calcDone:true, calc:null }
-        ] },
-      // ── GF Kitchen + Dirty Kitchen ──
-      { id:"bk-kitchen-roller", room:"GF Kitchen + Dirty Kitchen", width:154, height:150, qty:2, // single-layer
-        layers: [
-          { id:"bk-kitchen-roller", role:"single", label:"Manual Roller Blind", overhang:0,
-            treatment:"roller", fabricType:"main", fabricCode:"TBS", designType:null,
-            fullness:1, rollWidth:200, patternRepeatV:0, patternRepeatH:0, topHem:0, bottomHem:0, sideHem:0,
-            motorized:false, motorBrand:null, motorModel:null, remoteType:null,
-            railType:"Roller Blind Bracket", railItemCode:null, openingDirection:"fixed", bracketType:"Recess bracket",
-            cordType:"Ball chain", cordLength:140, cordSide:"right",
-            quoteEstimateMetres:null, calcDone:true, calc:null }
-        ] }
-    ],
-    bom: {
-      fabric: [], tracks: [], motors: [], accessories: [
-        {item:"5 Channel Remote — Dining & Kitchen",              qty:1},
-        {item:"16 Channel Remote — Foyer & Formal Living",        qty:1},
-        {item:"5 Channel Remote — Master Bedroom",                qty:1},
-        {item:"1 Channel Remote — Girl's Bedroom",                qty:1},
-        {item:"5 Channel Remote — Bader's Room",                  qty:1},
-        {item:"5 Channel Remote — Faisal's Room",                 qty:1},
-        {item:"Dry Contact Receiver — 5014328",                   qty:14}
-      ], labour: [], subcon: []
-    },
-    alerts: [],
-    procurement: [],
-    installation: { scheduledDate: null, team: null, siteContact: null, status: "pending", handoverSigned: false }
-  }
-];
+// Fixture data CLEARED (6 Aug 2026, Salman's call: "clear out the data and
+// we can repopulate it"). The 3 hand-seeded demo jobs (AMD-15002/AMD-13374/
+// AMD-13898) are gone; every entry from here on is either bridged in live
+// from a real confirmed Job Card (bridgeJobToOperationsAndCurtain) or
+// hydrated from the cloud (initCloudCurtainJobsCache — Curtain data now
+// PERSISTS to Supabase via the snapshot-diff autosave, see CURTAIN CLOUD
+// SYNC further down). The windowGroups authoring format and every screen/
+// function are unchanged — only the seed data and its persistence moved.
+const curtainJobs = [];
 
 // ═══════════════════════════════════════
 // FLATTEN windowGroups → job.windows
@@ -804,103 +189,20 @@ const PI_STAGE_LABELS = {
 const PI_VENDOR_STAGES = ["inquiry_raised","po_raised","po_approved","sent_to_supplier","logistics_arranged","arrived_bahrain","received_by_curtain"];
 const PI_STOCK_STAGES  = ["reserved","received_by_curtain"];
 
-const purchaseInquiries = [
-  // ── Villa 5 Fit-out (AMD-15002) ──
-  {
-    id: "PI-0001", division: "curtain", jobId: "AMD-15002", windowIds: ["w002"],
-    vendor: "Gulf Textiles", vendorRegion: "Bahrain / Dubai", source: "vendor",
-    fabricCode: "Gulf Sheer Voile", quantityOrdered: 10,
-    stage: "received_by_curtain", eta: "2026-06-08",
-    stageDates: { inquiry_raised:"2026-05-28", po_raised:"2026-05-29", po_approved:"2026-05-29", sent_to_supplier:"2026-05-30", logistics_arranged:"2026-06-02", arrived_bahrain:"2026-06-07", received_by_curtain:"2026-06-08" },
-    notes: ""
-  },
-  {
-    id: "PI-0002", division: "curtain", jobId: "AMD-15002", windowIds: ["w001"],
-    vendor: "Al Kilani", vendorRegion: "Bahrain / Dubai / KSA", source: "vendor",
-    fabricCode: "Kravet Boucle", quantityOrdered: 21,
-    stage: "arrived_bahrain", eta: "2026-07-01",
-    stageDates: { inquiry_raised:"2026-06-15", po_raised:"2026-06-16", po_approved:"2026-06-17", sent_to_supplier:"2026-06-18", logistics_arranged:"2026-06-25", arrived_bahrain:"2026-07-01" },
-    notes: "Arrived — awaiting physical handover to Curtain department"
-  },
-  {
-    id: "PI-0003", division: "curtain", jobId: "AMD-15002", windowIds: ["w003","w004"],
-    vendor: "D3", vendorRegion: "Bahrain / Dubai / KSA", source: "vendor",
-    fabricCode: "Gulf Blackout 320", quantityOrdered: 26,
-    stage: "po_approved", eta: "2026-07-12",
-    stageDates: { inquiry_raised:"2026-06-28", po_raised:"2026-06-30", po_approved:"2026-07-02" },
-    notes: "Covers both the sliding door and the study roller blind — same fabric code, ordered together"
-  },
-
-  // ── Bokhowa Villa (AMD-13898) ──
-  {
-    id: "PI-0004", division: "curtain", jobId: "AMD-13898", windowIds: ["bk-w1-curtain","bk-w2-curtain"],
-    vendor: "Janoub", vendorRegion: "Saudi Arabia", source: "vendor",
-    fabricCode: "YRK 408/02", quantityOrdered: 55,
-    stage: "sent_to_supplier", eta: "2026-07-15",
-    stageDates: { inquiry_raised:"2026-06-20", po_raised:"2026-06-22", po_approved:"2026-06-23", sent_to_supplier:"2026-06-25" },
-    notes: ""
-  },
-  {
-    id: "PI-0005", division: "curtain", jobId: "AMD-13898", windowIds: ["bk-w1-roman","bk-w2-roman"],
-    vendor: "Nassaj", vendorRegion: "Saudi Arabia", source: "vendor",
-    fabricCode: "Rhyme 02 — Pearl", quantityOrdered: 16,
-    stage: "logistics_arranged", eta: "2026-07-08",
-    stageDates: { inquiry_raised:"2026-06-18", po_raised:"2026-06-19", po_approved:"2026-06-20", sent_to_supplier:"2026-06-21", logistics_arranged:"2026-06-29" },
-    notes: ""
-  },
-  {
-    id: "PI-0006", division: "curtain", jobId: "AMD-13898", windowIds: ["bk-w3","bk-w4w5","bk-w6","bk-w7","bk-w8","bk-w9","bk-w10"],
-    vendor: "York", vendorRegion: "Dubai", source: "vendor",
-    fabricCode: "DF324/46", quantityOrdered: 108,
-    stage: "arrived_bahrain", eta: "2026-06-30",
-    stageDates: { inquiry_raised:"2026-06-10", po_raised:"2026-06-11", po_approved:"2026-06-12", sent_to_supplier:"2026-06-13", logistics_arranged:"2026-06-22", arrived_bahrain:"2026-06-30" },
-    notes: "One PO covering 7 windows in Foyer, Formal Living, Dining & Kitchen — arrived, awaiting handover"
-  },
-  {
-    id: "PI-0007", division: "curtain", jobId: "AMD-13898", windowIds: ["bk-w11-main","bk-w12-main"],
-    vendor: "Al Guthmi", vendorRegion: "Saudi Arabia / Dubai", source: "vendor",
-    fabricCode: "YRK 408-41", quantityOrdered: 46,
-    stage: "po_raised", eta: "2026-07-18",
-    stageDates: { inquiry_raised:"2026-06-26", po_raised:"2026-06-28" },
-    notes: ""
-  },
-  {
-    id: "PI-0008", division: "curtain", jobId: "AMD-13898",
-    windowIds: ["bk-w11-sheer","bk-w12-sheer","bk-w13-sheer","bk-w15w16-sheer","bk-w17-sheer","bk-w18-sheer"],
-    vendor: "Silk Weave", vendorRegion: "Dubai", source: "vendor",
-    fabricCode: "DF324/02", quantityOrdered: 78,
-    stage: "inquiry_raised", eta: null,
-    stageDates: { inquiry_raised:"2026-07-01" },
-    notes: "ETA not set yet — waiting on PO before a delivery estimate is possible"
-  },
-  {
-    id: "PI-0009", division: "curtain", jobId: "AMD-13898", windowIds: ["bk-w13-main","bk-w15w16-main"],
-    vendor: "Al Kilani", vendorRegion: "Bahrain / Dubai / KSA", source: "vendor",
-    fabricCode: "YRK 408-29", quantityOrdered: 49,
-    stage: "po_approved", eta: "2026-07-14",
-    stageDates: { inquiry_raised:"2026-06-24", po_raised:"2026-06-25", po_approved:"2026-06-27" },
-    notes: ""
-  },
-  {
-    id: "PI-0010", division: "curtain", jobId: "AMD-13898", windowIds: ["bk-w17-main","bk-w18-main"],
-    vendor: "Kalima", vendorRegion: "Bahrain / Dubai", source: "vendor",
-    fabricCode: "YRK 408/39", quantityOrdered: 70,
-    stage: "received_by_curtain", eta: "2026-06-20",
-    stageDates: { inquiry_raised:"2026-06-01", po_raised:"2026-06-02", po_approved:"2026-06-03", sent_to_supplier:"2026-06-04", logistics_arranged:"2026-06-12", arrived_bahrain:"2026-06-18", received_by_curtain:"2026-06-20" },
-    notes: ""
-  },
-  {
-    id: "PI-0011", division: "curtain", jobId: "AMD-13898", windowIds: ["bk-w14"],
-    vendor: "AMD", vendorRegion: "Own inventory — stock fabric", source: "stock",
-    fabricCode: null, quantityOrdered: null,
-    stage: "received_by_curtain", eta: null,
-    stageDates: { reserved:"2026-06-05", received_by_curtain:"2026-06-05" },
-    notes: "Standard 50mm wooden slats — held in stock, no lead time"
-  },
-];
+// Fixture inquiries cleared with the curtain-jobs fixtures (6 Aug 2026) —
+// real inquiries persist to Supabase via the same autosave scanner.
+const purchaseInquiries = [];
 
 function nextPIId() {
-  return "PI-" + String(purchaseInquiries.length + 1).padStart(4, "0");
+  // Max-based, not length-based — with inquiries now hydrated from the
+  // cloud, length no longer tracks the highest id (same fix as
+  // nextItemStockCode). Collision on a same-instant two-device raise is the
+  // same accepted narrow window as every other client-generated id here.
+  const max = purchaseInquiries.reduce((m, pi) => {
+    const n = parseInt(String(pi.id).replace(/^PI-/, ""), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return "PI-" + String(max + 1).padStart(4, "0");
 }
 // Raises a new fabric/rail purchase inquiry from the Curtain module (Silva).
 // Additive only — same shape as every existing purchaseInquiries[] entry.
@@ -1353,91 +655,13 @@ function copyWindow(sourceWindow, newId, newLabel) {
 // ═══════════════════════════════════════
 // PROJECTS (live jobs — Operations module)
 // ═══════════════════════════════════════
-const projects=[
-  {id:"AMD-15002",name:"Villa 5 Fit-out",client:"Discovery Development",val:8450,health:"warn",
-   depts:[{k:"carp",pct:45},{k:"curt",pct:80},{k:"uph",pct:60}],
-   budget:{sell:8450,cost:5900,mat:1800,lab:2500,sub:800,hir:200,oth:600},
-   actuals:{mat:1900,lab:2700,sub:800,hir:200,oth:600},
-   alerts:[
-     {t:"Subcontractor overdue",s:"Glass supplier PO not received — expected 8 Jun. May delay Joinery finish.",tp:"warn",r:false},
-     {t:"Progress invoice not raised",s:"Job 60% complete — progress milestone passed. Chase Accounts.",tp:"bad",r:false},
-     {t:"3 snags open",s:"Post-installation snags reported by client. Not yet resolved.",tp:"bad",r:false}
-   ],
-   variations:[
-     {id:"VO-01",desc:"Pelmet height +200mm both sides",reason:"Site measurement differs",sell:120,cost:75,status:"Approved"},
-     {id:"VO-02",desc:"Brass table legs +100mm higher",reason:"Client change",sell:85,cost:40,status:"With Estimator"}
-   ],
-   subcons:[
-     {name:"Gulf Glass Trading",item:"Sliding glass panels",ordered:"1 Jun",expected:"8 Jun",status:"overdue",paid:false},
-     {name:"Al Noor Powder Coat",item:"Brass frame coating",ordered:"28 May",expected:"5 Jun",status:"received",paid:true},
-     {name:"Premium Fabric House",item:"Kravet Boucle fabric",ordered:"3 Jun",expected:"10 Jun",status:"pending",paid:false}
-   ],
-   payments:{invoiced:8450,received:2535,breakdown:[
-     {l:"Advance 30% — BD 2,535",st:"ok",n:"Received 2 May"},
-     {l:"Progress 40% — BD 3,380",st:"warn",n:"Not yet raised"},
-     {l:"Final 30% — BD 2,535",st:"grey",n:"On delivery"}
-   ]},
-   snags:[
-     {dept:"Joinery",desc:"Wardrobe sliding door not closing flush",assigned:"Arun Kumar",r:false},
-     {dept:"Curtain",desc:"Motorised track making noise on left side",assigned:"Silva",r:false},
-     {dept:"Upholstery",desc:"Small fabric pull on armchair arm",assigned:"Karthik Silva",r:true}
-   ],
-   notes:[
-     {by:"Operations",note:"Client Sophia is very detail-oriented. Do not promise dates without confirming capacity first.",d:"3 Jun"},
-     {by:"Salman Abdullah",note:"Discovery Dev has 3 more villas planned — handle this job well.",d:"1 May"}
-   ],
-   comms:[
-     {t:"Site visit",by:"Salman Abdullah",n:"Confirmed final fabric. Client happy.",d:"3 Jun",c:"var(--info)"},
-     {t:"Client approval",by:"Aslam",n:"Approved revised quote via email.",d:"28 May",c:"var(--ok)"}
-   ],
-   docs:[
-     {n:"signed-quote-villa5.pdf",c:"Signed Quote",d:"2 May",i:"📄"},
-     {n:"BOQ-final.xlsx",c:"BOQ",d:"5 May",i:"📊"},
-     {n:"site-photo-01.jpg",c:"Site photo",d:"3 Jun",i:"📷"}
-   ],
-   signoff:{done:false,date:null}
-  },
-  {id:"AMD-15010",name:"Majlis Refurbishment",client:"Ahmed Omar Trading",val:4200,health:"bad",
-   depts:[{k:"carp",pct:85},{k:"uph",pct:40}],
-   budget:{sell:4200,cost:2260,mat:840,lab:900,sub:300,hir:0,oth:220},
-   actuals:{mat:860,lab:1110,sub:300,hir:0,oth:200},
-   alerts:[
-     {t:"Joinery BOM overdue",s:"48h deadline passed — fill or delegate in BOM / Budget.",tp:"bad",r:false},
-     {t:"Over labour budget",s:"Joinery 14h over — margin eroding fast.",tp:"bad",r:false},
-     {t:"Variation with Estimator",s:"VO-01 sent to estimator 3 days ago — no response yet.",tp:"warn",r:false}
-   ],
-   variations:[
-     {id:"VO-01",desc:"Additional seating niche — 2 extra cushions + frame",reason:"Client added scope",sell:380,cost:210,status:"With Estimator"}
-   ],
-   subcons:[
-     {name:"Fabric Studio BH",item:"Moroccan tufted fabric",ordered:"25 May",expected:"4 Jun",status:"received",paid:true}
-   ],
-   payments:{invoiced:4200,received:1260,breakdown:[
-     {l:"Advance 30% — BD 1,260",st:"ok",n:"Received 1 May"},
-     {l:"Progress 40% — BD 1,680",st:"warn",n:"Not yet raised"},
-     {l:"Final 30% — BD 1,260",st:"grey",n:"On delivery"}
-   ]},
-   snags:[],
-   notes:[{by:"Operations",note:"Ahmed Omar is a regular client — always pays on time. Fast-track if needed.",d:"2 May"}],
-   comms:[{t:"Call",by:"Aslam",n:"Client confirmed delivery date 25 Jun.",d:"1 Jun",c:"var(--warn)"}],
-   docs:[{n:"signed-quote-majlis.pdf",c:"Signed Quote",d:"30 Apr",i:"📄"}],
-   signoff:{done:false,date:null}
-  },
-  {id:"AMD-14871",name:"Pocket Wall Cladding",client:"Cinqo Contracting",val:286,health:"ok",
-   depts:[{k:"carp",pct:70}],
-   budget:{sell:286,cost:200,mat:80,lab:60,sub:0,hir:0,oth:60},
-   actuals:{mat:82,lab:62,sub:0,hir:0,oth:58},
-   alerts:[],
-   variations:[],
-   subcons:[],
-   payments:{invoiced:286,received:286,breakdown:[{l:"Full payment — BD 286",st:"ok",n:"Received"}]},
-   snags:[],
-   notes:[],
-   comms:[],
-   docs:[{n:"quote-cinqo.pdf",c:"Signed Quote",d:"20 May",i:"📄"}],
-   signoff:{done:true,date:"2 Jun"}
-  }
-];
+// Fixture projects cleared (6 Aug 2026, same pass as the curtain-jobs
+// fixtures — these were the SAME demo jobs viewed from Operations' side).
+// projects[] is a DERIVED rollup now: entries are (re)created for every
+// real Job Card by bridgeAllJobCards()/bridgeJobToOperationsAndCurtain()
+// on load and at confirm time, so this array intentionally has no seed
+// and no cloud table of its own.
+const projects=[];
 
 let currentJob = null;
 let currentCurtainJob = null;
@@ -4357,6 +3581,108 @@ function persistJobCardUpdate(job) {
   }));
 }
 
+// ═══════════════════════════════════════
+// CURTAIN CLOUD SYNC — Phase 2, final slice (6 Aug 2026)
+// curtainJobs[] and purchaseInquiries[] persist to Supabase as whole-object
+// jsonb payloads via a SNAPSHOT-DIFF AUTOSAVE rather than per-mutation
+// persist calls: curtain.js (~5,900 lines) mutates these objects inline all
+// over its render/handler code, so instrumenting every mutation site was
+// never going to be reliable (the reason this slice was deferred when
+// jobCards migrated). A 3s scanner JSON-serializes each record, compares it
+// to the last-persisted snapshot, and upserts only what changed; pagehide
+// fires one final best-effort flush. Accepted trade-off: a hard crash can
+// lose up to ~3s of the newest edits; a normal tab close/navigation
+// flushes. The derived flat job.windows[] array is stripped before save
+// and rebuilt from windowGroups on hydrate; the val/deptVal getters
+// (live windows onto jobCards[].amount, see the bridge above) serialize
+// as plain values and are re-defined as getters on hydrate so the
+// no-drift guarantee survives the round trip.
+// ═══════════════════════════════════════
+let cloudCurtainCacheInitialized = false;
+const cloudCurtainSnapshots = {};   // "cj:<id>" / "pi:<id>" -> last-persisted payload JSON
+
+function curtainJobToPayload(cj) {
+  const { windows, ...rest } = cj;   // windows is derived — rebuilt on hydrate
+  return JSON.parse(JSON.stringify(rest));
+}
+function hydrateCurtainJob(payload) {
+  const cj = payload;
+  if (cj.linkedJobCardId) {
+    // Re-define the live-value getters the bridge gives a freshly-created
+    // entry (configurable so a later realtime re-hydration can redefine).
+    Object.defineProperty(cj, "val", { enumerable: true, configurable: true, get() { const j = getJobCard(cj.id); return j ? j.amount : 0; } });
+    Object.defineProperty(cj, "deptVal", { enumerable: true, configurable: true, get() { const j = getJobCard(cj.id); return j ? j.amount : 0; } });
+  }
+  cj.windows = flattenWindowGroups(cj);
+  return cj;
+}
+
+async function initCloudCurtainCache() {
+  if (!window.__realCloudSession || !sb || cloudCurtainCacheInitialized) return;
+  cloudCurtainCacheInitialized = true;
+  const [cjRes, piRes] = await Promise.all([
+    sb.from("curtain_jobs").select("*").order("updated_at", { ascending: true }),
+    sb.from("curtain_purchase_inquiries").select("*").order("updated_at", { ascending: true })
+  ]);
+  if (!cjRes.error && cjRes.data) {
+    curtainJobs.length = 0;
+    cjRes.data.forEach(row => { curtainJobs.push(hydrateCurtainJob(row.payload)); cloudCurtainSnapshots["cj:" + row.id] = JSON.stringify(row.payload); });
+  }
+  if (!piRes.error && piRes.data) {
+    purchaseInquiries.length = 0;
+    piRes.data.forEach(row => { purchaseInquiries.push(row.payload); cloudCurtainSnapshots["pi:" + row.id] = JSON.stringify(row.payload); });
+  }
+  const applyRemote = (payload, array, prefix, hydrate) => {
+    if (payload.eventType === "DELETE") {
+      const oldId = payload.old && payload.old.id;
+      if (!oldId) return;
+      const i = array.findIndex(r => String(r.id) === String(oldId));
+      if (i >= 0) array.splice(i, 1);
+      delete cloudCurtainSnapshots[prefix + oldId];
+    } else {
+      const row = payload.new;
+      if (!row) return;
+      const json = JSON.stringify(row.payload);
+      if (cloudCurtainSnapshots[prefix + row.id] === json) return; // our own echo
+      const idx = array.findIndex(r => String(r.id) === String(row.id));
+      const mapped = hydrate ? hydrate(row.payload) : row.payload;
+      if (idx >= 0) array[idx] = mapped; else array.push(mapped);
+      cloudCurtainSnapshots[prefix + row.id] = json;
+    }
+    notifyLiveUpdateListeners();
+  };
+  sb.channel("curtain-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "curtain_jobs" }, p => applyRemote(p, curtainJobs, "cj:", hydrateCurtainJob))
+    .on("postgres_changes", { event: "*", schema: "public", table: "curtain_purchase_inquiries" }, p => applyRemote(p, purchaseInquiries, "pi:", null))
+    .subscribe();
+  startCurtainAutosave();
+}
+
+function scanAndPersistCurtainData() {
+  if (!window.__realCloudSession || !sb) return;
+  const persistChanged = (record, payload, prefix, table) => {
+    const json = JSON.stringify(payload);
+    const key = prefix + record.id;
+    if (cloudCurtainSnapshots[key] === json) return;
+    cloudCurtainSnapshots[key] = json;   // set BEFORE the write so the realtime echo is recognized
+    serializedPersist("curtain:" + key, () => sb.from(table).upsert({ id: record.id, payload, updated_at: new Date().toISOString() }).then(({ error }) => {
+      if (error) {
+        delete cloudCurtainSnapshots[key];   // retry on the next scan
+        if (typeof commsToast === "function") commsToast(`Couldn't sync Curtain data (${record.id}): ${error.message}`);
+      }
+    }));
+  };
+  curtainJobs.forEach(cj => persistChanged(cj, curtainJobToPayload(cj), "cj:", "curtain_jobs"));
+  purchaseInquiries.forEach(pi => persistChanged(pi, JSON.parse(JSON.stringify(pi)), "pi:", "curtain_purchase_inquiries"));
+}
+
+let curtainAutosaveTimer = null;
+function startCurtainAutosave() {
+  if (curtainAutosaveTimer) return;
+  curtainAutosaveTimer = setInterval(scanAndPersistCurtainData, 3000);
+  window.addEventListener("pagehide", scanAndPersistCurtainData);
+}
+
 // "Confirm Quote" — the action that actually creates the Job Card. Only
 // available once Approver has moved a quotation to "Open" (see
 // approveQuotation() in the APPROVER section above).
@@ -4371,8 +3697,8 @@ function persistJobCardUpdate(job) {
 // anywhere in the app — so every real Job Card confirmed from now on also
 // gets a minimal linked entry, cross-referenced by job.id via
 // linkedJobCardId, so Curtain's and Operations' EXISTING screens
-// (unmodified) start rendering real live jobs instead of only the 2
-// frozen fixture jobs (AMD-15002/AMD-13898). Fields are seeded with safe,
+// (unmodified) render real live jobs (the old frozen fixture jobs are
+// gone as of 6 Aug 2026 — cleared with the Curtain cloud migration). Fields are seeded with safe,
 // empty/neutral defaults rather than invented percentages or costs no one
 // has actually entered — those get filled in by whoever actually works
 // the job, same as a fresh Q-Pro entry would start empty too.
