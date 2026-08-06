@@ -339,7 +339,7 @@ function buildQuotationPrintHTML(qtn, settings) {
         <td>Date : <span class="dot"></span></td>
       </tr>
       <tr>
-        <td>Contact : <span class="dot"></span></td>
+        <td>Contact : <span class="dot">${prEsc((typeof SALES_CONTACTS !== 'undefined' && SALES_CONTACTS[salesName] && SALES_CONTACTS[salesName].phone) || '')}</span></td>
         <td>Signature : <span class="dot"></span></td>
         <td>Name : <span class="dot"></span></td>
       </tr>
@@ -348,7 +348,7 @@ function buildQuotationPrintHTML(qtn, settings) {
         <td></td>
         <td>Signature : <span class="dot"></span></td>
       </tr>
-      <tr><td>Email : <span class="dot"></span></td><td></td><td></td></tr>
+      <tr><td>Email : <span class="dot">${prEsc((typeof SALES_CONTACTS !== 'undefined' && SALES_CONTACTS[salesName] && SALES_CONTACTS[salesName].email) || '')}</span></td><td></td><td></td></tr>
     </table>
     ${printPageFooter()}
   </body></html>`;

@@ -6377,6 +6377,40 @@ function applyBOMTemplate(templateId, qtnId, lineId) {
   return item.bom;
 }
 
+// ═══ STAGE 6 (merged roadmap): quote-level discount + salesperson contact ═══
+// The real quotation documents carry ONE document discount (Ewan:
+// BD 377.727). Rather than new math paths, the quote-level figure is
+// DISTRIBUTED proportionally across the items as discAmt/discPercent at
+// the moment it is set — every existing consumer (netAmount, invoice
+// billing net of discPercent, prints summing discAmt into the single
+// Discount line) keeps working unchanged.
+function setQuoteDiscount(qtnId, totalDiscount) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const amt = Number(totalDiscount) || 0;
+  const base = qtn.items.reduce((s, it) => s + it.amount, 0);
+  if (amt < 0) return { error: "Discount cannot be negative." };
+  if (amt > base) return { error: "Discount cannot exceed the items total (BD " + base.toFixed(3) + ")." };
+  qtn.items.forEach(it => {
+    const share = base > 0 ? amt * (it.amount / base) : 0;
+    it.discAmt = Math.round(share * 1000) / 1000;
+    it.discPercent = it.amount > 0 ? (share / it.amount) * 100 : 0;
+    it.netAmount = (it.amount - it.discAmt) * (1 + (it.vatPercent || 0) / 100);
+  });
+  qtn.quoteDiscount = amt;   // remembered so the field shows the entered figure
+  persistQuotationUpdate(qtn);
+  return computeQuotationTotals(qtn);
+}
+
+// Salesperson phone/email for the print documents' PREPARED BY block —
+// real figures from the live quotation PDFs. Names must match STAFF /
+// enquiry.salesPerson strings.
+const SALES_CONTACTS = {
+  "Altaf Hasan Ali Ghare": { phone: "38440311", email: "sales2@almarayadecor.com" },
+  "Mohammad Shafeel": { phone: "38440322", email: "sales1@almarayadecor.com" },
+  "Salman Abdullah": { phone: "39051580", email: "salman@almarayadecor.com" }
+};
+
 const tasks = [];
 function nextTaskId() {
   // Max-based, not length-based — tasks hydrate from the cloud now, so

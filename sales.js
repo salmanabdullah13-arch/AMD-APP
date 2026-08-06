@@ -905,6 +905,14 @@ function renderWizardStep2() {
         <p style="font-weight:700;">Net Amount: BD ${totals.netTotal.toFixed(3)}</p>
       </div>
     </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">Quote-level discount</p>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="quote-discount" type="number" min="0" step="0.001" value="${q.quoteDiscount || ''}" placeholder="BD amount off the whole quote" style="flex:1;">
+        <button class="secondary" onclick="salesApplyQuoteDiscount('${q.id}')">Apply</button>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:4px;">One document discount (like the real quotations carry) — distributed proportionally across the items, so totals, invoices and prints all stay consistent.</p>
+    </div>
     <button class="primary" style="width:100%;" onclick="salesWizardStep=3;renderSalesBody();">Save & Proceed</button>`;
 }
 
@@ -957,6 +965,16 @@ function salesAddItem(qtnId) {
   renderSalesBody();
 }
 function salesRemoveItem(qtnId, lineId) { removeQuotationItem(qtnId, lineId); renderSalesBody(); }
+
+// Stage 6: the real documents' single quote-level discount — distributed
+// per-item by setQuoteDiscount() (data.js) so all existing math holds.
+function salesApplyQuoteDiscount(qtnId) {
+  const val = document.getElementById('quote-discount').value;
+  const res = setQuoteDiscount(qtnId, val);
+  if (res && res.error) { salesAlert(res.error); return; }
+  salesAlert('✓ Discount applied — Net Total now BD ' + res.netTotal.toFixed(3) + '.');
+  renderSalesBody();
+}
 
 // Duplicate — Salman's real ask: a way to copy an existing line item
 // (same product/qty/unit/description) as a starting point for a similar
