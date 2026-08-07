@@ -85,10 +85,88 @@ async function commsSend(asUser, linkedType, linkedId, onSent) {
   if (onSent && typeof window[onSent] === 'function') window[onSent]();
 }
 
-// Shortcut used by "Notify Storekeeper" buttons across modules.
-function notifyStorekeeper(asUser, linkedType, linkedId, onSent) {
-  openComposeMessage(asUser, 'Storekeeper', linkedType, linkedId, onSent);
+// ── Material request form (7 Aug 2026) ──
+// Replaces the free-text "Notify Storekeeper" nudge with something that
+// leaves a record. The item can be picked from the real Item Master (so the
+// storekeeper knows exactly what's meant) or typed when the asker only
+// knows it as "ply" — the storekeeper resolves it when issuing, exactly as
+// they do today when someone walks over.
+let mrqDraft = null;
+function openMaterialRequestForm(asUser, deptKey, jobId) {
+  mrqDraft = { requestedBy: asUser, department: deptKey || null, jobId: jobId || '', itemId: null, itemName: '', qty: '', unit: '', neededBy: '', note: '', search: '' };
+  renderMaterialRequestForm();
+  commsModalWrap.style.display = 'flex';
 }
+function mrqSet(field, val) { if (mrqDraft) mrqDraft[field] = val; }
+function mrqSearch(val) {
+  mrqDraft.search = val;
+  mrqDraft.itemId = null;
+  renderMaterialRequestForm(true);
+}
+function mrqPickItem(id) {
+  const it = itemMaster.find(i => i.id === id);
+  if (!it) return;
+  mrqDraft.itemId = it.id;
+  mrqDraft.itemName = it.name;
+  mrqDraft.unit = it.unit || '';
+  mrqDraft.search = it.name;
+  renderMaterialRequestForm();
+}
+function mrqItemResultsHtml() {
+  const d = mrqDraft;
+  if (d.itemId) return '<p style="font-size:10.5px;color:var(--ok,#0f9d58);margin:4px 0 0;">&#10003; matched to ' + commsEsc(d.itemName) + '</p>';
+  const term = (d.search || '').trim().toLowerCase();
+  if (term.length < 2) return '';
+  const matches = itemMaster.filter(i => i.name.toLowerCase().includes(term)).slice(0, 6);
+  if (matches.length === 0) return '<p style="font-size:10.5px;color:#94a3b8;margin:4px 0 0;">No stock item matches — it will go through as typed.</p>';
+  const rows = matches.map(i =>
+    '<div onclick="mrqPickItem(\'' + i.id + '\')" style="padding:7px 9px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">'
+    + commsEsc(i.name) + ' <span style="color:#94a3b8;font-size:10.5px;">' + commsEsc(String(i.closingStock == null ? 0 : i.closingStock)) + ' ' + commsEsc(i.unit || '') + ' in stock</span></div>').join('');
+  return '<div style="border:1px solid var(--biz-border-light,#e2e8f0);border-radius:8px;margin-top:4px;max-height:150px;overflow-y:auto;">' + rows + '</div>';
+}
+function renderMaterialRequestForm(keepFocus) {
+  const inner = document.getElementById('comms-modal-inner');
+  const d = mrqDraft;
+  const jobOptions = jobCards.filter(j => j.status !== 'cancelled').map(j =>
+    '<option value="' + j.id + '"' + (d.jobId === j.id ? ' selected' : '') + '>' + commsEsc(j.id) + ' — ' + commsEsc(j.projectName || '') + '</option>').join('');
+  inner.innerHTML =
+    '<p style="font-weight:700;font-size:15px;margin-bottom:2px;color:#1a1f2e;">Request material</p>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">From ' + commsEsc(d.requestedBy) + ' &middot; goes to the Storekeeper\'s queue</p>'
+    + '<div class="sales-field"><label>Job</label><select onchange="mrqSet(\'jobId\',this.value)"><option value="">— Select the job —</option>' + jobOptions + '</select></div>'
+    + '<div class="sales-field"><label>Material</label>'
+    + '<input id="mrq-item" type="text" value="' + commsEsc(d.search) + '" placeholder="Search stock, or just describe it" oninput="mrqSearch(this.value)">'
+    + mrqItemResultsHtml() + '</div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<div class="sales-field" style="flex:1;"><label>Qty</label><input type="number" min="0" step="any" value="' + commsEsc(String(d.qty)) + '" oninput="mrqSet(\'qty\',this.value)"></div>'
+    + '<div class="sales-field" style="flex:1;"><label>Unit</label><input type="text" value="' + commsEsc(d.unit) + '" oninput="mrqSet(\'unit\',this.value)"></div>'
+    + '<div class="sales-field" style="flex:1.2;"><label>Needed by</label><input type="date" value="' + commsEsc(d.neededBy) + '" onchange="mrqSet(\'neededBy\',this.value)"></div>'
+    + '</div>'
+    + '<div class="sales-field"><label>Note (optional)</label><input type="text" value="' + commsEsc(d.note) + '" placeholder="Anything the storekeeper should know" oninput="mrqSet(\'note\',this.value)"></div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px;">'
+    + '<button class="primary" style="flex:1;" onclick="mrqSubmit()">Send request</button>'
+    + '<button class="secondary" style="flex:1;" onclick="closeCommsModal()">Cancel</button></div>';
+  if (keepFocus) {
+    const el = document.getElementById('mrq-item');
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+}
+function mrqSubmit() {
+  const d = mrqDraft;
+  const res = createMaterialRequest({
+    jobId: d.jobId, itemId: d.itemId, itemName: d.itemId ? d.itemName : d.search,
+    qty: d.qty, unit: d.unit, neededBy: d.neededBy || null, note: d.note,
+    requestedBy: d.requestedBy, department: d.department
+  });
+  if (res && res.error) { commsToast(res.error); return; }
+  closeCommsModal();
+  commsToast('✓ ' + res.id + ' sent to the Storekeeper.');
+  if (typeof execRefreshBadges === 'function') execRefreshBadges();
+}
+
+// notifyStorekeeper() removed 7 Aug 2026 — the free-text nudge it opened
+// is replaced by a tracked material request (openMaterialRequestForm above).
+// Anyone who just wants to SAY something to the storekeeper uses the chat,
+// which is one tap away on every screen.
 
 // Reusable inbox widget — drop straight into any dashboard's HTML.
 // onReadRerender: the calling module's own render-function name (string),

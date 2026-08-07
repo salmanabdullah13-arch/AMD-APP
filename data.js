@@ -3654,6 +3654,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "app_tasks", arr: () => tasks, prefix: "tsk:" },
   { table: "activity_log", arr: () => activityLog, prefix: "act:" },
   { table: "app_events", arr: () => events, prefix: "evt:" },
+  { table: "material_requests", arr: () => materialRequests, prefix: "mrq:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.
@@ -6504,6 +6505,94 @@ function finalizePayrollRun(runId, by) {
 // to THEM — Salman's instruction), and planned deliveries. Pure read-side
 // aggregation, no new stored state.
 const CAL_DEPT_OF_MODULE = { joinery: "carp", upholstery: "uph", painting: "paint", curtain: "curt" };
+// ═══ MATERIAL REQUESTS (7 Aug 2026) ═══
+// Asking the storekeeper for material that's already in stock had no
+// tracked path: a worker walked over, or a department sent a free-text
+// message ("Notify Storekeeper"), and nothing recorded what was asked for
+// or whether it was ever handed over. Purchase Requests cover material we
+// DON'T have; Material Issue records the hand-over itself but is raised
+// from the Job Card by someone else. This is the missing middle — the ask.
+//
+// Deliberately NOT a stock movement: fulfilling one opens the existing
+// Material Issue flow, which is what actually moves stock and leaves the
+// itemCard trail. This only records the request and its outcome.
+const materialRequests = [];
+function nextMaterialRequestId() {
+  const max = materialRequests.reduce((m, r) => {
+    const n = parseInt(String(r.id).replace(/^MRQ-/, ""), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return "MRQ-" + String(max + 1).padStart(5, "0");
+}
+function createMaterialRequest({ jobId, itemId = null, itemName, qty, unit = "", neededBy = null, note = "", requestedBy, department = null } = {}) {
+  if (!requestedBy) return { error: "Who's asking is required." };
+  // A job is required for the same reason releaseStockEntry() requires one:
+  // every hand-over has to stay traceable to the job it was for.
+  if (!jobId) return { error: "Pick the job this material is for." };
+  const job = jobCards.find(j => j.id === jobId);
+  if (!job) return { error: "Job not found." };
+  if (job.status === "cancelled") return { error: "This job is cancelled." };
+  if (!itemName || !itemName.trim()) return { error: "Say what material you need." };
+  const q = Number(qty);
+  if (!q || q <= 0) return { error: "Enter how much you need." };
+  const req = {
+    id: nextMaterialRequestId(), jobId,
+    itemId,                       // set when picked from the Item Master; null when typed
+    itemName: itemName.trim(), qty: q, unit: unit || "",
+    neededBy: neededBy || null, note: (note || "").trim(),
+    requestedBy, department,
+    status: "open",               // open | fulfilled | declined
+    date: new Date().toISOString().slice(0, 10),
+    closedBy: null, closedDate: null, closeNote: ""
+  };
+  materialRequests.push(req);
+  if (typeof logActivity === "function") {
+    logActivity({ type: "material-requested", message: `${requestedBy} asked the Storekeeper for ${req.qty}${req.unit ? " " + req.unit : ""} ${req.itemName}`, by: requestedBy, linkedType: "job", linkedId: jobId, dept: department || null });
+  }
+  // The Storekeeper's own inbox is where they already look — reuse it
+  // rather than inventing a second notification channel. Fire-and-forget:
+  // a failed message must never lose the request itself.
+  if (typeof sendMessage === "function") {
+    try {
+      sendMessage({ from: requestedBy, to: "Storekeeper", body: `Material request ${req.id} — ${req.qty}${req.unit ? " " + req.unit : ""} ${req.itemName} for ${jobId}${req.neededBy ? " by " + req.neededBy : ""}`, linkedType: "job", linkedId: jobId });
+    } catch (e) { /* the request is the record; the ping is a courtesy */ }
+  }
+  return req;
+}
+function getOpenMaterialRequests() {
+  return materialRequests.filter(r => r.status === "open")
+    .sort((a, b) => (a.neededBy || "9999-99-99").localeCompare(b.neededBy || "9999-99-99") || a.date.localeCompare(b.date));
+}
+function getMaterialRequestsForJob(jobId) {
+  return materialRequests.filter(r => r.jobId === jobId).sort((a, b) => b.date.localeCompare(a.date));
+}
+function getMaterialRequestsBy(identity) {
+  return materialRequests.filter(r => r.requestedBy === identity).sort((a, b) => b.date.localeCompare(a.date));
+}
+function closeMaterialRequest(id, status, by, note = "") {
+  const req = materialRequests.find(r => r.id === id);
+  if (!req) return { error: "Request not found." };
+  if (req.status !== "open") return { error: "This request is already " + req.status + "." };
+  if (!["fulfilled", "declined"].includes(status)) return { error: "Unknown outcome." };
+  if (!by) return { error: "Who closed it is required." };
+  // Declining without saying why leaves the asker no better off than the
+  // walk-over it replaces — same rule as rejectCustomer()/corrections.
+  if (status === "declined" && !note.trim()) return { error: "Say why it's declined so they know what to do next." };
+  req.status = status;
+  req.closedBy = by;
+  req.closedDate = new Date().toISOString().slice(0, 10);
+  req.closeNote = note.trim();
+  if (typeof logActivity === "function") {
+    logActivity({ type: "material-request-" + status, message: `${by} ${status} material request ${req.id} (${req.itemName})`, by, linkedType: "job", linkedId: req.jobId });
+  }
+  if (typeof sendMessage === "function") {
+    try {
+      sendMessage({ from: by, to: req.requestedBy, body: `Material request ${req.id} (${req.itemName}) — ${status}${note ? ": " + note.trim() : ""}`, linkedType: "job", linkedId: req.jobId });
+    } catch (e) { /* courtesy only */ }
+  }
+  return req;
+}
+
 // ═══ CALENDAR EVENTS (backlog Session 4, 7 Aug 2026) ═══
 // Salman wanted to log a meeting or a day's note against a calendar date.
 // Deliberately its OWN array rather than an extension of tasks[] or the

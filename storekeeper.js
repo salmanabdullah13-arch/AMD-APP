@@ -79,6 +79,7 @@ skModuleWrap.innerHTML = `
     <div id="sk-page-adjustment" class="sk-page" style="display:none;"><div id="sk-adjustment-body"></div></div>
     <div id="sk-page-mi" class="sk-page" style="display:none;"><div id="sk-mi-body"></div></div>
     <div id="sk-page-mr" class="sk-page" style="display:none;"><div id="sk-mr-body"></div></div>
+    <div id="sk-page-requests" class="sk-page" style="display:none;"><div id="sk-requests-body"></div></div>
     <div id="sk-page-reports" class="sk-page" style="display:none;"><div id="sk-reports-body"></div></div>
   </div>
   <div class="sk-panel" id="sk-release-panel">
@@ -167,7 +168,71 @@ function skGoTo(page) {
   if (page === 'adjustment') renderStockAdjustmentList();
   if (page === 'mi') renderMaterialsMoveList('MI');
   if (page === 'mr') renderMaterialsMoveList('MR');
+  if (page === 'requests') renderMaterialRequests();
   if (page === 'reports') renderInventoryReports();
+}
+
+// ── Material requests queue (7 Aug 2026) ──
+// The ask, tracked. Fulfilling one opens the EXISTING Material Issue flow
+// rather than moving stock here — stock movement keeps its single path and
+// its itemCard trail.
+function renderMaterialRequests() {
+  const body = document.getElementById('sk-requests-body');
+  if (!body) return;
+  const open = getOpenMaterialRequests();
+  const recent = materialRequests.filter(r => r.status !== 'open')
+    .sort((a, b) => (b.closedDate || '').localeCompare(a.closedDate || '')).slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const openHtml = open.length === 0
+    ? '<div class="sk-card"><p style="font-size:12.5px;color:#64748b;">Nothing waiting. Requests raised by the departments land here.</p></div>'
+    : open.map(r => {
+      const job = jobCards.find(j => j.id === r.jobId);
+      const late = r.neededBy && r.neededBy < today;
+      const stock = r.itemId ? itemMaster.find(i => i.id === r.itemId) : null;
+      return '<div class="sk-card">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+        + '<div><p style="font-weight:700;font-size:13px;margin:0;">' + commsEsc(String(r.qty)) + ' ' + commsEsc(r.unit) + ' ' + commsEsc(r.itemName) + '</p>'
+        + '<p style="font-size:11px;color:#64748b;margin:3px 0 0;">' + commsEsc(r.id) + ' &middot; ' + commsEsc(r.jobId)
+        + (job ? ' — ' + commsEsc(job.projectName || '') : '') + ' &middot; asked by ' + commsEsc(r.requestedBy) + '</p>'
+        + (r.note ? '<p style="font-size:11.5px;color:#334155;margin:5px 0 0;">' + commsEsc(r.note) + '</p>' : '')
+        + (stock ? '<p style="font-size:10.5px;color:#94a3b8;margin:4px 0 0;">In stock: ' + commsEsc(String(stock.closingStock == null ? 0 : stock.closingStock)) + ' ' + commsEsc(stock.unit || '') + '</p>'
+                 : '<p style="font-size:10.5px;color:var(--warn,#c47d00);margin:4px 0 0;">Not matched to a stock item — check what they mean before issuing.</p>')
+        + '</div>'
+        + (r.neededBy ? '<span class="sk-pill" style="' + (late ? 'background:#fdeceb;color:var(--bad,#d9342b);' : '') + '">' + (late ? 'overdue ' : 'by ') + commsEsc(r.neededBy) + '</span>' : '')
+        + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:10px;">'
+        + '<button class="primary" style="flex:1;font-size:11.5px;" onclick="skFulfilRequest(\'' + r.id + '\')">Issue material →</button>'
+        + '<button class="secondary" style="flex:1;font-size:11.5px;" onclick="skDeclineRequest(\'' + r.id + '\')">Can\'t supply</button>'
+        + '</div></div>';
+    }).join('');
+
+  const recentHtml = recent.length === 0 ? '' :
+    '<div class="sk-card"><p style="font-weight:700;font-size:13px;margin:0 0 8px;">Recently closed</p>'
+    + recent.map(r => '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--biz-border-light,#e2e8f0);">'
+      + '<span style="font-size:12px;">' + commsEsc(r.itemName) + ' <span style="color:#94a3b8;font-size:10.5px;">' + commsEsc(r.id) + ' &middot; ' + commsEsc(r.jobId) + '</span>'
+      + (r.closeNote ? '<span style="display:block;font-size:10.5px;color:#94a3b8;">' + commsEsc(r.closeNote) + '</span>' : '') + '</span>'
+      + '<span style="font-size:10.5px;font-weight:700;color:' + (r.status === 'fulfilled' ? 'var(--ok,#0f9d58)' : 'var(--bad,#d9342b)') + ';white-space:nowrap;">' + commsEsc(r.status) + '</span>'
+      + '</div>').join('') + '</div>';
+
+  body.innerHTML = '<p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">'
+    + open.length + ' waiting. Issuing opens the normal Material Issue form for that job.</p>' + openHtml + recentHtml;
+}
+
+function skFulfilRequest(id) {
+  const req = materialRequests.find(r => r.id === id);
+  if (!req) return;
+  const res = closeMaterialRequest(id, 'fulfilled', 'Storekeeper');
+  if (res && res.error) { skAlert(res.error); return; }
+  // Hand straight over to the real stock-moving flow for that job.
+  openMaterialsMove(req.jobId, 'issue');
+}
+function skDeclineRequest(id) {
+  const why = window.prompt("Why can't this be supplied? (they'll see this)", '');
+  if (why === null) return;
+  const res = closeMaterialRequest(id, 'declined', 'Storekeeper', why || '');
+  if (res && res.error) { skAlert(res.error); return; }
+  renderMaterialRequests();
 }
 
 // ── Dashboard ────────────────────────────────
@@ -188,6 +253,7 @@ function renderStorekeeperDashboard() {
   const commsHtml = '';
 
   const reorderAlerts = getReorderAlerts();
+  const openRequests = getOpenMaterialRequests();
   const kpiHtml = `
     <div class="sk-kpi-grid">
       <div class="sk-kpi-tile"><div class="num">${summary.inPoolCount}</div><div class="lbl">Entries In-Pool</div></div>
@@ -195,7 +261,8 @@ function renderStorekeeperDashboard() {
       <div class="sk-kpi-tile"><div class="num">${summary.distinctItemsInPool}</div><div class="lbl">Distinct Items</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.releasedTodayCount}</div><div class="lbl">Released Today</div></div>
       <div class="sk-kpi-tile"><div class="num">${summary.releasedTotalCount}</div><div class="lbl">Released (Total)</div></div>
-      <div class="sk-kpi-tile"><div class="num" style="color:${reorderAlerts.length ? 'var(--bad,#d9342b)' : 'var(--biz-teal)'};">${reorderAlerts.length}</div><div class="lbl">Reorder Alerts</div></div>
+      <div class="sk-kpi-tile" style="cursor:pointer;" onclick="skGoTo('reports')"><div class="num" style="color:${reorderAlerts.length ? 'var(--bad,#d9342b)' : 'var(--biz-teal)'};">${reorderAlerts.length}</div><div class="lbl">Reorder Alerts</div></div>
+      <div class="sk-kpi-tile" style="cursor:pointer;" onclick="skGoTo('requests')"><div class="num" style="color:${openRequests.length ? 'var(--warn,#c47d00)' : 'var(--biz-teal)'};">${openRequests.length}</div><div class="lbl">Material Requests</div></div>
     </div>
     ${reorderAlerts.length ? `
     <div class="sales-card">

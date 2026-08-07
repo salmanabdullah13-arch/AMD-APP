@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v20"; // v20: app_events live + collection deletes sync
+const CACHE_VERSION = "amd-app-v21"; // v21: material requests replace Notify Storekeeper
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

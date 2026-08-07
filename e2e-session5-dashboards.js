@@ -75,19 +75,22 @@ function printReport() {
     // Adopted shells all stay in the DOM, so nav ids repeat — scope every
     // lookup to the wrap under test, never getElementById.
     const salesWrap = document.getElementById('sales-module-wrap');
-    const items = ['xsnav-xs-planner', 'xsnav-xs-tasks', 'xsnav-xs-cal', 'xsnav-xs-notify', 'xsnav-xs-buy']
+    // Request Material is production-only as of 7 Aug 2026 — Sales never
+    // asks the storekeeper for stock, so it isn't offered here.
+    const items = ['xsnav-xs-planner', 'xsnav-xs-tasks', 'xsnav-xs-cal', 'xsnav-xs-buy']
       .map(id => !!salesWrap.querySelector('#' + id));
+    const salesNoMaterial = !salesWrap.querySelector('#xsnav-xs-notify');
     launchStorekeeperModule();
     await new Promise(r => setTimeout(r, 400));
     // Storekeeper is the recipient — no shortcut aimed at itself
     const skWrap = document.getElementById('sk-module-wrap');
     const skNotify = !!skWrap.querySelector('#xsnav-xs-notify');
     const skBuy = !!skWrap.querySelector('#xsnav-xs-buy');
-    return { firstLabel: labels[0], items, skNotify, skBuy };
+    return { firstLabel: labels[0], items, salesNoMaterial, skNotify, skBuy };
   });
-  record('Quick actions are the FIRST sidebar group and carry all five shortcuts',
-    qa.firstLabel === 'Quick actions' && qa.items.every(Boolean) ? 'PASS' : 'FAIL', JSON.stringify(qa));
-  record('Storekeeper gets Request Purchase but not a Notify-Storekeeper shortcut aimed at itself',
+  record('Quick actions are the FIRST sidebar group, carrying the shortcuts that role can use',
+    qa.firstLabel === 'Quick actions' && qa.items.every(Boolean) && qa.salesNoMaterial ? 'PASS' : 'FAIL', JSON.stringify(qa));
+  record('Storekeeper gets Request Purchase but not a material-request shortcut aimed at itself',
     qa.skBuy && !qa.skNotify ? 'PASS' : 'FAIL', JSON.stringify(qa));
 
   // ── Request Purchase must not ask a single-dashboard role to sign out ──

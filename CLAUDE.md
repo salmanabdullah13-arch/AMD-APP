@@ -6191,3 +6191,61 @@ so the pending schema work got done properly rather than left as an action.
 - Token used only in ephemeral shell calls; repo grepped for `sbp_` before
   committing (clean). Salman revoking it afterwards.
 - `sw.js` CACHE_VERSION v19 → v20.
+
+### 7 Aug 2026 — Material Requests replace "Notify Storekeeper"
+
+Salman asked what purpose "Notify Storekeeper" actually served. Traced it:
+it opened the message compose with the recipient pre-filled, sent free text,
+and that was all — no job link (every caller passed null for the
+`linkedType`/`linkedId` it accepts), no record, no queue, nothing tracking
+whether it was acted on. Since the floating chat now sits on every screen
+with a recipient picker, it saved exactly one tap over just using the chat.
+
+Asked what happens in real life today. His answer: **"asked by worker
+walking straight to storekeeper and also requested by departments."** So
+neither path leaves a record — and that made the call obvious.
+
+- **The gap it was papering over**: Purchase Requests cover material we
+  DON'T have; Material Issue records the hand-over but is raised from the
+  Job Card by someone else. Nothing covered *the ask* for material already
+  in stock.
+- **`materialRequests[]`** (data.js) — `createMaterialRequest()`,
+  `closeMaterialRequest()`, `getOpenMaterialRequests()`,
+  `getMaterialRequestsForJob()`, `getMaterialRequestsBy()`. A job is
+  required, for the same reason `releaseStockEntry()` requires one: every
+  hand-over stays traceable to the job it was for. Declining requires a
+  reason — declining silently leaves the asker no better off than the
+  walk-over it replaces (same rule as `rejectCustomer()`). Cloud-synced as
+  `material_requests`, applied live and confirmed against
+  `information_schema`.
+- **Deliberately not a stock movement.** Fulfilling a request marks it
+  fulfilled and opens the EXISTING Material Issue flow for that job — stock
+  keeps its single path and its itemCard trail. The test asserts this
+  explicitly rather than trusting the comment.
+- **The request form** (teamcomms.js, with the other shared module-agnostic
+  UI) searches the real Item Master and auto-fills the unit, but also
+  accepts free text: someone asking for "ply" may not know the code, and
+  the storekeeper resolves it when issuing — exactly what happens today
+  when they walk over. A matched item shows current stock; an unmatched one
+  is flagged to the storekeeper as needing a check before issuing.
+- **Storekeeper gets a real queue** — sidebar entry with a live count, a
+  dashboard tile, open requests sorted by needed-by with overdue flagged,
+  and a recently-closed list so a decline doesn't vanish.
+- **Scoped to roles that need it.** The old shortcut sat on every sidebar
+  including five that had no use for it (Sales, Estimator, Approver,
+  Accounts, HR) and Storekeeper's own, aimed at themselves. Now production
+  and job-working roles only.
+- **`notifyStorekeeper()` deleted**, not left dangling — dead code has been
+  a recurring bug source here. Anyone who just wants to *say* something to
+  the storekeeper uses the chat, one tap away on every screen.
+- **Verification**: new `e2e-material-requests.js` (11/11) — the four
+  refusal rules, a real request reaching the queue/job/asker's list plus
+  the Storekeeper ping and activity log, decline-needs-a-reason and
+  can't-close-twice, the Storekeeper queue UI, a real click on Issue
+  handing over to the Material Issue screen with no phantom stock movement,
+  the quick action's role scoping, and the form's item search/unit fill/
+  no-job refusal. `e2e-session5-dashboards.js` updated (Sales legitimately
+  no longer carries the shortcut) — 13/13. Full offline sweep 58/59, the
+  one failure being the pre-existing stale `e2e-batch8-phase2-4.js`. Live
+  `e2e-cloud-financial.js` and `e2e-cloud-events.js` both clean.
+- `sw.js` CACHE_VERSION v20 → v21.

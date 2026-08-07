@@ -969,19 +969,25 @@ function execWithSharedNav(groups) {
     { id: 'xs-planner', ico: '🗓', label: 'Weekly planner', onclick: 'execOpenPlanner()' },
     { id: 'xs-tasks', ico: '✓', label: 'My tasks', onclick: "execFocusPanel('tasks')", tag: openTasks > 0 ? openTasks : null },
     { id: 'xs-cal', ico: '📅', label: 'Calendar', onclick: "execFocusPanel('calendar')" },
-    { id: 'xs-notify', ico: '🏬', label: 'Notify Storekeeper', onclick: 'execNotifyStorekeeper()' },
+    { id: 'xs-notify', ico: '🏬', label: 'Request Material', onclick: 'execOpenMaterialRequest()' },
     { id: 'xs-buy', ico: '🛒', label: 'Request Purchase', onclick: 'execRequestPurchase()' }
   ] };
-  // Storekeeper is the usual RECIPIENT — no point offering them a shortcut
-  // aimed at themselves (the same call the original per-module wiring made).
-  if (execModuleKey === 'storekeeper') shared.items = shared.items.filter(i => i.id !== 'xs-notify');
+  // Asking the storekeeper for stock is a production action. It used to sit
+  // on every sidebar as a free-text "Notify Storekeeper" — including five
+  // that had no use for it, and Storekeeper's own, aimed at themselves.
+  if (!EXEC_CAN_REQUEST_MATERIAL.includes(execModuleKey)) shared.items = shared.items.filter(i => i.id !== 'xs-notify');
   return [shared].concat(groups || []);
 }
 // The department a module's purchase request should default to, so a
 // Joinery manager raising one doesn't have to re-pick their own department.
 const EXEC_MODULE_DEPT = { joinery: 'carp', upholstery: 'uph', painting: 'paint', curtain: 'curt' };
-function execNotifyStorekeeper() {
-  if (typeof notifyStorekeeper === 'function') notifyStorekeeper(execIdentity(), null, null, EXEC_RERENDER_OF[execModuleKey] || null);
+// Who can ask the storekeeper for material: the production modules and the
+// oversight ones that work a job. Everyone else just uses the chat.
+const EXEC_CAN_REQUEST_MATERIAL = ['joinery', 'upholstery', 'painting', 'curtain', 'operations', 'jobs', 'owner', 'admin'];
+function execOpenMaterialRequest() {
+  if (typeof openMaterialRequestForm === 'function') {
+    openMaterialRequestForm(execIdentity(), EXEC_MODULE_DEPT[execModuleKey] || null);
+  }
 }
 function execRequestPurchase() {
   if (typeof requestPurchaseFromModule === 'function') requestPurchaseFromModule(null, EXEC_MODULE_DEPT[execModuleKey] || null, null);
@@ -1391,6 +1397,7 @@ const EXEC_NAV_CONFIGS = {
   storekeeper: () => [
     { label: 'Workspace', items: [
       nv('sk-dash', '▦', 'Dashboard', "skGoTo('dashboard')", nvTag(() => getReorderAlerts().length)),
+      nv('sk-req', '🙋', 'Material Requests', "skGoTo('requests')", nvTag(() => getOpenMaterialRequests().length)),
       nv('sk-items', '🏷', 'Item Master', "skGoTo('items')"),
       nv('sk-mast', '🗂', 'Masters', "skGoTo('masters')"),
       nv('sk-adj', '± ', 'Stock Adjustment', "skGoTo('adjustment')"),
