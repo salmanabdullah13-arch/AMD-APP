@@ -260,6 +260,8 @@ function renderJobList() {
 // ══════════════════════════════════════════
 
 function openJobHub(jobId) {
+  // Session 2 nav: show the record in the breadcrumb trail.
+  if (typeof execSetCrumb === 'function') setTimeout(() => execSetCrumb(jobId), 0);
   jobsActiveJobId = jobId;
   jobsView = 'hub';
   renderJobsBody();

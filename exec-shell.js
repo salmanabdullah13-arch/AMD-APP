@@ -150,6 +150,27 @@ execStyleTag.textContent = `
 @keyframes xspulse{0%{transform:scale(1);opacity:.7}70%{transform:scale(1.45);opacity:0}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.xs-pulse{animation:none}}
 .xs-burger{display:none;}
+/* ── navigation (Session 2, 7 Aug 2026): a universal back control and a
+   breadcrumb trail, so no screen is ever a dead end and you can always see
+   where you are. Salman: "no back button anywhere to go back to previous
+   pages" + the sidebar silently changing context after a module hop. ── */
+.xs-back{
+  width:34px;height:34px;border-radius:50%;flex:none;display:none;place-items:center;
+  background:var(--x-surface-2);border:1px solid var(--x-hairline);cursor:pointer;
+  font-size:17px;color:var(--x-ink-2);font-family:inherit;line-height:1;
+}
+.xs-back.on{display:grid;}
+.xs-back:hover{border-color:var(--x-brand);color:var(--x-ink);}
+.xs-crumbs{
+  display:none;align-items:center;gap:5px;flex-wrap:wrap;
+  padding:7px 18px;background:var(--x-surface);border-bottom:1px solid var(--x-hairline);
+  font-size:11px;color:var(--x-ink-3);flex:none;
+}
+.xs-crumbs.on{display:flex;}
+.xs-crumb{color:var(--x-brand-bright);cursor:pointer;font-weight:600;}
+.xs-crumb.plain{color:var(--x-ink-3);cursor:default;font-weight:500;}
+.xs-crumb-sep{color:var(--x-ink-3);opacity:.6;}
+.xs-crumb-now{color:var(--x-ink);font-weight:700;}
 
 .xs-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 90px;min-height:0;}
 
@@ -445,18 +466,36 @@ function execRenderReminders() {
 // Each opens the module that owns the work, then its own view function —
 // same module-hop pattern as ownerGoTo/salesRequestPurchase (never
 // close*Module(), which would prompt a sign-out).
+// Records where we are now, so a hop can be undone. Used by every
+// reminder route and available to any module-hop helper.
+function execPushCurrent() {
+  const cfg = EXEC_MODULE_NAV[execModuleKey];
+  if (!cfg) return;
+  const opener = { sales: 'openSalesModule', estimator: 'openEstimatorModule', approver: 'openApproverModule',
+    jobs: 'openJobsModule', accounts: 'openAccountsModule', hr: 'openHRModule', joinery: 'openJoineryModule',
+    upholstery: 'openUpholsteryModule', painting: 'openPaintingModule', fleet: 'openFleetModule',
+    delivery: 'openDeliverySchedModule', storekeeper: 'openStorekeeperModule', purchasing: 'openPurchasingModule',
+    curtain: 'openCurtainModule', operations: 'openOperationsModule', owner: 'openOwnerModule', admin: 'openAdminModule' }[execModuleKey];
+  if (!opener) return;
+  execPushNav(cfg.label, opener + '()');
+}
+
 function execGoSignups() {
   if (typeof launchAdminModule === 'function' && window.cloudUserType === 'admin') { launchAdminModule(); if (typeof adminSetView === 'function') adminSetView('approvals'); return; }
   if (typeof launchOwnerModule === 'function') { launchOwnerModule(); if (typeof ownerNav === 'function') ownerNav('approvals'); return; }
   if (typeof launchHRModule === 'function') { launchHRModule(); if (typeof hrSetView === 'function') hrSetView('approvals'); }
 }
 function execGoOps(page) {
+  execPushCurrent();
   if (typeof openOperationsModule === 'function') { openOperationsModule(); if (typeof opsGoTo === 'function' && page) opsGoTo(page); }
 }
 function execGoJob(jobId) {
+  execPushCurrent();
   if (typeof openJobsModule === 'function') openJobsModule(jobId);   // jumps straight to that job's hub
+  if (typeof execSetCrumb === 'function') execSetCrumb(jobId);
 }
 function execGoStock() {
+  execPushCurrent();
   if (typeof openStorekeeperModule === 'function') { openStorekeeperModule(); if (typeof skGoTo === 'function') skGoTo('dashboard'); }
 }
 
@@ -763,6 +802,7 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
     <div class="xs-main">
       <header class="xs-top">
         <button class="xs-iconbtn xs-burger" onclick="execToggleSide()" aria-label="Menu">☰</button>
+        <button class="xs-back" onclick="execBack()" title="Back" aria-label="Back">‹</button>
         <div>
           <div class="xs-title">${execEsc(title)}</div>
           <div class="xs-sub">${execEsc(sub || today)}</div>
@@ -782,15 +822,120 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
         </div>
         <div class="xs-panel-body"></div>
       </div>
+      <div class="xs-crumbs"></div>
       <main class="xs-content"><div id="${contentId}"></div></main>
     </div>
   </div>`;
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION (Session 2, 7 Aug 2026)
+// Two layers, deliberately kept separate:
+//  • WITHIN a module — every module already tracks its own view variable
+//    (salesView/jobsView/...). EXEC_MODULE_NAV below says what each
+//    module's "home" view is and how to get back to it, so the header's
+//    back control works on any drill-down without touching module code.
+//  • ACROSS modules — cross-module hops (a Sales KPI opening a Job Card,
+//    a reminder opening Operations) push a return ticket onto execNavStack
+//    so the user can come back to exactly where they were. This is the
+//    fix for "the sidebar changed context and I couldn't get back".
+// The breadcrumb renders both layers: Module › View › Record.
+// ══════════════════════════════════════════
+const EXEC_MODULE_NAV = {
+  sales:       { label: 'Sales',        home: () => salesTopView === 'dashboard' && salesView === 'dashboard', goHome: "salesSetTopView('dashboard')" },
+  estimator:   { label: 'Estimation',   home: () => estimatorView === 'dashboard', goHome: "estimatorView='dashboard';renderEstimatorBody()" },
+  approver:    { label: 'Approvals',    home: () => approverView === 'dashboard', goHome: "approverView='dashboard';renderApproverBody()" },
+  jobs:        { label: 'Job Cards',    home: () => jobsView === 'list', goHome: "jobsView='list';renderJobsBody()" },
+  accounts:    { label: 'Accounts',     home: () => accountsView === 'dashboard', goHome: "accountsSetView('dashboard')" },
+  hr:          { label: 'HR & Payroll', home: () => hrView === 'dashboard', goHome: "hrSetView('dashboard')" },
+  joinery:     { label: 'Joinery',      home: () => joineryView === 'dashboard', goHome: "joinerySetView('dashboard')" },
+  upholstery:  { label: 'Upholstery',   home: () => upholsteryView === 'dashboard', goHome: "upholsterySetView('dashboard')" },
+  painting:    { label: 'Painting',     home: () => paintingView === 'dashboard', goHome: "paintingSetView('dashboard')" },
+  fleet:       { label: 'Vehicle Fleet', home: () => fleetView === 'list', goHome: "fleetView='list';renderFleetBody()" },
+  delivery:    { label: 'Delivery',     home: () => deliverySchedView === 'list', goHome: "deliverySchedView='list';renderDeliverySchedBody()" },
+  storekeeper: { label: 'Storekeeper',  home: () => true, goHome: "skGoTo('dashboard')" },
+  purchasing:  { label: 'Purchaser',    home: () => true, goHome: "purchGoTo('purch-dashboard')" },
+  curtain:     { label: 'Curtain & Blinds', home: () => true, goHome: "curtGoTo('curt-dashboard')" },
+  operations:  { label: 'Operations',   home: () => true, goHome: "opsGoTo('dashboard')" },
+  owner:       { label: 'Owner',        home: () => true, goHome: "ownerNav('dashboard')" },
+  admin:       { label: 'Admin',        home: () => true, goHome: "adminSetView('approvals')" }
+};
+
+const execNavStack = [];            // [{ label, restore }] — cross-module return tickets
+let execCrumbNow = null;            // record-level crumb the module sets (e.g. a Job No)
+
+// Called by any cross-module hop BEFORE it navigates away.
+function execPushNav(label, restore) {
+  if (!label || !restore) return;
+  if (execNavStack.length > 8) execNavStack.shift();
+  execNavStack.push({ label, restore });
+}
+// Modules call this when they open a specific record, so the trail can show
+// it (e.g. execSetCrumb('JB26AMD01105')). Cleared automatically on the way
+// back to a module's home view.
+function execSetCrumb(text) { execCrumbNow = text || null; execRenderNav(); }
+
+function execInModuleDrilldown() {
+  const cfg = EXEC_MODULE_NAV[execModuleKey];
+  if (!cfg) return false;
+  try { return !cfg.home(); } catch (e) { return false; }
+}
+function execBack() {
+  // Prefer stepping back inside the module (a drill-down), then fall back
+  // to the cross-module return ticket.
+  if (execInModuleDrilldown()) {
+    const cfg = EXEC_MODULE_NAV[execModuleKey];
+    execCrumbNow = null;
+    try { (new Function(cfg.goHome))(); } catch (e) { /* never trap the user */ }
+    execRenderNav();
+    return;
+  }
+  const back = execNavStack.pop();
+  if (back) {
+    execCrumbNow = null;
+    try { (new Function(back.restore))(); } catch (e) { /* ditto */ }
+  }
+}
+// Renders the back control + breadcrumb into whichever shell is on screen.
+function execRenderNav() {
+  const cfg = EXEC_MODULE_NAV[execModuleKey];
+  const drill = execInModuleDrilldown();
+  const canBack = drill || execNavStack.length > 0;
+  document.querySelectorAll('.xshell .xs-back').forEach(b => b.classList.toggle('on', canBack));
+
+  const parts = [];
+  if (execNavStack.length) {
+    const from = execNavStack[execNavStack.length - 1];
+    parts.push({ label: from.label, go: 'execBack()' });
+  }
+  if (cfg) parts.push({ label: cfg.label, go: drill ? cfg.goHome : null });
+  if (drill && !execCrumbNow) parts.push({ label: execCurrentViewLabel() || 'Detail', now: true });
+  if (execCrumbNow) parts.push({ label: execCrumbNow, now: true });
+
+  document.querySelectorAll('.xshell .xs-crumbs').forEach(strip => {
+    if (parts.length < 2) { strip.classList.remove('on'); strip.innerHTML = ''; return; }
+    strip.classList.add('on');
+    strip.innerHTML = parts.map((p, i) => {
+      const sep = i ? '<span class="xs-crumb-sep">›</span>' : '';
+      if (p.now) return sep + `<span class="xs-crumb-now">${execEsc(p.label)}</span>`;
+      if (p.go) return sep + `<span class="xs-crumb" onclick="${p.go}">${execEsc(p.label)}</span>`;
+      return sep + `<span class="xs-crumb plain">${execEsc(p.label)}</span>`;
+    }).join('');
+  });
+}
+// The label of whichever sidebar item is currently active — gives the
+// breadcrumb its middle rung without every module having to report it.
+function execCurrentViewLabel() {
+  const el = document.querySelector('.xshell .xs-item.active .xs-lbl');
+  return el ? el.textContent.trim() : null;
 }
 
 function execMarkActive(navId) {
   document.querySelectorAll('.xs-item').forEach(b => b.classList.remove('active'));
   const el = document.getElementById('xsnav-' + navId);
   if (el) el.classList.add('active');
+  execCrumbNow = null;          // a sidebar jump is a fresh context
+  if (typeof execRenderNav === 'function') execRenderNav();
 }
 
 // ══════════════════════════════════════════
@@ -865,6 +1010,7 @@ function execEnsureShell(wrap, { key, title, role, navGroupsFn, closeFn }) {
   }
   execThemeApply();
   execRefreshBadges();
+  execRenderNav();
 }
 
 // ── per-role nav configs: what matters to THIS user, with live badges ──

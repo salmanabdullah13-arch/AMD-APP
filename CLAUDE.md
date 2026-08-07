@@ -5861,3 +5861,40 @@ only, per that discipline.
 - **Next**: Session 2 (navigation architecture — universal back button +
   breadcrumbs + nav stack). Per Salman's note that's foundational and the
   architecture should be confirmed with him before coding.
+
+### 7 Aug 2026 — Backlog SESSION 2: navigation architecture
+
+Salman's complaints: "no back button anywhere to go back to previous pages",
+and entering a Job Card from Sales left the sidebar showing Jobs' own nav with
+no way back to where he came from. His decision: build BOTH a universal back
+control and a breadcrumb trail.
+
+**Two layers, deliberately separate** (exec-shell.js):
+- **Within a module** — `EXEC_MODULE_NAV` declares each module's "home" view
+  (a predicate over its existing view variable) and how to return to it. The
+  header's ‹ control appears automatically on ANY drill-down, in every module,
+  with zero changes to module view logic. This works because every module
+  already had a view variable; the registry just names the home state.
+- **Across modules** — `execNavStack` holds return tickets. `execPushCurrent()`
+  records where you are before a hop; `execBack()` prefers stepping back
+  inside the module first, then pops the stack. Wired into every reminder
+  route (execGoOps/execGoJob/execGoStock/execGoSignups); any future hop helper
+  gets it with one call.
+- **Breadcrumb strip** under the topbar renders both layers —
+  `Sales › Job Cards › JB26AMD01105` — where the origin crumb is tappable
+  (runs execBack) and the module crumb returns to its home view. Record-level
+  crumbs come from `execSetCrumb()`, called by `openJobHub()` and
+  `openQuotationHub()`; a sidebar pick clears it (fresh context) via
+  `execMarkActive()`.
+- Both chrome elements hide entirely on a module's home view — nothing to go
+  back to, no visual noise.
+- **Verification**: new `e2e-session2-nav.js` 7/7, including the exact dead
+  end Salman reported (Sales → Job Card → back → back → back in Sales), the
+  cross-module return ticket with origin naming, and the sidebar-clears-trail
+  behaviour. Standing battery: 26-file concatenation `node --check`, duplicate
+  top-level declaration scan (none), onclick cross-reference (502 handlers, 0
+  genuinely undefined). Full offline sweep clean.
+- **Next**: Session 3 (Sales role permission lockdown). Salman's own note
+  flags an open question there — whether job reports are worth exposing to
+  Sales — with a recommendation already drafted in the backlog (scope to their
+  own pipeline, strip cost figures, else skip).

@@ -616,6 +616,7 @@ function renderQuotationList() {
 
 // ── Manage Quote hub ──
 function openQuotationHub(id) {
+  if (typeof execSetCrumb === 'function') setTimeout(() => execSetCrumb(id), 0);
   salesActiveQtnId = id;
   salesTopView = 'quotations';
   salesView = 'qtn-hub';
