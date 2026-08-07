@@ -87,9 +87,9 @@ function printReport() {
     const mesh = window.__eco3d.branches.find(b => b.userData.node && b.userData.node.id === 'operations');
     if (mesh) mesh.userData.node.launch();
   });
-  await page.waitForSelector('#p-operations', { state: 'visible', timeout: 5000 });
+  await page.waitForSelector('#ops-module-wrap', { state: 'visible', timeout: 5000 });
   await page.waitForTimeout(300);
-  const opsHtmlHasValue = await page.evaluate(() => document.getElementById('p-operations').innerHTML.includes('99,999') || document.getElementById('p-operations').innerHTML.includes('99999'));
+  const opsHtmlHasValue = await page.evaluate(() => document.getElementById('ops-module-wrap').innerHTML.includes('99,999') || document.getElementById('ops-module-wrap').innerHTML.includes('99999'));
   record('Operations dashboard renders the live (mutated) value with no crash', consoleErrors.length === 0 ? 'PASS' : 'FAIL', `consoleErrors=${consoleErrors.length}`);
 
   await page.evaluate(() => goTo('eco'));

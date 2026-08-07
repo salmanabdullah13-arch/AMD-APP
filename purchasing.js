@@ -203,6 +203,13 @@ function openPurchasingModule() {
 }
 
 function purchGoTo(pageId) {
+  // Salman: Sales must never see price or supplier/vendor detail on any
+  // purchase record. They reach Purchasing only to raise a job PR, so every
+  // other page is redirected rather than rendered.
+  if (typeof isSalesRole === 'function' && isSalesRole() && pageId !== 'purch-requests') {
+    if (pageId !== 'purch-dashboard') purchAlert('Purchase order pricing and supplier details are not available for the Sales role.');
+    pageId = 'purch-requests';
+  }
   document.querySelectorAll('#purch-nav .ntab').forEach(t => {
     t.classList.toggle('active', t.dataset.p === pageId);
   });
@@ -330,7 +337,7 @@ function renderPurchRequests() {
           <p style="font-size:11.5px;color:#334155;margin:8px 0;">
             ${pr.items.map(it => `${it.name} (${it.qty} ${it.unit})${purchRefLabel(it.itemRef)}`).join(', ')}
           </p>
-          <button class="primary" style="font-size:12px;background:var(--biz-primary);border-color:var(--biz-primary);" onclick="openPOForm('${pr.id}')">Convert to PO →</button>
+          ${typeof isSalesRole==='function' && isSalesRole() ? '' : `<button class="primary" style="font-size:12px;background:var(--biz-primary);border-color:var(--biz-primary);" onclick="openPOForm('${pr.id}')">Convert to PO →</button>`}
         </div>`;
     });
   }
@@ -472,6 +479,7 @@ function closePRForm() {
 
 // ── PO creation form ───────────────────────
 function openPOForm(prId) {
+  if (typeof salesBlocked === 'function' && salesBlocked('poDetail', purchAlert)) return;
   const pr = purchaseRequests.find(p => p.id === prId);
   if (!pr) return;
 
@@ -1027,6 +1035,7 @@ function renderPORegister() {
 }
 
 function openInvoiceForm(poId) {
+  if (typeof salesBlocked === 'function' && salesBlocked('poDetail', purchAlert)) return;
   const po = purchaseOrders.find(p => p.id === poId);
   if (!po) return;
 
@@ -1412,6 +1421,7 @@ function viewSupplierDetail(id) {
 // gets repopulated with the new supplier chosen, and the caller's onchange
 // handler fires so the rest of that form reveals as normal.
 function openSupplierForm(selectId = null) {
+  if (typeof salesBlocked === 'function' && salesBlocked('poDetail', purchAlert)) return;
   supplierFormReturnSelectId = selectId;
   const ids = ['sup-name','sup-contact','sup-tel','sup-tel2','sup-email','sup-fax','sup-vat-name','sup-vat-no',
     'sup-credit-limit','sup-credit-days','sup-bank-acc-no','sup-bank-holder','sup-iban','sup-swift',
@@ -1515,6 +1525,7 @@ function renderSupplierPayments() {
 }
 
 function openPaymentForm() {
+  if (typeof salesBlocked === 'function' && salesBlocked('poDetail', purchAlert)) return;
   paymentFormDraft = {
     supplierId: null, division: 'Al Maraya Decor',
     methods: {
@@ -1668,6 +1679,7 @@ function renderDebitNotes() {
 }
 
 function openDebitNoteForm() {
+  if (typeof salesBlocked === 'function' && salesBlocked('poDetail', purchAlert)) return;
   debitNoteFormDraft = { supplierId: null, division: 'Al Maraya Decor' };
   document.getElementById('dn-supplier-select').innerHTML = purchSupplierOptionsHtml(null);
   document.getElementById('dn-reveal').style.display = 'none';

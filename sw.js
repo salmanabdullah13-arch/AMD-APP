@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v15"; // v15: Session 2 navigation (back control + breadcrumbs)
+const CACHE_VERSION = "amd-app-v16"; // v16: Session 3 Sales role lockdown
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

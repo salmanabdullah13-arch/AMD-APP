@@ -196,7 +196,7 @@ async function openNode(page, nodeId, wrapId) {
   // ── Sweep: every other module renders its comms banner cleanly, no console errors ──
   currentStep = 'remaining-modules-sweep';
   const sweepTargets = [
-    { id: 'operations', wrap: 'p-operations', bodyCheckJs: `document.getElementById('ops-dashboard-body').innerHTML` },
+    { id: 'operations', wrap: 'ops-module-wrap', bodyCheckJs: `document.getElementById('ops-dashboard-body').innerHTML` },
     { id: 'curtain', wrap: 'curt-module-wrap', bodyCheckJs: `document.getElementById('curt-comms').innerHTML` },
     { id: 'approvals', wrap: 'approver-module-wrap', bodyCheckJs: `document.getElementById('approver-body').innerHTML` },
     { id: 'accounts', wrap: 'accounts-module-wrap', bodyCheckJs: `document.getElementById('accounts-body').innerHTML` },
@@ -206,13 +206,21 @@ async function openNode(page, nodeId, wrapId) {
     await page.evaluate(() => goTo('eco'));
     await page.waitForTimeout(200);
     if (t.id === 'operations') {
-      await openNode(page, 'operations', 'p-operations');
+      await openNode(page, 'operations', 'ops-module-wrap');
     } else {
       await openNode(page, t.id, t.wrap);
     }
     const html = await page.evaluate(new Function(`return ${t.bodyCheckJs};`)).catch(() => '');
+    // Operations is the exception since its redesign: Salman circled the
+    // in-dashboard comms strip as redundant, so messaging there lives only in
+    // the shell's floating chat. Assert it's genuinely absent rather than
+    // quietly dropping the module from the sweep.
     const hasMessages = typeof html === 'string' && html.includes('Messages');
-    record(`${t.id}: comms/Messages widget renders`, hasMessages ? 'PASS' : 'FAIL', typeof html === 'string' ? '' : 'body element not found');
+    if (t.id === 'operations') {
+      record('operations: the redundant in-dashboard Messages strip is gone (shell chat owns messaging)', !hasMessages ? 'PASS' : 'FAIL', typeof html === 'string' ? '' : 'body element not found');
+    } else {
+      record(`${t.id}: comms/Messages widget renders`, hasMessages ? 'PASS' : 'FAIL', typeof html === 'string' ? '' : 'body element not found');
+    }
   }
 
   currentStep = 'final';

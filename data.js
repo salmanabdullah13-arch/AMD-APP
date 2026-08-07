@@ -6496,6 +6496,38 @@ function getCalendarEvents(identity, moduleKey) {
   return ev.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// ═══ ROLE GATING (backlog Session 3, 7 Aug 2026) ═══
+// Salman: Sales must not reach costing, delivery, materials, editing,
+// invoicing, job-status changes, cancellation, or ANY price/vendor detail
+// on purchasing records. His own note is the important part: "a hidden
+// button that's still reachable via a stale event handler is the actual
+// security bug, not the visual" — so every gated action checks this at the
+// FUNCTION level too, not just when rendering. (The real boundary remains
+// server-side RLS; this is the honest client surface on top of it.)
+function currentUserType() { return (typeof window !== 'undefined' && window.cloudUserType) || null; }
+function isSalesRole() { return currentUserType() === 'sales'; }
+// Actions Sales may never perform, with the message shown if something
+// tries anyway.
+const SALES_DENIED = {
+  jobCosting:   'Job costing is not available for the Sales role.',
+  editJob:      'Editing a Job Card is not available for the Sales role.',
+  deliveryNote: 'Delivery Notes are handled by Operations.',
+  materials:    'Material Issue/Return is handled by the Storekeeper.',
+  jobStatus:    'Updating job status is handled by Operations.',
+  labourCost:   'Labour cost entry is handled by Operations.',
+  cancelJob:    'Cancelling a job is handled by Operations.',
+  invoice:      'Invoicing is handled by Accounts.',
+  poDetail:     'Purchase order pricing and supplier details are not available for the Sales role.'
+};
+// Returns true (and surfaces why) when the current user must be blocked.
+function salesBlocked(action, alertFn) {
+  if (!isSalesRole()) return false;
+  const msg = SALES_DENIED[action] || 'Not available for the Sales role.';
+  if (typeof alertFn === 'function') alertFn(msg);
+  else if (typeof showAlert === 'function') showAlert(msg);
+  return true;
+}
+
 const tasks = [];
 function nextTaskId() {
   // Max-based, not length-based — tasks hydrate from the cloud now, so

@@ -78,7 +78,13 @@ function renderApprovalQueueInto(containerId) {
     return `
     <div class="sales-card" id="aq-row-${aqEsc(r.id)}">
       <p style="font-weight:700;font-size:13px;margin:0 0 4px;">${aqEsc(r.display_name)}</p>
-      <p style="font-size:11px;color:#94a3b8;margin:0 0 8px;">${aqEsc(r.designation || '—')} · DOB ${aqEsc(r.dob || '—')} · ${aqEsc(r.phone || '—')}</p>
+      <p style="font-size:11px;color:#94a3b8;margin:0 0 8px;">Applied for ${aqEsc(approvalQueueUserTypes.find(t => t.key === r.user_type)?.label || r.user_type || '—')}</p>
+      <div style="border:1px solid var(--biz-border-light,#e2e8f0);border-radius:8px;padding:8px 10px;margin:0 0 10px;background:var(--biz-page-bg,#f8fafc);">
+        <p style="font-size:10.5px;color:#94a3b8;font-weight:700;letter-spacing:.4px;margin:0 0 6px;">SIGN-UP DETAILS</p>
+        ${[['Full name', r.display_name], ['Designation', r.designation], ['Date of birth', r.dob], ['Telephone', r.phone]]
+          .map(([k, v]) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:2px 0;">
+            <span style="color:#64748b;">${aqEsc(k)}</span><span style="font-weight:600;text-align:right;">${aqEsc(v || '—')}</span></div>`).join('')}
+      </div>
       ${blockReason ? `<p style="font-size:11.5px;color:#b91c1c;font-weight:600;margin:0 0 8px;">⚠ ${aqEsc(blockReason)}</p>` : ''}
       <label style="font-size:11px;color:#64748b;">User Type (correct if needed before approving)</label>
       <select id="aq-usertype-${aqEsc(r.id)}" style="width:100%;padding:9px 10px;border:1px solid var(--biz-border-light,#e2e8f0);border-radius:8px;font-size:12.5px;margin:4px 0 10px;">

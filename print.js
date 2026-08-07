@@ -163,6 +163,7 @@ function printJobOrder(jobId) {
   printOpenHTML(buildJobOrderPrintHTML(job));
 }
 function printJobCosting(jobId) {
+  if (typeof salesBlocked === 'function' && salesBlocked('jobCosting')) return;
   const job = jobCards.find(j => j.id === jobId);
   if (!job) return;
   const qtn = quotations.find(q => q.id === job.quotationId);
@@ -524,6 +525,7 @@ function buildJobOrderPrintHTML(job) {
 // COST band. Everything is read from the ledger (getLineActualCost) —
 // nothing on this document is ever hand-entered.
 function printMaterialCost(jobId, lineId) {
+  if (typeof salesBlocked === 'function' && salesBlocked('jobCosting')) return;
   const job = jobCards.find(j => j.id === jobId);
   if (!job) return;
   printOpenHTML(buildMaterialCostPrintHTML(job, Number(lineId)));

@@ -92,7 +92,7 @@ async function openNode(page, nodeId, wrapId) {
   currentStep = 'operations-routing-queue-ui';
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
-  await openNode(page, 'operations', 'p-operations');
+  await openNode(page, 'operations', 'ops-module-wrap');
   await page.evaluate(() => opsGoTo('alerts'));
   await page.waitForTimeout(200);
   await shot(page, 'ops-routing-queue');

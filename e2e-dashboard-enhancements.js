@@ -52,18 +52,22 @@ async function openNode(page, nodeId, wrapId) {
 
   // ── Operations: confirm the old static fake content is gone before seeding ──
   currentStep = 'operations-dashboard-empty-state';
-  await openNode(page, 'operations', 'p-operations');
+  await openNode(page, 'operations', 'ops-module-wrap');
   await shot(page, 'operations-empty');
   const emptyState = await page.evaluate(() => {
     const html = document.getElementById('ops-dashboard-body').innerHTML;
     return {
       noFakeProject: !html.includes('Majlis Refurbishment') && !html.includes('AMD-15010'),
-      hasRealKpiLabels: html.includes('Active Jobs') && html.includes('Approval Pending') && html.includes('Needs Action') && html.includes('Open Tasks'),
+      // The 4-Aug redesign leads with the action queue and compacts the
+      // numbers band to three tiles — 'Needs Action' is deliberately gone
+      // (the queue owns it) and Approval Pending/Open Tasks moved into it.
+      hasRealKpiLabels: html.includes('Active Jobs') && html.includes('Jobs On Budget') && html.includes('Invoiced This Month'),
+      hasActionQueue: html.includes('opsGoTo('),
       noSubsOrSnags: !html.includes('Subs overdue') && !html.includes('Snags open')
     };
   });
   record('Old static fake project rows (Majlis Refurbishment, AMD-15010) are gone', emptyState.noFakeProject ? 'PASS' : 'FAIL', JSON.stringify(emptyState));
-  record('Real KPI tiles render (Active Jobs / Approval Pending / Needs Action / Open Tasks)', emptyState.hasRealKpiLabels ? 'PASS' : 'FAIL');
+  record('Real KPI tiles render (Active Jobs / Jobs On Budget / Invoiced This Month) above a real action queue', emptyState.hasRealKpiLabels && emptyState.hasActionQueue ? 'PASS' : 'FAIL', JSON.stringify(emptyState));
   record('Fabricated "Subs overdue"/"Snags open" tiles removed rather than faked (no real data backs them)', emptyState.noSubsOrSnags ? 'PASS' : 'FAIL');
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
@@ -103,7 +107,7 @@ async function openNode(page, nodeId, wrapId) {
 
   // ── Operations dashboard now reflects real seeded data ──
   currentStep = 'operations-dashboard-real-data';
-  await openNode(page, 'operations', 'p-operations');
+  await openNode(page, 'operations', 'ops-module-wrap');
   await shot(page, 'operations-with-real-data');
   const opsState = await page.evaluate((s) => {
     const html = document.getElementById('ops-dashboard-body').innerHTML;
@@ -169,7 +173,7 @@ async function openNode(page, nodeId, wrapId) {
     handOffLine(jobId, lineId, 'carp', 'Lead');
     jobsSetStatus(jobId, 'completed');
   }, seed.clearJobId);
-  await openNode(page, 'operations', 'p-operations');
+  await openNode(page, 'operations', 'ops-module-wrap');
   const refreshedKpi = await page.evaluate(() => document.querySelector('#ops-dashboard-body .kpi .kv').textContent.trim());
   record('Re-entering Operations from the ecosystem hub shows fresh data (not stale from first load)', refreshedKpi === '1' ? 'PASS' : 'FAIL', `activeJobs now shows ${refreshedKpi}, expected 1 (clear job marked completed)`);
   await page.evaluate(() => goTo('eco'));

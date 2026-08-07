@@ -288,6 +288,11 @@ function renderJobHub() {
   // already excluded cancelled jobs, this hub didn't (4 Aug 2026 audit
   // finding, matches the same fix in data.js's own guards).
   const routed = !!job.routingConfirmed && !cancelled;
+  // Session 3 role lockdown — Sales sees only Job Order (print), New
+  // Variation, Raise Purchase Request and Mark Completed. Costing, editing,
+  // delivery, materials, status/labour, cancellation, invoicing and any
+  // PO price/vendor detail are hidden AND blocked at the function level.
+  const sales = typeof isSalesRole === 'function' && isSalesRole();
 
   return `
     <span class="sales-back" onclick="jobsView='list';renderJobsBody();">‹ Back to Job Card List</span>
@@ -301,25 +306,25 @@ function renderJobHub() {
       : !routed ? `<div class="sales-banner">Awaiting Operations Routing — Delivery Note, Material Issue/Return, and Invoice generation unlock once the Operations Manager confirms department routing for this job.</div>` : ''}
     <div class="sales-tile-row">
       <div class="sales-tile t-blue" onclick="printJobOrder('${job.id}')"><span class="sales-tile-icon">🖨</span>Job Order</div>
-      <div class="sales-tile t-blue" onclick="printJobCosting('${job.id}')"><span class="sales-tile-icon">📊</span>Job Costing</div>
-      <div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>
-      ${routed ? `<div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>` : jobsLockedTile('t-teal', '🚚', 'Delivery Note', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}
-      ${routed ? `<div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>` : jobsLockedTile('t-amber', '📦', 'Material Issue', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}
-      ${routed ? `<div class="sales-tile t-magenta" onclick="openMaterialsMove('${job.id}','return')"><span class="sales-tile-icon">↩</span>Material Return</div>` : jobsLockedTile('t-magenta', '↩', 'Material Return', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.')}
+      ${sales ? '' : `<div class="sales-tile t-blue" onclick="printJobCosting('${job.id}')"><span class="sales-tile-icon">📊</span>Job Costing</div>`}
+      ${sales ? '' : `<div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>`}
+      ${sales ? '' : (routed ? `<div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>` : jobsLockedTile('t-teal', '🚚', 'Delivery Note', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'))}
+      ${sales ? '' : (routed ? `<div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>` : jobsLockedTile('t-amber', '📦', 'Material Issue', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'))}
+      ${sales ? '' : (routed ? `<div class="sales-tile t-magenta" onclick="openMaterialsMove('${job.id}','return')"><span class="sales-tile-icon">↩</span>Material Return</div>` : jobsLockedTile('t-magenta', '↩', 'Material Return', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'))}
       ${cancelled ? jobsLockedTile('t-cyan', '➕', 'New Variation', 'This job is cancelled.') : `<div class="sales-tile t-cyan" onclick="jobsNewVariation('${job.id}')"><span class="sales-tile-icon">➕</span>New Variation</div>`}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Job Actions</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${sales ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="secondary" style="flex:1;" onclick="openUpdateJobStatus('${job.id}')">Update Job Status</button>
         <button class="secondary" style="flex:1;" onclick="openLabourCost('${job.id}')">Labour Cost</button>
-      </div>
+      </div>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
         <button class="secondary" style="flex:1;" onclick="openPurchaseRequestJob('${job.id}')">Raise Purchase Request (Job)</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
         ${job.status !== 'completed' ? `<button class="secondary" style="flex:1;" onclick="jobsSetStatus('${job.id}','completed')">Mark Completed</button>` : ''}
-        ${job.status !== 'cancelled' ? `<button class="secondary" style="flex:1;color:#b91c1c;" onclick="jobsSetStatus('${job.id}','cancelled')">Cancel Job</button>` : ''}
+        ${sales || job.status === 'cancelled' ? '' : `<button class="secondary" style="flex:1;color:#b91c1c;" onclick="jobsSetStatus('${job.id}','cancelled')">Cancel Job</button>`}
       </div>
     </div>
     <div class="sales-card">
@@ -331,7 +336,7 @@ function renderJobHub() {
       ${getInvoicesForJob(job.id).length === 0
         ? `<p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">No invoice generated yet.</p>`
         : `<table class="sales-items"><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th>Received</th><th>Balance</th></tr>${getInvoicesForJob(job.id).map(inv => `<tr style="cursor:pointer;" onclick="openInvoicePrint('${inv.id}')"><td>${jEsc(inv.id)}</td><td>${inv.date}</td><td>${inv.totals.netTotal.toFixed(3)}</td><td>${(inv.paidAmount || 0).toFixed(3)}</td><td>${invoiceBalance(inv).toFixed(3)}</td></tr>`).join('')}</table>`}
-      <button class="secondary" style="width:100%;margin-top:6px;${routed ? '' : 'opacity:.5;cursor:not-allowed;'}" onclick="${routed ? `jobsGenerateInvoice('${job.id}')` : `jobsAlert('${cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'}')`}">Generate Invoice</button>
+      ${sales ? '' : `<button class="secondary" style="width:100%;margin-top:6px;${routed ? '' : 'opacity:.5;cursor:not-allowed;'}" onclick="${routed ? `jobsGenerateInvoice('${job.id}')` : `jobsAlert('${cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'}')`}">Generate Invoice</button>`}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Related records</p>
@@ -349,7 +354,7 @@ function renderJobHub() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">PO / Vendor</p>
-      ${job.poNo ? `<p style="font-size:12px;">PO No: ${jEsc(job.poNo)} · Date: ${job.poDate} · Vendor: ${jEsc(job.vendor)}</p>` : `<p style="font-size:12px;color:#64748b;">Empty unless materials were purchased specifically for this job.</p>`}
+      ${sales ? `<p style="font-size:12px;color:#64748b;">Supplier and pricing detail is not available for the Sales role.</p>` : (job.poNo ? `<p style="font-size:12px;">PO No: ${jEsc(job.poNo)} · Date: ${job.poDate} · Vendor: ${jEsc(job.vendor)}</p>` : `<p style="font-size:12px;color:#64748b;">Empty unless materials were purchased specifically for this job.</p>`)}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Items (${job.items.length})</p>
@@ -400,6 +405,7 @@ function renderJobCostComparison(job) {
 }
 
 function jobsSetStatus(jobId, status) {
+  if (status === 'cancelled' && typeof salesBlocked==='function' && salesBlocked('cancelJob', jobsAlert)) return;
   if (!window.confirm(`Mark this job as ${status}?`)) return;
   setJobStatus(jobId, status);
   jobsAlert(`✓ Job marked ${status}.`);
@@ -410,7 +416,9 @@ function jobsSetStatus(jobId, status) {
 // EDIT JOB
 // ══════════════════════════════════════════
 
-function openEditJob(jobId) { jobsActiveJobId = jobId; jobsView = 'edit'; renderJobsBody(); }
+function openEditJob(jobId) {
+  if (typeof salesBlocked==='function' && salesBlocked('editJob', jobsAlert)) return;
+  jobsActiveJobId = jobId; jobsView = 'edit'; renderJobsBody(); }
 
 function renderEditJob() {
   const job = getJobCard(jobsActiveJobId);
@@ -448,7 +456,9 @@ function jobsUpdateBOM(jobId) {
 // CREATE DELIVERY NOTE
 // ══════════════════════════════════════════
 
-function openDeliveryNote(jobId) { jobsActiveJobId = jobId; jobsView = 'delivery'; renderJobsBody(); }
+function openDeliveryNote(jobId) {
+  if (typeof salesBlocked==='function' && salesBlocked('deliveryNote', jobsAlert)) return;
+  jobsActiveJobId = jobId; jobsView = 'delivery'; renderJobsBody(); }
 
 function renderDeliveryNote() {
   const job = getJobCard(jobsActiveJobId);
@@ -493,6 +503,7 @@ function jobsSubmitDeliveryNote(jobId) {
 let jobsMoveRows = [];
 
 function openMaterialsMove(jobId, kind) {
+  if (typeof salesBlocked==='function' && salesBlocked('materials', jobsAlert)) return;
   jobsActiveJobId = jobId;
   jobsView = kind === 'issue' ? 'issue' : 'return';
   jobsMoveRows = [{ jobItemLineId: '', stockItemName: '', unit: '', qty: 1 }];
@@ -555,6 +566,7 @@ function jobsSubmitMove(kind) {
 let jobsStatusRows = [];
 
 function openUpdateJobStatus(jobId) {
+  if (typeof salesBlocked==='function' && salesBlocked('jobStatus', jobsAlert)) return;
   jobsActiveJobId = jobId;
   jobsView = 'status';
   jobsStatusRows = [{ lineId: '', department: JOB_DEPARTMENTS[0], status: JOB_LINE_STATUSES[0] }];
@@ -617,6 +629,7 @@ function jobsSubmitStatus() {
 let jobsLabourRows = [];
 
 function openLabourCost(jobId) {
+  if (typeof salesBlocked==='function' && salesBlocked('labourCost', jobsAlert)) return;
   jobsActiveJobId = jobId;
   jobsView = 'labour';
   jobsLabourRows = [{ employee: STAFF[0], jobItemLineId: '', normalHrs: 0, otHrs: 0, normalRate: 0, otRate: 0 }];
@@ -768,6 +781,7 @@ function prJobSubmit() {
 // to trigger creation of a financial document, only view it read-only via
 // renderRelatedRecords() above.
 function jobsGenerateInvoice(jobId) {
+  if (typeof salesBlocked==='function' && salesBlocked('invoice', jobsAlert)) return;
   const lpoNo = window.prompt("Customer's LPO No (optional — leave blank if none):", '') || null;
   const inv = generateInvoiceFromJob(jobId, { lpoNo });
   if (inv.error) { jobsAlert(inv.error); return; }

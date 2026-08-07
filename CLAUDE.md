@@ -5898,3 +5898,73 @@ control and a breadcrumb trail.
   flags an open question there — whether job reports are worth exposing to
   Sales — with a recommendation already drafted in the backlog (scope to their
   own pipeline, strip cost figures, else skip).
+
+### 7 Aug 2026 — Backlog Session 3: Sales role permission lockdown
+
+Third of Salman's six backlog sections, kept to its own file pass per his own
+rule ("the duplicate-const and dead-code bugs in this app have always come
+from rushing multiple changes into one file pass").
+
+- **One source of truth for the rule** (`data.js`): `currentUserType()`,
+  `isSalesRole()`, a `SALES_DENIED` message map, and `salesBlocked(action,
+  alertFn)`. Every gated action consults this — no per-module copies of the
+  role string.
+- **Job Card (`jobs.js`)** — Sales no longer sees Job Costing, Edit Job,
+  Delivery Note, Material Issue, Material Return, Update Job Status, Labour
+  Cost, Cancel Job, or Generate Invoice. They keep Job Order (print), New
+  Variation, Raise Purchase Request and Mark Completed. Hidden, not disabled
+  — a greyed control still advertises a capability they don't have.
+- **Guarded at the function level too, which is the actual point.** Salman:
+  *"cross-reference every role-gated onclick against the role-check logic,
+  not just the DOM. A hidden button that's still reachable via a stale event
+  handler is the actual security bug, not the visual."* So
+  `openEditJob`/`openDeliveryNote`/`openMaterialsMove`/`openUpdateJobStatus`/
+  `openLabourCost`/`jobsGenerateInvoice`/`jobsSetStatus('cancelled')` and
+  `printJobCosting`/`printMaterialCost` (print.js) all refuse when called
+  directly. The real boundary remains server-side RLS; this is the honest
+  client surface on top of it.
+- **No price or supplier name reaches Sales on any purchase record**, per his
+  instruction to apply the rule everywhere POs surface, not just Job Cards.
+  The Job Card's PO/Vendor card shows Sales a plain notice instead of the PO
+  number and vendor. In Purchasing, `purchGoTo()` confines a Sales session to
+  Purchase Requests (they enter only to raise a job PR) — Orders, Suppliers,
+  Payments, Debit Notes, the PO Register and Bill O/s all redirect back with
+  a message; "Convert to PO" is not rendered; and `openPOForm`/
+  `openSupplierForm`/`openPaymentForm`/`openDebitNoteForm` refuse directly.
+- **Sign-up approval screen** (`approval-queue.js`) now shows the submitted
+  form as a labelled SIGN-UP DETAILS block (full name, designation, date of
+  birth, telephone) plus the role applied for. The fields were already being
+  fetched — they were just rendered as one line of grey micro-copy, which is
+  what made it look like the form wasn't captured.
+- **Still owed a decision from Salman (not a build task)**: whether Sales
+  should see job reports at all. Recommendation, for when he picks it up —
+  only if scoped to their own pipeline and stripped of every cost figure;
+  otherwise skip it, since a report is the easiest place for a cost column to
+  creep back in.
+- **Verification**: new `e2e-session3-roles.js` (9/9) checks each gated action
+  twice — absent from the rendered controls, and refused when the function is
+  called directly (no view change, no invoice created, no cancellation). It
+  reads the real `.sales-tile`/`button` elements rather than the card's prose,
+  because the "locked" banner names Delivery Note in its own text and a
+  whole-card text search passed on a control that wasn't there. `node --check`
+  on every touched file plus the full 26-file load-order concatenation;
+  duplicate top-level declaration scan clean.
+- **Repaired six pre-existing stale e2e suites found by the sweep** (all
+  failing on committed code before this session, from the earlier Operations-
+  overlay and exec-shell rollouts — confirmed by stashing): `#p-operations`
+  → `#ops-module-wrap` in four suites; `e2e-dashboard-enhancements.js`'s KPI
+  assertion updated to the redesigned Operations dashboard (Active Jobs /
+  Jobs On Budget / Invoiced This Month above the action queue — "Needs
+  Action" is deliberately gone since the queue owns it); `e2e-team-comms-
+  dashboard.js` now asserts Operations' in-dashboard Messages strip is
+  *absent* (Salman circled it as redundant; the shell chat owns messaging);
+  `e2e-owner-dashboard.js` targets the real close handler instead of a `×`
+  that lives in the mobile drawer; `e2e-batch7-small-items.js` drives the
+  sidebar nav items, since the old `.sales-toptab`/Accounts tab buttons still
+  exist in the DOM but now render at zero size and can never be clicked.
+- **One suite still fails and is genuinely pre-existing, not fixed here**:
+  `e2e-batch8-phase2-4.js` can't find Joinery's "Start Production" button in
+  `#joinery-body`. It fails identically on committed code. Left alone rather
+  than half-fixed — it needs its own look, not a guess bolted onto this pass.
+  Full offline sweep otherwise: 56/57 suites pass.
+- `sw.js` CACHE_VERSION v15 → v16.

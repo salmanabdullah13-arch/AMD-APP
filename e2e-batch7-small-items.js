@@ -61,7 +61,12 @@ async function openNode(page, nodeId, wrapId) {
     const enq = createEnquiry({ division: 'Furniture', customerId: cust.id, contactPerson: 'Zara', tel: '39112233', source: 'walk inn', salesPerson: 'Salman Abdullah' });
     return { custId: cust.id, enqId: enq.id };
   });
-  await page.click('.sales-toptab:has-text("Enquiry")');
+  // The exec-shell rollout moved module navigation into the sidebar — the old
+  // .sales-toptab elements still exist but render at zero size, so a click on
+  // one can never land. Drive the real sidebar item instead.
+  await page.evaluate(() => execToggleSide(true));   // 390px: the sidebar is a drawer
+  await page.waitForTimeout(150);
+  await page.click('#xsnav-sal-enq');
   await page.waitForTimeout(150);
   await page.click(`#sales-body div:has-text("${seed.enqId}")`, { timeout: 3000 }).catch(() => {});
   // Open enquiry detail directly via evaluate to reliably get to wizard
@@ -129,7 +134,9 @@ async function openNode(page, nodeId, wrapId) {
     const job = confirmQuotationToJobCard(id, 'Salman Abdullah');
     return job.id;
   }, qtnId);
-  await page.click('#accounts-body button:has-text("Proforma")');
+  await page.evaluate(() => execToggleSide(true));
+  await page.waitForTimeout(150);
+  await page.click('#xsnav-ac-prof');
   await page.waitForTimeout(150);
   await page.fill('#accounts-body input[type=text]', jobId);
   await page.click('#accounts-body button:has-text("Generate")');

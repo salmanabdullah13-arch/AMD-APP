@@ -148,7 +148,7 @@ async function openNode(page, nodeId, wrapId) {
   record('Opening Owner Dashboard hides a previously-open module (mutual exclusivity)', accountsHiddenNow ? 'PASS' : 'FAIL');
 
   currentStep = 'back-button';
-  await page.click('#owner-module-wrap button:has-text("×")');
+  await page.click('#owner-module-wrap button[onclick="closeOwnerModule()"]');
   await page.waitForTimeout(200);
   const closedProperly = await page.evaluate(() => getComputedStyle(document.getElementById('owner-module-wrap')).display === 'none' && document.getElementById('scroll').style.display !== 'none');
   record('Close (×) button returns to the ecosystem correctly', closedProperly ? 'PASS' : 'FAIL');

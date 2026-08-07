@@ -64,7 +64,7 @@ async function openNode(page, nodeId, wrapId) {
   currentStep = 'bridge-screens-no-crash';
   await openNode(page, 'curtain', 'curt-module-wrap');
   await shot(page, 'curtain-dashboard-with-bridged-job');
-  await openNode(page, 'operations', 'p-operations');
+  await openNode(page, 'operations', 'ops-module-wrap');
   await shot(page, 'operations-dashboard-with-bridged-job');
   record('Curtain/Operations dashboards render with the new bridged job present', consoleErrors.length === 0 ? 'PASS' : 'FAIL', `consoleErrors so far: ${consoleErrors.length}`);
   await page.evaluate(() => goTo('eco'));
