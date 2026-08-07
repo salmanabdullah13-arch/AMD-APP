@@ -6093,3 +6093,60 @@ Fifth of Salman's six backlog sections.
   offline sweep 57/58 — the one failure is still `e2e-batch8-phase2-4.js`,
   the pre-existing stale suite flagged in Session 3.
 - `sw.js` CACHE_VERSION v17 → v18.
+
+### 7 Aug 2026 — Session 5 completion pass, and the backlog is closed
+
+Re-read the original backlog text against what actually shipped (the source
+message is in this session's transcript, not the repo) and found two places
+where Session 5 under-delivered against its own wording. Both closed here.
+
+- **"All dashboards — KPI cards clickable" was explicitly global** — "across
+  Sales, Owner, Operations, Estimation, Curtain & Blinds … treat as one pass
+  across all dashboard files rather than redoing it per screen later." The
+  first pass covered Sales/Estimator/Approver/Accounts and stopped. Owner's
+  five headline tiles now open the module that owns the number, Operations'
+  three-tile numbers band opens All Projects / Budget Approvals / Accounts,
+  and all eight Curtain tiles land on the Curtain page that owns them
+  (BOM, Jobs, Fabric, Workshop, Windows, Install Crew).
+- **The header chat icon is gone.** The brief named three competing
+  messaging entry points and said to keep the floating action button. The
+  per-dashboard cards and strips went in the main pass, but the shell's own
+  topbar 💬 opened the same panel — the third one. Removed; the floating
+  bubble (with its unread badge) is now the only way in.
+- **Operations' Invoiced-This-Month tile hops via `hideModuleWrap`**, not a
+  close — the same sign-out-mid-hop trap fixed twice already this session.
+
+**The two open questions the brief asked to answer, not build:**
+- *"Notify Storekeeper" — confirm what it does.* It opens a compose-message
+  addressed to Storekeeper, prefilled with the sender's identity. That's a
+  concrete action, so it stays — now as a sidebar quick action rather than
+  a per-dashboard link, and hidden inside Storekeeper's own sidebar.
+- *"Upcoming Deliveries" — calendar/events or job delivery data?* Job
+  delivery data (`deliverySchedule[]`), which is what it already reads.
+  Session 4's `events[]` is a personal log of meetings/site visits/notes; a
+  delivery is a scheduled company commitment against a job, and mixing the
+  two would put someone's meeting in a delivery list. Left as-is,
+  deliberately.
+
+**Also corrected**: the backlog's header line reads "Recommended order: 1 →
+2 → 3 → 4 → 5 → 6" but the document only defines five sections — there is no
+Session 6. With Session 5 complete, **the whole backlog is done**: Session 1
+(critical bugs), 2 (navigation architecture), 3 (Sales role lockdown), 4
+(planner/tasks/calendar), 5 (dashboard cleanup).
+
+**Still owed by Salman, carried forward:** run the latest
+`supabase/schema.sql` (creates `app_events`) and then remove `"app_events"`
+from `CLOUD_TABLES_PENDING_DEPLOY` in data.js; the Curtain visual refresh
+from Session 5 is deliberately not started (the brief says "confirm
+direction before touching layout", and a design brief is out with him);
+and `e2e-batch8-phase2-4.js` remains a pre-existing stale suite needing its
+own pass.
+
+- **Verification**: `e2e-session5-dashboards.js` extended to 13/13 (Owner/
+  Operations/Curtain tile coverage plus a check that exactly one chat entry
+  point exists). `node --check` on every touched file plus the 26-file
+  load-order concatenation; duplicate top-level declaration scan clean.
+  Full offline sweep 57/58 — the one failure is the pre-existing stale
+  suite above. `e2e-jobcards-dept-scope-rls.js` failed in the sweep and
+  passed 12/12 standalone: the documented live-network flake.
+- `sw.js` CACHE_VERSION v18 → v19.

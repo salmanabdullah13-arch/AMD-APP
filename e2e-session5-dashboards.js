@@ -157,6 +157,38 @@ function printReport() {
   record('A "With Estimator" tile lands on the quotation list filtered to that stage',
     landing.view === 'quotations' && landing.stage === 'estimator' ? 'PASS' : 'FAIL', JSON.stringify(landing));
 
+  // ── the ask was explicitly global: Owner, Operations and Curtain too ──
+  currentStep = 'kpis-clickable-rest';
+  const moreTiles = await page.evaluate(async () => {
+    const out = {};
+    launchOwnerModule();
+    await new Promise(r => setTimeout(r, 450));
+    const ow = document.getElementById('owner-module-wrap');
+    const owt = [...ow.querySelectorAll('.xs-tile')];
+    out.owner = { total: owt.length, dead: owt.filter(t => !t.getAttribute('onclick')).length };
+    launchOperationsModule();
+    await new Promise(r => setTimeout(r, 450));
+    const opBand = [...document.querySelectorAll('#ops-dashboard-body .kpis .kpi')];
+    out.operations = { total: opBand.length, dead: opBand.filter(t => !t.getAttribute('onclick')).length };
+    launchCurtainModule();
+    await new Promise(r => setTimeout(r, 450));
+    const cu = [...document.querySelectorAll('#curt-kpis .kpi')];
+    out.curtain = { total: cu.length, dead: cu.filter(t => !t.getAttribute('onclick')).length };
+    return out;
+  });
+  const deadRest = Object.entries(moreTiles).filter(([, v]) => v.total > 0 && v.dead > 0);
+  record('Owner, Operations and Curtain KPI tiles are clickable too (the ask was global)',
+    deadRest.length === 0 ? 'PASS' : 'FAIL', JSON.stringify(moreTiles));
+
+  // ── the header chat icon is gone; the floating bubble is the one entry ──
+  currentStep = 'single-chat-entry';
+  const chatEntries = await page.evaluate(() => ({
+    headerIcons: document.querySelectorAll('.xs-top .xs-iconbtn[title=Messages]').length,
+    fab: document.querySelectorAll('.xs-chat-fab').length
+  }));
+  record('Only the floating bubble opens messaging — no duplicate header icon',
+    chatEntries.headerIcons === 0 && chatEntries.fab === 1 ? 'PASS' : 'FAIL', JSON.stringify(chatEntries));
+
   // ── Admin's roster is a compact list that expands one row at a time ──
   currentStep = 'admin-compact';
   const admin = await page.evaluate(async () => {

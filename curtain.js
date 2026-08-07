@@ -613,27 +613,27 @@ function renderCurtDashboard() {
 
     <p class="dash-section-title">BOM &amp; materials</p>
     <div class="kpis">
-      <div class="kpi ${kpis.awaitingBOM>0?'warn':''}">
+      <div class="kpi ${kpis.awaitingBOM>0?'warn':''}" style="cursor:pointer;" onclick="curtGoTo('curt-bom')">
         <p class="kl">Awaiting BOM</p>
         <p class="kv" style="color:${kpis.awaitingBOM>0?'var(--warn)':'var(--ink)'}">${kpis.awaitingBOM}</p>
         <p class="ks">not yet submitted</p>
       </div>
-      <div class="kpi ${kpis.awaitingBudget>0?'warn':''}">
+      <div class="kpi ${kpis.awaitingBudget>0?'warn':''}" style="cursor:pointer;" onclick="curtGoTo('curt-jobs')">
         <p class="kl">Budget pending</p>
         <p class="kv" style="color:${kpis.awaitingBudget>0?'var(--warn)':'var(--ink)'}">${kpis.awaitingBudget}</p>
         <p class="ks">awaiting Ops approval</p>
       </div>
-      <div class="kpi ${kpis.materialOverage>0?'warn':'ok'}">
+      <div class="kpi ${kpis.materialOverage>0?'warn':'ok'}" style="cursor:pointer;" onclick="curtGoTo('curt-bom')">
         <p class="kl">Material overage</p>
         <p class="kv" style="color:${kpis.materialOverage>0?'var(--warn)':'var(--ok)'}">${kpis.materialOverage}</p>
         <p class="ks">jobs over quote estimate</p>
       </div>
-      <div class="kpi ${kpis.fabricOrdersPending>0?'warn':''}">
+      <div class="kpi ${kpis.fabricOrdersPending>0?'warn':''}" style="cursor:pointer;" onclick="curtGoTo('curt-fabric')">
         <p class="kl">Fabric orders</p>
         <p class="kv" style="color:${kpis.fabricOrdersPending>0?'var(--warn)':'var(--ink)'}">${kpis.fabricOrdersPending}</p>
         <p class="ks">pending delivery</p>
       </div>
-      <div class="kpi ${kpis.fabricArrivedAwaitingReceipt>0?'bad':''}">
+      <div class="kpi ${kpis.fabricArrivedAwaitingReceipt>0?'bad':''}" style="cursor:pointer;" onclick="curtGoTo('curt-fabric')">
         <p class="kl">Arrived, unreceived</p>
         <p class="kv" style="color:${kpis.fabricArrivedAwaitingReceipt>0?'var(--bad)':'var(--ink)'}">${kpis.fabricArrivedAwaitingReceipt}</p>
         <p class="ks">in Bahrain, awaiting handover</p>
@@ -642,17 +642,17 @@ function renderCurtDashboard() {
 
     <p class="dash-section-title">Work in progress</p>
     <div class="kpis">
-      <div class="kpi">
+      <div class="kpi" style="cursor:pointer;" onclick="curtGoTo('curt-workshop')">
         <p class="kl">In production</p>
         <p class="kv">${kpis.productionInProgress}</p>
         <p class="ks">jobs active</p>
       </div>
-      <div class="kpi ${kpis.installationPending>0?'warn':''}">
+      <div class="kpi ${kpis.installationPending>0?'warn':''}" style="cursor:pointer;" onclick="openInstallCrewDashboard()">
         <p class="kl">Installation</p>
         <p class="kv" style="color:${kpis.installationPending>0?'var(--warn)':'var(--ink)'}">${kpis.installationPending}</p>
         <p class="ks">pending scheduling</p>
       </div>
-      <div class="kpi">
+      <div class="kpi" style="cursor:pointer;" onclick="curtGoTo('curt-windows')">
         <p class="kl">Items to produce</p>
         <p class="kv" style="color:var(--purple)">${kpis.totalItemsToProduce}</p>
         <p class="ks">windows across all jobs</p>

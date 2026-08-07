@@ -1051,7 +1051,9 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
         </div>
         <span class="xs-spacer"></span>
         <button class="xs-iconbtn" onclick="execThemeToggle()" title="Light / dark mode" aria-label="Toggle theme">◐</button>
-        <button class="xs-iconbtn" onclick="execToggleChat()" title="Messages" aria-label="Messages">💬<span class="xs-badge xs-chat-badge" style="display:none;">0</span></button>
+        <!-- Session 5: the header's chat icon is gone. Salman asked for ONE
+             messaging entry point and named the floating bubble as the one to
+             keep; a header icon opening the same panel was the third of three. -->
         <button class="xs-iconbtn" onclick="execToggleReminders()" title="Reminders" aria-label="Reminders">
           <span class="xs-pulse"></span>🔔<span class="xs-badge xs-rem-badge" style="display:none;">0</span>
         </button>

@@ -201,27 +201,27 @@ function ownerStatTiles(acctK, jobK) {
   const reminders = getExecReminders().length;
   return `
     <div class="xs-tiles">
-      <div class="xs-tile">
+      <div class="xs-tile" style="cursor:pointer;" onclick="ownerGoTo('accounts')">
         <div class="xs-tile-label">Revenue — invoiced MTD</div>
         <div class="xs-tile-value"><span class="unit">BD</span>${Math.round(revMTD).toLocaleString('en-US')}</div>
         <div class="xs-tile-foot">${revDelta === null ? '<span>first month of data</span>' : `<span class="xs-delta ${revDelta >= 0 ? 'up' : 'down'}">${revDelta >= 0 ? '▲' : '▼'} ${Math.abs(revDelta)}%</span><span>vs last month</span>`}</div>
       </div>
-      <div class="xs-tile">
+      <div class="xs-tile" style="cursor:pointer;" onclick="ownerGoTo('sales')">
         <div class="xs-tile-label">Open quotations</div>
         <div class="xs-tile-value"><span class="unit">BD</span>${Math.round(openQuoteValue).toLocaleString('en-US')}</div>
         <div class="xs-tile-foot"><span>${openQuotes.length} live quote${openQuotes.length === 1 ? '' : 's'}</span></div>
       </div>
-      <div class="xs-tile">
+      <div class="xs-tile" style="cursor:pointer;" onclick="ownerGoTo('jobs')">
         <div class="xs-tile-label">Active jobs</div>
         <div class="xs-tile-value">${jobK.open}</div>
         <div class="xs-tile-foot">${urgentCount ? `<span class="xs-delta down">🔥 ${urgentCount}</span><span>urgent</span>` : '<span>none urgent</span>'}</div>
       </div>
-      <div class="xs-tile">
+      <div class="xs-tile" style="cursor:pointer;" onclick="ownerGoTo('accounts')">
         <div class="xs-tile-label">Receivables</div>
         <div class="xs-tile-value"><span class="unit">BD</span>${Math.round(acctK.receivables).toLocaleString('en-US')}</div>
         <div class="xs-tile-foot"><span>outstanding balance</span></div>
       </div>
-      <div class="xs-tile">
+      <div class="xs-tile" style="cursor:pointer;" onclick="execToggleReminders(true)">
         <div class="xs-tile-label">Needs attention</div>
         <div class="xs-tile-value">${reminders}</div>
         <div class="xs-tile-foot"><span>open reminders — see 🔔</span></div>

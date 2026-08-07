@@ -919,6 +919,14 @@ function renderOpsCapacity() {
 // do the real work; Owner Dashboard's own KPIs were refactored the same
 // day to share the pending-approvals helper rather than duplicate it.
 // ══════════════════════════════════════════
+// Invoicing lives in Accounts — hop rather than duplicate the view here.
+// hideModuleWrap, not closeOperationsModule: a close would offer to sign a
+// single-dashboard role out mid-hop (Session 5).
+function opsOpenAccounts() {
+  const wrap = document.getElementById('ops-module-wrap');
+  if (wrap && typeof hideModuleWrap === 'function') hideModuleWrap(wrap);
+  setTimeout(() => { if (typeof openAccountsModule === 'function') openAccountsModule(); }, 150);
+}
 function renderOpsDashboard() {
   const el = document.getElementById('ops-dashboard-body');
   if (!el) return;
@@ -986,9 +994,9 @@ function renderOpsDashboard() {
   const kpisHtml = `
     <p style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;margin:0 2px 6px;">The numbers</p>
     <div class="kpis">
-      <div class="kpi"><p class="kl">Active Jobs</p><p class="kv">${activeJobs.length}</p><p class="ks">routed, in production</p></div>
-      <div class="kpi ok"><p class="kl">Jobs On Budget</p><p class="kv" style="color:var(--ok)">${jobsOnBudget}</p><p class="ks">of ${activeJobs.length} active</p></div>
-      <div class="kpi"><p class="kl">Invoiced This Month</p><p class="kv">${money(invoicedThisMonth)}</p><p class="ks">${money(receivedThisMonth)} received</p></div>
+      <div class="kpi" style="cursor:pointer;" onclick="opsGoTo('projects')"><p class="kl">Active Jobs</p><p class="kv">${activeJobs.length}</p><p class="ks">routed, in production</p></div>
+      <div class="kpi ok" style="cursor:pointer;" onclick="opsGoTo('budgetapprovals')"><p class="kl">Jobs On Budget</p><p class="kv" style="color:var(--ok)">${jobsOnBudget}</p><p class="ks">of ${activeJobs.length} active</p></div>
+      <div class="kpi" style="cursor:pointer;" onclick="opsOpenAccounts()"><p class="kl">Invoiced This Month</p><p class="kv">${money(invoicedThisMonth)}</p><p class="ks">${money(receivedThisMonth)} received</p></div>
     </div>`;
 
   const attentionRows = jobsWithFlags.length === 0
