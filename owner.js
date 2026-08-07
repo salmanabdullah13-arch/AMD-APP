@@ -51,26 +51,61 @@ function ownerBuildShell() {
       {
         label: 'Workspace', items: [
           { id: 'owner-overview', ico: '▦', label: 'Overview', onclick: "ownerNav('dashboard')" },
-          { id: 'owner-approvals', ico: '✔', label: 'Sign-up Approvals', tag: signups || null, onclick: "ownerNav('approvals')" },
-          { id: 'owner-budgets', ico: '◈', label: 'Budget Reviews', tag: budgets || null, onclick: "ownerNav('budget-review')" }
+          { id: 'owner-planner', ico: '🗓', label: 'Week planner', onclick: 'execOpenPlanner()' },
+          { id: 'owner-tasks', ico: '✓', label: 'My tasks', onclick: "execFocusPanel('tasks')" }
         ]
       },
       {
-        label: 'Modules', items: [
-          { id: 'm-sales', ico: '◉', label: 'Sales', onclick: "ownerGoTo('launchSalesModule')" },
-          { id: 'm-accounts', ico: '▤', label: 'Accounts', onclick: "ownerGoTo('launchAccountsModule')" },
-          { id: 'm-operations', ico: '⚙', label: 'Operations', onclick: 'ownerGoToOperations()' },
-          { id: 'm-purchasing', ico: '⬡', label: 'Purchasing', onclick: "ownerGoTo('launchPurchasingModule')" },
-          { id: 'm-hr', ico: '☰', label: 'HR & Payroll', onclick: "ownerGoTo('launchHRModule')" }
+        label: 'Business', items: [
+          { id: 'm-sales', ico: '◉', label: 'Sales pipeline', onclick: "ownerGoTo('launchSalesModule')" },
+          { id: 'm-jobs', ico: '⚒', label: 'Job cards', onclick: "ownerGoTo('launchJobsModule')" },
+          /* "Deliveries" is this app's Delivery Scheduling module. */
+          { id: 'm-deliveries', ico: '🚚', label: 'Deliveries', onclick: "ownerGoTo('launchDeliverySchedModule')" }
+        ]
+      },
+      {
+        label: 'Money', items: [
+          /* Revenue/Invoices/Receivables are three views of the Accounts
+             module, so each opens Accounts on the tab that owns it. */
+          { id: 'm-revenue', ico: '▤', label: 'Revenue', onclick: "ownerGoToAccounts('dashboard')" },
+          { id: 'm-invoices', ico: '🧾', label: 'Invoices', onclick: "ownerGoToAccounts('invoices')" },
+          { id: 'm-receivables', ico: '⏳', label: 'Receivables', onclick: "ownerGoToAccounts('bill-os')" }
+        ]
+      },
+      {
+        label: 'Company', items: [
+          /* "Departments" is Operations, which owns the cross-department view. */
+          { id: 'm-departments', ico: '⚙', label: 'Departments', onclick: 'ownerGoToOperations()' },
+          { id: 'm-hr', ico: '☰', label: 'HR & payroll', onclick: "ownerGoTo('launchHRModule')" },
+          { id: 'm-purchasing', ico: '⬡', label: 'Purchasing', onclick: "ownerGoTo('launchPurchasingModule')" }
         ]
       },
       {
         label: 'Administration', items: [
-          { id: 'm-admin', ico: '🛡', label: 'Admin Dashboard', onclick: "ownerGoTo('launchAdminModule')" }
+          /* Users & roles and Settings both live in the Admin dashboard;
+             Masters is Storekeeper's own Masters tab (units, categories,
+             catalogues) — this app has no separate Masters module. */
+          { id: 'm-users', ico: '🛡', label: 'Users & roles', onclick: "ownerGoToAdmin('users')" },
+          { id: 'm-masters', ico: '🗂', label: 'Masters', onclick: 'ownerGoToMasters()' },
+          { id: 'm-settings', ico: '⚙', label: 'Settings', onclick: "ownerGoToAdmin('devpreview')" }
         ]
       }
     ]
   });
+}
+// Sidebar destinations that need a specific tab once the module opens.
+// hideModuleWrap (via ownerGoTo's own pattern), never close*Module().
+function ownerGoToAccounts(view) {
+  ownerGoTo('launchAccountsModule');
+  setTimeout(() => { if (typeof accountsSetView === 'function') accountsSetView(view); }, 260);
+}
+function ownerGoToAdmin(view) {
+  ownerGoTo('launchAdminModule');
+  setTimeout(() => { if (typeof adminSetView === 'function') adminSetView(view); }, 260);
+}
+function ownerGoToMasters() {
+  ownerGoTo('launchStorekeeperModule');
+  setTimeout(() => { if (typeof skGoTo === 'function') skGoTo('masters'); }, 260);
 }
 function ownerNav(view) {
   ownerView = view;
@@ -284,150 +319,15 @@ function renderOwnerBody() {
     return;
   }
 
-  const salesK = getSalesKPIs();
-  const acctK = getAccountsKPIs();
-  const jobK = getJobCardKPIs();
-  const purchK = getPurchasingKPIs();
-  const stockK = getStockPoolSummary();
-  const hrK = getHRKPIs();
-  const activeEmployees = employees.filter(e => e.status === 'Active').length;
-  const hrRiskCount = Object.values(hrK).reduce((s, g) => s + g.expiring.length + g.expired.length, 0);
-
-  const withEstimator = quotations.filter(q => q.stage === 'estimator').length;
-  const withApprover = quotations.filter(q => q.stage === 'approver').length;
-  const jobsPendingRouting = getJobsPendingRouting().length;
-  const pendingBudgetApprovals = getAllPendingBudgetApprovals().length;
-
-  const curtK = getCurtainKPIs();
-  const joineryQueue = getDepartmentQueue('carp').length;
-  const upholsteryQueue = getDepartmentQueue('uph').length;
-  const paintingQueue = getPaintingQueue().length;
-
-  const recent = getRecentActivity(20);
-  const activityRows = recent.length === 0
-    ? `<p style="font-size:12px;color:#64748b;">No activity recorded yet.</p>`
-    : recent.map(a => `<div class="owner-activity-row"><span class="owner-activity-date">${a.date}</span><span>${ownerEsc(a.message)} <span style="color:#94a3b8;">— ${ownerEsc(a.user)}</span></span></div>`).join('');
-
-  // Dashboard Analytics rollout (5 Aug 2026), Phase 2 — Owner is the
-  // flagship/reference implementation: company-wide, no scope filter,
-  // reusing chart-widgets.js primitives + the three new data.js
-  // aggregations from Phase 1.
-  const monthlyRev = getMonthlyRevenueByDivision(6);
-  const divSeries = monthlyRev.divisions.map((d, i) => ({
-    name: d, color: cwOrdinalColor(i), values: monthlyRev.months.map(m => monthlyRev.byMonthDiv[m.key][d])
-  }));
-  const divTotals = monthlyRev.divisions.map((d, i) => ({
-    label: d, color: cwOrdinalColor(i),
-    value: monthlyRev.months.reduce((s, m) => s + monthlyRev.byMonthDiv[m.key][d], 0)
-  })).filter(r => r.value > 0).sort((a, b) => b.value - a.value);
-  const divTotalSum = divTotals.reduce((s, r) => s + r.value, 0) || 1;
-  divTotals.forEach(r => { r.sublabel = Math.round(r.value / divTotalSum * 100) + '%'; });
-
-  const funnel = getPipelineFunnel();
-  const funnelRows = funnel.stages.map((s, i) => ({
-    label: `${s} (${funnel.byStage[s].count})`, value: funnel.byStage[s].value, color: cwOrdinalColor(i)
-  }));
-
-  const topClients = getTopClientsByValue(6).map(c => ({ label: c.name, value: c.value }));
-
-  const deptQualityRings = ['carp', 'uph', 'paint', 'curt'].map(ownerDeptQualityRing).join('');
-
-  body.innerHTML = `
-    ${ownerStatTiles(acctK, jobK)}
-    
-    <div class="sales-card">
-      <h3>Company Snapshot</h3>
-      <div class="sales-kpi-grid">
-        <div class="sales-kpi-tile"><div class="num">BD ${acctK.revenue.toFixed(0)}</div><div class="lbl">Revenue</div></div>
-        <div class="sales-kpi-tile"><div class="num">BD ${acctK.receivables.toFixed(0)}</div><div class="lbl">Receivables</div></div>
-        <div class="sales-kpi-tile"><div class="num">BD ${acctK.payables.toFixed(0)}</div><div class="lbl">Payables</div></div>
-        <div class="sales-kpi-tile"><div class="num">${jobK.open}</div><div class="lbl">Jobs Open</div></div>
-        <div class="sales-kpi-tile"><div class="num">${jobK.completed}</div><div class="lbl">Jobs Completed</div></div>
-        <div class="sales-kpi-tile"><div class="num">${activeEmployees}</div><div class="lbl">Active Staff</div></div>
-      </div>
-      <span class="owner-link" onclick="ownerGoTo('launchAccountsModule')">Open Accounts →</span>
-      <span class="owner-link" style="margin-left:14px;" onclick="ownerOpenApprovals()">Pending Sign-ups${approvalQueueRows.length ? ' (' + approvalQueueRows.length + ')' : ''} →</span>
-      <!-- Nav overhaul (5 Aug 2026), Salman's call: Owner stays the
-           landing screen (business oversight), with Admin one tap away
-           rather than switching this account's own user_type to 'admin'
-           and losing these charts as the default view. Drills in via the
-           standard ownerGoTo() hop, so Admin's own ✕ returns here (see
-           closeModuleWrap(), shell.js). -->
-      <span class="owner-link" style="margin-left:14px;" onclick="ownerGoTo('launchAdminModule')">Admin Dashboard →</span>
-    </div>
-
-    <div class="sales-card">
-      <h3>Monthly Revenue by Division</h3>
-      ${cwStackedMonthlyBars(monthlyRev.months, divSeries, { valueFormatter: ownerBHD, emptyMessage: 'Not enough confirmed jobs yet — this fills in as quotations are confirmed to Job Cards.' })}
-    </div>
-
-    <div class="sales-card">
-      <h3>Division Share (last 6 months, confirmed order value)</h3>
-      ${cwHorizontalBarList(divTotals, { valueFormatter: ownerBHD, emptyMessage: 'Not enough confirmed jobs yet.' })}
-    </div>
-
-    <div class="sales-card">
-      <h3>Pipeline Funnel (company-wide)</h3>
-      ${cwHorizontalBarList(funnelRows, { valueFormatter: ownerBHD, emptyMessage: 'No quotations or jobs yet.' })}
-    </div>
-
-    <div class="sales-card">
-      <h3>Top Clients (confirmed order value)</h3>
-      ${cwHorizontalBarList(topClients, { valueFormatter: ownerBHD, emptyMessage: 'No confirmed jobs yet.' })}
-    </div>
-
-    <div class="sales-card">
-      <h3>Department Quality (QC pass rate, all-time)</h3>
-      <div class="dash-rings">${deptQualityRings}</div>
-    </div>
-
-    <div class="sales-card">
-      <h3>Sales Pipeline</h3>
-      <div class="sales-kpi-grid">
-        <div class="sales-kpi-tile"><div class="num">${salesK.unallocated}</div><div class="lbl">Un-allocated</div></div>
-        <div class="sales-kpi-tile"><div class="num">${withEstimator}</div><div class="lbl">With Estimator</div></div>
-        <div class="sales-kpi-tile"><div class="num">${withApprover}</div><div class="lbl">With Approver</div></div>
-      </div>
-      <span class="owner-link" onclick="ownerGoTo('launchSalesModule')">Open Sales →</span>
-    </div>
-
-    <div class="sales-card">
-      <h3>Operations &amp; Production</h3>
-      <div class="owner-dept-row"><span>Jobs awaiting routing</span><span class="owner-dept-pill">${jobsPendingRouting}</span></div>
-      <div class="owner-dept-row" style="cursor:pointer;" onclick="ownerOpenBudgetReviews()"><span>Department budgets pending approval</span><span class="owner-dept-pill">${pendingBudgetApprovals} →</span></div>
-      <div class="owner-dept-row"><span>Joinery queue</span><span class="owner-dept-pill">${joineryQueue}</span></div>
-      <div class="owner-dept-row"><span>Upholstery queue</span><span class="owner-dept-pill">${upholsteryQueue}</span></div>
-      <div class="owner-dept-row"><span>Painting queue</span><span class="owner-dept-pill">${paintingQueue}</span></div>
-      <div class="owner-dept-row"><span>Curtain running jobs</span><span class="owner-dept-pill">${curtK.totalRunningJobs}</span></div>
-      <div class="owner-dept-row"><span>Curtain windows behind schedule</span><span class="owner-dept-pill" style="${curtK.windowsBehindSchedule > 0 ? 'background:#fdeceb;color:#d9342b;' : ''}">${curtK.windowsBehindSchedule}</span></div>
-      <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;">
-        <span class="owner-link" onclick="ownerGoToOperations()">Operations →</span>
-        <span class="owner-link" onclick="ownerGoTo('launchJoineryModule')">Joinery →</span>
-        <span class="owner-link" onclick="ownerGoTo('launchUpholsteryModule')">Upholstery →</span>
-        <span class="owner-link" onclick="ownerGoTo('launchPaintingModule')">Painting →</span>
-        <span class="owner-link" onclick="ownerGoTo('launchCurtainModule')">Curtain →</span>
-      </div>
-    </div>
-
-    <div class="sales-card">
-      <h3>Purchasing &amp; Inventory</h3>
-      <div class="sales-kpi-grid">
-        <div class="sales-kpi-tile"><div class="num">${purchK.totals.openRequests}</div><div class="lbl">Open PRs</div></div>
-        <div class="sales-kpi-tile"><div class="num">${purchK.totals.pendingPOApprovals}</div><div class="lbl">PO Approvals</div></div>
-        <div class="sales-kpi-tile"><div class="num">${stockK.inPoolCount}</div><div class="lbl">Stock In Pool</div></div>
-      </div>
-      <span class="owner-link" onclick="ownerGoTo('launchPurchasingModule')">Open Purchasing →</span>
-    </div>
-
-    <div class="sales-card">
-      <h3>HR &amp; Compliance</h3>
-      <div class="owner-dept-row"><span>Active staff</span><span class="owner-dept-pill">${activeEmployees}</span></div>
-      <div class="owner-dept-row"><span>Documents expiring/expired</span><span class="owner-dept-pill" style="${hrRiskCount > 0 ? 'background:#fff6e3;color:#c47d00;' : ''}">${hrRiskCount}</span></div>
-      <span class="owner-link" onclick="ownerGoTo('launchHRModule')">Open HR →</span>
-    </div>
-
-    <div class="sales-card">
-      <h3>Recent Activity (company-wide)</h3>
-      ${activityRows}
-    </div>`;
+  // ── Overview — the redesigned dashboard (7 Aug 2026) ──
+  // Salman supplied a high-fidelity design handoff and asked for it exactly.
+  // owner-dashboard.js owns the layout and every card; this just mounts it.
+  // The old hand-rolled overview (KPI tiles + per-department cards + charts)
+  // is gone — the new By-department card replaces the eight stacked ones,
+  // and its own tiles read the same KPI functions those cards used.
+  if (typeof OwnerDashboard === 'undefined') {
+    body.innerHTML = '<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">Owner dashboard failed to load.</p></div>';
+    return;
+  }
+  OwnerDashboard.mount(body);
 }

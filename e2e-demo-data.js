@@ -85,9 +85,11 @@ async function openNode(page, nodeId, wrapId) {
   const ownerCharts = await page.evaluate(() => {
     const body = document.getElementById('owner-body').innerHTML;
     return {
-      hasMonthlyRevenueSvg: /Monthly Revenue by Division[\s\S]*?<svg/.test(body) || body.includes('cw-stacked'),
+      // Redesign 4a (7 Aug 2026): the stacked chart became per-division share
+      // rows with sparklines; the quality rings are SVG arcs in their own card.
+      hasMonthlyRevenueSvg: /Revenue by division[\s\S]*?<svg/.test(body),
       hasRealClientName: body.includes('Al Fardan Villa') || body.includes('Seef Business Center') || body.includes('Riffa Views'),
-      hasDeptRings: (body.match(/cw-ring/g) || []).length >= 4
+      hasDeptRings: (body.match(/stroke-dasharray/g) || []).length >= 4
     };
   });
   record('Owner Dashboard renders real chart content post-seed (not the empty state)', ownerCharts.hasMonthlyRevenueSvg && ownerCharts.hasRealClientName ? 'PASS' : 'FAIL', JSON.stringify(ownerCharts));

@@ -126,10 +126,17 @@ function printReport() {
   // ── the quick action is scoped to roles that actually need it ──
   currentStep = 'quick-action-scope';
   const scope = await page.evaluate(async () => {
+    // Now in the Quick actions popover above the page title, not the
+    // sidebar (Owner-redesign handoff, 7 Aug 2026).
     const check = async (fn, wrapId) => {
       window[fn]();
       await new Promise(r => setTimeout(r, 400));
-      return !!document.getElementById(wrapId).querySelector('#xsnav-xs-notify');
+      execToggleQuick(true);
+      await new Promise(r => setTimeout(r, 150));
+      const found = [...document.querySelectorAll('#' + wrapId + ' .xs-qa-pop .xs-qa-item')]
+        .some(b => b.textContent.indexOf('Request Material') !== -1);
+      execToggleQuick(false);
+      return found;
     };
     return {
       joinery: await check('launchJoineryModule', 'joinery-module-wrap'),

@@ -1,0 +1,267 @@
+/* ==========================================================================
+   AMD-APP · Owner dashboard (redesign 4a)
+   Design tokens + component styles. Light is primary; dark via [data-theme].
+   No external libraries. Charts are plain SVG/CSS.
+
+   INTEGRATION NOTE (7 Aug 2026) — the ONLY change from the handoff file:
+   the token block is scoped to `.od` instead of `:root`, and its dark
+   counterpart to this app's real dark-mode selector (`.x-dark`, the class
+   execThemeApply() stamps on every shell) as well as the handoff's
+   `[data-theme="dark"]`. Values, names and every other rule are verbatim.
+   Reason: `--ok`, `--warn`, `--bad` and `--r` already exist at :root in
+   styles.css and are used by all 17 other modules — a global block here
+   would silently restyle the whole app. `.od` is on the dashboard root
+   (added by mount()), so every `.od-*` rule below still resolves identically.
+   ========================================================================== */
+
+.od{
+  /* Brand — single accent, wine. No second brand colour. */
+  --wine:#600131; --wine2:#7c1a4a; --wine3:#9c3d6c;
+  --wine-tint:#f7eef3; --wine-line:#ecd9e3;
+
+  /* Surfaces */
+  --page:#f5f6f8; --card:#ffffff; --sunk:#fafbfc;
+  --line:#e6e8ee; --line2:#eff1f5;
+
+  /* Text */
+  --tx:#101828; --tx2:#475467; --tx3:#98a2b3;
+
+  /* Semantic — deliberately distinct from brand */
+  --ok:#087443;   --ok-bg:#e8f6ef;
+  --warn:#b54708; --warn-bg:#fef3e6;
+  --bad:#b42318;  --bad-bg:#fdecea;
+
+  /* Categorical — departments/divisions only, used in legends and splits */
+  --d1:#600131; --d2:#8a5a2b; --d3:#2e5f7a; --d4:#5b6b3a;
+
+  --sh:0 1px 2px rgba(16,24,40,.04);
+  --sh2:0 6px 24px rgba(16,24,40,.10);
+  --r:14px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+
+[data-theme="dark"] .od,
+.x-dark .od{
+  --wine:#a83c63; --wine2:#c2557c; --wine3:#d98aa8;
+  --wine-tint:#2a1a22; --wine-line:#3d2530;
+  --page:#141017; --card:#1d1821; --sunk:#241e28;
+  --line:#332b38; --line2:#2a2330;
+  --tx:#eee9f0; --tx2:#a99fb0; --tx3:#7d7386;
+  --ok:#4ade9b;   --ok-bg:#14291f;
+  --warn:#f2ae5d; --warn-bg:#2c2013;
+  --bad:#f58b83;  --bad-bg:#2e1817;
+  --d1:#c2557c; --d2:#c79a5f; --d3:#6ea6c4; --d4:#9db56e;
+  --sh:0 1px 2px rgba(0,0,0,.4);
+  --sh2:0 8px 30px rgba(0,0,0,.5);
+}
+
+/* --------------------------------------------------------------- shell --- */
+.od{ font-family:var(--font); color:var(--tx); background:var(--page); }
+.od *{ box-sizing:border-box; }
+.od button{ font-family:inherit; }
+.od a{ color:var(--wine); text-decoration:none; }
+.od a:hover{ color:var(--wine2); }
+.od :focus-visible{ outline:2px solid var(--wine); outline-offset:2px; }
+
+/* Overview grid. Five themed rows, four columns, every row full width.
+   Row 1 band · row 2 today · row 3 analysis · row 4 money · row 5 pipeline. */
+.od-grid{
+  display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+  align-content:start; padding:16px 24px 24px; overflow:auto;
+}
+.od-span2{ grid-column:span 2; }
+/* INTEGRATION (7 Aug 2026) — the one rule added to the handoff's CSS, and it
+   changes no value. `1fr` is `minmax(auto,1fr)`, so a column can never be
+   narrower than its widest card's min-content. At 390px the By-department
+   card's min-content is 566px (its tab strip plus the six tiles), which was
+   sizing the single mobile column to 566 and pushing every card off-screen.
+   min-width:0 lets the columns shrink; the tab strip then scrolls
+   horizontally exactly as the handoff specifies. */
+.od-grid > *{ min-width:0; }
+.od-tabs, .od-dept, .od-dtile{ min-width:0; }
+@media (max-width:1100px){ .od-grid{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:880px){
+  .od-grid{ grid-template-columns:1fr; padding:14px 14px 24px; gap:12px; }
+  .od-span2{ grid-column:span 1; }
+}
+
+/* ---------------------------------------------------------------- card --- */
+.od-card{
+  padding:16px; border-radius:var(--r); border:1px solid var(--line);
+  background:var(--card); box-shadow:var(--sh);
+}
+@media (max-width:880px){ .od-card{ padding:14px; } }
+.od-card-h{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.od-title{ font-size:13.5px; font-weight:650; color:var(--tx); }
+.od-sub{ font-size:11px; color:var(--tx3); margin-top:2px; }
+.od-link{ font-size:11.5px; font-weight:600; color:var(--wine); background:none; border:0; cursor:pointer; }
+
+/* ----------------------------------------------------------- kpi tiles --- */
+/* Every KPI is a button. A number with no drill-down is a bug. */
+.od-kpi{
+  display:block; width:100%; text-align:left; padding:14px; cursor:pointer;
+  border-radius:var(--r); border:1px solid var(--line);
+  background:var(--card); box-shadow:var(--sh);
+}
+.od-kpi:hover{ border-color:var(--wine-line); background:var(--wine-tint); }
+.od-kpi-l{
+  display:flex; justify-content:space-between; font-size:11px; font-weight:600;
+  letter-spacing:.05em; text-transform:uppercase; color:var(--tx3);
+}
+.od-kpi-v{ display:block; font-size:20px; font-weight:650; letter-spacing:-.02em; color:var(--tx); margin-top:6px; }
+.od-kpi-d{ display:block; font-size:11.5px; margin-top:5px; color:var(--tx2); }
+.od-kpi-d.is-ok{ color:var(--ok); font-weight:700; }
+.od-kpi-d.is-warn{ color:var(--warn); font-weight:700; }
+.od-kpi-d.is-bad{ color:var(--bad); font-weight:700; }
+/* Urgency reads as a left keyline. Only ever on a tile that is actually wrong. */
+.od-kpi.is-bad{ border-left:3px solid var(--bad); }
+.od-kpi.is-warn{ border-left:3px solid var(--warn); }
+
+/* ------------------------------------------------- collapsible section --- */
+.od-toggle{
+  display:flex; width:100%; align-items:center; gap:10px;
+  background:transparent; border:0; padding:0; cursor:pointer; text-align:left;
+}
+.od-count{
+  flex:none; min-width:22px; height:20px; padding:0 7px; border-radius:999px;
+  background:var(--wine-tint); color:var(--wine);
+  font-size:11px; font-weight:700; line-height:20px; text-align:center;
+}
+.od-chev{ flex:none; width:12px; text-align:center; color:var(--tx3); font-size:12px; }
+
+/* -------------------------------------------------------- week planner --- */
+.od-seg{ display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--sunk); border:1px solid var(--line2); }
+.od-seg button{ padding:5px 12px; border:0; border-radius:7px; font-size:11.5px; font-weight:600; cursor:pointer; background:transparent; color:var(--tx3); }
+.od-seg button[aria-selected="true"]{ background:var(--card); color:var(--wine); box-shadow:var(--sh); }
+.od-navbtn{ flex:none; height:26px; min-width:26px; padding:0 9px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--tx2); font-size:11px; font-weight:600; cursor:pointer; }
+.od-navbtn:hover{ background:var(--wine-tint); color:var(--wine); border-color:var(--wine-line); }
+
+.od-days{ display:flex; gap:4px; }
+.od-day{
+  flex:1; min-width:0; padding:7px 0 6px; border-radius:9px; cursor:pointer; text-align:center;
+  border:1px solid var(--line); background:var(--card); color:var(--tx2);
+}
+.od-day[aria-selected="true"]{ border-color:var(--wine); background:var(--wine); color:#fff; }
+.od-day.is-out{ border-color:transparent; background:transparent; color:var(--tx3); opacity:.45; }
+.od-day-w{ display:block; font-size:9.5px; font-weight:600; opacity:.8; }
+.od-day-n{ display:block; font-size:13px; font-weight:650; margin-top:1px; }
+.od-day-dot{ display:block; width:5px; height:5px; border-radius:99px; margin:3px auto 0; background:transparent; }
+.od-day-dot.has{ background:var(--wine); }
+.od-day[aria-selected="true"] .od-day-dot.has{ background:#fff; }
+
+.od-month{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.od-month-h{ text-align:center; font-size:9.5px; font-weight:700; color:var(--tx3); }
+
+.od-agenda{ max-height:132px; overflow:auto; scrollbar-width:thin; }
+.od-ag{ display:flex; gap:9px; padding:7px 0; border-bottom:1px solid var(--line2); }
+.od-ag-t{ flex:none; width:38px; font-size:11px; font-weight:650; color:var(--tx2); padding-top:1px; }
+.od-ag-ttl{ display:block; font-size:12px; font-weight:600; color:var(--tx); line-height:1.35; }
+.od-tag{ display:inline-block; margin-top:4px; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.03em; background:var(--sunk); color:var(--tx2); }
+.od-tag.is-wine{ background:var(--wine-tint); color:var(--wine); }
+.od-tag.is-bad{ background:var(--bad-bg); color:var(--bad); }
+.od-tag.is-warn{ background:var(--warn-bg); color:var(--warn); }
+
+/* --------------------------------------------------------------- tasks --- */
+/* Apple Reminders model: smart tiles, round checkboxes, lists. */
+.od-tiles{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.od-tile{ display:block; width:100%; text-align:left; padding:9px 10px; border-radius:11px; cursor:pointer; border:1px solid var(--line2); background:transparent; }
+.od-tile[aria-selected="true"]{ background:var(--sunk); }
+.od-tile-r{ display:flex; align-items:center; justify-content:space-between; }
+.od-tile-g{ display:flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:6px; color:#fff; font-size:10px; font-weight:800; }
+.od-tile-n{ font-size:17px; font-weight:650; letter-spacing:-.02em; color:var(--tx); }
+.od-tile-l{ display:block; font-size:10.5px; font-weight:600; color:var(--tx2); margin-top:4px; }
+.od-tile[data-k="today"] .od-tile-g{ background:var(--wine); }
+.od-tile[data-k="urgent"] .od-tile-g{ background:var(--bad); }
+.od-tile[data-k="all"] .od-tile-g{ background:var(--tx2); }
+.od-tile[data-k="done"] .od-tile-g{ background:var(--ok); }
+.od-tile[data-k="today"][aria-selected="true"]{ border-color:var(--wine); }
+.od-tile[data-k="urgent"][aria-selected="true"]{ border-color:var(--bad); }
+.od-tile[data-k="all"][aria-selected="true"]{ border-color:var(--tx2); }
+.od-tile[data-k="done"][aria-selected="true"]{ border-color:var(--ok); }
+
+/* Capped so adding tasks never changes the grid geometry. */
+.od-tasks{ max-height:184px; overflow:auto; scrollbar-width:thin; }
+.od-task{ display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--line2); }
+.od-check{ flex:none; width:20px; height:20px; border-radius:999px; border:1.5px solid var(--line); background:transparent; color:transparent; font-size:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+.od-check[aria-checked="true"]{ border:1px solid var(--wine); background:var(--wine); color:#fff; }
+.od-task-t{ display:block; font-size:13px; color:var(--tx); }
+.od-task.is-done .od-task-t{ color:var(--tx3); text-decoration:line-through; }
+.od-bang{ flex:none; font-size:12px; font-weight:800; color:var(--bad); margin-right:4px; }
+.od-task-m{ display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:5px; }
+.od-pill{ display:flex; align-items:center; gap:5px; padding:1px 7px 1px 4px; border-radius:999px; border:1px solid var(--line2); background:transparent; color:var(--tx3); font-size:10px; font-weight:600; cursor:pointer; }
+.od-pill i{ width:7px; height:7px; border-radius:99px; display:block; }
+.od-due{ font-size:10.5px; font-weight:600; color:var(--tx3); }
+.od-due.is-soon{ color:var(--bad); }
+.od-job{ padding:2px 7px; border-radius:999px; background:var(--wine-tint); color:var(--wine); font-size:10px; font-weight:700; }
+.od-job-add{ padding:2px 7px; border-radius:999px; border:1px dashed var(--line); background:transparent; color:var(--tx3); font-size:10px; font-weight:600; cursor:pointer; }
+.od-add{ display:flex; align-items:center; justify-content:center; gap:7px; width:100%; margin-top:10px; padding:8px 10px; border-radius:9px; border:1px dashed var(--wine-line); background:var(--wine-tint); color:var(--wine); font-size:12px; font-weight:600; cursor:pointer; }
+.od-lists{ margin-top:13px; padding-top:11px; border-top:1px solid var(--line2); }
+.od-lists-h{ font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--tx3); font-weight:700; }
+.od-list{ display:flex; align-items:center; gap:9px; width:100%; padding:7px 8px; border:0; border-radius:9px; cursor:pointer; text-align:left; background:transparent; }
+.od-list[aria-selected="true"]{ background:var(--wine-tint); }
+.od-list i{ flex:none; width:18px; height:18px; border-radius:999px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; }
+.od-list-n{ flex:1; min-width:0; font-size:12.5px; color:var(--tx); }
+.od-list-c{ flex:none; font-size:11.5px; color:var(--tx3); font-weight:600; }
+
+/* -------------------------------------------------------- dept tabs --- */
+.od-tabs{ display:flex; flex-wrap:wrap; gap:3px; padding:3px; border-radius:10px; background:var(--sunk); border:1px solid var(--line2); }
+.od-tabs button{ flex:none; white-space:nowrap; padding:7px 9px; border:0; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; background:transparent; color:var(--tx3); }
+.od-tabs button[aria-selected="true"]{ background:var(--card); color:var(--wine); box-shadow:var(--sh); }
+@media (max-width:880px){ .od-tabs{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; } }
+
+.od-dept{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+@media (max-width:880px){ .od-dept{ grid-template-columns:1fr 1fr; gap:9px; } }
+.od-dtile{ position:relative; padding:12px; border-radius:11px; cursor:pointer; border:1px solid var(--line2); background:var(--sunk); border-left:3px solid transparent; }
+.od-dtile.is-bad{ border-left-color:var(--bad); }
+.od-dtile.is-warn{ border-left-color:var(--warn); }
+.od-dtile-l{ display:block; font-size:10.5px; color:var(--tx3); font-weight:600; }
+.od-dtile-v{ display:block; font-size:16px; font-weight:650; color:var(--tx); margin-top:4px; letter-spacing:-.01em; }
+.od-dtile-s{ display:block; font-size:11px; margin-top:4px; color:var(--tx3); }
+.od-dtile.is-bad .od-dtile-s{ color:var(--bad); font-weight:600; }
+.od-dtile.is-warn .od-dtile-s{ color:var(--warn); font-weight:600; }
+/* Department split shown on Production KPIs */
+.od-split{ display:flex; gap:2px; height:4px; border-radius:2px; overflow:hidden; margin-top:8px; }
+.od-split i{ display:block; }
+.od-splitk{ display:flex; justify-content:space-between; gap:4px; margin-top:6px; }
+.od-splitk span{ display:flex; align-items:center; gap:3px; font-size:9.5px; color:var(--tx2); font-weight:600; }
+.od-splitk i{ flex:none; width:6px; height:6px; border-radius:2px; display:block; }
+
+/* --------------------------------------------------------- share rows --- */
+.od-share{ display:flex; align-items:center; gap:12px; }
+.od-share-n{ flex:none; display:flex; align-items:center; gap:7px; width:104px; }
+.od-share-n i{ width:9px; height:9px; border-radius:3px; display:block; }
+.od-share-n span{ font-size:12.5px; color:var(--tx); font-weight:600; }
+.od-share-p{ flex:none; font-size:15px; font-weight:650; color:var(--tx); width:38px; text-align:right; letter-spacing:-.01em; }
+.od-bar{ flex:1; min-width:0; height:8px; border-radius:4px; background:var(--line2); display:block; }
+.od-bar i{ display:block; height:8px; border-radius:4px; }
+.od-share-d{ flex:none; font-size:11.5px; font-weight:700; width:52px; text-align:right; }
+.od-share-v{ flex:none; font-size:12px; color:var(--tx2); width:108px; text-align:right; }
+@media (max-width:880px){
+  .od-share{ display:block; }
+  .od-share-row1{ display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .od-share-row2{ display:flex; align-items:center; gap:8px; }
+}
+
+/* ------------------------------------------------------------- funnel --- */
+.od-funnel{ display:flex; flex-direction:column; gap:8px; }
+.od-fstep{ height:26px; border-radius:6px; display:flex; align-items:center; padding:0 8px; color:#fff; font-size:11.5px; font-weight:600; }
+
+/* ------------------------------------------------------------- health --- */
+.od-health{ display:flex; height:10px; border-radius:5px; overflow:hidden; gap:2px; }
+.od-health i{ display:block; }
+.od-sig{ display:flex; align-items:center; gap:9px; }
+.od-sig i{ flex:none; width:8px; height:8px; border-radius:99px; display:block; }
+.od-sig-n{ flex:1; font-size:12px; color:var(--tx2); }
+.od-sig-s{ flex:none; font-size:11.5px; font-weight:700; }
+
+/* ----------------------------------------------------------- activity --- */
+.od-act{ display:flex; gap:9px; }
+.od-act i{ flex:none; width:6px; height:6px; border-radius:99px; margin-top:5px; display:block; }
+.od-act-t{ font-size:11.5px; color:var(--tx); }
+.od-act-d{ font-size:10px; color:var(--tx3); }
+
+.od-stack{ display:flex; flex-direction:column; }
+.od-stack-8 > * + *{ margin-top:8px; }
+.od-stack-10 > * + *{ margin-top:10px; }
+.od-stack-13 > * + *{ margin-top:13px; }
+.od-foot{ margin-top:12px; padding-top:10px; border-top:1px solid var(--line2); display:flex; justify-content:space-between; align-items:baseline; }

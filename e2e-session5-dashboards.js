@@ -69,27 +69,37 @@ function printReport() {
   // ── quick actions sit at the top of every sidebar ──
   currentStep = 'quick-actions-top';
   const qa = await page.evaluate(async () => {
+    // Owner-redesign handoff (7 Aug 2026): Quick Actions left the sidebar for
+    // a wine button at the top-left of the content area, above the page
+    // title — first thing on the page, reachable before any scrolling.
+    const items = async (wrapId) => {
+      execToggleQuick(true);
+      await new Promise(r => setTimeout(r, 150));
+      const out = [...document.querySelectorAll('#' + wrapId + ' .xs-qa-pop .xs-qa-item')].map(b => b.textContent);
+      execToggleQuick(false);
+      return out;
+    };
     openSalesModule();
     await new Promise(r => setTimeout(r, 400));
-    const labels = [...document.querySelectorAll('#sales-module-wrap .xs-navlabel')].map(e => e.textContent.trim());
-    // Adopted shells all stay in the DOM, so nav ids repeat — scope every
-    // lookup to the wrap under test, never getElementById.
-    const salesWrap = document.getElementById('sales-module-wrap');
-    // Request Material is production-only as of 7 Aug 2026 — Sales never
-    // asks the storekeeper for stock, so it isn't offered here.
-    const items = ['xsnav-xs-planner', 'xsnav-xs-tasks', 'xsnav-xs-cal', 'xsnav-xs-buy']
-      .map(id => !!salesWrap.querySelector('#' + id));
-    const salesNoMaterial = !salesWrap.querySelector('#xsnav-xs-notify');
+    const salesBtn = !!document.querySelector('#sales-module-wrap .xs-qa');
+    const salesItems = await items('sales-module-wrap');
     launchStorekeeperModule();
     await new Promise(r => setTimeout(r, 400));
-    // Storekeeper is the recipient — no shortcut aimed at itself
-    const skWrap = document.getElementById('sk-module-wrap');
-    const skNotify = !!skWrap.querySelector('#xsnav-xs-notify');
-    const skBuy = !!skWrap.querySelector('#xsnav-xs-buy');
-    return { firstLabel: labels[0], items, salesNoMaterial, skNotify, skBuy };
+    const skItems = await items('sk-module-wrap');
+    return {
+      salesBtn,
+      // Request Material is production-only (7 Aug 2026) — Sales never asks
+      // the storekeeper for stock, so it isn't offered here.
+      present: ['Weekly planner', 'My tasks', 'Calendar', 'Request Purchase']
+        .map(l => salesItems.some(t => t.indexOf(l) !== -1)),
+      salesNoMaterial: !salesItems.some(t => t.indexOf('Request Material') !== -1),
+      // Storekeeper is the recipient — no shortcut aimed at itself
+      skNotify: skItems.some(t => t.indexOf('Request Material') !== -1),
+      skBuy: skItems.some(t => t.indexOf('Request Purchase') !== -1)
+    };
   });
-  record('Quick actions are the FIRST sidebar group, carrying the shortcuts that role can use',
-    qa.firstLabel === 'Quick actions' && qa.items.every(Boolean) && qa.salesNoMaterial ? 'PASS' : 'FAIL', JSON.stringify(qa));
+  record('Quick actions is a button above the page title carrying the shortcuts that role can use',
+    qa.salesBtn && qa.present.every(Boolean) && qa.salesNoMaterial ? 'PASS' : 'FAIL', JSON.stringify(qa));
   record('Storekeeper gets Request Purchase but not a material-request shortcut aimed at itself',
     qa.skBuy && !qa.skNotify ? 'PASS' : 'FAIL', JSON.stringify(qa));
 

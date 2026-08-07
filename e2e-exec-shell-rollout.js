@@ -81,13 +81,13 @@ function printReport() {
 
   currentStep = 'collapse-persists';
   const col = await page.evaluate(async () => {
-    document.querySelector('.xs-collapse-btn').click();
+    document.querySelector('.xs-collapse-chev').click();
     const collapsed1 = document.getElementById('sales-module-wrap').classList.contains('xs-collapsed');
     // reopen another module — state must persist
     window.__eco3d.NODES.find(n => n.id === 'accounts').launch();
     await new Promise(r => setTimeout(r, 300));
     const collapsed2 = document.getElementById('accounts-module-wrap').classList.contains('xs-collapsed');
-    document.querySelector('#accounts-module-wrap .xs-collapse-btn').click(); // restore
+    document.querySelector('#accounts-module-wrap .xs-collapse-chev').click(); // restore
     return { collapsed1, collapsed2, stored: localStorage.getItem('amd-exec-side-collapsed') };
   });
   record('Sidebar collapse toggles and persists across modules', col.collapsed1 && col.collapsed2 ? 'PASS' : 'FAIL', JSON.stringify(col));
@@ -138,13 +138,26 @@ function printReport() {
   });
   record('Calendar events: owner sees task+promised+delivery today; sales role-filter hides other people\'s jobs',
     JSON.stringify(cal.ownerTypes) === '["delivery","promised","task"]' && !cal.salesHasPromise ? 'PASS' : 'FAIL', JSON.stringify(cal));
+  // Owner-redesign handoff (7 Aug 2026): the sidebar is "navigation + My
+  // tasks + user chip only" — the calendar moved into the dashboard's own
+  // This-week card and the full Week planner. Same feed, two new homes.
   const calUI = await page.evaluate(async () => {
     window.__eco3d.NODES.find(n => n.id === 'owner').launch();
-    await new Promise(r => setTimeout(r, 400));
-    const html = document.querySelector('#owner-module-wrap .xs-sidepanels').innerHTML;
-    return { hasGrid: html.includes('xs-cal-grid'), hasAgenda: html.includes('Calendar task probe') || html.includes('promised') || html.includes('Delivery') };
+    await new Promise(r => setTimeout(r, 500));
+    const sidebar = document.querySelector('#owner-module-wrap .xs-sidepanels').innerHTML;
+    const dash = document.getElementById('owner-body').innerHTML;
+    execOpenPlanner();
+    await new Promise(r => setTimeout(r, 250));
+    const planner = document.getElementById('exec-planner').innerHTML;
+    execClosePlanner();
+    return {
+      goneFromSidebar: !sidebar.includes('xs-cal-grid'),
+      inDashboard: dash.includes('od-days') || dash.includes('od-month'),
+      inPlanner: planner.includes('xs-pl-day')
+    };
   });
-  record('Calendar panel renders the month grid + today\'s agenda in the sidebar', calUI.hasGrid && calUI.hasAgenda ? 'PASS' : 'FAIL', JSON.stringify(calUI));
+  record('The calendar left the sidebar for the dashboard\'s This-week card and the Week planner',
+    calUI.goneFromSidebar && calUI.inDashboard && calUI.inPlanner ? 'PASS' : 'FAIL', JSON.stringify(calUI));
 
   currentStep = 'floating-chat';
   const chat = await page.evaluate(async () => {

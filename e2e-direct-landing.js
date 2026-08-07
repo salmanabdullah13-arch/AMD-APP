@@ -88,8 +88,9 @@ async function simulateRealLogin(page, userType) {
   record('window.__dashboardHome is launchOwnerModule for Owner', ownerLanding.dashboardHome === 'launchOwnerModule' ? 'PASS' : 'FAIL', JSON.stringify(ownerLanding));
 
   currentStep = 'owner-drill-and-return';
-  // "Open Accounts →" on Company Snapshot is always rendered, regardless of seeded data.
-  await page.evaluate(() => document.querySelector('#owner-module-wrap .owner-link[onclick="ownerGoTo(\'launchAccountsModule\')"]').click());
+  // Redesign 4a: the Company-Snapshot quick links became the sidebar's own
+  // Money group — Revenue opens Accounts.
+  await page.evaluate(() => document.querySelector('#owner-module-wrap #xsnav-m-revenue').click());
   await page.waitForSelector('#accounts-module-wrap', { state: 'visible', timeout: 5000 });
   record('Owner\'s quick-link opens a real module via a genuine click', 'PASS');
 

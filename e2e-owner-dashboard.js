@@ -1,158 +1,258 @@
-// Verification for the new Owner Dashboard module (4 Aug 2026) — a
-// read-only, cross-department view reusing every module's own existing
-// KPI function, plus the cross-module activityLog[] (the same session's
-// Tasks/Activity Log retrofit) for a company-wide recent-activity feed.
+// Owner Dashboard — redesign 4a (7 Aug 2026).
+//
+// Salman supplied a high-fidelity design handoff and asked for it exactly:
+// "I want this exact design layout ... do not change anything." So these
+// checks are about FIDELITY as much as function — the five themed rows in
+// order, the card set, the four-column grid and its two responsive steps,
+// every KPI being a real button with a drill-down, and the collapsible
+// behaviours the handoff calls out as load-bearing.
+//
+// The data is live (the handoff's DATA block was replaced with the app's own
+// getters), so the numbers move with the seeded state; assertions are about
+// structure and behaviour, not specific figures.
 
 const { chromium } = require('@playwright/test');
 const path = require('path');
-const fs = require('fs');
-const SHOT_DIR = path.join(__dirname, 'e2e-shots-owner-dashboard');
-if (!fs.existsSync(SHOT_DIR)) fs.mkdirSync(SHOT_DIR);
-for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
 
 const results = [];
 const consoleErrors = [];
 const pageErrors = [];
 let currentStep = 'startup';
-let shotN = 0;
 function record(name, status, detail = '') { results.push({ name, status, detail, step: currentStep }); }
-async function shot(page, label) { shotN++; await page.screenshot({ path: path.join(SHOT_DIR, `${String(shotN).padStart(2, '0')}-${label}.png`) }); }
 function printReport() {
-  console.log('\n=== OWNER DASHBOARD VERIFICATION ===');
+  console.log('\n=== OWNER DASHBOARD — REDESIGN 4a ===');
   results.forEach(r => console.log(`[${r.status}] ${r.name}${r.detail ? ' — ' + r.detail : ''}`));
   console.log(`\n${results.filter(r => r.status === 'PASS').length}/${results.length} checks passed.`);
   console.log(`Console errors: ${consoleErrors.length}`); consoleErrors.forEach(e => console.log(`  [${e.step}] ${e.text}`));
   console.log(`Page errors: ${pageErrors.length}`); pageErrors.forEach(e => console.log(`  [${e.step}] ${e.text}`));
 }
-async function openNode(page, nodeId, wrapId) {
-  await page.evaluate((id) => {
-    const mesh = window.__eco3d.branches.find(b => b.userData.node && b.userData.node.id === id);
-    if (mesh) mesh.userData.node.launch();
-  }, nodeId);
-  await page.waitForSelector(`#${wrapId}`, { state: 'visible', timeout: 5000 });
-  await page.waitForTimeout(300);
-}
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push({ step: currentStep, text: msg.text() }); });
-  page.on('pageerror', err => pageErrors.push({ step: currentStep, text: err.message }));
-  page.on('dialog', async d => { await d.accept(); });
-  const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/');
-  await page.goto(fileUrl);
-
-  currentStep = 'app-loads';
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push({ step: currentStep, text: msg.text().slice(0, 150) }); });
+  page.on('pageerror', err => pageErrors.push({ step: currentStep, text: err.message.slice(0, 150) }));
+  page.on('dialog', async d => { await d.accept('E2E task'); });
+  await page.goto('file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/'));
   await page.waitForSelector('#app', { state: 'visible' });
-  record('App loads (real Supabase login replaced the old PIN, 4 Aug 2026)', 'PASS');
+  await page.evaluate(() => loadDemoData());
+  await page.evaluate(() => launchOwnerModule());
+  await page.waitForTimeout(700);
 
-  currentStep = 'seed-activity';
-  await page.evaluate(() => {
-    salesCurrentUser = 'Salman Abdullah';
-    const cust = createCustomer({ name: 'OwnerDash Client', contactPerson: 'Nora', tel: '39990022', address: 'Manama' });
-    const enq = createEnquiry({ division: 'Joinery', customerId: cust.id, contactPerson: 'Nora', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
-  });
-
-  // Dashboard Analytics rollout (5 Aug 2026), Phase 2 — seed one real,
-  // fully-delivered job so the new analytics section (monthly revenue,
-  // division share, pipeline funnel, top clients) has something real to
-  // render instead of just its own empty state.
-  await page.evaluate(() => {
-    const cust = createCustomer({ name: 'OwnerDash Analytics Client', contactPerson: 'Salim', tel: '39990033', address: 'Manama' });
-    const enq = createEnquiry({ division: 'Curtain & Blinds', customerId: cust.id, contactPerson: 'Salim', tel: cust.tel, source: 'walk inn', salesPerson: 'Salman Abdullah' });
-    const qtn = convertEnquiryToQuotation(enq.id, { projectName: 'OwnerDash Analytics Project', taxPercent: 10, contactPerson: 'Salim' });
-    const item = addQuotationItem(qtn.id, { product: 'Living Room Curtains', qty: 1, unit: 'Nos' });
-    item.rate = 2500; item.amount = 2500; item.netAmount = 2500;
-    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
-    const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
-    job.amount = 2500;
-    confirmJobRouting(job.id, {}, 'Operations Manager');
-    job.items.forEach(it => { it.deliveredQty = it.qty; });
-  });
-
-  currentStep = 'open-owner-dashboard';
-  await openNode(page, 'owner', 'owner-module-wrap');
-  await shot(page, 'owner-dashboard');
-
-  const state = await page.evaluate(() => {
-    const html = document.getElementById('owner-body').innerHTML;
+  // ── the five themed rows, in the handoff's order ──
+  currentStep = 'layout';
+  const layout = await page.evaluate(() => {
+    const body = document.getElementById('owner-body');
+    const grid = body.querySelector('.od-grid');
     return {
-      hasCompanySnapshot: html.includes('Company Snapshot'),
-      hasSalesPipeline: html.includes('Sales Pipeline'),
-      hasOperations: html.includes('Operations') && html.includes('Production'),
-      hasPurchasing: html.includes('Purchasing'),
-      hasHR: html.includes('HR &amp; Compliance') || html.includes('HR & Compliance'),
-      hasRecentActivity: html.includes('Recent Activity'),
-      mentionsNewEnquiry: html.includes('created for OwnerDash Client') || html.includes('OwnerDash Client')
+      mounted: body.classList.contains('od'),
+      kpis: grid ? grid.querySelectorAll('.od-kpi').length : 0,
+      cards: grid ? [...grid.querySelectorAll('.od-card')].map(c => (c.querySelector('.od-title') || {}).textContent || '') : [],
+      spans: grid ? [...grid.querySelectorAll('.od-card')].filter(c => c.classList.contains('od-span2')).map(c => (c.querySelector('.od-title') || {}).textContent) : [],
+      cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0
     };
   });
-  record('Owner Dashboard renders Company Snapshot section', state.hasCompanySnapshot ? 'PASS' : 'FAIL');
-  record('Owner Dashboard renders Sales Pipeline section', state.hasSalesPipeline ? 'PASS' : 'FAIL');
-  record('Owner Dashboard renders Operations & Production section', state.hasOperations ? 'PASS' : 'FAIL');
-  record('Owner Dashboard renders Purchasing & Inventory section', state.hasPurchasing ? 'PASS' : 'FAIL');
-  record('Owner Dashboard renders HR & Compliance section', state.hasHR ? 'PASS' : 'FAIL');
-  record('Owner Dashboard renders a Recent Activity feed', state.hasRecentActivity ? 'PASS' : 'FAIL');
-  record('Recent Activity feed shows the just-created Enquiry (real cross-module activityLog data, not fake)', state.mentionsNewEnquiry ? 'PASS' : 'FAIL', JSON.stringify(state));
+  const expected = ['This week', 'My tasks', 'Recent activity', 'Company health',
+    'By department', 'Revenue by division', 'Cash in hand', 'Recent expenses',
+    'Top purchases', 'Pipeline funnel', 'Top clients', 'Department quality'];
+  record('Four KPI tiles lead, then the twelve cards in the handoff\'s row order',
+    layout.kpis === 4 && JSON.stringify(layout.cards) === JSON.stringify(expected) ? 'PASS' : 'FAIL', JSON.stringify(layout.cards));
+  record('The span-2 cards are exactly By department, Revenue by division, Top purchases and Department quality',
+    JSON.stringify(layout.spans) === JSON.stringify(['By department', 'Revenue by division', 'Top purchases', 'Department quality']) ? 'PASS' : 'FAIL', JSON.stringify(layout.spans));
+  record('Desktop renders the four-column grid', layout.cols === 4 ? 'PASS' : 'FAIL', 'columns=' + layout.cols);
+  record('Company health sits next to Recent activity (an explicit request)',
+    layout.cards.indexOf('Company health') === layout.cards.indexOf('Recent activity') + 1 ? 'PASS' : 'FAIL');
 
-  currentStep = 'analytics-charts';
-  const charts = await page.evaluate(() => {
-    const html = document.getElementById('owner-body').innerHTML;
+  // ── every KPI is a button with a drill-down. A number with no drill-down is a bug. ──
+  currentStep = 'kpi-drill';
+  const kpiShape = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('#owner-body .od-kpi')];
     return {
-      hasMonthlyRevenueSection: html.includes('Monthly Revenue by Division'),
-      hasMonthlyRevenueSvg: html.includes('cw-chart'),
-      hasDivisionShareSection: html.includes('Division Share'),
-      hasCurtainInDivisionShare: html.includes('Curtain &amp; Blinds') || html.includes('Curtain & Blinds'),
-      hasPipelineFunnelSection: html.includes('Pipeline Funnel'),
-      hasTopClientsSection: html.includes('Top Clients'),
-      mentionsAnalyticsClient: html.includes('OwnerDash Analytics Client'),
-      hasDeptQualitySection: html.includes('Department Quality'),
-      ringCardCount: (html.match(/ring-card/g) || []).length
+      allButtons: tiles.every(t => t.tagName === 'BUTTON'),
+      allHaveAct: tiles.every(t => t.getAttribute('data-act') === 'drill'),
+      keys: tiles.map(t => t.getAttribute('data-k')),
+      labels: tiles.map(t => t.querySelector('.od-kpi-l').textContent.replace('›', '').trim())
     };
   });
-  record('Owner Dashboard renders the new Monthly Revenue by Division chart (real SVG, not the empty state, since a real job was just seeded)', charts.hasMonthlyRevenueSection && charts.hasMonthlyRevenueSvg ? 'PASS' : 'FAIL', JSON.stringify(charts));
-  record('Division Share section shows the seeded Curtain & Blinds division', charts.hasDivisionShareSection && charts.hasCurtainInDivisionShare ? 'PASS' : 'FAIL');
-  record('Pipeline Funnel section renders', charts.hasPipelineFunnelSection ? 'PASS' : 'FAIL');
-  record('Top Clients section renders and shows the seeded analytics client by name', charts.hasTopClientsSection && charts.mentionsAnalyticsClient ? 'PASS' : 'FAIL');
-  record('Department Quality section renders one ring gauge per department (Joinery/Upholstery/Painting/Curtain)', charts.hasDeptQualitySection && charts.ringCardCount === 4 ? 'PASS' : 'FAIL', JSON.stringify(charts));
+  record('Every KPI renders as a <button> wired to a drill-down, never a <div>',
+    kpiShape.allButtons && kpiShape.allHaveAct && JSON.stringify(kpiShape.keys) === JSON.stringify(['revenue', 'quotes', 'jobs', 'recv']) ? 'PASS' : 'FAIL', JSON.stringify(kpiShape));
+  record('The band reads Invoiced MTD · Open quotes · Active jobs · Receivables',
+    JSON.stringify(kpiShape.labels) === JSON.stringify(['Invoiced MTD', 'Open quotes', 'Active jobs', 'Receivables']) ? 'PASS' : 'FAIL', JSON.stringify(kpiShape.labels));
 
-  record('No console/page errors on Owner Dashboard load', consoleErrors.length === 0 && pageErrors.length === 0 ? 'PASS' : 'FAIL', `console=${consoleErrors.length} page=${pageErrors.length}`);
+  await page.click('#owner-body .od-kpi[data-k="recv"]');
+  await page.waitForTimeout(250);
+  const drilled = await page.evaluate(() => {
+    const body = document.getElementById('owner-body');
+    return { title: (body.querySelector('.od-title') || {}).textContent, back: !!body.querySelector('[data-act="backfromdrill"]') };
+  });
+  record('Clicking a KPI opens its drill-down with a way back', drilled.title === 'Receivables' && drilled.back ? 'PASS' : 'FAIL', JSON.stringify(drilled));
+  await page.click('#owner-body [data-act="backfromdrill"]');
+  await page.waitForTimeout(250);
+  const returned = await page.evaluate(() => !!document.querySelector('#owner-body .od-grid .od-kpi'));
+  record('Back from a drill-down restores the dashboard', returned ? 'PASS' : 'FAIL');
 
-  currentStep = 'quick-link-navigation';
-  await page.click('#owner-body span:has-text("Open Sales")');
-  await page.waitForTimeout(300);
-  const salesOpened = await page.evaluate(() => getComputedStyle(document.getElementById('sales-module-wrap')).display !== 'none' && getComputedStyle(document.getElementById('owner-module-wrap')).display === 'none');
-  record('Quick link "Open Sales" closes Owner Dashboard and opens the real Sales module', salesOpened ? 'PASS' : 'FAIL');
+  // ── collapsibles: the count is open tasks, not total ──
+  currentStep = 'collapsibles';
+  const collapse = await page.evaluate(async () => {
+    const before = document.querySelectorAll('#owner-body .od-tasks').length;
+    document.querySelector('#owner-body [data-act="toggltasks"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    const after = document.querySelectorAll('#owner-body .od-tasks').length;
+    const headerOnly = document.querySelectorAll('#owner-body [data-act="toggltasks"]').length;
+    document.querySelector('#owner-body [data-act="toggltasks"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    return { before, after, headerOnly, restored: document.querySelectorAll('#owner-body .od-tasks').length };
+  });
+  record('My tasks collapses to its header line and reopens',
+    collapse.before === 1 && collapse.after === 0 && collapse.headerOnly === 1 && collapse.restored === 1 ? 'PASS' : 'FAIL', JSON.stringify(collapse));
 
-  // Nav overhaul (5 Aug 2026) — Owner stays the landing screen with Admin
-  // one tap away (Salman's call), rather than switching the owner account's
-  // own user_type to 'admin'. Verified via a real click on the new link.
-  currentStep = 'admin-quick-link';
-  await page.evaluate(() => goTo('eco'));
-  await page.waitForTimeout(200);
-  await openNode(page, 'owner', 'owner-module-wrap');
-  await page.click('#owner-body span:has-text("Admin Dashboard")');
-  await page.waitForSelector('#admin-module-wrap', { state: 'visible', timeout: 5000 });
-  const adminOpened = await page.evaluate(() => ({
-    adminVisible: getComputedStyle(document.getElementById('admin-module-wrap')).display !== 'none',
-    ownerHidden: getComputedStyle(document.getElementById('owner-module-wrap')).display === 'none'
+  const countIsOpen = await page.evaluate(async () => {
+    const me = execIdentity();
+    const t = createTask({ title: 'E2E count check', assignee: me, dueDate: new Date().toISOString().slice(0, 10) });
+    OwnerDashboard.mount(document.getElementById('owner-body'));
+    await new Promise(r => setTimeout(r, 200));
+    const openCount = Number(document.querySelectorAll('#owner-body .od-count')[1].textContent);
+    completeTask(t.id);
+    OwnerDashboard.mount(document.getElementById('owner-body'));
+    await new Promise(r => setTimeout(r, 200));
+    const afterDone = Number(document.querySelectorAll('#owner-body .od-count')[1].textContent);
+    return { openCount, afterDone };
+  });
+  record('The My tasks count is OPEN tasks — completing one lowers it',
+    countIsOpen.afterDone === countIsOpen.openCount - 1 ? 'PASS' : 'FAIL', JSON.stringify(countIsOpen));
+
+  // ── the week planner: stepping the period moves the selection with it ──
+  currentStep = 'planner-selection';
+  const stepping = await page.evaluate(async () => {
+    const sel = () => OwnerDashboard.state.selDate;
+    document.querySelector('#owner-body [data-act="period"][data-v="0"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    const start = sel();
+    document.querySelector('#owner-body [data-act="period"][data-v="1"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    const next = sel();
+    const visible = [...document.querySelectorAll('#owner-body .od-day')].map(d => d.getAttribute('data-d'));
+    return { start, next, movedAWeek: (new Date(next) - new Date(start)) === 7 * 864e5, selectionVisible: visible.indexOf(next) !== -1 };
+  });
+  record('Stepping the week moves the day selection with it, so the agenda stays inside the visible period',
+    stepping.movedAWeek && stepping.selectionVisible ? 'PASS' : 'FAIL', JSON.stringify(stepping));
+
+  const monthScope = await page.evaluate(async () => {
+    document.querySelector('#owner-body [data-act="scope"][data-v="Month"]').click();
+    await new Promise(r => setTimeout(r, 200));
+    const cells = document.querySelectorAll('#owner-body .od-month [data-act="pickday"]').length;
+    const header = document.querySelectorAll('#owner-body .od-month-h').length;
+    const outside = document.querySelectorAll('#owner-body .od-day.is-out').length;
+    document.querySelector('#owner-body [data-act="scope"][data-v="Week"]').click();
+    await new Promise(r => setTimeout(r, 200));
+    return { cells, header, outside, backToWeek: document.querySelectorAll('#owner-body .od-days .od-day').length };
+  });
+  record('Month scope renders a 42-cell six-week grid with a weekday header, and Week scope returns seven days',
+    monthScope.cells === 42 && monthScope.header === 7 && monthScope.backToWeek === 7 ? 'PASS' : 'FAIL', JSON.stringify(monthScope));
+
+  // ── by department: workflow order, six tiles, production carries a split ──
+  currentStep = 'departments';
+  const dept = await page.evaluate(async () => {
+    const tabs = [...document.querySelectorAll('#owner-body .od-tabs button')].map(b => b.textContent);
+    const tileCount = document.querySelectorAll('#owner-body .od-dept .od-dtile').length;
+    const link = document.querySelector('#owner-body [data-act="opendept"]').textContent;
+    document.querySelector('#owner-body .od-tabs button[data-v="production"]').click();
+    await new Promise(r => setTimeout(r, 200));
+    return {
+      tabs, tileCount, link,
+      prodTiles: document.querySelectorAll('#owner-body .od-dept .od-dtile').length,
+      splits: document.querySelectorAll('#owner-body .od-splitk').length,
+      prodLink: document.querySelector('#owner-body [data-act="opendept"]').textContent
+    };
+  });
+  record('Department tabs follow the real workflow order, not alphabetical',
+    JSON.stringify(dept.tabs) === JSON.stringify(['Sales', 'Estimator', 'Operations', 'Jobs', 'Purchase', 'Production', 'Accounts', 'HR']) ? 'PASS' : 'FAIL', JSON.stringify(dept.tabs));
+  record('Each tab shows six tiles and the header link follows the active tab',
+    dept.tileCount === 6 && dept.prodTiles === 6 && /Sales/.test(dept.link) && /Production/.test(dept.prodLink) ? 'PASS' : 'FAIL', JSON.stringify(dept));
+  record('Production tiles carry a department split (J · U · C · P)', dept.splits === 6 ? 'PASS' : 'FAIL', 'splits=' + dept.splits);
+
+  // ── the numbers are live, not the handoff's invented data ──
+  currentStep = 'live-data';
+  const live = await page.evaluate(() => {
+    const body = document.getElementById('owner-body').textContent;
+    const invented = ['148,320.500', 'Seef Tower Lobby', 'Diyar Al Muharraq', 'BBK current account', 'JC-2026-0341'];
+    const jobs = jobCards.filter(j => j.status === 'open').length;
+    return {
+      leakedMockData: invented.filter(v => body.includes(v)),
+      activeJobsTile: document.querySelectorAll('#owner-body .od-kpi-v')[2].textContent,
+      realJobCount: String(jobs)
+    };
+  });
+  record('None of the handoff\'s invented sample data shipped', live.leakedMockData.length === 0 ? 'PASS' : 'FAIL', live.leakedMockData.join(', '));
+  record('Active jobs shows the real job count', live.activeJobsTile === live.realJobCount ? 'PASS' : 'FAIL', JSON.stringify(live));
+
+  // ── shell changes the handoff depends on ──
+  currentStep = 'shell';
+  const shell = await page.evaluate(() => ({
+    collapseChevInBrand: !!document.querySelector('#owner-module-wrap .xs-brand .xs-collapse-chev'),
+    noFooterCollapse: !document.querySelector('#owner-module-wrap .xs-collapse-btn'),
+    quickBtnAboveTitle: (function () {
+      const qa = document.querySelector('#owner-module-wrap .xs-qa');
+      const title = document.querySelector('#owner-module-wrap .xs-title');
+      return !!qa && !!title && (qa.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    })(),
+    noSidebarQuickGroup: [...document.querySelectorAll('#owner-module-wrap .xs-navlabel')].every(l => l.textContent !== 'Quick actions'),
+    navGroups: [...document.querySelectorAll('#owner-module-wrap .xs-navlabel')].map(l => l.textContent)
   }));
-  record('Quick link "Admin Dashboard" opens the real Admin module from Owner', adminOpened.adminVisible && adminOpened.ownerHidden ? 'PASS' : 'FAIL', JSON.stringify(adminOpened));
+  record('Collapse is a single chevron next to the brand mark, not a labelled footer button',
+    shell.collapseChevInBrand && shell.noFooterCollapse ? 'PASS' : 'FAIL', JSON.stringify(shell));
+  record('Quick actions is a wine button at the top-left of the content, above the page title, and gone from the sidebar',
+    shell.quickBtnAboveTitle && shell.noSidebarQuickGroup ? 'PASS' : 'FAIL', JSON.stringify(shell));
+  record('Nav groups are Workspace · Business · Money · Company · Administration',
+    JSON.stringify(shell.navGroups) === JSON.stringify(['Workspace', 'Business', 'Money', 'Company', 'Administration']) ? 'PASS' : 'FAIL', JSON.stringify(shell.navGroups));
 
-  currentStep = 'mutual-exclusivity';
-  await page.evaluate(() => goTo('eco'));
+  await page.click('#owner-module-wrap .xs-qa');
   await page.waitForTimeout(200);
-  await openNode(page, 'accounts', 'accounts-module-wrap');
-  await page.waitForTimeout(150);
-  await openNode(page, 'owner', 'owner-module-wrap');
-  const accountsHiddenNow = await page.evaluate(() => getComputedStyle(document.getElementById('accounts-module-wrap')).display === 'none');
-  record('Opening Owner Dashboard hides a previously-open module (mutual exclusivity)', accountsHiddenNow ? 'PASS' : 'FAIL');
+  const popover = await page.evaluate(() => ({
+    open: !!document.querySelector('#owner-module-wrap .xs-qa-pop.open'),
+    items: [...document.querySelectorAll('#owner-module-wrap .xs-qa-pop .xs-qa-item')].map(b => b.textContent.replace(/[^\w &]/g, '').trim())
+  }));
+  record('The Quick actions button opens a popover with the shortcuts', popover.open && popover.items.length >= 3 ? 'PASS' : 'FAIL', JSON.stringify(popover));
+  await page.evaluate(() => execToggleQuick(false));
 
-  currentStep = 'back-button';
-  await page.click('#owner-module-wrap button[onclick="closeOwnerModule()"]');
-  await page.waitForTimeout(200);
-  const closedProperly = await page.evaluate(() => getComputedStyle(document.getElementById('owner-module-wrap')).display === 'none' && document.getElementById('scroll').style.display !== 'none');
-  record('Close (×) button returns to the ecosystem correctly', closedProperly ? 'PASS' : 'FAIL');
+  // ── a sidebar destination actually goes somewhere ──
+  currentStep = 'nav-hop';
+  await page.click('#owner-module-wrap #xsnav-m-revenue');
+  await page.waitForSelector('#accounts-module-wrap', { state: 'visible', timeout: 5000 });
+  record('A Money destination opens the module that owns it via a genuine click', 'PASS');
+  await page.evaluate(() => { hideModuleWrap(document.getElementById('accounts-module-wrap')); launchOwnerModule(); });
+  await page.waitForTimeout(400);
 
-  await browser.close();
+  // ── responsive: two steps down to one column, with no horizontal overflow ──
+  currentStep = 'responsive';
+  const resp = [];
+  for (const [w, want] of [[1280, 4], [1000, 2], [390, 1]]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => {
+      const g = document.querySelector('#owner-body .od-grid');
+      return { cols: getComputedStyle(g).gridTemplateColumns.split(' ').length, overflow: g.scrollWidth - Math.round(g.getBoundingClientRect().width) };
+    });
+    resp.push({ w, cols: r.cols, want, overflow: r.overflow });
+  }
+  record('The grid steps 4 → 2 → 1 columns and never overflows horizontally',
+    resp.every(r => r.cols === r.want && r.overflow <= 1) ? 'PASS' : 'FAIL', JSON.stringify(resp));
+
+  // ── mutual exclusivity and a clean close, as for every module ──
+  currentStep = 'module-hygiene';
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const hygiene = await page.evaluate(() => {
+    const others = ['sales-module-wrap', 'accounts-module-wrap', 'jobs-module-wrap', 'purch-module-wrap', 'admin-module-wrap']
+      .filter(id => { const el = document.getElementById(id); return el && getComputedStyle(el).display !== 'none'; });
+    return { othersVisible: others };
+  });
+  record('Opening Owner hides every other module wrap', hygiene.othersVisible.length === 0 ? 'PASS' : 'FAIL', hygiene.othersVisible.join(', '));
+
+  const critical = consoleErrors.filter(e => !e.text.includes('favicon'));
+  record('No unexpected console errors', critical.length === 0 ? 'PASS' : 'FAIL', critical.map(e => e.text).join(' | '));
+  record('No uncaught page errors', pageErrors.length === 0 ? 'PASS' : 'FAIL', pageErrors.map(e => e.text).join(' | '));
+
   printReport();
+  await browser.close();
+  process.exit(results.every(r => r.status === 'PASS') ? 0 : 1);
 })();

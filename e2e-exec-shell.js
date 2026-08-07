@@ -44,7 +44,9 @@ function printReport() {
   const shell = await page.evaluate(() => ({
     hasSidebar: !!document.querySelector('#owner-module-wrap .xs-side'),
     hasTopbar: !!document.querySelector('#owner-module-wrap .xs-top'),
-    hasTiles: document.querySelectorAll('#owner-module-wrap .xs-tile').length >= 4,
+    // Redesign 4a replaced the pilot's .xs-tile stat band with the
+    // handoff's own KPI buttons (.od-kpi) — four of them, each a drill-down.
+    hasTiles: document.querySelectorAll('#owner-module-wrap .od-kpi').length >= 4,
     overviewActive: document.getElementById('xsnav-owner-overview')?.classList.contains('active'),
     hasTasksCard: (document.querySelector('#owner-module-wrap .xs-sidepanels')?.innerHTML || '').includes('My Tasks')
   }));
@@ -125,7 +127,8 @@ function printReport() {
 
   // ── sidebar: hop to Admin via the real nav item ──
   currentStep = 'admin-shell';
-  await page.evaluate(() => { document.getElementById('xsnav-m-admin')?.click(); });
+  // Redesign 4a: Owner's Administration group reaches Admin via Users & roles.
+  await page.evaluate(() => { document.querySelector('#owner-module-wrap #xsnav-m-users')?.click(); });
   await page.waitForSelector('#admin-module-wrap .xs-side', { state: 'visible', timeout: 5000 });
   const adminShell = await page.evaluate(() => ({
     ownerHidden: document.getElementById('owner-module-wrap').style.display === 'none',

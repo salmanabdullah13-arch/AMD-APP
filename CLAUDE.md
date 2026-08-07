@@ -6249,3 +6249,80 @@ neither path leaves a record — and that made the call obvious.
   one failure being the pre-existing stale `e2e-batch8-phase2-4.js`. Live
   `e2e-cloud-financial.js` and `e2e-cloud-events.js` both clean.
 - `sw.js` CACHE_VERSION v20 → v21.
+
+### 7 Aug 2026 — Owner Dashboard rebuilt to the design handoff (direction 4a)
+
+Salman supplied a high-fidelity design bundle (`design_handoff_owner_dashboard`
+— README, `owner-dashboard.css`, `owner-dashboard.js`, plus a prototype HTML
+kept as reference only) and asked for it exactly: *"I want this exact design
+layout, make sure you build the code to support this layout — do not change
+anything."*
+
+- **The handoff's own two source files were written for this app's real
+  environment** (vanilla JS template strings, no build step, no libraries,
+  hand-rolled SVG/CSS charts) and shipped as `owner-dashboard.css` /
+  `owner-dashboard.js`. Its README says: "Replace the DATA block with your
+  real getOwnerKPIs() / getPipelineFunnel() / getDeptQuality() calls.
+  Everything below the DATA block is presentation and needs no change." That
+  is exactly what was done — `buildData()` assembles the same shapes from the
+  app's own getters and every renderer past it is the handoff's, unchanged.
+- **Layout as specified**: five themed rows in a four-column grid — the KPI
+  band, then Today (This week · My tasks · Recent activity · Company health),
+  Analysis (By department · Revenue by division), Money (Cash in hand ·
+  Recent expenses · Top purchases), and Pipeline & quality. Company health
+  stays adjacent to Recent activity, an explicit request. Responsive 4 → 2 →
+  1 columns.
+- **Four new cards needed real sources, not invented numbers**: Cash in hand
+  reads the Cash/Bank ledger balances via `getLedgerBalance()` with committed
+  PO value as its footer; Recent expenses reads `purchaseInvoices`; Top
+  purchases ranks this month's `purchaseOrders`; Company health computes four
+  signals (cash vs committed, receivables vs invoiced, jobs carrying
+  attention flags, QC pass rates) and — per the handoff — names the weakest
+  one in plain language so the composite can never read better than the worst
+  part of the business.
+- **Tasks are the app's real `tasks[]`**, closing the handoff's own known gap
+  ("in-memory in the reference; it needs to persist to Supabase per user").
+  Ticking one off updates the shell's My Tasks panel and badge too. Task
+  *lists* are stored on the task object, so they ride the existing
+  `app_tasks` jsonb payload with no schema change.
+- **Three exec-shell changes the handoff depends on**: collapse became a
+  single chevron next to the brand mark (the labelled footer button is gone);
+  Quick Actions left the sidebar for a wine button at the top-left of the
+  content area, above the page title, opening a popover on desktop and a
+  bottom sheet on mobile; and the Owner's nav groups are now Workspace ·
+  Business · Money · Company · Administration. Where a handoff label names
+  something this app calls something else, it points at the real screen that
+  owns it (Deliveries → Delivery Scheduling, Departments → Operations,
+  Masters → Storekeeper's Masters tab), noted inline.
+- **Two deviations, both deliberate and both commented in place:**
+  1. The design's token block is scoped to `.od` instead of `:root`, and its
+     dark counterpart to this app's real dark selector (`.x-dark`) as well as
+     `[data-theme="dark"]`. Values are verbatim. `--ok`, `--warn`, `--bad`
+     and `--r` already exist at `:root` in styles.css and are used by all 17
+     other modules — a global block would have silently restyled the app.
+  2. One CSS rule added: `.od-grid > *{min-width:0}`. `1fr` is
+     `minmax(auto,1fr)`, so a column can never be narrower than its widest
+     card's min-content — at 390px the By-department card's min-content is
+     566px, which was sizing the single mobile column to 566 and pushing
+     every card off-screen. Measured, not guessed. No visual value changes,
+     and the tab strip then scrolls horizontally exactly as specified.
+- **The old hand-rolled overview is gone** (147 lines): its KPI tiles,
+  per-department cards and charts are replaced by the KPI band and the one
+  switchable By-department card, whose six tiles per role read the same KPI
+  functions those cards used.
+- **Verification**: `e2e-owner-dashboard.js` rewritten for the redesign
+  (26/26) — row order and card set, span-2 placement, Company health's
+  adjacency, every KPI being a `<button>` with a working drill-down and a way
+  back, the collapsibles, the My-tasks count being OPEN tasks, the week/month
+  scopes and the "stepping the period moves the selection with it" rule the
+  handoff calls load-bearing, department tabs in workflow order with six
+  tiles and a split on every Production tile, the shell changes, and a
+  responsive check asserting 4 → 2 → 1 columns with zero horizontal overflow.
+  It also asserts none of the handoff's invented sample data shipped.
+  Seven other suites asserted the pre-redesign arrangement and were repointed
+  rather than deleted (`exec-shell`, `exec-shell-rollout`, `session4-planner`,
+  `session5-dashboards`, `material-requests`, `demo-data`, `direct-landing`).
+  Full offline sweep 58/60 — `e2e-batch8-phase2-4.js` is the pre-existing
+  stale suite, and `e2e-jobcards-dept-scope-rls.js` passed 12/12 standalone
+  (the documented live-network flake).
+- `sw.js` CACHE_VERSION v21 → v22, both new files added to CORE_ASSETS.

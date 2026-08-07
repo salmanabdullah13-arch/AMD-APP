@@ -77,17 +77,25 @@ function printReport() {
 
   // ── Quick Actions reach: every shelled module gets the Planner group ──
   currentStep = 'quick-actions';
+  // The Owner-redesign handoff (7 Aug 2026) moved these out of the sidebar
+  // into the Quick actions button above the page title — same three
+  // shortcuts, one tap, reachable before any scrolling.
   const nav = await page.evaluate(async () => {
-    launchOwnerModule();
-    await new Promise(r => setTimeout(r, 500));
-    const ids = ['xsnav-xs-planner', 'xsnav-xs-tasks', 'xsnav-xs-cal'].map(id => !!document.getElementById(id));
-    openSalesModule();
-    await new Promise(r => setTimeout(r, 500));
-    const inSales = !!document.getElementById('xsnav-xs-planner');
-    return { owner: ids, inSales };
+    const labels = async (fn, wrapId) => {
+      window[fn]();
+      await new Promise(r => setTimeout(r, 500));
+      execToggleQuick(true);
+      await new Promise(r => setTimeout(r, 150));
+      const items = [...document.querySelectorAll('#' + wrapId + ' .xs-qa-pop .xs-qa-item')].map(b => b.textContent);
+      execToggleQuick(false);
+      return items;
+    };
+    const owner = await labels('launchOwnerModule', 'owner-module-wrap');
+    const sales = await labels('openSalesModule', 'sales-module-wrap');
+    return { owner: owner, inSales: sales.some(t => /Weekly planner/.test(t)) };
   });
-  record('Every shelled module gets Weekly planner / My tasks / Calendar in its sidebar',
-    nav.owner.every(Boolean) && nav.inSales ? 'PASS' : 'FAIL', JSON.stringify(nav));
+  record('Every shelled module reaches Weekly planner / My tasks / Calendar from Quick actions',
+    ['Weekly planner', 'My tasks', 'Calendar'].every(l => nav.owner.some(t => t.indexOf(l) !== -1)) && nav.inSales ? 'PASS' : 'FAIL', JSON.stringify(nav));
 
   // ── the panels scroll instead of truncating ──
   currentStep = 'panels-scroll';
@@ -96,26 +104,30 @@ function printReport() {
     for (let i = 0; i < 12; i++) createTask({ title: 'Bulk task ' + i, assignee: me, dueDate: '2026-08-1' + (i % 10) });
     execRefreshSidePanels();
     await new Promise(r => setTimeout(r, 150));
-    const list = [...document.querySelectorAll('.xs-sidepanels .xs-sp-list')].find(e => e.offsetParent) ||
-                 document.querySelector('.xs-sidepanels .xs-sp-list');
-    const agenda = document.querySelector('.xs-sidepanels .xs-cal-agenda');
-    const rows = list ? list.querySelectorAll('.xs-sp-task').length : 0;
-    const truncated = document.body.innerHTML.includes('more in Reminders');
+    const panel = document.querySelector('.xs-sidepanels');
+    const list = panel && panel.querySelector('.xs-sp-list');
     return {
-      rows, truncated,
+      rows: list ? list.querySelectorAll('.xs-sp-task').length : 0,
+      truncated: document.body.innerHTML.includes('more in Reminders'),
       listScrolls: !!list && getComputedStyle(list).overflowY === 'auto',
-      agendaScrolls: !!agenda && getComputedStyle(agenda).overflowY === 'auto'
+      // Owner-redesign handoff: 'the sidebar is now navigation + My tasks +
+      // user chip only' — the calendar moved into the dashboard's This-week
+      // card and the full planner.
+      headings: panel ? [...panel.querySelectorAll('.xs-sp-head')].map(h => h.textContent.replace(/[0-9]/g, '').trim()) : []
     };
   });
-  record('The tasks panel lists every open task in its own scroller (no "+N more" cut-off)',
+  record(`The tasks panel lists every open task in its own scroller (no "+N more" cut-off)`,
     scroll.rows >= 12 && !scroll.truncated && scroll.listScrolls ? 'PASS' : 'FAIL', JSON.stringify(scroll));
-  record('The calendar agenda scrolls inside the panel too', scroll.agendaScrolls ? 'PASS' : 'FAIL', JSON.stringify(scroll));
+  record(`My tasks is the sidebar's only panel now — the calendar lives in the dashboard and planner`,
+    scroll.headings.length === 1 && /my tasks/i.test(scroll.headings[0]) ? 'PASS' : 'FAIL', JSON.stringify(scroll));
 
   // ── the planner opens from the sidebar and shows the real week ──
   currentStep = 'planner-open';
-  await page.evaluate(() => execToggleSide(true));
-  await page.waitForTimeout(150);
-  await page.click('#xsnav-xs-planner');
+  await page.evaluate(() => launchOwnerModule());
+  await page.waitForTimeout(400);
+  await page.click('#owner-module-wrap .xs-qa');
+  await page.waitForTimeout(200);
+  await page.click('#owner-module-wrap .xs-qa-pop .xs-qa-item');
   await page.waitForTimeout(300);
   const opened = await page.evaluate(() => {
     const host = document.getElementById('exec-planner');

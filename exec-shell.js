@@ -112,6 +112,43 @@ execStyleTag.textContent = `
   background:var(--x-wash-2);color:var(--x-brand-bright);
 }
 .xs-foot{padding:12px;border-top:1px solid var(--x-hairline);}
+/* Owner-redesign handoff: collapse lives next to the brand mark now. */
+.xs-collapse-chev{
+  flex:none;width:26px;height:26px;margin-left:auto;border-radius:8px;cursor:pointer;
+  border:1px solid var(--x-hairline);background:transparent;color:var(--x-ink-3);font-size:13px;line-height:1;
+}
+.xs-collapse-chev:hover{border-color:var(--x-brand);color:var(--x-ink);}
+.xshell.xs-collapsed .xs-collapse-chev{margin-left:0;}
+/* Quick actions: promoted out of the sidebar to the top-left of the content
+   area, above the page title — reachable before any scrolling. */
+.xs-qa{
+  display:inline-flex;align-items:center;gap:6px;margin-bottom:4px;padding:5px 11px;
+  border-radius:9px;border:0;cursor:pointer;background:var(--x-brand);color:#fff;
+  font-size:11.5px;font-weight:650;letter-spacing:.01em;
+}
+.xs-qa:hover{background:var(--x-brand-bright);}
+.xs-qa-scrim{position:fixed;inset:0;z-index:140;display:none;}
+.xs-qa-scrim.open{display:block;}
+.xs-qa-pop{
+  position:absolute;top:calc(58px + var(--safe-top,0px));left:14px;width:min(300px,calc(100vw - 28px));
+  z-index:145;background:var(--x-surface);border:1px solid var(--x-hairline-strong);
+  border-radius:14px;box-shadow:0 22px 55px rgba(0,0,0,.35);overflow:hidden;display:none;padding:6px;
+}
+.xs-qa-pop.open{display:block;}
+.xs-qa-item{
+  display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:9px;
+  background:transparent;color:var(--x-ink);font-size:12.5px;font-weight:550;cursor:pointer;text-align:left;
+}
+.xs-qa-item:hover{background:var(--x-wash);}
+.xs-qa-item .ico{flex:none;width:20px;text-align:center;font-size:13px;}
+@media(max-width:880px){
+  /* bottom sheet on phone */
+  .xs-qa-pop{
+    position:fixed;top:auto;left:0;right:0;bottom:0;width:auto;border-radius:16px 16px 0 0;
+    padding:8px 8px calc(14px + env(safe-area-inset-bottom,0px));animation:xsSheet .2s ease;
+  }
+  @keyframes xsSheet{from{transform:translateY(100%)}to{transform:none}}
+}
 .xs-user{display:flex;align-items:center;gap:9px;padding:7px;border-radius:8px;}
 .xs-avatar{
   width:31px;height:31px;border-radius:50%;flex:none;display:grid;place-items:center;
@@ -493,6 +530,30 @@ const EXEC_SEV_COLOR = { critical: 'var(--bad,#d9342b)', serious: '#e8703a', war
 
 let execRemOpenFlag = false;
 let execAutoAlerted = false; // auto-open once per page load when something needs attention
+// Quick actions popover (desktop) / bottom sheet (mobile). Same items the
+// sidebar group used to carry, minus any this role can't use.
+let execQuickOpen = false;
+function execQuickItems() {
+  const items = [
+    { ico: '🗓', label: 'Weekly planner', on: 'execOpenPlanner()' },
+    { ico: '✓', label: 'My tasks', on: "execFocusPanel('tasks')" },
+    { ico: '📅', label: 'Calendar', on: "execFocusPanel('calendar')" },
+    { ico: '🏬', label: 'Request Material', on: 'execOpenMaterialRequest()' },
+    { ico: '🛒', label: 'Request Purchase', on: 'execRequestPurchase()' }
+  ];
+  return items.filter(i => i.label !== 'Request Material' || EXEC_CAN_REQUEST_MATERIAL.includes(execModuleKey));
+}
+function execToggleQuick(force) {
+  execQuickOpen = force !== undefined ? force : !execQuickOpen;
+  document.querySelectorAll('.xs-qa-pop').forEach(p => {
+    p.classList.toggle('open', execQuickOpen);
+    if (execQuickOpen) {
+      p.innerHTML = execQuickItems().map(i =>
+        `<button class="xs-qa-item" onclick="execToggleQuick(false);${i.on}"><span class="ico">${i.ico}</span>${execEsc(i.label)}</button>`).join('');
+    }
+  });
+  document.querySelectorAll('.xs-qa-scrim').forEach(el => el.classList.toggle('open', execQuickOpen));
+}
 function execToggleReminders(force) {
   execRemOpenFlag = force !== undefined ? force : !execRemOpenFlag;
   document.querySelectorAll('.xs-panel').forEach(p => p.classList.toggle('open', execRemOpenFlag));
@@ -677,7 +738,12 @@ let execCalSelected = null; // 'YYYY-MM-DD', null = today
 const EXEC_CAL_COLOR = { task: 'var(--x-brand-bright)', promised: 'var(--warn,#c47d00)', delivery: 'var(--info,#2563eb)', event: 'var(--ok,#0f9d58)' };
 
 function execSidePanelsHTML() {
-  return execTasksPanelHTML() + execCalendarPanelHTML();
+  // Owner-redesign handoff: "The sidebar is now navigation + My tasks + user
+  // chip only." The calendar moved into the dashboard's own This-week card
+  // and the full Week planner (Quick actions → Weekly planner, or the
+  // Workspace nav item) — execCalendarPanelHTML() still exists and is what
+  // the planner overlay reuses, so restoring it here is a one-line change.
+  return execTasksPanelHTML();
 }
 function execRefreshSidePanels() {
   document.querySelectorAll('.xs-sidepanels').forEach(el => { el.innerHTML = execSidePanelsHTML(); });
@@ -964,19 +1030,11 @@ function execWithSharedNav(groups) {
   // point. The per-dashboard "Notify Storekeeper / Request Purchase" strips
   // and Messages cards are gone; these two live here, and the floating chat
   // bubble owns messaging everywhere.
-  const openTasks = (() => { try { return getOpenTasksForAssignee(execIdentity()).length; } catch (e) { return 0; } })();
-  const shared = { label: 'Quick actions', items: [
-    { id: 'xs-planner', ico: '🗓', label: 'Weekly planner', onclick: 'execOpenPlanner()' },
-    { id: 'xs-tasks', ico: '✓', label: 'My tasks', onclick: "execFocusPanel('tasks')", tag: openTasks > 0 ? openTasks : null },
-    { id: 'xs-cal', ico: '📅', label: 'Calendar', onclick: "execFocusPanel('calendar')" },
-    { id: 'xs-notify', ico: '🏬', label: 'Request Material', onclick: 'execOpenMaterialRequest()' },
-    { id: 'xs-buy', ico: '🛒', label: 'Request Purchase', onclick: 'execRequestPurchase()' }
-  ] };
-  // Asking the storekeeper for stock is a production action. It used to sit
-  // on every sidebar as a free-text "Notify Storekeeper" — including five
-  // that had no use for it, and Storekeeper's own, aimed at themselves.
-  if (!EXEC_CAN_REQUEST_MATERIAL.includes(execModuleKey)) shared.items = shared.items.filter(i => i.id !== 'xs-notify');
-  return [shared].concat(groups || []);
+  // Owner-redesign handoff: "Quick Actions removed from the sidebar and
+  // promoted to a wine button at the top-left of the content area". The
+  // sidebar is navigation + My tasks + user chip only; execQuickItems()
+  // owns the shortcut list now.
+  return (groups || []);
 }
 // The department a module's purchase request should default to, so a
 // Joinery manager raising one doesn't have to re-pick their own department.
@@ -1032,12 +1090,12 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
           <div class="xs-brand-name">AL MARAYA</div>
           <div class="xs-brand-sub">Decor</div>
         </div>
+        <button class="xs-collapse-chev" onclick="execToggleCollapse()" aria-label="Collapse menu" title="Collapse menu">«</button>
         <button class="xs-side-close" onclick="execToggleSide(false)" aria-label="Close menu">×</button>
       </div>
       <nav class="xs-nav">${navHtml}</nav>
       <div class="xs-sidepanels">${execSidePanelsHTML()}</div>
       <div class="xs-foot">
-        <button class="xs-collapse-btn" onclick="execToggleCollapse()">« Collapse</button>
         <div class="xs-user">
           <div class="xs-avatar">${execEsc(initials)}</div>
           <div>
@@ -1052,6 +1110,7 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
         <button class="xs-iconbtn xs-burger" onclick="execToggleSide()" aria-label="Menu">☰</button>
         <button class="xs-back" onclick="execBack()" title="Back" aria-label="Back">‹</button>
         <div>
+          <button class="xs-qa" onclick="execToggleQuick()" aria-haspopup="true">＋ Quick actions</button>
           <div class="xs-title">${execEsc(title)}</div>
           <div class="xs-sub">${execEsc(sub || today)}</div>
         </div>
@@ -1065,6 +1124,8 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
         </button>
         <button class="xs-iconbtn" onclick="${closeFn}()" title="Close" aria-label="Close">×</button>
       </header>
+      <div class="xs-qa-scrim" onclick="execToggleQuick(false)"></div>
+      <div class="xs-qa-pop"></div>
       <div class="xs-scrim" onclick="execToggleReminders(false)"></div>
       <div class="xs-panel">
         <div class="xs-panel-head"><h3>Reminders</h3>
