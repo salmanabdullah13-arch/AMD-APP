@@ -199,14 +199,6 @@ function renderJoineryDashboard() {
   const pendingApprovals = getOwnPendingBudgetCountForDept(JOINERY_DEPT_KEY);
   const overBudget = getOverBudgetCountForDept(JOINERY_DEPT_KEY);
   return `
-    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
-      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${jyEsc(joineryCurrentUser)}</b></p>
-      <div style="display:flex;gap:14px;">
-        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${joineryCurrentUser}',null,null,'renderJoineryBody')">🏬 Notify Storekeeper</span>
-        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeJoineryModule','${JOINERY_DEPT_KEY}',null)">🛒 Request Purchase</span>
-      </div>
-    </div>
-    ${renderInboxWidget(joineryCurrentUser, 'renderJoineryBody', 5)}
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile"><div class="num">${count('queued')}</div><div class="lbl">Queued</div></div>
       <div class="sales-kpi-tile"><div class="num">${count('in-production')}</div><div class="lbl">In Production</div></div>

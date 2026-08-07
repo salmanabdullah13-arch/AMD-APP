@@ -130,7 +130,15 @@ function renderInboxWidget(person, onReadRerender, limit) {
 // are both optional — Purchasing's PR form already supports "no specific
 // job."
 function requestPurchaseFromModule(closeCurrentModuleFn, deptKey, jobId) {
-  if (closeCurrentModuleFn && typeof window[closeCurrentModuleFn] === 'function') window[closeCurrentModuleFn]();
+  // Hide the current module rather than CLOSING it: since every module's
+  // close routes through closeModuleWrap(), a close here would prompt
+  // "Sign out of AMD-APP?" for any single-dashboard role mid-hop. Same fix
+  // the other cross-module hops got; these call sites passed the close
+  // function by name, so that sweep didn't reach them.
+  const wrap = [...document.querySelectorAll('.module, [id$="-module-wrap"]')]
+    .find(el => el.style && el.style.display && el.style.display !== 'none');
+  if (wrap && typeof hideModuleWrap === 'function') hideModuleWrap(wrap);
+  else if (closeCurrentModuleFn && typeof window[closeCurrentModuleFn] === 'function') window[closeCurrentModuleFn]();
   setTimeout(() => {
     launchPurchasingModule();
     openPRForm();

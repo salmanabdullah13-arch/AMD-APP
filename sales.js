@@ -117,7 +117,7 @@ let salesActiveQtnId = null;
 let salesActiveEnqTab = 'basic';       // basic | followup
 let salesWizardStep = 1;
 let salesEnqFilters = { from: '', to: '', customer: '', salesPerson: '', unassigned: false, unattended: false, unquoted: false };
-let salesQtnFilters = { qtnNo: '', customer: '', project: '', tel: '', salesPerson: '' };
+let salesQtnFilters = { qtnNo: '', customer: '', project: '', tel: '', salesPerson: '', stage: '' };
 let salesQtnListTab = 'all';           // draft | open | confirmed | closed | all
 let salesQtnRegFilters = { from: '', to: '', salesPerson: '', status: 'All' };
 let salesDraft = null;                 // scratch object for create forms
@@ -562,6 +562,13 @@ function quotationMatchesFilters(q) {
   return true;
 }
 
+// Session 5: a KPI tile lands on exactly the rows it counted — set the
+// lifecycle tab and the stage filter together, then show the list.
+function salesShowQuotations(tab, stage) {
+  salesQtnListTab = tab || 'all';
+  salesQtnFilters.stage = stage || '';
+  salesSetTopView('quotations');
+}
 function salesQtnFilterChanged(key, val) { salesQtnFilters[key] = val; renderSalesBody(); }
 function salesSetQtnListTab(t) { salesQtnListTab = t; renderSalesBody(); }
 
@@ -569,6 +576,7 @@ function renderQuotationList() {
   const tabs = ['draft', 'open', 'confirmed', 'closed', 'all'];
   const rows = quotations.filter(quotationMatchesFilters)
     .filter(q => salesQtnListTab === 'all' || q.lifecycleStatus === salesQtnListTab)
+    .filter(q => !salesQtnFilters.stage || q.stage === salesQtnFilters.stage)
     .slice().sort((a, b) => b.date.localeCompare(a.date));
 
   const tabsHtml = `<div class="sales-status-tabs">${tabs.map(t => `<button class="sales-status-tab st-${t} ${salesQtnListTab === t ? 'active' : ''}" onclick="salesSetQtnListTab('${t}')">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`;
@@ -583,10 +591,18 @@ function renderQuotationList() {
         <div class="sales-field" style="margin-bottom:0;"><label>Project</label><input type="text" value="${salesQtnFilters.project}" oninput="salesQtnFilterChanged('project',this.value)"></div>
         <div class="sales-field" style="margin-bottom:0;"><label>Tel No</label><input type="text" value="${salesQtnFilters.tel}" oninput="salesQtnFilterChanged('tel',this.value)"></div>
       </div>
-      <div class="sales-field" style="margin-top:8px;margin-bottom:0;"><label>Sales Person</label>
-        <select onchange="salesQtnFilterChanged('salesPerson',this.value)">
-          <option value="">All</option>${STAFF.map(s => `<option value="${s}" ${salesQtnFilters.salesPerson === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div class="sales-field" style="margin-bottom:0;"><label>Sales Person</label>
+          <select onchange="salesQtnFilterChanged('salesPerson',this.value)">
+            <option value="">All</option>${STAFF.map(s => `<option value="${s}" ${salesQtnFilters.salesPerson === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="sales-field" style="margin-bottom:0;"><label>Currently With</label>
+          <select onchange="salesQtnFilterChanged('stage',this.value)">
+            ${[['', 'Anyone'], ['sales', 'Sales'], ['estimator', 'Estimator'], ['approver', 'Approver']]
+              .map(([v, l]) => `<option value="${v}" ${salesQtnFilters.stage === v ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
+        </div>
       </div>
     </div>`;
 
@@ -1111,23 +1127,18 @@ function renderSalesAnalyticsSection() {
 function renderSalesDashboard() {
   const k = getSalesKPIs();
   return `
-    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
-      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${esc(salesCurrentUser)}</b></p>
-      <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${salesCurrentUser}',null,null,'renderSalesBody')">🏬 Notify Storekeeper</span>
-    </div>
-    ${renderInboxWidget(salesCurrentUser, 'renderSalesBody', 5)}
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('enquiries');salesEnqFilterChanged('unassigned',true);"><div class="num">${k.unallocated}</div><div class="lbl">Un-allocated</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.inProgress}</div><div class="lbl">In-Progress</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('quotations');"><div class="num">${k.openQuotations}</div><div class="lbl">Open Quotations</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.withEstimator}</div><div class="lbl">With Estimator</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.withApprover}</div><div class="lbl">With Approver</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.jobsPending}</div><div class="lbl">Jobs Pending</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.jobsOngoing}</div><div class="lbl">Jobs On-going</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('enquiries');salesEnqFilterChanged('unattended',true);"><div class="num">${k.inProgress}</div><div class="lbl">In-Progress</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesShowQuotations('open');"><div class="num">${k.openQuotations}</div><div class="lbl">Open Quotations</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesShowQuotations('all','estimator');"><div class="num">${k.withEstimator}</div><div class="lbl">With Estimator</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesShowQuotations('all','approver');"><div class="num">${k.withApprover}</div><div class="lbl">With Approver</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('myjobs');"><div class="num">${k.jobsPending}</div><div class="lbl">Jobs Pending</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('myjobs');"><div class="num">${k.jobsOngoing}</div><div class="lbl">Jobs On-going</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="hideModuleWrap(salesModuleWrap);setTimeout(()=>launchJobsModule(),150);"><div class="num">${k.toInvoice}</div><div class="lbl">To Invoice</div></div>
-      <div class="sales-kpi-tile"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('reports');"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="requestPurchaseFromModule(null,null,null)"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="requestPurchaseFromModule(null,null,null)"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>

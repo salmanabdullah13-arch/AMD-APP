@@ -415,6 +415,14 @@ function execThemeToggle() {
 // renderOwnerBody/renderAdminBody calls.
 let execModuleKey = null;
 let execRerenderFnName = null;
+// Runs `fn` against whichever adopted shell is actually on screen. Adopted
+// shells are never torn down, so ids repeat across them (Session 5).
+function execVisibleShell(fn) {
+  const shells = [...document.querySelectorAll('.xshell')]
+    .filter(el => el.id && el.id !== 'exec-chat-float' && el.offsetParent !== null);
+  for (const s of shells) { const r = fn(s); if (r) return r; }
+  return null;
+}
 function execSetContext(moduleKey, rerenderFnName) {
   execModuleKey = moduleKey;
   execRerenderFnName = rerenderFnName;
@@ -951,12 +959,32 @@ setInterval(() => {
 // the tasks/calendar work is reachable without hunting for the panel —
 // appended here rather than copied into all 17 nav configs.
 function execWithSharedNav(groups) {
-  const shared = { label: 'Planner', items: [
+  // Session 5: Salman asked for quick actions at the top rather than buried
+  // under each dashboard's own content, and for messaging to have ONE entry
+  // point. The per-dashboard "Notify Storekeeper / Request Purchase" strips
+  // and Messages cards are gone; these two live here, and the floating chat
+  // bubble owns messaging everywhere.
+  const openTasks = (() => { try { return getOpenTasksForAssignee(execIdentity()).length; } catch (e) { return 0; } })();
+  const shared = { label: 'Quick actions', items: [
     { id: 'xs-planner', ico: '🗓', label: 'Weekly planner', onclick: 'execOpenPlanner()' },
-    { id: 'xs-tasks', ico: '✓', label: 'My tasks', onclick: "execFocusPanel('tasks')", tag: (() => { try { const n = getOpenTasksForAssignee(execIdentity()).length; return n > 0 ? n : null; } catch (e) { return null; } })() },
-    { id: 'xs-cal', ico: '📅', label: 'Calendar', onclick: "execFocusPanel('calendar')" }
+    { id: 'xs-tasks', ico: '✓', label: 'My tasks', onclick: "execFocusPanel('tasks')", tag: openTasks > 0 ? openTasks : null },
+    { id: 'xs-cal', ico: '📅', label: 'Calendar', onclick: "execFocusPanel('calendar')" },
+    { id: 'xs-notify', ico: '🏬', label: 'Notify Storekeeper', onclick: 'execNotifyStorekeeper()' },
+    { id: 'xs-buy', ico: '🛒', label: 'Request Purchase', onclick: 'execRequestPurchase()' }
   ] };
-  return (groups || []).concat([shared]);
+  // Storekeeper is the usual RECIPIENT — no point offering them a shortcut
+  // aimed at themselves (the same call the original per-module wiring made).
+  if (execModuleKey === 'storekeeper') shared.items = shared.items.filter(i => i.id !== 'xs-notify');
+  return [shared].concat(groups || []);
+}
+// The department a module's purchase request should default to, so a
+// Joinery manager raising one doesn't have to re-pick their own department.
+const EXEC_MODULE_DEPT = { joinery: 'carp', upholstery: 'uph', painting: 'paint', curtain: 'curt' };
+function execNotifyStorekeeper() {
+  if (typeof notifyStorekeeper === 'function') notifyStorekeeper(execIdentity(), null, null, EXEC_RERENDER_OF[execModuleKey] || null);
+}
+function execRequestPurchase() {
+  if (typeof requestPurchaseFromModule === 'function') requestPurchaseFromModule(null, EXEC_MODULE_DEPT[execModuleKey] || null, null);
 }
 // Opens the sidebar (drawer on mobile, un-collapses on desktop), makes sure
 // the panel is expanded, and scrolls it into view.
@@ -1146,7 +1174,12 @@ function execCurrentViewLabel() {
 
 function execMarkActive(navId) {
   document.querySelectorAll('.xs-item').forEach(b => b.classList.remove('active'));
-  const el = document.getElementById('xsnav-' + navId);
+  // Every adopted shell stays in the DOM once opened, so nav ids repeat
+  // across modules — getElementById would hand back whichever shell was
+  // adopted first, not the one on screen. Same duplicate-id trap the
+  // rollout hit with the task input; scope to the visible shell.
+  const el = execVisibleShell(el0 => el0.querySelector('#xsnav-' + CSS.escape(navId)))
+    || document.getElementById('xsnav-' + navId);
   if (el) el.classList.add('active');
   execCrumbNow = null;          // a sidebar jump is a fresh context
   if (typeof execRenderNav === 'function') execRenderNav();

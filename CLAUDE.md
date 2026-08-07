@@ -6032,3 +6032,64 @@ Fourth of Salman's six backlog sections. Three asks, all built.
   sweep: 57/58 (the one failure, `e2e-batch8-phase2-4.js`, is the same
   pre-existing stale suite flagged in Session 3).
 - `sw.js` CACHE_VERSION v16 → v17.
+
+### 7 Aug 2026 — Backlog Session 5: dashboard cleanup
+
+Fifth of Salman's six backlog sections.
+
+- **One messaging entry point.** Ten dashboards each carried their own
+  "Notify Storekeeper / Request Purchase" strip *and* a Messages inbox card,
+  while the shell already had a floating chat bubble with an unread badge
+  and a reminders bell — four competing places for the same thing. All
+  twenty blocks removed (explicit per-file edits, not a regex sweep: they
+  sit inside nested template literals where a greedy match would eat a
+  closing backtick and leave a file that parses but renders nonsense).
+  `renderInboxWidget()` itself stays in teamcomms.js — the chat panel and
+  the data layer still use it.
+- **Quick actions moved to the top of every sidebar** — one shared group
+  (Weekly planner, My tasks, Calendar, Notify Storekeeper, Request
+  Purchase) prepended inside `execShellHTML()`, so it reaches every module
+  including Owner and Admin, which build their shell directly. Storekeeper
+  is the usual *recipient*, so the notify shortcut is filtered out of its
+  own sidebar — the same call the original per-module wiring made.
+- **A real bug found on the way**: `requestPurchaseFromModule()` called the
+  caller's own `close*Module()` purely to tidy up before hopping to
+  Purchasing. Since Phase 3 assigned `window.__dashboardHome`, that call
+  became indistinguishable from a genuine close — so a single-dashboard
+  role got "Sign out of AMD-APP?" mid-hop. Exactly the class of bug fixed
+  for the other hop helpers at the time; these call sites passed the close
+  function *by name*, so that sweep never reached them. Now hides the
+  visible wrap instead. Covered by a test that fakes a single-dashboard
+  role and asserts no sign-out is offered.
+- **A second one, same family**: every adopted shell stays in the DOM once
+  opened, so sidebar nav ids repeat across modules — `execMarkActive()`'s
+  `getElementById` would mark the first-adopted shell's button, not the one
+  on screen. New `execVisibleShell()` scopes the lookup. (The same
+  duplicate-id trap the rollout hit with the task input; found here because
+  the new test's own lookup hit it first.)
+- **Estimation's duplicate identity** — the module showed "Logged in as"
+  in the removed comms card as well as in its own role-switcher bar. The
+  card is gone; the switcher stays, since it's functional (it drives the
+  simulated identity), not decoration.
+- **Admin's User & Role Management is a compact list** — a full card per
+  person (name, designation, status pill, a role dropdown and two buttons)
+  meant heavy scrolling and showed the controls for everyone at once, even
+  though you only ever act on one. Rows are now one line each (status dot,
+  name, role · designation) and tapping opens exactly that person's
+  controls.
+- **Every KPI tile leads somewhere.** Sales' quotation list had no stage
+  filter, so "With Estimator"/"With Approver" had nowhere to land — added
+  a real "Currently With" filter to the filter bar (not a one-off click
+  target) and a `salesShowQuotations(tab, stage)` helper so a tile lands on
+  exactly the rows it counted. Estimator and Approver gained expandable
+  lists for the tiles that only counted quotations; Accounts' tiles open
+  the tab that owns the number, hopping to Purchasing for Payables and
+  pending PO value. 29 dashboard tiles across the four modules, zero dead.
+- **Verification**: new `e2e-session5-dashboards.js` (11/11). Two suites
+  needed updating rather than deleting, since they asserted the *old*
+  arrangement: `e2e-team-comms-dashboard.js` now checks each dashboard does
+  NOT carry a Messages widget and that the message still reaches its
+  recipient through the data layer with the chat present (24/24). Full
+  offline sweep 57/58 — the one failure is still `e2e-batch8-phase2-4.js`,
+  the pre-existing stale suite flagged in Session 3.
+- `sw.js` CACHE_VERSION v17 → v18.

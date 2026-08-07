@@ -178,24 +178,16 @@ function estimatorQtnRowSummary(q) {
 function renderEstimatorDashboard() {
   const k = getEstimatorKPIs(estimatorCurrentUser);
 
-  const commsHtml = `
-    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
-      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${eEsc(estimatorCurrentUser)}</b></p>
-      <div style="display:flex;gap:14px;">
-        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${estimatorCurrentUser}',null,null,'renderEstimatorBody')">🏬 Notify Storekeeper</span>
-        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeEstimatorModule',null,null)">🛒 Request Purchase</span>
-      </div>
-    </div>
-    ${renderInboxWidget(estimatorCurrentUser, 'renderEstimatorBody', 5)}`;
+  const commsHtml = '';
 
   const kpiTilesHtml = `
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="estimatorToggleTile('pending')"><div class="num">${k.pendingToPick}</div><div class="lbl">Pending to Pick</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="estimatorToggleTile('my')"><div class="num">${k.myActions}</div><div class="lbl">My Actions</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.withApprover}</div><div class="lbl">With Approver</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.confirmed}</div><div class="lbl">Confirmed</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="estimatorToggleTile('withApprover')"><div class="num">${k.withApprover}</div><div class="lbl">With Approver</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="estimatorToggleTile('confirmed')"><div class="num">${k.confirmed}</div><div class="lbl">Confirmed</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="requestPurchaseFromModule(null,null,null)"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="requestPurchaseFromModule(null,null,null)"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>
@@ -221,6 +213,19 @@ function renderEstimatorDashboard() {
     expandedHtml = `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">My Quotations</p>` +
       (k.myActionsList.length === 0 ? `<p style="font-size:12px;color:#64748b;">Nothing picked yet.</p>` :
         k.myActionsList.map(q => {
+          const s = estimatorQtnRowSummary(q);
+          return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openEstimatorQuoteHub('${q.id}')">
+            <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id} ${quoteAgeBadge(q)}</p>
+            <p style="font-size:11px;color:#64748b;">${eEsc(s.client)} · ${eEsc(q.projectName)} · ${eEsc(s.salesman)}</p>
+          </div>`;
+        }).join('')) + `</div>`;
+  } else if (estimatorDashExpanded === 'withApprover' || estimatorDashExpanded === 'confirmed') {
+    // Session 5: these two tiles counted quotations but had nowhere to land.
+    const withApprover = estimatorDashExpanded === 'withApprover';
+    const list = quotations.filter(q => withApprover ? q.stage === 'approver' : q.lifecycleStatus === 'confirmed');
+    expandedHtml = `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">${withApprover ? 'With Approver' : 'Confirmed'}</p>` +
+      (list.length === 0 ? `<p style="font-size:12px;color:#64748b;">Nothing here.</p>` :
+        list.map(q => {
           const s = estimatorQtnRowSummary(q);
           return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openEstimatorQuoteHub('${q.id}')">
             <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id} ${quoteAgeBadge(q)}</p>

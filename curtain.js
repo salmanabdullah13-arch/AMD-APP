@@ -577,18 +577,9 @@ function renderCurtDashboard() {
   const stitchPct = finishedTotals.total > 0 ? Math.round((finishedTotals.finished / finishedTotals.total) * 100) : 0;
   const qcVolume = getWindowsToQCPerDay(7);
 
+  // Comms moved to the shell (floating chat + sidebar Quick actions), Session 5.
   const curtCommsEl = document.getElementById('curt-comms');
-  if (curtCommsEl) {
-    curtCommsEl.innerHTML = `
-      <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-        <p style="font-size:11px;color:var(--ink2,#64748b);margin:0;">Silva · Production Manager</p>
-        <div style="display:flex;gap:14px;">
-          <span style="font-size:11.5px;font-weight:600;color:#600131;cursor:pointer;white-space:nowrap;" onclick="notifyStorekeeper('Silva',null,null,'renderCurtDashboard')">🏬 Notify Storekeeper</span>
-          <span style="font-size:11.5px;font-weight:600;color:#600131;cursor:pointer;white-space:nowrap;" onclick="requestPurchaseFromModule(null,null,null)">🛒 Request Purchase</span>
-        </div>
-      </div>
-      ${renderInboxWidget('Silva', 'renderCurtDashboard', 5)}`;
-  }
+  if (curtCommsEl) curtCommsEl.innerHTML = '';
 
   document.getElementById('curt-kpis').innerHTML = `
   <div class="dash-body">

@@ -89,6 +89,7 @@ function closeAdminModule() { closeModuleWrap(adminModuleWrap, 'launchAdminModul
 function launchAdminModule() { openAdminModule(); }
 
 let adminView = 'approvals'; // approvals | devpreview | users
+let adminUserExpandedId = null;  // one row's controls open at a time (Session 5)
 function adminSetView(v) {
   adminView = v;
   renderAdminBody();
@@ -187,27 +188,39 @@ function renderAdminUsersInto() {
     el.innerHTML = `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No approved accounts yet.</p></div>`;
     return;
   }
-  el.innerHTML = adminUserRoster.map(p => {
-    const isActive = p.approval_status === 'approved';
-    return `
-    <div class="sales-card" id="admin-user-${adminEsc(p.id)}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <p style="font-weight:700;font-size:13px;margin:0 0 4px;">${adminEsc(p.display_name)}</p>
-          <p style="font-size:11px;color:#94a3b8;margin:0 0 8px;">${adminEsc(p.designation || '—')}</p>
+  const roleLabel = key => (adminUserTypesList.find(t => t.key === key) || {}).label || key || '—';
+  el.innerHTML = `<div class="sales-card" style="padding:0;overflow:hidden;">
+    ${adminUserRoster.map(p => {
+      const isActive = p.approval_status === 'approved';
+      const open = adminUserExpandedId === p.id;
+      return `
+      <div id="admin-user-${adminEsc(p.id)}" style="border-bottom:1px solid var(--biz-border-light);">
+        <div onclick="adminToggleUserRow('${adminEsc(p.id)}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;">
+          <span style="width:7px;height:7px;border-radius:50%;flex:none;background:${isActive ? 'var(--ok,#0f9d58)' : 'var(--bad,#d9342b)'};"></span>
+          <span style="min-width:0;flex:1;">
+            <span style="display:block;font-weight:650;font-size:12.5px;">${adminEsc(p.display_name)}</span>
+            <span style="display:block;font-size:10.5px;color:#94a3b8;">${adminEsc(roleLabel(p.user_type))}${p.designation ? ' · ' + adminEsc(p.designation) : ''}</span>
+          </span>
+          <span style="color:#94a3b8;font-size:15px;flex:none;">${open ? '⌄' : '›'}</span>
         </div>
-        <span class="admin-pill ${isActive ? 'active' : 'deactivated'}">${isActive ? 'Active' : 'Deactivated'}</span>
-      </div>
-      <label style="font-size:11px;color:#64748b;">User Type</label>
-      <select id="admin-usertype-${adminEsc(p.id)}" style="width:100%;padding:9px 10px;border:1px solid var(--biz-border-light);border-radius:8px;font-size:12.5px;margin:4px 0 10px;">
-        ${adminUserTypesList.map(t => `<option value="${adminEsc(t.key)}" ${t.key === p.user_type ? 'selected' : ''}>${adminEsc(t.label)}</option>`).join('')}
-      </select>
-      <div style="display:flex;gap:8px;">
-        <button class="primary" style="flex:1;font-size:11.5px;" onclick="adminUpdateUserType('${adminEsc(p.id)}')">Save Role</button>
-        <button class="secondary" style="flex:1;font-size:11.5px;color:${isActive ? '#b91c1c' : 'var(--biz-primary)'};" onclick="adminToggleUserActive('${adminEsc(p.id)}')">${isActive ? 'Deactivate' : 'Reactivate'}</button>
-      </div>
-    </div>`;
-  }).join('');
+        ${open ? `
+        <div style="padding:0 12px 12px;">
+          <label style="font-size:11px;color:#64748b;">User Type</label>
+          <select id="admin-usertype-${adminEsc(p.id)}" style="width:100%;padding:9px 10px;border:1px solid var(--biz-border-light);border-radius:8px;font-size:12.5px;margin:4px 0 10px;">
+            ${adminUserTypesList.map(t => `<option value="${adminEsc(t.key)}" ${t.key === p.user_type ? 'selected' : ''}>${adminEsc(t.label)}</option>`).join('')}
+          </select>
+          <div style="display:flex;gap:8px;">
+            <button class="primary" style="flex:1;font-size:11.5px;" onclick="adminUpdateUserType('${adminEsc(p.id)}')">Save Role</button>
+            <button class="secondary" style="flex:1;font-size:11.5px;color:${isActive ? '#b91c1c' : 'var(--biz-primary)'};" onclick="adminToggleUserActive('${adminEsc(p.id)}')">${isActive ? 'Deactivate' : 'Reactivate'}</button>
+          </div>
+        </div>` : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function adminToggleUserRow(profileId) {
+  adminUserExpandedId = adminUserExpandedId === profileId ? null : profileId;
+  renderAdminUsersInto();
 }
 async function adminUpdateUserType(profileId) {
   const select = document.getElementById(`admin-usertype-${profileId}`);

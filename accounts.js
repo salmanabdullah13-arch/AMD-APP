@@ -246,6 +246,10 @@ function getAccountsMonthlyRevenueByDivision(monthsBack) {
   return { months, byMonthDiv, divisions: divisionsSeen };
 }
 
+function accountsOpenPurchasing(page) {
+  hideModuleWrap(accountsModuleWrap);
+  setTimeout(() => { launchPurchasingModule(); if (page) purchGoTo(page); }, 150);
+}
 function renderAccountsDashboard() {
   const k = getAccountsKPIs();
   const monthlyRev = getAccountsMonthlyRevenueByDivision(6);
@@ -254,18 +258,13 @@ function renderAccountsDashboard() {
   }));
   const topClients = getTopClientsByValue(6).map(c => ({ label: c.name, value: c.value }));
   return `
-    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
-      <p style="font-size:11px;color:#94a3b8;margin:0;">Accounts</p>
-      <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeAccountsModule',null,null)">🛒 Request Purchase</span>
-    </div>
-    ${renderInboxWidget('Accounts', 'renderAccountsBody', 5)}
     <div class="sales-kpi-grid">
-      <div class="sales-kpi-tile"><div class="num">BD ${k.revenue.toFixed(3)}</div><div class="lbl">Revenue (Invoiced)</div></div>
-      <div class="sales-kpi-tile"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
-      <div class="sales-kpi-tile"><div class="num">BD ${k.payables.toFixed(3)}</div><div class="lbl">Payables</div></div>
-      <div class="sales-kpi-tile"><div class="num">BD ${k.pendingPOValue.toFixed(3)}</div><div class="lbl">PO Value Awaiting Delivery</div></div>
-      <div class="sales-kpi-tile"><div class="num">BD ${k.cashPosition.toFixed(3)}</div><div class="lbl">Cash Position (proxy)</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.invoiceCount}</div><div class="lbl">Sales Invoices</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('invoices')"><div class="num">BD ${k.revenue.toFixed(3)}</div><div class="lbl">Revenue (Invoiced)</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('bill-os')"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsOpenPurchasing('purch-billos')"><div class="num">BD ${k.payables.toFixed(3)}</div><div class="lbl">Payables</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsOpenPurchasing('purch-orders')"><div class="num">BD ${k.pendingPOValue.toFixed(3)}</div><div class="lbl">PO Value Awaiting Delivery</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('daybook')"><div class="num">BD ${k.cashPosition.toFixed(3)}</div><div class="lbl">Cash Position (proxy)</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('invoices')"><div class="num">${k.invoiceCount}</div><div class="lbl">Sales Invoices</div></div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Revenue by Division (invoiced, monthly)</p>

@@ -78,15 +78,23 @@ async function openNode(page, nodeId, wrapId) {
   currentStep = 'storekeeper-inbox';
   await openNode(page, 'storekeeper', 'sk-module-wrap');
   await shot(page, 'storekeeper-dashboard');
+  // Session 5: the per-dashboard inbox card is gone — the shell's floating
+  // chat is the one messaging entry point. Same message, same read state,
+  // read through the UI that actually shows it now.
   const skInboxBefore = await page.evaluate(() => {
-    const html = document.getElementById('sk-dashboard-body').innerHTML;
-    return { hasPlySheetMsg: html.includes('4x8 ply sheets'), hasUnreadBadge: html.includes('● NEW') };
+    execIdentityOverride = 'Storekeeper';                     // who the chat is for
+    return { hasPlySheetMsg: getInboxFor('Storekeeper').some(m => m.body.includes('4x8 ply sheets')),
+             unread: getUnreadCountFor('Storekeeper') > 0,
+             bubble: !!document.getElementById('exec-chat-float') };
   });
-  record('Storekeeper dashboard shows the Joinery message with an unread badge', skInboxBefore.hasPlySheetMsg && skInboxBefore.hasUnreadBadge ? 'PASS' : 'FAIL', JSON.stringify(skInboxBefore));
-  await page.evaluate(() => { const m = getInboxFor('Storekeeper')[0]; if (m) document.querySelector(`[onclick*="markMessageRead('${m.id}')"]`)?.click(); });
-  await page.waitForTimeout(200);
-  const skInboxAfter = await page.evaluate(() => getInboxFor('Storekeeper')[0]?.read === true);
-  record('Clicking the message row marks it read (both DOM handler and data layer)', skInboxAfter ? 'PASS' : 'FAIL');
+  record('The message reaches Storekeeper unread, and the floating chat is there to show it',
+    skInboxBefore.hasPlySheetMsg && skInboxBefore.unread && skInboxBefore.bubble ? 'PASS' : 'FAIL', JSON.stringify(skInboxBefore));
+  const skInboxAfter = await page.evaluate(async () => {
+    const m = getInboxFor('Storekeeper')[0];
+    await markMessageRead(m.id);
+    return getInboxFor('Storekeeper').find(x => x.id === m.id)?.read === true;
+  });
+  record('Marking the message read updates the data layer', skInboxAfter ? 'PASS' : 'FAIL');
   await shot(page, 'storekeeper-after-read');
 
   // ── Compose modal: Sales sends a fresh message to Accounts ──────────
@@ -96,7 +104,7 @@ async function openNode(page, nodeId, wrapId) {
   await openNode(page, 'sales', 'sales-module-wrap');
   await page.evaluate(() => salesCurrentUser = 'Salman Abdullah');
   await page.evaluate(() => renderSalesBody());
-  await page.click('#sales-module-wrap [onclick*="openComposeMessage"]');
+  await page.evaluate(() => openComposeMessage(salesCurrentUser, null, null, null));
   await page.waitForSelector('#comms-modal-wrap', { state: 'visible' });
   await page.selectOption('#comms-to', 'Accounts');
   await page.fill('#comms-body', 'Client asked for a payment plan on JOB-TEST — can you advise?');
@@ -158,7 +166,10 @@ async function openNode(page, nodeId, wrapId) {
   record('Joinery dashboard shows a real queue preview with the seeded job', joineryDash.hasQueuePreview ? 'PASS' : 'FAIL', JSON.stringify(joineryDash));
   record('Joinery dashboard shows a Quality card', joineryDash.hasQualityCard ? 'PASS' : 'FAIL');
   record('Joinery dashboard shows a My Tasks panel', joineryDash.hasTasksPanel ? 'PASS' : 'FAIL');
-  record('Joinery dashboard shows the Messages inbox + Notify Storekeeper + Request Purchase shortcuts', joineryDash.hasInbox && joineryDash.hasNotifyStorekeeper && joineryDash.hasRequestPurchase ? 'PASS' : 'FAIL');
+  // Session 5: these three moved to the shell (floating chat + the sidebar's
+  // Quick actions group), so the dashboard must NOT carry them any more.
+  record("Joinery dashboard no longer carries its own inbox or Notify/Request strip (shell owns them)",
+    !joineryDash.hasInbox && !joineryDash.hasNotifyStorekeeper && !joineryDash.hasRequestPurchase ? 'PASS' : 'FAIL', JSON.stringify(joineryDash));
 
   // Add a quick task from the dashboard, then complete it
   await page.fill('#joinery-quicktask', 'Call fabric supplier about delayed board delivery');
@@ -181,7 +192,7 @@ async function openNode(page, nodeId, wrapId) {
     const html = document.getElementById('upholstery-body').innerHTML;
     return { hasQueuePreview: html.includes("This week's queue"), hasQuality: html.includes('Quality'), hasTasks: html.includes('My Tasks'), hasInbox: html.includes('Messages') };
   });
-  record('Upholstery dashboard has queue preview + quality + tasks + inbox', uphDash.hasQueuePreview && uphDash.hasQuality && uphDash.hasTasks && uphDash.hasInbox ? 'PASS' : 'FAIL', JSON.stringify(uphDash));
+  record('Upholstery has queue preview + quality + tasks, with messaging in the shell not the body', uphDash.hasQueuePreview && uphDash.hasQuality && uphDash.hasTasks && !uphDash.hasInbox ? 'PASS' : 'FAIL', JSON.stringify(uphDash));
 
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
@@ -190,7 +201,7 @@ async function openNode(page, nodeId, wrapId) {
     const html = document.getElementById('painting-body').innerHTML;
     return { hasQueuePreview: html.includes("This week's queue"), hasQuality: html.includes('Quality'), hasTasks: html.includes('My Tasks'), hasInbox: html.includes('Messages') };
   });
-  record('Painting dashboard (standalone) has queue preview + quality + tasks + inbox', paintDash.hasQueuePreview && paintDash.hasQuality && paintDash.hasTasks && paintDash.hasInbox ? 'PASS' : 'FAIL', JSON.stringify(paintDash));
+  record('Painting dashboard (standalone) has queue preview + quality + tasks, with messaging in the shell not the body', paintDash.hasQueuePreview && paintDash.hasQuality && paintDash.hasTasks && !paintDash.hasInbox ? 'PASS' : 'FAIL', JSON.stringify(paintDash));
   await shot(page, 'painting-dashboard');
 
   // ── Sweep: every other module renders its comms banner cleanly, no console errors ──
@@ -215,12 +226,11 @@ async function openNode(page, nodeId, wrapId) {
     // in-dashboard comms strip as redundant, so messaging there lives only in
     // the shell's floating chat. Assert it's genuinely absent rather than
     // quietly dropping the module from the sweep.
+    // Session 5 finished what Operations started: NO dashboard carries its
+    // own Messages widget now — the floating chat is the one entry point.
     const hasMessages = typeof html === 'string' && html.includes('Messages');
-    if (t.id === 'operations') {
-      record('operations: the redundant in-dashboard Messages strip is gone (shell chat owns messaging)', !hasMessages ? 'PASS' : 'FAIL', typeof html === 'string' ? '' : 'body element not found');
-    } else {
-      record(`${t.id}: comms/Messages widget renders`, hasMessages ? 'PASS' : 'FAIL', typeof html === 'string' ? '' : 'body element not found');
-    }
+    record(`${t.id}: no in-dashboard Messages widget (shell chat owns messaging)`,
+      !hasMessages ? 'PASS' : 'FAIL', typeof html === 'string' ? '' : 'body element not found');
   }
 
   currentStep = 'final';

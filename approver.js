@@ -181,23 +181,15 @@ function approverOpenPurchasing() {
 function renderApproverDashboard() {
   const k = getApproverKPIs(approverCurrentUser);
 
-  const commsHtml = `
-    <div class="sales-card" style="display:flex;justify-content:space-between;align-items:center;">
-      <p style="font-size:11px;color:#94a3b8;margin:0;">Logged in as <b>${aEsc(approverCurrentUser)}</b></p>
-      <div style="display:flex;gap:14px;">
-        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="notifyStorekeeper('${approverCurrentUser}',null,null,'renderApproverBody')">🏬 Notify Storekeeper</span>
-        <span style="font-size:11.5px;font-weight:600;color:var(--biz-primary,#600131);cursor:pointer;" onclick="requestPurchaseFromModule('closeApproverModule',null,null)">🛒 Request Purchase</span>
-      </div>
-    </div>
-    ${renderInboxWidget(approverCurrentUser, 'renderApproverBody', 5)}`;
+  const commsHtml = '';
 
   const kpiTilesHtml = `
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('pending')"><div class="num">${k.pendingToPick}</div><div class="lbl">Pending to Pick</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('forApproval')"><div class="num">${k.forApproval}</div><div class="lbl">For Approval</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.quotationsTotal}</div><div class="lbl">Quotations (Total)</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
-      <div class="sales-kpi-tile"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('all')"><div class="num">${k.quotationsTotal}</div><div class="lbl">Quotations (Total)</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.poApproval}</div><div class="lbl">PO Approval →</div></div>
     </div>
     <div class="sales-card">
@@ -228,6 +220,18 @@ function renderApproverDashboard() {
           return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openApproverReview('${q.id}')">
             <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id} ${quoteAgeBadge(q)}</p>
             <p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · ${aEsc(s.salesman)}</p>
+          </div>`;
+        }).join('')) + `</div>`;
+  } else if (approverDashExpanded === 'all') {
+    // Session 5: "Quotations (Total)" counted every quotation but had
+    // nowhere to land — it now opens the same list, read-only.
+    expandedHtml = `<div class="sales-card"><p style="font-weight:700;font-size:13px;margin-bottom:8px;">All Quotations</p>` +
+      (quotations.length === 0 ? `<p style="font-size:12px;color:#64748b;">No quotations yet.</p>` :
+        quotations.slice().sort((a, b) => b.date.localeCompare(a.date)).map(q => {
+          const s = approverQtnRowSummary(q);
+          return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="openApproverQuoteHub('${q.id}')">
+            <p style="font-weight:700;font-size:12.5px;color:var(--biz-primary);">${q.id} <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span></p>
+            <p style="font-size:11px;color:#64748b;">${aEsc(s.client)} · ${aEsc(q.projectName)} · with ${aEsc(q.stage)}</p>
           </div>`;
         }).join('')) + `</div>`;
   }
