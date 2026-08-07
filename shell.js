@@ -46,6 +46,8 @@ function goTo(p){
   // Nav overhaul Phase 2 (5 Aug 2026).
   const adminMod = document.getElementById('admin-module-wrap');
   if (adminMod) adminMod.style.cssText = 'display:none;';
+  const opsMod = document.getElementById('ops-module-wrap');
+  if (opsMod) opsMod.style.cssText = 'display:none;';
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = '';
 
@@ -53,7 +55,10 @@ function goTo(p){
   document.querySelectorAll('.bni').forEach(x=>x.classList.remove('active'));
   document.getElementById('p-'+p)?.classList.add('active');
   document.getElementById('bn-'+p)?.classList.add('active');
-  document.getElementById('tb-title').textContent=TT[p]||p;
+  // The old app topbar (#tb-title) and bottom bar (.bni) were retired
+  // 7 Aug 2026 — guard so goTo() keeps working without them.
+  const tbTitle = document.getElementById('tb-title');
+  if (tbTitle) tbTitle.textContent = TT[p] || p;
   scroll?.scrollTo({top:0,behavior:'smooth'});
   updateHubBadges();
   // The Operations Dashboard/New-Jobs badge only refreshed on script load
@@ -63,14 +68,10 @@ function goTo(p){
   // the page first loaded, not real current data (4 Aug 2026 audit finding,
   // found live-testing the new dashboard right after building it).
   if (p === 'operations') {
-    // exec-shell rollout (6 Aug 2026): Operations keeps its embedded
-    // static-page architecture — the shell adopts #ops-module-wrap's
-    // existing children in place; goHome() stays the way back.
-    if (typeof execEnsureShell === 'function' && typeof EXEC_NAV_CONFIGS !== 'undefined') {
-      execEnsureShell(document.getElementById('ops-module-wrap'), { key: 'operations', title: 'Operations', role: 'Operations Manager', navGroupsFn: EXEC_NAV_CONFIGS.operations, closeFn: 'goHome' });
-    }
-    if (typeof renderOpsDashboard === 'function') renderOpsDashboard();
-    if (typeof updateOpsRoutingBadge === 'function') updateOpsRoutingBadge();
+    // Operations is a real full-screen module now (7 Aug 2026) — this
+    // stays as the alias every existing call site uses (ownerGoToOperations,
+    // direct-landing for the operations role, e2e suites).
+    if (typeof openOperationsModule === 'function') openOperationsModule();
   }
 }
 

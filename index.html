@@ -102,25 +102,10 @@
 <!-- APP -->
 <div class="app" id="app" style="display:none;">
   <div class="safe-top"></div>
-  <div class="topbar">
-    <div class="brand">
-      <div style="width:32px;height:32px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;">
-        <svg width="22" height="22" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4" y="4" width="92" height="92" rx="18" stroke="#600131" stroke-width="5" fill="none"/>
-          <polyline points="14,82 14,18 50,64 86,18 86,82" fill="none" stroke="#600131" stroke-width="6" stroke-linejoin="miter" stroke-linecap="square"/>
-          <polygon points="50,64 76,82 76,48" fill="none" stroke="#600131" stroke-width="5" stroke-linejoin="miter"/>
-          <line x1="57" y1="74" x2="76" y2="74" stroke="#600131" stroke-width="5"/>
-        </svg>
-      </div>
-      <div><h1 id="tb-title">Ecosystem</h1><p>Al Maraya Dev · Owner</p></div>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="icon-btn" onclick="openChangePasswordModal()" title="Change Password"><span style="font-size:14px;color:rgba(255,255,255,.5);">🔑</span></button>
-      <button class="icon-btn" onclick="goTo('notes')" title="Notes"><span style="font-size:14px;color:rgba(255,255,255,.5);">📝</span></button>
-      <button class="icon-btn" onclick="goTo('checklist')" title="Checklist"><span style="font-size:14px;color:rgba(255,255,255,.5);">✅</span></button>
-    </div>
-  </div>
-
+  <!-- Old app topbar + bottom bar retired 7 Aug 2026 (Salman's call).
+       Dev-era chrome: it duplicated the exec-shell's own header on every
+       screen and cost ~15% of phone height. Roadmap/Notes/Checklist went
+       with them — build-tracking pages, not business features. -->
   <div class="scroll" id="scroll">
 
     <!-- HOME — Nav overhaul Phase 4 (5 Aug 2026): replaces the old 3D
@@ -142,85 +127,19 @@
     </div>
 
     <!-- ROADMAP -->
-    <div class="page" id="p-roadmap">
-      <div class="ph"><h2>Roadmap</h2><p>Build sequence — done, next, planned</p></div>
-      <div class="ph-bar"><div class="ph-bar-label" style="color:#34d399;">Phase 1 — Complete</div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#34d399;"></div><div class="rd-bar" style="background:#34d399;"></div></div><div class="rd-body"><div class="rd-title">Q-Pro analysis + spec document</div><div class="rd-sub">Full workflow mapped · loopholes identified · Word doc for Nettworksy</div><span class="rd-tag" style="background:rgba(52,211,153,.1);color:#34d399;">✓ Done</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#34d399;"></div><div class="rd-bar" style="background:#34d399;"></div></div><div class="rd-body"><div class="rd-title">Job card budget + variations model</div><div class="rd-sub">Locked budget · variations same job · combined view</div><span class="rd-tag" style="background:rgba(52,211,153,.1);color:#34d399;">✓ Done</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#34d399;"></div></div><div class="rd-body"><div class="rd-title">Operations module — complete</div><div class="rd-sub">9 screens · BOM delegation · variations tracker · subcons · payments · snags · docs</div><span class="rd-tag" style="background:rgba(52,211,153,.1);color:#34d399;">✓ Done</span></div></div>
-
-      <div class="ph-bar"><div class="ph-bar-label" style="color:#fbbf24;">Phase 2 — In progress</div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#fbbf24;"></div><div class="rd-bar" style="background:#fbbf24;"></div></div><div class="rd-body"><div class="rd-title">Curtain & Blinds production module</div><div class="rd-sub">Workshop stages · fabric/materials · install crew · sign-off</div><span class="rd-tag" style="background:rgba(251,191,36,.1);color:#fbbf24;">In progress</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:#fbbf24;"></div></div><div class="rd-body"><div class="rd-title">Developer PWA shell</div><div class="rd-sub">Ecosystem map · personal command centre · installable on phone</div><span class="rd-tag" style="background:rgba(251,191,36,.1);color:#fbbf24;">In progress</span></div></div>
-
-      <div class="ph-bar"><div class="ph-bar-label" style="color:rgba(255,255,255,.2);">Phase 3 — Coming next</div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Upholstery production module</div><div class="rd-sub">Job cards · stages · materials · QC</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Joinery production module</div><div class="rd-sub">Workshop · machines · labour hours · paint + metal</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Owner dashboard</div><div class="rd-sub">Business health · divisions · cash · escalations only</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Sales module</div><div class="rd-sub">Enquiry · quoting · variation raising</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div><div class="rd-bar" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Accounts / Tally bridge</div><div class="rd-sub">Invoice sync · no double entry · P&L</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
-      <div class="road-item"><div class="rd-line"><div class="rd-dot" style="background:rgba(255,255,255,.2);"></div></div><div class="rd-body"><div class="rd-title" style="color:rgba(255,255,255,.5);">Team access + user roles</div><div class="rd-sub">Individual logins per staff role · controlled rollout</div><span class="rd-tag" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2);">Planned</span></div></div>
-    </div>
+    
 
     <!-- NOTES -->
-    <div class="page" id="p-notes">
-      <div class="ph"><h2>Design Notes</h2><p>Key decisions, open questions, ideas</p></div>
-      <button class="add-note" onclick="addNote()">+ Add new note…</button>
-      <div id="notes-list">
-        <div class="note-card"><div class="note-module">Operations</div><div class="note-text">Variations are NOT raised by Operations — only by Sales or Production Managers. Operations is read-only, just tracks status and sends reminders if stuck.</div><div class="note-date">Today</div></div>
-        <div class="note-card"><div class="note-module">Curtain & Blinds</div><div class="note-text">Dedicated install team separate from workshop. Sequence: Site measure → Fabric order → Arrives → Cut & sew → Track fitting → QC → Install → Sign-off. Client signs physical form on site.</div><div class="note-date">Today</div></div>
-        <div class="note-card"><div class="note-module">BOM Ownership</div><div class="note-text">3 modes per dept: (1) Wait for PM — 48h deadline, (2) Operations fills directly, (3) Delegate to any staff with deadline + alert. Flexibility is key.</div><div class="note-date">Today</div></div>
-        <div class="note-card"><div class="note-module">Budget Approval</div><div class="note-text">Under BD 5,000 — Operations approves immediately. Over BD 5,000 — escalates to Owner (Salman) before production starts. Production is on hold until approved.</div><div class="note-date">Today</div></div>
-        <div class="note-card"><div class="note-module">Mixed Projects</div><div class="note-text">One quote auto-splits to department work-orders. Departments only converge at final delivery. Each dept PM sets their own delivery date. Project tracker watches convergence.</div><div class="note-date">Today</div></div>
-        <div class="note-card"><div class="note-module">Accounts</div><div class="note-text">Tally stays for accounting. Bridge needed so invoices don't need double entry. Q-Pro may or may not have an API — check with Nettworksy first.</div><div class="note-date">Today</div></div>
-      </div>
-    </div>
+    
 
     <!-- CHECKLIST -->
-    <div class="page" id="p-checklist">
-      <div class="ph"><h2>Before sharing with team</h2><p>Complete these first</p></div>
-      <div class="prog-wrap">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span id="cp-text" style="font-size:13px;font-weight:700;color:#fff;"></span>
-          <span id="cp-pct" style="font-size:13px;font-weight:800;color:#34d399;"></span>
-        </div>
-        <div class="prog-bar-track"><div class="prog-bar-fill" id="cp-bar" style="width:0%;"></div></div>
-      </div>
-      <div class="check-section">
-        <div class="cs-title">Design</div>
-        <div class="ci" onclick="tc('c1')"><div class="cbox done" id="cbox-c1"><span style="font-size:10px;color:#fff;font-weight:800;">✓</span></div><div><div class="ci-t done" id="ct-c1">Operations module signed off</div><div class="ci-s">9 screens reviewed and confirmed</div></div></div>
-        <div class="ci" onclick="tc('c2')"><div class="cbox" id="cbox-c2"></div><div><div class="ci-t" id="ct-c2">Curtain production module complete</div><div class="ci-s">Full workshop + install flow designed</div></div></div>
-        <div class="ci" onclick="tc('c3')"><div class="cbox" id="cbox-c3"></div><div><div class="ci-t" id="ct-c3">Upholstery module designed</div><div class="ci-s">Job cards, stages, materials, QC</div></div></div>
-        <div class="ci" onclick="tc('c4')"><div class="cbox" id="cbox-c4"></div><div><div class="ci-t" id="ct-c4">Joinery module designed</div><div class="ci-s">Workshop, machines, labour, sub-stages</div></div></div>
-        <div class="ci" onclick="tc('c5')"><div class="cbox" id="cbox-c5"></div><div><div class="ci-t" id="ct-c5">Owner dashboard designed</div><div class="ci-s">Business health, divisions, cash, escalations</div></div></div>
-      </div>
-      <div class="check-section">
-        <div class="cs-title">Spec & handoff</div>
-        <div class="ci" onclick="tc('c6')"><div class="cbox done" id="cbox-c6"><span style="font-size:10px;color:#fff;font-weight:800;">✓</span></div><div><div class="ci-t done" id="ct-c6">Spec document written</div><div class="ci-s">AlMaraya-Production-Spec.docx ready</div></div></div>
-        <div class="ci" onclick="tc('c7')"><div class="cbox done" id="cbox-c7"><span style="font-size:10px;color:#fff;font-weight:800;">✓</span></div><div><div class="ci-t done" id="ct-c7">Variation flow corrected in spec</div><div class="ci-s">Sales/PM raises — not Operations</div></div></div>
-        <div class="ci" onclick="tc('c8')"><div class="cbox" id="cbox-c8"></div><div><div class="ci-t" id="ct-c8">Production dept specs added</div><div class="ci-s">All 4 departments documented</div></div></div>
-        <div class="ci" onclick="tc('c9')"><div class="cbox" id="cbox-c9"></div><div><div class="ci-t" id="ct-c9">Q-Pro team briefed</div><div class="ci-s">Nettworksy reviewed and confirmed feasibility</div></div></div>
-      </div>
-      <div class="check-section">
-        <div class="cs-title">Team readiness</div>
-        <div class="ci" onclick="tc('c10')"><div class="cbox" id="cbox-c10"></div><div><div class="ci-t" id="ct-c10">Operations Manager role defined</div><div class="ci-s">Job description written, person identified</div></div></div>
-        <div class="ci" onclick="tc('c11')"><div class="cbox" id="cbox-c11"></div><div><div class="ci-t" id="ct-c11">Production Manager roles defined</div><div class="ci-s">One per department — Curtain, Upholstery, Joinery</div></div></div>
-        <div class="ci" onclick="tc('c12')"><div class="cbox" id="cbox-c12"></div><div><div class="ci-t" id="ct-c12">Test run with real jobs</div><div class="ci-s">Walk through system with live data</div></div></div>
-        <div class="ci" onclick="tc('c13')"><div class="cbox" id="cbox-c13"></div><div><div class="ci-t" id="ct-c13">Staff user accounts created</div><div class="ci-s">Individual logins per role</div></div></div>
-      </div>
-    </div>
+    
 
 
     <!-- ══════════════════════════════════════════
          OPERATIONS MODULE — FULLY EMBEDDED
     ══════════════════════════════════════════ -->
     <div class="page" id="p-operations">
-      <!-- Back to ecosystem -->
-      <div style="background:var(--shell-surface);padding:10px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--shell-border);position:sticky;top:0;z-index:10;">
-        <button onclick="goHome()" style="background:var(--maraya);border:0;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;">‹ Home</button>
-        <span style="font-size:13px;font-weight:700;color:var(--shell-ink);">Operations</span>
-        <span style="font-size:10px;font-weight:700;background:var(--ok-bg);color:var(--ok);padding:2px 8px;border-radius:20px;">✓ Built</span>
-      </div>
       <!-- Operations module content wrapped in light theme container -->
       <div id="ops-module-wrap" style="background:#f7f9fc;min-height:100%;">
 <div class="topbar">
@@ -1179,12 +1098,6 @@
     </div>
   </div>
 
-  <div class="bnav">
-    <div class="bni active" id="bn-eco" onclick="goHome()"><div class="bni-icon">🏠</div><div class="bni-label">Home</div></div>
-    <div class="bni" id="bn-roadmap" onclick="goTo('roadmap')"><div class="bni-icon">🗺️</div><div class="bni-label">Roadmap</div></div>
-    <div class="bni" id="bn-notes" onclick="goTo('notes')"><div class="bni-icon">📝</div><div class="bni-label">Notes</div></div>
-    <div class="bni" id="bn-checklist" onclick="goTo('checklist')"><div class="bni-icon">✅</div><div class="bni-label">Checklist</div></div>
-  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0"></script>

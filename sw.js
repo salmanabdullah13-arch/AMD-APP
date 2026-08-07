@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v12"; // v12: mobile drawer close (×, scrim, nav-tap)
+const CACHE_VERSION = "amd-app-v13"; // v13: Operations redesign + dev-era chrome retired
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

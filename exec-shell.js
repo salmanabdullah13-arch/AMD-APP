@@ -37,6 +37,9 @@ execStyleTag.textContent = `
   --x-wash:rgba(96,1,49,.08);
   --x-wash-2:rgba(96,1,49,.16);
   --x-shadow:0 1px 2px rgba(16,24,40,.04);
+  /* semantic tints stay the light values here; the dark block re-tints them
+     so ok/warn/bad panels dont glow white on dark (7 Aug 2026) */
+  --x-ok-bg:#eafaf1;--x-warn-bg:#fff6e3;--x-bad-bg:#fdeceb;--x-ok-line:#b6e6c9;--x-warn-line:#ffe0a0;--x-bad-line:#f5b8b5;
 }
 /* ---- dark: the template's layered surfaces, wine-tinted ---- */
 .xshell.x-dark{
@@ -66,6 +69,8 @@ execStyleTag.textContent = `
   --biz-shadow:0 1px 2px rgba(0,0,0,.4);
   --biz-draft-bg:#2c2331;
   --biz-draft-text:#c7bec6;
+  --x-ok-bg:rgba(15,157,88,.15);--x-warn-bg:rgba(196,125,0,.17);--x-bad-bg:rgba(217,52,43,.17);
+  --x-ok-line:rgba(15,157,88,.35);--x-warn-line:rgba(196,125,0,.35);--x-bad-line:rgba(217,52,43,.35);
 }
 /* id-level rules in owner.js/admin.js (#owner-module-wrap .sales-card h3
    {color:#1a1f2e}) outrank a plain class selector — match their

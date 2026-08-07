@@ -5765,3 +5765,51 @@ what would your daily tasks be?"
   both modules; screenshots light/dark/mobile read back.
 - Phone note for Salman: the old look on his iPhone was the pre-rollout
   deployed version — refresh/re-add after pulling this.
+
+### 7 Aug 2026 — Operations scratched & redesigned; dev-era app chrome retired
+
+Salman's iPhone screenshots: Operations showed FOUR stacked chrome layers and
+the sidebar drawer rendered clipped/broken there (items cut off, dead gap,
+panels stranded) — while every other module looked right. He circled the
+redundant comms strip and the bottom bar and asked to scratch and redesign.
+
+- **Root cause**: Operations was the ONE module that wasn't a full-screen
+  overlay — a `.page` inside `#scroll`, so it inherited the old app topbar,
+  the "‹ Home ✓ Built" strip, its own exec-shell topbar AND the bottom bar;
+  and `.xs-side`'s absolute positioning resolved against a scrolling page,
+  which is why the drawer clipped only there.
+- **Fix — Operations is a real module now**: `openOperationsModule()` /
+  `closeOperationsModule()` / `launchOperationsModule()` (operations.js) set
+  the wrap `position:fixed; inset:0; z-index:100` like the other 16.
+  Deliberately did NOT physically move the markup (a first attempt at DOM
+  surgery left the div tree unbalanced and swallowed a page — reverted from
+  backup): `position:fixed` takes the wrap out of page flow, so its DOM
+  location stops mattering. `goTo('operations')` is now a thin alias, so
+  every existing call site (ownerGoToOperations, direct-landing, suites)
+  works unchanged. `ops-module-wrap` added to all 14 module hide-lists +
+  fleet's shared constant + `goTo()`, per the standing same-day rule.
+- **Dev-era chrome retired app-wide** (Salman's call): the old topbar and
+  bottom bar are gone, and the Roadmap / Notes / Checklist pages with them
+  (build-tracking artifacts, not business features). ~15% of phone height
+  back on every screen. `goTo()` guarded for the now-absent `#tb-title`.
+- **Dashboard redesigned, action-queue-first**: a plain "Today" line (date ·
+  jobs in production · urgent/overdue in red), then the five-step queue as
+  tall tappable rows — steps with nothing waiting collapse to one muted
+  "clear ✓" line so the ORDER of the day stays visible without eating the
+  screen. Then a 3-tile numbers band (dropped the duplicate Needs-Action and
+  Open-Tasks tiles — the queue and the shell's panels own those), then the
+  unchanged funnel/queue-depth charts and attention list. **The comms strip +
+  Messages card are deleted** — the shell's floating chat and bell own
+  messaging (the thing Salman circled).
+- **Dark-mode polish**: semantic tints (`--ok-bg`/`--warn-bg`/`--bad-bg` and
+  their lines) are theme-aware now via new `--x-*-bg` tokens, so panels like
+  "Jobs On Budget" stop glowing light-green on dark. Verified by computed
+  style (`rgba(15,157,88,.15)`).
+- **Verification**: rollout suite 12/12 — its Operations assertions now
+  require a fixed overlay, no `.topbar`/`.bnav` anywhere, the action queue
+  leading, no comms strip, plus a NEW Operations-specific mobile-drawer check
+  (opens full-height from top — the exact screenshot bug). dashboard-
+  enhancements / back-button / batch8-routing / direct-landing all green;
+  full offline sweep clean. Screenshots at 390px light + dark read back.
+- Also landed just before this: the mobile drawer had no way to close at all
+  (no ×, no scrim, nav taps left it open) — all three added, sw v12.

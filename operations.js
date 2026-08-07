@@ -763,6 +763,38 @@ function buildHeat(){
 // ══════════════════════════════
 // NAV
 // ══════════════════════════════
+// ══════════════════════════════════════════
+// OPERATIONS AS A REAL FULL-SCREEN MODULE (7 Aug 2026)
+// It used to render as a .page inside #scroll, so a phone stacked FOUR
+// chrome layers (old topbar + "‹ Home ✓ Built" strip + the exec-shell
+// topbar + the bottom bar) and the sidebar drawer clipped (absolute
+// positioning resolved against a scrolling page). The wrap is now a
+// fixed, full-viewport overlay exactly like the other 16 modules —
+// position:fixed takes it out of the page flow, so its DOM location
+// no longer matters. #scroll deliberately stays visible underneath
+// (nothing left to see there now that the chrome is gone) because the
+// wrap is still one of its descendants.
+// ══════════════════════════════════════════
+const OPS_OTHER_WRAPS = ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap',
+  'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap',
+  'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap',
+  'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'admin-module-wrap'];
+function openOperationsModule() {
+  OPS_OTHER_WRAPS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  const wrap = document.getElementById('ops-module-wrap');
+  if (!wrap) return;
+  // the page container must be active for the wrap's own .page router to work
+  document.getElementById('p-operations')?.classList.add('active');
+  wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
+  if (typeof execEnsureShell === 'function' && typeof EXEC_NAV_CONFIGS !== 'undefined') {
+    execEnsureShell(wrap, { key: 'operations', title: 'Operations', role: 'Operations Manager', navGroupsFn: EXEC_NAV_CONFIGS.operations, closeFn: 'closeOperationsModule' });
+  }
+  opsGoTo('dashboard');
+  if (typeof updateOpsRoutingBadge === 'function') updateOpsRoutingBadge();
+}
+function closeOperationsModule() { closeModuleWrap(document.getElementById('ops-module-wrap'), 'launchOperationsModule'); }
+function launchOperationsModule() { openOperationsModule(); }
+
 function opsGoTo(p){
   document.querySelectorAll("#ops-module-wrap .page").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll("#ops-module-wrap .ntab").forEach(x=>x.classList.remove("active"));
@@ -902,15 +934,9 @@ function renderOpsDashboard() {
   const jobsOverBudget = activeJobs.filter(j => getJobAttentionFlags(j).some(f => f.tone === 'bad')).length;
   const jobsOnBudget = activeJobs.length - jobsOverBudget;
 
-  const commsHtml = `
-    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-      <p style="font-size:11px;color:var(--ink2,#64748b);margin:0;">Operations</p>
-      <div style="display:flex;gap:14px;">
-        <span style="font-size:11.5px;font-weight:600;color:#600131;cursor:pointer;white-space:nowrap;" onclick="notifyStorekeeper('Operations Manager',null,null,'renderOpsDashboard')">🏬 Notify Storekeeper</span>
-        <span style="font-size:11.5px;font-weight:600;color:#600131;cursor:pointer;white-space:nowrap;" onclick="requestPurchaseFromModule(null,null,null)">🛒 Request Purchase</span>
-      </div>
-    </div>
-    ${renderInboxWidget('Operations Manager', 'renderOpsDashboard', 5)}`;
+  // Comms strip + Messages card removed 7 Aug 2026 — the exec shell's
+  // floating chat bubble and reminders bell own messaging now; this was
+  // duplicating them above the actual work (Salman circled it).
 
   // ── "Your day" triage strip (6 Aug 2026, Salman's ask: "imagine you're
   // the operations manager — what would your daily tasks be?"). The
@@ -928,30 +954,41 @@ function renderOpsDashboard() {
     { n: curtainApprCount, label: 'Curtain approvals', sub: "Silva's budgets", page: 'curtapp' },
     { n: readyToSchedule, label: 'Schedule deliveries', sub: 'production done, not booked', page: 'delivery' }
   ];
-  const triageHtml = `
-    <div class="card" style="padding:12px;">
-      <p class="card-title" style="margin-bottom:8px;">Your day</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
-        ${triage.map((t, i) => `
-          <div onclick="opsGoTo('${t.page}')" style="cursor:pointer;border-radius:10px;padding:10px 11px;border:1px solid ${t.n > 0 ? 'var(--info-line)' : 'var(--line)'};background:${t.n > 0 ? 'var(--info-bg)' : 'var(--card)'};${t.n > 0 ? '' : 'opacity:.65;'}">
-            <div style="display:flex;align-items:center;gap:7px;">
-              <span style="width:20px;height:20px;border-radius:50%;background:${t.n > 0 ? 'var(--maraya)' : 'var(--line2)'};color:#fff;font-size:10.5px;font-weight:800;display:grid;place-items:center;flex:none;">${i + 1}</span>
-              <span style="font-size:16px;font-weight:800;color:${t.n > 0 ? 'var(--maraya)' : 'var(--ink3)'};">${t.n}</span>
-            </div>
-            <p style="font-size:12px;font-weight:700;color:var(--ink);margin-top:5px;">${t.label}</p>
-            <p style="font-size:9.5px;color:var(--ink3);margin-top:1px;">${t.n > 0 ? t.sub : 'clear'}</p>
-          </div>`).join('')}
-      </div>
+  const urgentCount = activeJobs.filter(j => j.urgent).length;
+  const overdueCount = activeJobs.filter(j => j.promisedDate && j.promisedDate < todayStrGlobal() && !jobProductionComplete(j)).length;
+  const todayLine = `
+    <p style="font-size:12.5px;color:var(--ink2);margin:2px 2px 12px;">
+      ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} ·
+      <b style="color:var(--ink);">${activeJobs.length}</b> jobs in production${urgentCount ? ` · <b style="color:var(--bad);">${urgentCount} urgent</b>` : ''}${overdueCount ? ` · <b style="color:var(--bad);">${overdueCount} past promised date</b>` : ''}
+    </p>`;
+
+  // Action queue — the main event. Tall tappable rows in the order the day
+  // actually runs; steps with nothing waiting collapse to one muted line so
+  // the sequence stays visible without eating the screen (mobile-first).
+  const triageHtml = todayLine + `
+    <div style="margin-bottom:14px;">
+      ${triage.map((t, i) => t.n > 0 ? `
+        <div onclick="opsGoTo('${t.page}')" style="display:flex;align-items:center;gap:12px;cursor:pointer;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--maraya);border-radius:12px;padding:14px 14px;margin-bottom:8px;box-shadow:var(--biz-shadow,0 1px 2px rgba(16,24,40,.04));">
+          <span style="width:30px;height:30px;border-radius:50%;background:var(--maraya);color:#fff;font-size:14px;font-weight:800;display:grid;place-items:center;flex:none;">${t.n}</span>
+          <span style="min-width:0;flex:1;">
+            <span style="display:block;font-size:14.5px;font-weight:700;color:var(--ink);">${t.label}</span>
+            <span style="display:block;font-size:11.5px;color:var(--ink3);margin-top:1px;">${t.sub}</span>
+          </span>
+          <span style="color:var(--ink3);font-size:18px;flex:none;">›</span>
+        </div>` : `
+        <div onclick="opsGoTo('${t.page}')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:7px 14px;margin-bottom:4px;opacity:.5;">
+          <span style="width:18px;height:18px;border-radius:50%;border:1px solid var(--line2);color:var(--ink3);font-size:10px;font-weight:700;display:grid;place-items:center;flex:none;">${i + 1}</span>
+          <span style="font-size:12.5px;color:var(--ink2);">${t.label}</span>
+          <span style="font-size:11px;color:var(--ok);margin-left:auto;">clear ✓</span>
+        </div>`).join('')}
     </div>`;
 
   const kpisHtml = `
+    <p style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;margin:0 2px 6px;">The numbers</p>
     <div class="kpis">
       <div class="kpi"><p class="kl">Active Jobs</p><p class="kv">${activeJobs.length}</p><p class="ks">routed, in production</p></div>
-      <div class="kpi ${pendingApprovals > 0 ? 'warn' : ''}" style="cursor:pointer;" onclick="opsGoTo('budgetapprovals')"><p class="kl">Approval Pending</p><p class="kv" ${pendingApprovals > 0 ? 'style="color:var(--warn)"' : ''}>${pendingApprovals}</p><p class="ks">department budgets</p></div>
-      <div class="kpi ${jobsWithFlags.length > 0 ? 'bad' : ''}"><p class="kl">Needs Action</p><p class="kv" ${jobsWithFlags.length > 0 ? 'style="color:var(--bad)"' : ''}>${jobsWithFlags.length}</p><p class="ks">jobs flagged</p></div>
-      <div class="kpi ${openTasksCount > 0 ? 'warn' : ''}"><p class="kl">Open Tasks</p><p class="kv" ${openTasksCount > 0 ? 'style="color:var(--warn)"' : ''}>${openTasksCount}</p><p class="ks">awaiting completion</p></div>
-      <div class="kpi"><p class="kl">Invoiced This Month</p><p class="kv">${money(invoicedThisMonth)}</p><p class="ks">${money(receivedThisMonth)} received</p></div>
       <div class="kpi ok"><p class="kl">Jobs On Budget</p><p class="kv" style="color:var(--ok)">${jobsOnBudget}</p><p class="ks">of ${activeJobs.length} active</p></div>
+      <div class="kpi"><p class="kl">Invoiced This Month</p><p class="kv">${money(invoicedThisMonth)}</p><p class="ks">${money(receivedThisMonth)} received</p></div>
     </div>`;
 
   const attentionRows = jobsWithFlags.length === 0
@@ -1004,7 +1041,7 @@ function renderOpsDashboard() {
     { label: 'Curtain', value: curtainRunningJobs, color: cwOrdinalColor(3) }
   ];
 
-  el.innerHTML = commsHtml + triageHtml + kpisHtml + `
+  el.innerHTML = triageHtml + kpisHtml + `
     <div class="card">
       <p class="card-title">Pipeline Funnel (company-wide)</p>
       ${cwHorizontalBarList(funnelRows, { valueFormatter: v => money(v), emptyMessage: 'No quotations or jobs yet.' })}

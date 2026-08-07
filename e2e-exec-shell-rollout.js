@@ -50,10 +50,18 @@ function printReport() {
     // 6 Aug 2026 fix: the wrap-scoped hide selectors must actually kill the
     // old wine banner + tab strip (the first version's .xs-content > .nav
     // selector never matched — Salman's iPhone screenshot caught it).
+    // 7 Aug 2026 redesign: Operations is a real full-screen overlay now, the
+    // dev-era app chrome is gone app-wide, and the dashboard leads with the
+    // action queue (no "Your day" card, no comms/Messages strip).
+    const opsBody = document.getElementById('ops-dashboard-body').innerHTML;
     out.operations = !!ow.querySelector('.xs-side')
+      && getComputedStyle(ow).position === 'fixed'
+      && !document.querySelector('.app > .topbar')      // old topbar retired
+      && !document.querySelector('.bnav')               // bottom bar retired
       && [...ow.querySelectorAll('.topbar')].every(t => getComputedStyle(t).display === 'none')
       && [...ow.querySelectorAll('.nav')].every(t => getComputedStyle(t).display === 'none')
-      && document.getElementById('ops-dashboard-body').innerHTML.includes('Your day');
+      && opsBody.includes('Route new jobs')             // action queue leads
+      && !opsBody.includes('Notify Storekeeper');       // comms strip gone
     return out;
   }, mods);
   const unshelled = Object.entries(shellMap).filter(([, v]) => !v).map(([k]) => k);
@@ -216,7 +224,21 @@ function printReport() {
   await mobilePage.click('#xsnav-sal-qtn'); await mobilePage.waitForTimeout(300);
   const closedByNav = !(await openState());
   const navWorked = await mobilePage.evaluate(() => salesView === 'qtn-list');
+  // Operations specifically — its drawer used to clip (it was a page
+  // inside #scroll, not an overlay). Assert full-height from the top.
+  await mobilePage.evaluate(() => goTo('operations'));
+  await mobilePage.waitForTimeout(500);
+  await mobilePage.click('#ops-module-wrap .xs-burger'); await mobilePage.waitForTimeout(300);
+  const opsDrawer = await mobilePage.evaluate(() => {
+    const s = document.querySelector('#ops-module-wrap .xs-side');
+    const r = s.getBoundingClientRect();
+    return { open: s.classList.contains('open'), top: Math.round(r.top), coversViewport: r.height >= window.innerHeight - 2 };
+  });
+  await mobilePage.evaluate(() => execToggleSide(false));
+  record('Operations drawer opens full-height from the top on mobile (was clipped)',
+    opsDrawer.open && opsDrawer.top === 0 && opsDrawer.coversViewport ? 'PASS' : 'FAIL', JSON.stringify(opsDrawer));
   await mobilePage.close();
+
   record('Mobile drawer closes via ×, tap-outside scrim, and picking a nav item (which still navigates)',
     drawerOpened && closedByX && closedByScrim && closedByNav && navWorked ? 'PASS' : 'FAIL',
     JSON.stringify({ drawerOpened, closedByX, closedByScrim, closedByNav, navWorked }));
