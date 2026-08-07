@@ -6150,3 +6150,44 @@ own pass.
   suite above. `e2e-jobcards-dept-scope-rls.js` failed in the sweep and
   passed 12/12 standalone: the documented live-network flake.
 - `sw.js` CACHE_VERSION v18 → v19.
+
+### 7 Aug 2026 — app_events applied to the live project; collection deletes now sync
+
+Salman handed over a fresh Management API token (and revoked the old one),
+so the pending schema work got done properly rather than left as an action.
+
+- **`supabase/schema.sql` applied to the live project** via the Management
+  API (sanity-checked with `select 1` first, as before). Confirmed by
+  querying `information_schema` afterwards rather than trusting the 201:
+  `app_events` exists alongside the rest.
+- **`CLOUD_TABLES_PENDING_DEPLOY` is now empty** — that set exists to stop
+  the app 404-ing on a table that hasn't shipped yet, and leaving a live
+  table listed silently stops it syncing, so the comment now says so.
+- **A real gap this exposed, fixed:** `scanAndPersistCollections()` only
+  ever *upserted* what was in an array. Nothing deleted a row when a record
+  was removed locally, so a deleted record came straight back on the next
+  reload. Harmless while every json-collection was effectively append-only
+  — Session 4's `deleteEvent()` is the first whose entire purpose is
+  removal, and it made the gap user-visible (remove a meeting, reload, it's
+  back). The scanner now also diffs the other direction: snapshot keys with
+  no matching record get their row deleted. Safe to do inside the scan
+  because the autosave timer only starts after
+  `initCloudJsonCollections()` has finished hydrating, so a scan can never
+  see a half-loaded array and read it as a mass deletion. The realtime
+  handler already handled remote DELETEs, so the two halves now match.
+  Verified there were zero orphaned snapshot keys on a real login before
+  trusting the new branch (a live probe, deleted after).
+- **Verification**: new `e2e-cloud-events.js` (7/7, live) — signs in for
+  real, confirms `app_events` is registered/live/not-pending, logs an entry
+  through `createEvent()`, confirms it reaches the live table with its own
+  fields intact, confirms a *second* signed-in session sees it (the
+  reload/second-device case this whole thing was for), and confirms removal
+  actually deletes the row rather than only the local copy. The four other
+  live-cloud suites re-run clean (`financial`, `curtain`, `customers`,
+  `enquiries-quotations`). `e2e-cloud-jobcards.js` shows 7/8 — **checked
+  against a stashed baseline and it fails identically without this
+  change**, on the realtime-echo race its own header documents; an earlier
+  single 8/8 baseline run was the outlier, not the norm.
+- Token used only in ephemeral shell calls; repo grepped for `sbp_` before
+  committing (clean). Salman revoking it afterwards.
+- `sw.js` CACHE_VERSION v19 → v20.

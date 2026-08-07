@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v19"; // v19: Session 5 completion (global KPI links, one chat entry)
+const CACHE_VERSION = "amd-app-v20"; // v20: app_events live + collection deletes sync
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

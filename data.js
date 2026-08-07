@@ -3665,7 +3665,10 @@ const CLOUD_JSON_COLLECTIONS = [
 // refuses a publishable key. So this is declared, not discovered.
 // REMOVE an entry once the table is live; the collection then syncs.
 const CLOUD_TABLES_PENDING_DEPLOY = new Set([
-  "app_events"   // added 7 Aug 2026 (Session 4 planner)
+  // Empty: every registered collection has its table live. Add a table name
+  // here when its collection ships ahead of the schema being applied, and
+  // take it out once it's deployed — leaving a live table listed silently
+  // stops it syncing.
 ]);
 
 async function initCloudJsonCollections() {
@@ -3717,6 +3720,23 @@ function scanAndPersistCollections() {
   if (!window.__realCloudSession || !sb) return;
   CLOUD_JSON_COLLECTIONS.forEach(col => {
     if (!col.live) return;
+    // Removals, not just writes. The scanner only ever upserted what was in
+    // the array, so a record deleted locally came straight back on the next
+    // reload. Harmless while every collection was append-only; the planner's
+    // deleteEvent() (Session 4) is the first whose whole job is removal, and
+    // it exposed this. Safe to run here because the autosave timer only
+    // starts after initCloudJsonCollections() has finished hydrating — a
+    // scan can never see a half-loaded array and mistake it for deletions.
+    const liveIds = new Set(col.arr().filter(r => r && r.id !== undefined && r.id !== null).map(r => String(r.id)));
+    Object.keys(cloudCollectionSnapshots).forEach(key => {
+      if (!key.startsWith(col.prefix)) return;
+      const id = key.slice(col.prefix.length);
+      if (liveIds.has(id)) return;
+      delete cloudCollectionSnapshots[key];
+      serializedPersist("jsoncol:" + key, () => sb.from(col.table).delete().eq("id", id).then(({ error }) => {
+        if (error && typeof commsToast === "function") commsToast(`Couldn't remove ${col.table} (${id}): ${error.message}`);
+      }));
+    });
     col.arr().forEach(rec => {
       if (!rec || rec.id === undefined || rec.id === null) return;
       const payload = col.toPayload ? col.toPayload(rec) : JSON.parse(JSON.stringify(rec));
