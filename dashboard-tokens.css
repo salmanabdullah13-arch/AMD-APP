@@ -1,0 +1,59 @@
+/* ==========================================================================
+   AMD-APP · Dashboard design tokens (shared)
+
+   The Owner and Sales handoffs shipped byte-identical `:root` blocks. The
+   Sales README: "the :root block in sales-dashboard.css is IDENTICAL to
+   owner-dashboard.css. If both dashboards ship, delete one copy and load a
+   single shared tokens.css — do not maintain two." Both shipped, so this is
+   that file and both component sheets now carry none.
+
+   Two integration notes, same as when the Owner dashboard landed:
+     • scoped to `.od, .sd` rather than `:root` — `--ok`, `--warn`, `--bad`
+       and `--r` already exist at :root in styles.css and are used by all 17
+       other modules, so a global block would silently restyle the app;
+     • the dark counterpart also matches `.x-dark`, which is the class
+       execThemeApply() actually stamps on every shell, alongside the
+       handoff's own `[data-theme="dark"]`.
+   Values, names and order are verbatim from the handoffs.
+   ========================================================================== */
+
+.od, .sd{
+  /* Brand — single accent, wine. No second brand colour. */
+  --wine:#600131; --wine2:#7c1a4a; --wine3:#9c3d6c;
+  --wine-tint:#f7eef3; --wine-line:#ecd9e3;
+
+  /* Surfaces */
+  --page:#f5f6f8; --card:#ffffff; --sunk:#fafbfc;
+  --line:#e6e8ee; --line2:#eff1f5;
+
+  /* Text */
+  --tx:#101828; --tx2:#475467; --tx3:#98a2b3;
+
+  /* Semantic — deliberately distinct from brand */
+  --ok:#087443;   --ok-bg:#e8f6ef;
+  --warn:#b54708; --warn-bg:#fef3e6;
+  --bad:#b42318;  --bad-bg:#fdecea;
+
+  /* Categorical — departments/divisions only, used in legends and splits */
+  --d1:#600131; --d2:#8a5a2b; --d3:#2e5f7a; --d4:#5b6b3a;
+
+  --sh:0 1px 2px rgba(16,24,40,.04);
+  --sh2:0 6px 24px rgba(16,24,40,.10);
+  --r:14px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+
+[data-theme="dark"] .od, .x-dark .od,
+[data-theme="dark"] .sd, .x-dark .sd{
+  --wine:#a83c63; --wine2:#c2557c; --wine3:#d98aa8;
+  --wine-tint:#2a1a22; --wine-line:#3d2530;
+  --page:#141017; --card:#1d1821; --sunk:#241e28;
+  --line:#332b38; --line2:#2a2330;
+  --tx:#eee9f0; --tx2:#a99fb0; --tx3:#7d7386;
+  --ok:#4ade9b;   --ok-bg:#14291f;
+  --warn:#f2ae5d; --warn-bg:#2c2013;
+  --bad:#f58b83;  --bad-bg:#2e1817;
+  --d1:#c2557c; --d2:#c79a5f; --d3:#6ea6c4; --d4:#9db56e;
+  --sh:0 1px 2px rgba(0,0,0,.4);
+  --sh2:0 8px 30px rgba(0,0,0,.5);
+}

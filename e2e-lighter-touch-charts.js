@@ -58,8 +58,19 @@ async function openNode(page, nodeId, wrapId) {
 
   currentStep = 'sales-chart';
   await openNode(page, 'sales', 'sales-module-wrap');
-  const salesState = await page.evaluate(() => document.getElementById('sales-body').innerHTML.includes('mini-bar-col'));
-  record('Sales Dashboard\'s Category Breakdown now renders as a mini-bar chart (was plain text)', salesState ? 'PASS' : 'FAIL');
+  // Redesign 5a (7 Aug 2026): the Category Breakdown mini-bars were replaced
+  // by "My pipeline", which is counts rather than value — the whole Sales
+  // dashboard is money-free by policy now.
+  const salesState = await page.evaluate(() => {
+    const body = document.getElementById('sales-body');
+    return {
+      pipeline: body.textContent.includes('My pipeline'),
+      counts: /Counts, not value/.test(body.textContent),
+      noMoney: !/BD\s?[\d,]/.test(body.textContent)
+    };
+  });
+  record('Sales Dashboard shows a count-based pipeline instead of the old value charts',
+    salesState.pipeline && salesState.counts && salesState.noMoney ? 'PASS' : 'FAIL', JSON.stringify(salesState));
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
 

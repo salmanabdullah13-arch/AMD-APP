@@ -6326,3 +6326,69 @@ anything."*
   stale suite, and `e2e-jobcards-dept-scope-rls.js` passed 12/12 standalone
   (the documented live-network flake).
 - `sw.js` CACHE_VERSION v21 → v22, both new files added to CORE_ASSETS.
+
+### 7 Aug 2026 — Sales Dashboard rebuilt to the design handoff (5a)
+
+Salman supplied a second high-fidelity bundle (`design_handoff_sales_dashboard`)
+the same day as the Owner one: *"Dont change anything and copy this design for
+dashboard for sales."* Same integration approach as 4a — the handoff's own CSS
+and JS ship as written, only its `DATA` block is replaced with live calls.
+
+- **The rule that shapes the whole screen**, in the handoff's words: "Sales
+  must never see price, cost, or supplier/vendor names — anywhere. This is a
+  fraud-prevention rule following a real incident." So there is deliberately
+  no currency helper in `sales-dashboard.js`, clients are ranked by activity
+  (jobs · quotes · last contact) rather than spend, the pipeline is by count,
+  the job card carries no cost and closes with a line saying why, and a policy
+  card explains the absence in plain language.
+- **Layout as specified**: This week · My tasks · Needs you today (2) / My
+  quotations (2) · Production status (2) / My pipeline · My clients · Policy
+  note (2). Desktop four-column grid; at ≤880px it becomes a column-flex
+  scroller with `flex:none` on every card — the handoff warns that removing
+  that crushes any card which clips its own overflow, and says the bug shipped
+  once already.
+- **Three bugs the handoff names in the old build, all fixed**: the Receivables
+  KPI and Top-Clients-by-value are gone from this role; the dashboard is now
+  scoped to the logged-in salesperson's own book (the handoff notes the
+  `{salesPerson}` scope existed but was never surfaced); and Sales has its own
+  task lists (Enquiries · Quotations · Clients · Site visits) rather than
+  sharing a store whose Owner entries carry receivables chasing.
+- **`getSalesPersonJobs()` is deliberately NOT used** for the production card,
+  even though it exists and traces the right thing. It returns a projection
+  carrying `job.amount` — money, which must never reach this screen — and it
+  drops `items`, `promisedDate` and `routingConfirmed`, which the card needs.
+  The dashboard does the same trace itself over the real job cards and reads
+  only value-free fields.
+- **Per-item production status turned out to already exist**, so the handoff's
+  "ship the job-level bar first" fallback wasn't needed: each job line carries
+  `departmentStatuses[]` with a status, a Joinery sub-stage and a
+  `progressPct`. The six-segment bar maps onto that real pipeline rather than
+  inventing one, and the hold state is a line in rework — with the manager's
+  own `rejectReason` from the QC fail as the hold reason, which is exactly the
+  "real field a department manager writes" the handoff asks for.
+- **Shared tokens, per the handoff's own instruction**: its `:root` block is
+  byte-identical to the Owner one, and it says "if both dashboards ship,
+  delete one copy and load a single shared tokens.css — do not maintain two."
+  Both shipped, so `dashboard-tokens.css` is that file and neither component
+  sheet carries tokens now.
+- **Two deviations, both commented in place.** The dashboard does not draw the
+  handoff's own topbar or chat bubble: the exec-shell already renders the
+  burger / Quick actions / theme / bell row and a floating chat app-wide, and
+  drawing a second set would stack two of each. Their content is honoured —
+  the four Sales quick actions register into the shell's popover, and the
+  handoff itself argues chat belongs in the shell. The other is the same
+  `min-width:0` grid rule the Owner dashboard needed, for the same reason.
+- **Verification**: new `e2e-sales-dashboard-5a.js` (27/27). The first checks
+  are the money rule, tested two ways: nothing matching a value, cost,
+  supplier or vendor renders anywhere (excluding the policy card and job-sheet
+  note, whose job is to *name* what's hidden), and no field in the dashboard's
+  own data object could carry one either. Then the three named bugs, the
+  queue's collapse-don't-hide behaviour, stage-chip filtering, the six-segment
+  bar over real per-line data, a held line showing the real QC reject reason,
+  the job sheet's items, the shell integration, Sales' own lists writing to
+  the real task store, the planner's selection-follows-period rule, and the
+  responsive path including `flex:none` on mobile. Two chart-rollout suites
+  asserted the analytics this design removes — inverted rather than deleted,
+  so they now prove the money is gone. Full offline sweep 60/61, the one
+  failure being the long-standing stale `e2e-batch8-phase2-4.js`.
+- `sw.js` CACHE_VERSION v22 → v23; the three new files added to CORE_ASSETS.

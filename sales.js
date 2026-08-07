@@ -196,6 +196,12 @@ function renderSalesBody() {
     default: content = renderEnquiryList();
   }
   body.innerHTML = topTabs + content;
+  // The redesigned dashboard (7 Aug 2026 handoff) owns its own root and a
+  // single delegated listener, so it mounts rather than being pasted in.
+  if (salesView === 'dashboard' && typeof SalesDashboard !== 'undefined') {
+    const host = document.getElementById('sales-dashboard-root');
+    if (host) SalesDashboard.mount(host);
+  }
 }
 
 // ══════════════════════════════════════════
@@ -1124,38 +1130,17 @@ function renderSalesAnalyticsSection() {
     </div>`;
 }
 
+// ── Sales dashboard — the 7 Aug 2026 design handoff ──
+// Salman supplied a high-fidelity bundle and asked for it exactly. The layout,
+// cards and behaviour live in sales-dashboard.js; this returns its root and
+// renderSalesBody() mounts it.
+//
+// Two things the handoff names as bugs in the old version, both gone with it:
+// the Receivables KPI and Top-Clients-by-value put money in front of a role
+// that must never see it, and the whole screen showed company-wide figures
+// instead of the logged-in salesperson's own book.
 function renderSalesDashboard() {
-  const k = getSalesKPIs();
-  return `
-    <div class="sales-kpi-grid">
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('enquiries');salesEnqFilterChanged('unassigned',true);"><div class="num">${k.unallocated}</div><div class="lbl">Un-allocated</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('enquiries');salesEnqFilterChanged('unattended',true);"><div class="num">${k.inProgress}</div><div class="lbl">In-Progress</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesShowQuotations('open');"><div class="num">${k.openQuotations}</div><div class="lbl">Open Quotations</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesShowQuotations('all','estimator');"><div class="num">${k.withEstimator}</div><div class="lbl">With Estimator</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesShowQuotations('all','approver');"><div class="num">${k.withApprover}</div><div class="lbl">With Approver</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('myjobs');"><div class="num">${k.jobsPending}</div><div class="lbl">Jobs Pending</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('myjobs');"><div class="num">${k.jobsOngoing}</div><div class="lbl">Jobs On-going</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="hideModuleWrap(salesModuleWrap);setTimeout(()=>launchJobsModule(),150);"><div class="num">${k.toInvoice}</div><div class="lbl">To Invoice</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="salesSetTopView('reports');"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="requestPurchaseFromModule(null,null,null)"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="requestPurchaseFromModule(null,null,null)"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>
-      ${cwMiniBars([
-        { label: 'Curtain', value: k.categoryBreakdown.curtain, color: cwOrdinalColor(0) },
-        { label: 'Upholstery', value: k.categoryBreakdown.upholstery, color: cwOrdinalColor(1) },
-        { label: 'Joinery', value: k.categoryBreakdown.joinery, color: cwOrdinalColor(2) }
-      ])}
-    </div>
-    ${renderSalesAnalyticsSection()}
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Quick Actions</p>
-      <div style="display:flex;gap:8px;">
-        <button class="primary" style="flex:1;" onclick="salesSetTopView('enquiries');openEnquiryCreate();">+ Create Enquiry</button>
-        <button class="secondary" style="flex:1;" onclick="salesSetTopView('quotations');">View Quotations</button>
-      </div>
-    </div>`;
+  return '<div id="sales-dashboard-root"></div>';
 }
 
 // "My Jobs" — read-only job visibility + Add Variation/Request Purchase

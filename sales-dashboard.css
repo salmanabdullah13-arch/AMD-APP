@@ -1,0 +1,195 @@
+/* ==========================================================================
+   AMD-APP · Sales dashboard
+   Component styles, verbatim from the handoff.
+
+   Its token block is NOT here: the handoff says the :root block is identical
+   to owner-dashboard.css and that if both ship, exactly one copy should be
+   kept. Both shipped, so the tokens live in dashboard-tokens.css and both
+   sheets load after it.
+
+   One integration rule is added at the end, commented where it sits.
+   ========================================================================== */
+
+.sd{ font-family:var(--font); color:var(--tx); background:var(--page); position:relative; }
+.sd *{ box-sizing:border-box; }
+.sd button{ font-family:inherit; }
+.sd a{ color:var(--wine); text-decoration:none; }
+.sd a:hover{ color:var(--wine2); }
+.sd :focus-visible{ outline:2px solid var(--wine); outline-offset:2px; }
+
+/* ------------------------------------------------------------ topbar --- */
+.sd-top{ display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 24px; background:var(--card); border-bottom:1px solid var(--line); }
+.sd-qa{ display:flex; align-items:center; gap:9px; height:38px; padding:0 16px; border-radius:10px;
+  border:0; background:var(--wine); color:#fff; font-size:13.5px; font-weight:600; cursor:pointer;
+  box-shadow:0 1px 3px rgba(96,1,49,.3); }
+.sd-icon{ position:relative; width:34px; height:34px; border-radius:10px; border:1px solid var(--line);
+  background:transparent; color:var(--tx2); cursor:pointer; }
+.sd-icon:hover{ background:var(--wine-tint); color:var(--wine); border-color:var(--wine-line); }
+.sd-badge{ position:absolute; top:-5px; right:-5px; min-width:17px; height:17px; padding:0 5px;
+  border-radius:999px; background:var(--bad); color:#fff; font-size:10px; font-weight:700; line-height:17px; }
+.sd-bell{ animation:sd-ring 2.4s infinite; }
+@keyframes sd-ring{ 0%{box-shadow:0 0 0 0 rgba(180,35,24,.5)} 70%{box-shadow:0 0 0 8px rgba(180,35,24,0)} 100%{box-shadow:0 0 0 0 rgba(180,35,24,0)} }
+
+/* Mobile header: burger · Quick actions · bell */
+@media (max-width:880px){
+  .sd-top{ padding:4px 16px 12px; border-bottom:1px solid var(--line2); }
+  .sd-qa{ flex:1; justify-content:center; height:40px; border-radius:11px; }
+}
+
+/* -------------------------------------------------------------- grid --- */
+.sd-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+  align-content:start; padding:16px 24px 24px; overflow:auto; }
+.sd-span2{ grid-column:span 2; }
+@media (max-width:1100px){ .sd-grid{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:880px){
+  .sd-grid{ display:flex; flex-direction:column; gap:12px; padding:14px 14px 24px; }
+  .sd-span2{ grid-column:auto; }
+  /* Cards that clip their own overflow get crushed by flex-shrink in a
+     column-flex scroller. Every card is flex:none — do not remove. */
+  .sd-grid > *{ flex:none; }
+}
+
+.sd-card{ padding:16px; border-radius:var(--r); border:1px solid var(--line);
+  background:var(--card); box-shadow:var(--sh); }
+@media (max-width:880px){ .sd-card{ padding:14px; } }
+.sd-card-h{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.sd-title{ font-size:13.5px; font-weight:650; color:var(--tx); }
+.sd-sub{ font-size:11px; color:var(--tx3); margin-top:2px; }
+.sd-clip{ border-radius:var(--r); border:1px solid var(--line); background:var(--card);
+  box-shadow:var(--sh); overflow:hidden; }
+
+/* ------------------------------------------------------------- queue --- */
+.sd-q{ display:flex; align-items:center; gap:13px; padding:14px; border-bottom:1px solid var(--line2);
+  border-left:3px solid transparent; cursor:pointer; }
+.sd-q:hover{ background:var(--wine-tint); }
+.sd-q.is-bad{ border-left-color:var(--bad); }
+.sd-q.is-warn{ border-left-color:var(--warn); }
+.sd-q.is-wine{ border-left-color:var(--wine); }
+.sd-q.is-empty{ padding:11px 14px; cursor:default; }
+.sd-q.is-empty:hover{ background:transparent; }
+.sd-q-n{ flex:none; width:26px; font-size:21px; font-weight:650; letter-spacing:-.02em; }
+.sd-q.is-bad .sd-q-n{ color:var(--bad); }
+.sd-q.is-warn .sd-q-n{ color:var(--warn); }
+.sd-q.is-wine .sd-q-n{ color:var(--wine); }
+.sd-q-t{ display:block; font-size:13.5px; font-weight:600; color:var(--tx); }
+.sd-q-m{ display:block; font-size:11.5px; color:var(--tx3); margin-top:2px; }
+
+/* -------------------------------------------------------- stage chips --- */
+.sd-chips{ display:flex; gap:3px; padding:3px; border-radius:10px; background:var(--sunk);
+  border:1px solid var(--line2); flex-wrap:wrap; }
+.sd-chips button{ flex:none; white-space:nowrap; padding:6px 11px; border:0; border-radius:8px;
+  font-size:11.5px; font-weight:600; cursor:pointer; background:transparent; color:var(--tx3); }
+.sd-chips button[aria-selected="true"]{ background:var(--card); color:var(--wine); box-shadow:var(--sh); }
+@media (max-width:880px){ .sd-chips{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; } }
+
+/* -------------------------------------------------------- quote rows --- */
+.sd-row{ display:flex; gap:11px; padding:12px 0; border-bottom:1px solid var(--line2);
+  border-left:3px solid transparent; width:100%; text-align:left; background:none; border-top:0;
+  border-right:0; cursor:pointer; }
+.sd-row.is-bad{ border-left-color:var(--bad); padding-left:9px; }
+.sd-pill{ flex:none; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700;
+  background:var(--sunk); color:var(--tx2); }
+.sd-pill.is-bad{ background:var(--bad-bg); color:var(--bad); }
+.sd-pill.is-warn{ background:var(--warn-bg); color:var(--warn); }
+.sd-pill.is-ok{ background:var(--ok-bg); color:var(--ok); }
+.sd-id{ font-size:12.5px; font-weight:650; color:var(--tx); }
+.sd-meta{ display:block; font-size:12px; color:var(--tx2); margin-top:3px; }
+.sd-micro{ font-size:10.5px; color:var(--tx3); }
+.sd-why{ display:block; font-size:10.5px; font-weight:700; color:var(--bad); margin-top:3px; }
+.sd-scroll{ max-height:250px; overflow:auto; scrollbar-width:thin; }
+
+/* --------------------------------------------------- production status --- */
+.sd-hold{ display:flex; gap:10px; padding:11px 12px; border-radius:11px;
+  background:var(--bad-bg); border:1px solid var(--bad); margin-bottom:12px; }
+.sd-hold-t{ display:block; font-size:12.5px; font-weight:700; color:var(--bad); }
+.sd-hold-m{ display:block; font-size:11.5px; color:var(--tx2); margin-top:3px; line-height:1.45; }
+.sd-job{ display:block; width:100%; text-align:left; border:0; background:transparent; padding:0; cursor:pointer; }
+.sd-job:hover .sd-id{ color:var(--wine); }
+.sd-segs{ display:flex; gap:3px; }
+.sd-segs i{ flex:1; height:7px; border-radius:2px; display:block; background:var(--line2); }
+.sd-segs i.is-done{ background:var(--wine); }
+.sd-segs i.is-now{ background:var(--wine3); }
+.sd-segs i.is-hold{ background:var(--bad); }
+.sd-pct{ flex:none; width:38px; text-align:right; font-size:13px; font-weight:650;
+  letter-spacing:-.01em; color:var(--tx); }
+.sd-pct.is-hold{ color:var(--bad); }
+.sd-legend{ display:flex; flex-wrap:wrap; gap:9px; margin-top:12px; padding-top:10px;
+  border-top:1px solid var(--line2); }
+.sd-legend span{ display:flex; align-items:center; gap:5px; font-size:10px; color:var(--tx3); }
+.sd-legend i{ width:12px; height:6px; border-radius:2px; display:block; }
+
+/* ---------------------------------------------------------- job sheet --- */
+.sd-backdrop{ position:absolute; inset:0; background:rgba(16,24,40,.42); z-index:30; }
+.sd-sheet{ position:absolute; background:var(--page); z-index:31; display:flex; flex-direction:column;
+  overflow:hidden; box-shadow:var(--sh2); animation:sd-up .18s ease;
+  top:60px; left:50%; transform:translateX(-50%); width:520px; max-height:760px; border-radius:16px; }
+@media (max-width:880px){
+  .sd-sheet{ inset:0; width:auto; max-height:none; transform:none; left:0; top:0; border-radius:0; }
+}
+@keyframes sd-up{ from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+.sd-sheet-h{ flex:none; display:flex; align-items:flex-start; gap:12px; padding:14px 16px;
+  background:var(--card); border-bottom:1px solid var(--line); }
+.sd-sheet-b{ flex:1; overflow:auto; padding:14px 16px 22px; display:flex; flex-direction:column; gap:12px; }
+.sd-facts{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.sd-fact{ padding:12px; border-radius:11px; border:1px solid var(--line2); background:var(--card); }
+.sd-fact-l{ display:block; font-size:10.5px; color:var(--tx3); font-weight:600; }
+.sd-fact-v{ display:block; font-size:14px; font-weight:650; color:var(--tx); margin-top:4px; }
+.sd-step{ display:flex; gap:11px; padding:7px 0; }
+.sd-step i{ flex:none; width:11px; height:11px; border-radius:99px; margin-top:3px; background:var(--line); }
+.sd-step i.is-done{ background:var(--wine); }
+.sd-step i.is-now{ background:var(--wine3); }
+.sd-step i.is-hold{ background:var(--bad); }
+.sd-step-n{ display:block; font-size:12.5px; font-weight:500; color:var(--tx3); }
+.sd-step.is-reached .sd-step-n{ font-weight:650; color:var(--tx); }
+.sd-item{ display:flex; align-items:center; gap:11px; padding:10px 0;
+  border-bottom:1px solid var(--line2); border-left:3px solid transparent; }
+.sd-item.is-hold{ border-left-color:var(--bad); padding-left:9px; }
+.sd-bar{ flex:1; min-width:0; height:5px; border-radius:3px; background:var(--line2); display:block; }
+.sd-bar i{ display:block; height:5px; border-radius:3px; }
+.sd-note{ padding:11px 13px; border-radius:11px; border:1px dashed var(--line);
+  background:var(--sunk); font-size:11px; color:var(--tx3); line-height:1.5; }
+
+/* ------------------------------------------------------- quick actions --- */
+.sd-qa-pop{ position:absolute; top:56px; left:244px; width:340px; background:var(--card);
+  border:1px solid var(--line); border-radius:14px; box-shadow:var(--sh2); z-index:27;
+  overflow:hidden; animation:sd-up .16s ease; }
+@media (max-width:880px){
+  .sd-qa-pop{ top:auto; left:0; right:0; bottom:0; width:auto; border-radius:22px 22px 0 0;
+    animation:sd-up .2s ease; }
+}
+.sd-qa-row{ display:flex; align-items:center; gap:11px; padding:11px 14px;
+  border-bottom:1px solid var(--line2); cursor:pointer; }
+.sd-qa-row:hover{ background:var(--wine-tint); }
+.sd-qa-ic{ flex:none; width:30px; height:30px; border-radius:9px; background:var(--wine-tint);
+  color:var(--wine); font-size:14px; display:flex; align-items:center; justify-content:center; }
+
+/* --------------------------------------------------------------- chat --- */
+.sd-chat-btn{ position:absolute; right:24px; bottom:24px; width:56px; height:56px; border-radius:999px;
+  border:0; background:var(--wine); color:#fff; font-size:22px; cursor:pointer;
+  box-shadow:0 6px 20px rgba(96,1,49,.34); z-index:18; }
+.sd-chat{ position:absolute; right:24px; bottom:88px; width:340px; max-height:460px;
+  background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sh2);
+  z-index:19; display:flex; flex-direction:column; overflow:hidden; animation:sd-up .18s ease; }
+@media (max-width:880px){
+  .sd-chat-btn{ right:16px; bottom:20px; width:52px; height:52px; font-size:20px; }
+  .sd-chat{ left:14px; right:14px; bottom:82px; width:auto; max-height:440px; }
+}
+.sd-msg{ display:flex; flex-direction:column; gap:3px; align-items:flex-start; }
+.sd-msg.is-me{ align-items:flex-end; }
+.sd-bubble{ max-width:82%; padding:9px 11px; border-radius:13px; font-size:12.5px; line-height:1.45;
+  background:var(--sunk); color:var(--tx); border:1px solid var(--line2); border-bottom-left-radius:4px; }
+.sd-msg.is-me .sd-bubble{ background:var(--wine); color:#fff; border:0;
+  border-bottom-right-radius:4px; border-bottom-left-radius:13px; }
+.sd-input{ flex:1; min-width:0; padding:9px 11px; border-radius:10px; border:1px solid var(--line);
+  background:var(--sunk); color:var(--tx); font-size:12.5px; font-family:inherit; }
+
+.sd-stack > * + *{ margin-top:13px; }
+
+/* INTEGRATION (7 Aug 2026) — the one rule added to the handoff CSS, and it
+   changes no value. On the desktop grid, `1fr` is `minmax(auto,1fr)`, so a
+   column can never be narrower than its widest card's min-content; the
+   quotation and production cards would otherwise push the four-column grid
+   wider than its container. The mobile column-flex path is untouched — see
+   the handoff's own warning about flex:none there. */
+.sd-grid > *{ min-width:0; }

@@ -71,22 +71,33 @@ async function openNode(page, nodeId, wrapId) {
   await openNode(page, 'sales', 'sales-module-wrap');
   await shot(page, 'sales-dashboard');
 
+  // -- Redesign 5a (7 Aug 2026) --
+  // This suite used to assert the Sales analytics section the chart rollout
+  // added: Monthly Revenue by Division, a company-wide Pipeline Funnel and
+  // Top Clients ranked by value. The Sales design handoff removes all three
+  // and names two of them as BUGS - "both put money in front of Sales" - so
+  // the checks are inverted: they must be gone, and what replaced them must
+  // carry no value at all. The seeding above is kept exactly as it was, which
+  // sharpens the point: a confirmed job worth real money exists, and none of
+  // it reaches this screen.
   const state = await page.evaluate(() => {
-    const html = document.getElementById('sales-body') ? document.getElementById('sales-body').innerHTML : document.getElementById('sales-module-wrap').innerHTML;
+    const el = document.getElementById('sales-body') || document.getElementById('sales-module-wrap');
+    const t = el.textContent;
     return {
-      hasMonthlyRevenue: html.includes('Monthly Revenue by Division'),
-      hasMonthlyRevenueSvg: html.includes('cw-chart'),
-      hasPipelineFunnel: html.includes('Pipeline Funnel'),
-      hasTopClients: html.includes('Top Clients'),
-      mentionsAnalyticsClient: html.includes('Sales Analytics Client'),
-      hasUpcomingDeliveries: html.includes('Upcoming Deliveries'),
-      mentionsScheduledJob: html.includes('2026-09-01')
+      noMonthlyRevenue: !/Monthly Revenue by Division/i.test(t),
+      noTopClientsByValue: !/Top Clients/i.test(t),
+      money: (t.match(/BD\s?[\d,]|\d+\.\d{3}\b/g) || []).slice(0, 4),
+      pipelineByCount: /Counts, not value/.test(t),
+      clientsByActivity: /By activity, not spend/.test(t),
+      policyCard: /Why there are no values on this dashboard/.test(t)
     };
   });
-  record('Sales Dashboard renders Monthly Revenue by Division with a real chart (company-wide job, not filtered by salesperson)', state.hasMonthlyRevenue && state.hasMonthlyRevenueSvg ? 'PASS' : 'FAIL', JSON.stringify(state));
-  record('Sales Dashboard renders Pipeline Funnel section', state.hasPipelineFunnel ? 'PASS' : 'FAIL');
-  record('Sales Dashboard renders Top Clients section showing the seeded client by name (job created by a DIFFERENT salesperson — proves this is company-wide, not "my own jobs")', state.hasTopClients && state.mentionsAnalyticsClient ? 'PASS' : 'FAIL', JSON.stringify(state));
-  record('Sales Dashboard renders Upcoming Deliveries with the real scheduled date', state.hasUpcomingDeliveries && state.mentionsScheduledJob ? 'PASS' : 'FAIL', JSON.stringify(state));
+  record('The money-bearing analytics section is gone from the Sales dashboard',
+    state.noMonthlyRevenue && state.noTopClientsByValue ? 'PASS' : 'FAIL', JSON.stringify(state));
+  record('No monetary value reaches the screen even with a confirmed job seeded',
+    state.money.length === 0 ? 'PASS' : 'FAIL', state.money.join(', '));
+  record('What replaced them is value-free: a count pipeline, clients by activity, and a policy card explaining the absence',
+    state.pipelineByCount && state.clientsByActivity && state.policyCard ? 'PASS' : 'FAIL', JSON.stringify(state));
 
   currentStep = 'final';
   const critical = consoleErrors.filter(e => !e.text.includes('favicon'));
