@@ -298,7 +298,52 @@ execStyleTag.textContent = `
 .xs-cal-day.sel{background:var(--x-brand);color:#fff;}
 .xs-cal-day .dots{position:absolute;bottom:2px;display:flex;gap:2px;}
 .xs-cal-day .dot{width:4px;height:4px;border-radius:50%;}
-.xs-cal-agenda{margin-top:5px;}
+.xs-cal-agenda{margin-top:5px;max-height:150px;overflow-y:auto;}
+/* Session 4: the lists scroll inside the panel rather than pushing the
+   sidebar's own footer (and the collapse button) off the bottom. */
+.xs-sp-list{max-height:190px;overflow-y:auto;}
+.xs-sp-list::-webkit-scrollbar,.xs-cal-agenda::-webkit-scrollbar{width:5px;}
+.xs-sp-list::-webkit-scrollbar-thumb,.xs-cal-agenda::-webkit-scrollbar-thumb{background:var(--x-hairline-strong);border-radius:9px;}
+.xs-sp-link{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;
+  font-size:10.5px;color:var(--x-brand-bright);font-weight:650;padding:6px 4px 2px;}
+.xs-sp-link:hover{text-decoration:underline;}
+
+/* ---- weekly planner overlay (Session 4) ---- */
+.xs-planner{position:fixed;inset:0;z-index:150;background:var(--x-bg);display:none;flex-direction:column;}
+.xs-planner.open{display:flex;}
+.xs-pl-top{display:flex;align-items:center;gap:10px;padding:calc(12px + var(--safe-top,0px)) 14px 12px;
+  border-bottom:1px solid var(--x-hairline);background:var(--x-surface);flex:none;}
+.xs-pl-top h3{margin:0;font-size:15px;font-weight:650;color:var(--x-ink);flex:1;}
+.xs-pl-nav{display:flex;align-items:center;gap:4px;}
+.xs-pl-nav button{background:var(--x-wash);border:1px solid var(--x-hairline);border-radius:8px;
+  color:var(--x-ink-2);width:28px;height:28px;cursor:pointer;font-size:14px;}
+.xs-pl-body{flex:1;min-height:0;overflow-y:auto;padding:12px;display:grid;gap:10px;}
+@media(min-width:900px){.xs-pl-body{grid-template-columns:repeat(7,1fr);align-items:start;}}
+.xs-pl-day{background:var(--x-surface);border:1px solid var(--x-hairline);border-radius:12px;padding:10px 11px;}
+.xs-pl-day.today{border-color:var(--x-brand-bright);box-shadow:0 0 0 1px var(--x-brand-bright) inset;}
+.xs-pl-dayhead{display:flex;align-items:baseline;gap:6px;margin-bottom:7px;}
+.xs-pl-dayhead .dow{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--x-ink-3);}
+.xs-pl-dayhead .dnum{font-size:15px;font-weight:700;color:var(--x-ink);}
+.xs-pl-ev{display:flex;gap:7px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--x-hairline);}
+.xs-pl-ev:last-of-type{border-bottom:none;}
+.xs-pl-ev .dot{width:7px;height:7px;border-radius:50%;flex:none;margin-top:5px;}
+.xs-pl-ev .txt{font-size:11.5px;color:var(--x-ink);line-height:1.35;min-width:0;}
+.xs-pl-ev .sub{display:block;font-size:9.5px;color:var(--x-ink-3);}
+.xs-pl-ev .rm{margin-left:auto;background:none;border:none;color:var(--x-ink-3);cursor:pointer;font-size:12px;padding:0 2px;}
+.xs-pl-ev .rm:hover{color:var(--bad,#d9342b);}
+.xs-pl-add{width:100%;margin-top:7px;background:var(--x-wash);border:1px dashed var(--x-hairline-strong);
+  border-radius:8px;color:var(--x-ink-3);font-size:11px;padding:6px;cursor:pointer;}
+.xs-pl-add:hover{color:var(--x-brand-bright);border-color:var(--x-brand-bright);}
+.xs-pl-form{margin-top:8px;display:grid;gap:6px;}
+.xs-pl-form input,.xs-pl-form select,.xs-pl-form textarea{
+  width:100%;background:var(--x-bg);border:1px solid var(--x-hairline-strong);border-radius:8px;
+  padding:7px 9px;font-size:12px;color:var(--x-ink);font-family:inherit;}
+.xs-pl-form .row{display:flex;gap:6px;}
+.xs-pl-form .row > *{flex:1;min-width:0;}
+.xs-pl-form .acts{display:flex;gap:6px;}
+.xs-pl-form .acts button{flex:1;border-radius:8px;padding:7px;font-size:11.5px;cursor:pointer;border:1px solid var(--x-hairline-strong);}
+.xs-pl-form .acts .save{background:var(--x-brand-bright);border-color:var(--x-brand-bright);color:#fff;font-weight:650;}
+.xs-pl-form .acts .cancel{background:var(--x-wash);color:var(--x-ink-2);}
 .xs-cal-ev{display:flex;gap:6px;align-items:flex-start;padding:4px;font-size:10.5px;color:var(--x-ink);line-height:1.35;}
 .xs-cal-ev .dot{width:6px;height:6px;border-radius:50%;flex:none;margin-top:3px;}
 .xs-cal-empty{font-size:10px;color:var(--x-ink-3);padding:4px;}
@@ -621,7 +666,7 @@ let execCalOpen = true;
 let execCalMonth = null;    // 'YYYY-MM', null = current month
 let execCalSelected = null; // 'YYYY-MM-DD', null = today
 
-const EXEC_CAL_COLOR = { task: 'var(--x-brand-bright)', promised: 'var(--warn,#c47d00)', delivery: 'var(--info,#2563eb)' };
+const EXEC_CAL_COLOR = { task: 'var(--x-brand-bright)', promised: 'var(--warn,#c47d00)', delivery: 'var(--info,#2563eb)', event: 'var(--ok,#0f9d58)' };
 
 function execSidePanelsHTML() {
   return execTasksPanelHTML() + execCalendarPanelHTML();
@@ -633,7 +678,7 @@ function execRefreshSidePanels() {
 function execTasksPanelHTML() {
   const tasks = typeof getOpenTasksForAssignee === 'function' ? getOpenTasksForAssignee(execIdentity()) : [];
   const today = new Date().toISOString().slice(0, 10);
-  const rows = tasks.slice(0, 6).map(t => `
+  const rows = tasks.map(t => `
     <div class="xs-sp-task">
       <span class="t-code">${execEsc(t.id)}</span>
       <span class="t-title">${execEsc(t.title)}
@@ -646,8 +691,7 @@ function execTasksPanelHTML() {
       <span>My Tasks</span><span class="xs-sp-count">${tasks.length}</span>
     </div>
     ${execTasksOpen ? `
-      ${rows || '<p class="xs-cal-empty">No open tasks.</p>'}
-      ${tasks.length > 6 ? `<p class="xs-cal-empty">+${tasks.length - 6} more in Reminders 🔔</p>` : ''}
+      ${rows ? `<div class="xs-sp-list">${rows}</div>` : '<p class="xs-cal-empty">No open tasks.</p>'}
       <div class="xs-sp-add">
         <input class="xs-task-input" type="text" placeholder="Add a task…" onkeydown="if(event.key==='Enter')execAddTask();">
         <button onclick="execAddTask()">Add</button>
@@ -704,6 +748,7 @@ function execCalendarPanelHTML() {
         <button onclick="event.stopPropagation();execCalNav(1);">›</button>
       </div>
       <div class="xs-cal-grid">${cells}</div>
+      <button class="xs-sp-link" onclick="event.stopPropagation();execOpenPlanner(execCalSelected||undefined);">Open weekly planner →</button>
       <div class="xs-cal-agenda">
         ${dayEvents.length === 0 ? `<p class="xs-cal-empty">Nothing on ${sel === today ? 'today' : sel}.</p>` :
           dayEvents.map(e => `
@@ -713,6 +758,149 @@ function execCalendarPanelHTML() {
             </div>`).join('')}
       </div>` : ''}`;
 }
+// ══════════════════════════════════════════
+// WEEKLY PLANNER (backlog Session 4, 7 Aug 2026)
+// Salman asked for a way to log a meeting or a day's note against a date,
+// and a week view to plan against. Mounted at document.body level like the
+// floating chat so it opens from any module and from the home page —
+// no per-module view plumbing, nothing to add to 17 nav configs.
+// It shows the same getCalendarEvents() feed the sidebar calendar uses
+// (my tasks, role-relevant promised dates, planned deliveries) plus the
+// new events[] entries, so the two can never disagree.
+// ══════════════════════════════════════════
+let execPlannerAnchorDate = null;   // any date inside the week being shown
+let execPlannerFormDay = null;      // 'YYYY-MM-DD' while composing
+
+function execTodayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function execOpenPlanner(dateStr) {
+  execPlannerAnchorDate = dateStr || execPlannerAnchorDate || execTodayISO();
+  execPlannerFormDay = null;
+  execRenderPlanner();
+  const el = document.getElementById('exec-planner');
+  if (el) el.classList.add('open');
+  if (typeof execCloseSideOnMobile === 'function') execCloseSideOnMobile();
+}
+function execClosePlanner() {
+  const el = document.getElementById('exec-planner');
+  if (el) el.classList.remove('open');
+  execPlannerFormDay = null;
+  // the sidebar calendar/tasks may have changed while the planner was open
+  if (typeof execRefreshSidePanels === 'function') execRefreshSidePanels();
+  if (typeof execRefreshBadges === 'function') execRefreshBadges();
+}
+function execPlannerNav(delta) {
+  const base = new Date((execPlannerAnchorDate || execTodayISO()) + 'T00:00:00');
+  base.setDate(base.getDate() + delta * 7);
+  execPlannerAnchorDate = base.getFullYear() + '-' + String(base.getMonth() + 1).padStart(2, '0') + '-' + String(base.getDate()).padStart(2, '0');
+  execPlannerFormDay = null;
+  execRenderPlanner();
+}
+function execPlannerShowForm(day) {
+  execPlannerFormDay = execPlannerFormDay === day ? null : day;
+  execRenderPlanner();
+  const t = document.querySelector('#exec-planner .xs-pl-form input[data-f="title"]');
+  if (t) t.focus();
+}
+function execPlannerSave(day) {
+  const root = document.querySelector('#exec-planner .xs-pl-form');
+  if (!root) return;
+  const val = f => { const el = root.querySelector('[data-f="' + f + '"]'); return el ? el.value.trim() : ''; };
+  const res = createEvent({
+    title: val('title'), date: day, time: val('time') || null, kind: val('kind'),
+    owner: execIdentity(), withWhom: val('with'), notes: val('notes')
+  });
+  if (res && res.error) { if (typeof commsToast === 'function') commsToast(res.error); return; }
+  execPlannerFormDay = null;
+  execRenderPlanner();
+}
+function execPlannerRemove(id) {
+  const res = deleteEvent(id, execIdentity());
+  if (res && res.error) { if (typeof commsToast === 'function') commsToast(res.error); return; }
+  execRenderPlanner();
+}
+
+function execRenderPlanner() {
+  const host = document.getElementById('exec-planner');
+  if (!host) return;
+  const today = execTodayISO();
+  const week = typeof weekDatesOf === 'function' ? weekDatesOf(execPlannerAnchorDate || today) : [today];
+  const feed = typeof getCalendarEvents === 'function' ? getCalendarEvents(execIdentity(), execModuleKey) : [];
+  const mine = typeof events !== 'undefined' ? events : [];
+  const byDate = {};
+  feed.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+
+  const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const kindOpts = (typeof EVENT_KINDS !== 'undefined' ? EVENT_KINDS : [{ key: 'meeting', label: 'Meeting' }])
+    .map(k => `<option value="${k.key}">${execEsc(k.label)}</option>`).join('');
+
+  const days = week.map((ds, i) => {
+    const evs = (byDate[ds] || []);
+    const rows = evs.length === 0
+      ? '<p class="xs-cal-empty">Nothing planned.</p>'
+      : evs.map(e => {
+        // Only my own logged entries can be removed — tasks, promised dates
+        // and deliveries are owned by their real records, not the calendar.
+        const own = e.type === 'event' && mine.some(m => m.id === e.ref);
+        const meta = e.type === 'event'
+          ? (mine.find(m => m.id === e.ref) || {})
+          : {};
+        return `<div class="xs-pl-ev">
+          <span class="dot" style="background:${EXEC_CAL_COLOR[e.type] || 'var(--x-ink-3)'}"></span>
+          <span class="txt">${execEsc(e.label)}
+            <span class="sub">${e.type === 'event' ? execEsc([meta.kind, meta.withWhom].filter(Boolean).join(' · ') || 'logged') : execEsc(e.type)}${e.ref ? ' · ' + execEsc(e.ref) : ''}</span>
+          </span>
+          ${e.type === 'task' ? `<button class="rm" title="Mark done" style="color:var(--ok,#0f9d58)" onclick="execCompleteTask('${execEsc(e.ref)}');execRenderPlanner();">✓</button>` : ''}
+          ${own ? `<button class="rm" title="Remove" onclick="execPlannerRemove('${execEsc(e.ref)}')">✕</button>` : ''}
+        </div>`;
+      }).join('');
+    const form = execPlannerFormDay === ds ? `
+      <div class="xs-pl-form">
+        <input data-f="title" type="text" placeholder="What is it?" onkeydown="if(event.key==='Enter')execPlannerSave('${ds}')">
+        <div class="row">
+          <select data-f="kind">${kindOpts}</select>
+          <input data-f="time" type="time">
+        </div>
+        <input data-f="with" type="text" placeholder="With whom (optional)">
+        <input data-f="notes" type="text" placeholder="Notes (optional)">
+        <div class="acts">
+          <button class="save" onclick="execPlannerSave('${ds}')">Save</button>
+          <button class="cancel" onclick="execPlannerShowForm('${ds}')">Cancel</button>
+        </div>
+      </div>` : `<button class="xs-pl-add" onclick="execPlannerShowForm('${ds}')">+ Log meeting or note</button>`;
+    return `<div class="xs-pl-day ${ds === today ? 'today' : ''}">
+      <div class="xs-pl-dayhead"><span class="dow">${dows[i]}</span><span class="dnum">${Number(ds.slice(8))}</span>
+        <span class="dow" style="margin-left:auto;">${ds === today ? 'today' : ''}</span></div>
+      ${rows}${form}
+    </div>`;
+  }).join('');
+
+  const from = new Date(week[0] + 'T00:00:00');
+  const to = new Date(week[6] + 'T00:00:00');
+  const label = from.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' – ' +
+    to.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  host.innerHTML = `
+    <div class="xs-pl-top">
+      <h3>Weekly planner</h3>
+      <div class="xs-pl-nav">
+        <button onclick="execPlannerNav(-1)" aria-label="Previous week">‹</button>
+        <button onclick="execOpenPlanner(execTodayISO())" title="This week" style="width:auto;padding:0 10px;font-size:11.5px;">Today</button>
+        <button onclick="execPlannerNav(1)" aria-label="Next week">›</button>
+      </div>
+      <button onclick="execClosePlanner()" aria-label="Close" style="background:none;border:none;color:var(--x-ink-2);font-size:22px;cursor:pointer;">×</button>
+    </div>
+    <p style="margin:0;padding:8px 14px 0;font-size:11.5px;color:var(--x-ink-3);">${execEsc(label)}</p>
+    <div class="xs-pl-body">${days}</div>`;
+}
+
+const execPlannerEl = document.createElement('div');
+execPlannerEl.id = 'exec-planner';
+execPlannerEl.className = 'xshell xs-planner';   // opts into --x-* tokens + dark mode
+document.body.appendChild(execPlannerEl);
+
 function execCalNav(delta) {
   const today = new Date().toISOString().slice(0, 10);
   const [y, m] = (execCalMonth || today.slice(0, 7)).split('-').map(Number);
@@ -759,6 +947,32 @@ setInterval(() => {
 // navGroups: [{label, items:[{id, ico, label, tag, onclick}]}]
 // Returns the full shell markup; the host module drops it into its wrap
 // and renders its own views into #<contentId>.
+// Session 4: every module's sidebar gets the same Planner quick action, so
+// the tasks/calendar work is reachable without hunting for the panel —
+// appended here rather than copied into all 17 nav configs.
+function execWithSharedNav(groups) {
+  const shared = { label: 'Planner', items: [
+    { id: 'xs-planner', ico: '🗓', label: 'Weekly planner', onclick: 'execOpenPlanner()' },
+    { id: 'xs-tasks', ico: '✓', label: 'My tasks', onclick: "execFocusPanel('tasks')", tag: (() => { try { const n = getOpenTasksForAssignee(execIdentity()).length; return n > 0 ? n : null; } catch (e) { return null; } })() },
+    { id: 'xs-cal', ico: '📅', label: 'Calendar', onclick: "execFocusPanel('calendar')" }
+  ] };
+  return (groups || []).concat([shared]);
+}
+// Opens the sidebar (drawer on mobile, un-collapses on desktop), makes sure
+// the panel is expanded, and scrolls it into view.
+function execFocusPanel(which) {
+  if (which === 'tasks') execTasksOpen = true; else execCalOpen = true;
+  if (typeof execToggleSide === 'function' && window.innerWidth <= 880) execToggleSide(true);
+  const shell = document.querySelector('.xshell.xs-collapsed');
+  if (shell && typeof execToggleCollapse === 'function') execToggleCollapse();
+  execRefreshSidePanels();
+  setTimeout(() => {
+    const panels = [...document.querySelectorAll('.xs-sidepanels')].filter(p => p.offsetParent);
+    const target = panels[panels.length - 1];
+    if (target) target.scrollIntoView({ block: 'nearest' });
+  }, 60);
+}
+
 function execNavHTML(navGroups) {
   return navGroups.map(g => `
     <div class="xs-navlabel">${execEsc(g.label)}</div>
@@ -770,7 +984,7 @@ function execNavHTML(navGroups) {
   `).join('');
 }
 function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
-  const navHtml = execNavHTML(navGroups);
+  const navHtml = execNavHTML(execWithSharedNav(navGroups));
   const me = execIdentity();
   const initials = me.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -1003,7 +1217,7 @@ function execEnsureShell(wrap, { key, title, role, navGroupsFn, closeFn }) {
     wrap.__xsAdopted = true;
   } else {
     const nav = wrap.querySelector('.xs-nav');
-    if (nav) nav.innerHTML = execNavHTML(navGroupsFn());
+    if (nav) nav.innerHTML = execNavHTML(execWithSharedNav(navGroupsFn()));
     const t = wrap.querySelector('.xs-title');
     if (t) t.textContent = title;
     execRefreshSidePanels();

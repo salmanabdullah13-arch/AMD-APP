@@ -3653,12 +3653,26 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "payroll_runs", arr: () => payrollRuns, prefix: "prun:" },
   { table: "app_tasks", arr: () => tasks, prefix: "tsk:" },
   { table: "activity_log", arr: () => activityLog, prefix: "act:" },
+  { table: "app_events", arr: () => events, prefix: "evt:" },
 ];
+
+// Tables that exist in this code but not yet on the live Supabase project.
+// Shipping a collection before schema.sql has been run (applying it is
+// Salman's step) otherwise makes every real login 404 on it — harmless to
+// the app, which already treats a missing table as "not live", but real
+// console noise, and five live e2e suites assert on a clean console.
+// Asking PostgREST which tables exist isn't an option: its root document
+// refuses a publishable key. So this is declared, not discovered.
+// REMOVE an entry once the table is live; the collection then syncs.
+const CLOUD_TABLES_PENDING_DEPLOY = new Set([
+  "app_events"   // added 7 Aug 2026 (Session 4 planner)
+]);
 
 async function initCloudJsonCollections() {
   if (!window.__realCloudSession || !sb || cloudJsonCollectionsInitialized) return;
   cloudJsonCollectionsInitialized = true;
   await Promise.all(CLOUD_JSON_COLLECTIONS.map(async col => {
+    if (CLOUD_TABLES_PENDING_DEPLOY.has(col.table)) { col.live = false; return; }
     const { data, error } = await sb.from(col.table).select("*").order("updated_at", { ascending: true });
     if (error || !data) { col.live = false; return; }   // table not on the live project yet
     col.live = true;
@@ -6470,6 +6484,68 @@ function finalizePayrollRun(runId, by) {
 // to THEM — Salman's instruction), and planned deliveries. Pure read-side
 // aggregation, no new stored state.
 const CAL_DEPT_OF_MODULE = { joinery: "carp", upholstery: "uph", painting: "paint", curtain: "curt" };
+// ═══ CALENDAR EVENTS (backlog Session 4, 7 Aug 2026) ═══
+// Salman wanted to log a meeting or a day's note against a calendar date.
+// Deliberately its OWN array rather than an extension of tasks[] or the
+// cost ledger's labourDayLogs[]: a task is work with a due date and a
+// done state, a labour day-log is costed hours against a production line,
+// and a meeting is neither. Overloading either would have muddied both.
+const events = [];
+const EVENT_KINDS = [
+  { key: 'meeting',  label: 'Meeting',  icon: '👥' },
+  { key: 'site',     label: 'Site visit', icon: '📍' },
+  { key: 'note',     label: 'Day note', icon: '📝' },
+  { key: 'reminder', label: 'Reminder', icon: '⏰' }
+];
+function nextEventId() {
+  const max = events.reduce((m, e) => {
+    const n = parseInt(String(e.id).replace(/^EVT-/, ''), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return 'EVT-' + String(max + 1).padStart(5, '0');
+}
+function createEvent({ title, date, time = null, kind = 'meeting', owner, withWhom = '', linkedJobId = null, notes = '' } = {}) {
+  if (!title || !title.trim()) return { error: 'Give the entry a title.' };
+  if (!date) return { error: 'Pick a date.' };
+  if (!owner) return { error: 'Owner is required.' };
+  if (!EVENT_KINDS.some(k => k.key === kind)) kind = 'meeting';
+  const ev = {
+    id: nextEventId(), title: title.trim(), date, time: time || null, kind,
+    owner, withWhom: (withWhom || '').trim(), linkedJobId, notes: (notes || '').trim(),
+    createdDate: new Date().toISOString().slice(0, 10)
+  };
+  events.push(ev);
+  if (typeof logActivity === 'function') {
+    logActivity({ type: 'event-created', message: `${owner} logged "${ev.title}" on ${date}`, by: owner, linkedType: 'event', linkedId: ev.id });
+  }
+  return ev;
+}
+function deleteEvent(id, by) {
+  const i = events.findIndex(e => e.id === id);
+  if (i === -1) return { error: 'Entry not found.' };
+  // Only the person who logged it can remove it — a shared calendar where
+  // anyone can delete anyone's meeting is worse than no calendar.
+  if (by && events[i].owner !== by) return { error: 'Only ' + events[i].owner + ' can remove this entry.' };
+  return events.splice(i, 1)[0];
+}
+function getEventsForIdentity(identity, { from = null, to = null } = {}) {
+  return events
+    .filter(e => e.owner === identity || (e.withWhom || '').split(',').map(s => s.trim()).includes(identity))
+    .filter(e => (!from || e.date >= from) && (!to || e.date <= to))
+    .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+}
+// Monday-first week containing `dateStr`, as 7 'YYYY-MM-DD' strings.
+function weekDatesOf(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dow);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(d);
+    x.setDate(d.getDate() + i);
+    return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+  });
+}
+
 function getCalendarEvents(identity, moduleKey) {
   const ev = [];
   try {
@@ -6491,6 +6567,12 @@ function getCalendarEvents(identity, moduleKey) {
     if (["owner", "admin", "operations", "delivery", "fleet", null, undefined].includes(moduleKey)) {
       (typeof deliverySchedule !== "undefined" ? deliverySchedule : []).filter(d => d.status === "planned" && d.plannedDate)
         .forEach(d => ev.push({ date: d.plannedDate, type: "delivery", label: "Delivery — " + d.jobId, ref: d.id }));
+    }
+    // My own logged meetings/site visits/notes (Session 4).
+    if (typeof getEventsForIdentity === "function") {
+      getEventsForIdentity(identity).forEach(e => ev.push({
+        date: e.date, type: "event", label: (e.time ? e.time + " " : "") + e.title, ref: e.id
+      }));
     }
   } catch (e) { /* one broken source must never blank the calendar */ }
   return ev.sort((a, b) => a.date.localeCompare(b.date));

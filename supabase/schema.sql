@@ -1134,7 +1134,7 @@ begin
     'tax_invoices','sales_receipts','sales_credit_notes','suppliers',
     'purchase_requests','purchase_orders','purchase_invoices',
     'supplier_payments','debit_notes','app_tasks','activity_log',
-    'labour_day_logs','bom_templates','payroll_runs'
+    'labour_day_logs','bom_templates','payroll_runs','app_events'
   ]
   loop
     execute format('create table if not exists public.%I (id text primary key, payload jsonb not null default ''{}''::jsonb, updated_at timestamptz not null default now())', t);

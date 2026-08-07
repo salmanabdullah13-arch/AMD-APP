@@ -5968,3 +5968,67 @@ from rushing multiple changes into one file pass").
   than half-fixed — it needs its own look, not a guess bolted onto this pass.
   Full offline sweep otherwise: 56/57 suites pass.
 - `sw.js` CACHE_VERSION v15 → v16.
+
+### 7 Aug 2026 — Backlog Session 4: weekly planner, day logging, reachable panels
+
+Fourth of Salman's six backlog sections. Three asks, all built.
+
+- **A real `events[]` primitive** (`data.js`) — `createEvent()`/`deleteEvent()`/
+  `getEventsForIdentity()`/`weekDatesOf()`, four kinds (meeting, site visit,
+  day note, reminder), each with an optional time, "with whom" and notes.
+  Deliberately its own array rather than an extension of `tasks[]` or the
+  cost ledger's `labourDayLogs[]`: a task is work with a due date and a done
+  state, a labour day-log is costed hours against a production line, and a
+  meeting is neither — overloading either would have muddied both. An entry
+  reaches the calendar of whoever logged it *and* of anyone named in
+  "with whom"; only the person who logged it can remove it (a shared
+  calendar where anyone can delete anyone's meeting is worse than none).
+  Entries flow into the existing `getCalendarEvents()` feed, so the sidebar
+  calendar and the planner can never disagree.
+- **Weekly planner** (`exec-shell.js`) — mounted at `document.body` level
+  like the floating chat, so it opens from any module *and* from the home
+  page with no per-module view plumbing and nothing added to 17 nav configs.
+  Monday-first week, ‹ / Today / › navigation, one column per day (stacked
+  on mobile), each showing that day's real feed — my due-dated tasks,
+  role-relevant promised dates, planned deliveries, and logged entries —
+  with an inline "+ Log meeting or note" form per day. Tasks can be
+  completed straight from it.
+- **The sidebar panels scroll and are reachable** — the tasks list and the
+  calendar agenda each get their own scroller rather than pushing the
+  sidebar's footer (and the collapse button) off the bottom, and the tasks
+  panel now lists *every* open task instead of cutting off at 6 with a
+  "+N more" note. A shared **Planner** nav group (Weekly planner / My tasks
+  / Calendar) is appended inside `execShellHTML()` itself, which is the one
+  place every shell passes through — a first attempt wrapped the two
+  `execEnsureShell()` call sites instead and missed Owner and Admin
+  entirely, since both build their shell by calling `execShellHTML()`
+  directly. `execFocusPanel()` opens the drawer on mobile, un-collapses a
+  collapsed sidebar, expands the panel and scrolls it into view.
+- **A real problem this surfaced, fixed properly rather than papered over**:
+  registering the new `app_events` collection made every *real* login 404 on
+  a table that isn't on the live project yet — harmless to the app (the
+  registry already treats a missing table as "not live") but real console
+  noise, and five live e2e suites assert on a clean console. Asking
+  PostgREST which tables exist turned out not to be an option — its root
+  document refuses a publishable key (verified live: 401 "Secret API key
+  required"). So the pending tables are **declared, not discovered**:
+  `CLOUD_TABLES_PENDING_DEPLOY` in data.js, dated, with the instruction to
+  remove an entry once the table is live. All six live suites went back to
+  green.
+- **ACTION NEEDED (Salman)**: run the latest `supabase/schema.sql` (it now
+  also creates `app_events`), then delete `"app_events"` from
+  `CLOUD_TABLES_PENDING_DEPLOY` in data.js so planner entries start syncing
+  across devices. Until then they work normally but live only in the
+  current session.
+- **Verification**: new `e2e-session4-planner.js` (13/13) — the data layer's
+  validation and ownership rules, `weekDatesOf()`'s Monday-first week, a
+  logged entry reaching the shared calendar feed, the Planner group present
+  in more than one module's sidebar, 12 tasks all listed in a real scroller
+  with no "+N more" cut-off, the planner opening from the quick action with
+  today marked, a meeting logged through the real form landing on the right
+  day, removal scoped to its owner, and the planner opening from the home
+  page. `node --check` on every touched file plus the 26-file load-order
+  concatenation; duplicate top-level declaration scan clean. Full offline
+  sweep: 57/58 (the one failure, `e2e-batch8-phase2-4.js`, is the same
+  pre-existing stale suite flagged in Session 3).
+- `sw.js` CACHE_VERSION v16 → v17.
