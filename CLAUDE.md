@@ -5813,3 +5813,51 @@ redundant comms strip and the bottom bar and asked to scratch and redesign.
   full offline sweep clean. Screenshots at 390px light + dark read back.
 - Also landed just before this: the mobile drawer had no way to close at all
   (no ×, no scrim, nav taps left it open) — all three added, sw v12.
+
+### 7 Aug 2026 — Backlog SESSION 1: critical bugs (P0)
+
+Salman compiled a 6-session UX/bug backlog from a mobile screenshot review
+("do all of it", one section per session, don't combine). This is Session 1
+only, per that discipline.
+
+1. **Sign-out "Cancel" still signed you out — fixed.** Root cause found in
+   `closeModuleWrap()` (shell.js): the module wrap was hidden and `#scroll`
+   restored BEFORE `window.confirm('Sign out of AMD-APP?')` ran, so tapping
+   Cancel left the user on the empty Home placeholder — visually
+   indistinguishable from having signed out (cloudSignOut() itself was
+   correctly not called). Restructured so the confirm runs FIRST and
+   cancelling touches nothing; the other two exit paths (undefined home →
+   hub, Owner/Admin home hop) hide only when they actually navigate.
+2. **Header/content overlap on Operations + Curtain — NOT reproducible on
+   the current build; reported rather than "fixed" blindly.** Measured
+   header-bottom vs content-top on Operations, Curtain AND Sales with a
+   simulated 47px notch: 0px overlap everywhere, drawer unclipped
+   (brand top = 0, first item = 50). The shell is a flex column with a
+   `flex:none` header and `flex:1` content, so overlap is structurally
+   impossible. The symptom in Salman's screenshots was the pre-redesign
+   stacked chrome (old topbar + "‹ Home ✓ Built" strip + shell topbar +
+   bottom bar), removed earlier the same day. A permanent regression guard
+   was added to the new suite instead of a speculative CSS change — ask
+   Salman to re-check on the live v14 build.
+3. **Reminders panel items are now real links.** `getExecReminders()`
+   entries carry a `go` route; rows render tappable (hover wash + ›) and
+   close the panel on tap. Routes: sign-ups → Admin/Owner/HR approvals
+   (`execGoSignups()` picks by role), budget approvals → Operations →
+   Budget Approvals, awaiting routing → Operations → New Jobs, urgent /
+   overdue job → that Job Card (`openJobsModule(jobId)`, the existing
+   jump-to-job param), reorder alerts → Storekeeper, task linked to a job →
+   that job, unread messages → opens the floating chat. All hops use the
+   established module-hop pattern (never `close*Module()`, which would
+   prompt a sign-out).
+- **Verification**: new `e2e-session1-bugs.js` 6/6 — Cancel leaves the
+  module open with cloudSignOut never called, OK still signs out, 0px
+  header overlap on three modules with the notch simulated, reminders
+  carry the right routes, and two REAL click-throughs (routing reminder →
+  Operations New Jobs with the panel closed; urgent reminder → that job's
+  hub). Standing battery: node --check individual + 26-file concatenation,
+  duplicate top-level declaration scan (none), onclick/onchange
+  cross-reference (501 handlers, 0 genuinely undefined). Full offline
+  sweep clean. sw.js v14.
+- **Next**: Session 2 (navigation architecture — universal back button +
+  breadcrumbs + nav stack). Per Salman's note that's foundational and the
+  architecture should be confirmed with him before coding.

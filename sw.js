@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v13"; // v13: Operations redesign + dev-era chrome retired
+const CACHE_VERSION = "amd-app-v14"; // v14: Session 1 bug fixes (sign-out cancel, reminder routes)
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

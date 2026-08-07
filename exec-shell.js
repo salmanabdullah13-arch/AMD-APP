@@ -181,6 +181,8 @@ execStyleTag.textContent = `
 .xs-panel-body{max-height:min(430px,60vh);overflow-y:auto;}
 .xs-rem{display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid var(--x-hairline);}
 .xs-rem:last-child{border-bottom:none;}
+.xs-rem-go{cursor:pointer;}
+.xs-rem-go:hover{background:var(--x-wash);}
 .xs-rem-dot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex:none;}
 .xs-rem-title{font-size:12.3px;font-weight:550;line-height:1.4;color:var(--x-ink);margin:0;}
 .xs-rem-meta{font-size:10.5px;color:var(--x-ink-3);margin:2px 0 0;}
@@ -376,36 +378,38 @@ function execIdentity() { return window.cloudIdentity || 'Salman Abdullah'; }
 // ── reminders: real signals only ─────────────────────────────────────
 function getExecReminders() {
   const R = [];
-  const push = (sev, title, meta, code) => R.push({ sev, title, meta, code });
+  // 7 Aug 2026 (Salman): reminders were dead text — each one now carries a
+  // route to the screen where the work actually happens.
+  const push = (sev, title, meta, code, go) => R.push({ sev, title, meta, code, go });
   try {
     if (typeof approvalQueueRows !== 'undefined' && approvalQueueRows.length) {
-      push('critical', `${approvalQueueRows.length} sign-up${approvalQueueRows.length === 1 ? '' : 's'} awaiting approval`, 'Approvals', null);
+      push('critical', `${approvalQueueRows.length} sign-up${approvalQueueRows.length === 1 ? '' : 's'} awaiting approval`, 'Tap to review', null, 'execGoSignups()');
     }
     if (typeof getPendingBudgetApprovalsFor === 'function') {
       const b = getPendingBudgetApprovalsFor('owner');
-      if (b.length) push('serious', `${b.length} department budget${b.length === 1 ? '' : 's'} awaiting your approval`, b.slice(0, 2).map(r => `${r.job.id} · ${dc(r.deptKey).n}`).join(' · '), b[0].job.id);
+      if (b.length) push('serious', `${b.length} department budget${b.length === 1 ? '' : 's'} awaiting your approval`, b.slice(0, 2).map(r => `${r.job.id} · ${dc(r.deptKey).n}`).join(' · '), b[0].job.id, "execGoOps('budgetapprovals')");
     }
     if (typeof getJobsPendingRouting === 'function') {
       const r = getJobsPendingRouting();
-      if (r.length) push('warning', `${r.length} confirmed job${r.length === 1 ? '' : 's'} awaiting routing`, 'Operations → New Jobs', r[0].id);
+      if (r.length) push('warning', `${r.length} confirmed job${r.length === 1 ? '' : 's'} awaiting routing`, 'Operations → New Jobs', r[0].id, "execGoOps('alerts')");
     }
     if (typeof jobCards !== 'undefined') {
       jobCards.filter(j => j.status === 'open' && j.urgent).forEach(j =>
-        push('critical', `URGENT: ${j.projectName}`, `${j.id}${j.promisedDate ? ' · promised ' + j.promisedDate : ''}`, j.id));
+        push('critical', `URGENT: ${j.projectName}`, `${j.id}${j.promisedDate ? ' · promised ' + j.promisedDate : ''}`, j.id, `execGoJob('${j.id}')`));
       jobCards.filter(j => j.status === 'open' && !j.urgent && j.promisedDate && j.promisedDate < todayStrGlobal() && !jobProductionComplete(j)).forEach(j =>
-        push('serious', `Promised date overdue: ${j.projectName}`, `${j.id} · promised ${j.promisedDate}`, j.id));
+        push('serious', `Promised date overdue: ${j.projectName}`, `${j.id} · promised ${j.promisedDate}`, j.id, `execGoJob('${j.id}')`));
     }
     if (typeof getReorderAlerts === 'function') {
       const ro = getReorderAlerts();
-      if (ro.length) push('warning', `${ro.length} stock item${ro.length === 1 ? '' : 's'} at/below reorder level`, ro.slice(0, 2).map(r => r.itemName).join(' · '), null);
+      if (ro.length) push('warning', `${ro.length} stock item${ro.length === 1 ? '' : 's'} at/below reorder level`, ro.slice(0, 2).map(r => r.itemName).join(' · '), null, 'execGoStock()');
     }
     if (typeof getOpenTasksForAssignee === 'function') {
       getOpenTasksForAssignee(execIdentity()).forEach(t =>
-        push(t.dueDate && t.dueDate < todayStrGlobal() ? 'serious' : 'info', t.title, `${t.dueDate ? 'due ' + t.dueDate : 'no due date'}${t.linkedId ? ' · ' + t.linkedId : ''}`, t.id));
+        push(t.dueDate && t.dueDate < todayStrGlobal() ? 'serious' : 'info', t.title, `${t.dueDate ? 'due ' + t.dueDate : 'no due date'}${t.linkedId ? ' · ' + t.linkedId : ''}`, t.id, t.linkedType === 'job' && t.linkedId ? `execGoJob('${t.linkedId}')` : null));
     }
     if (typeof getUnreadCountFor === 'function') {
       const u = getUnreadCountFor(execIdentity());
-      if (u) push('info', `${u} unread message${u === 1 ? '' : 's'}`, 'Open the chat panel', null);
+      if (u) push('info', `${u} unread message${u === 1 ? '' : 's'}`, 'Tap to open chat', null, 'execToggleChat(true)');
     }
   } catch (e) { /* a broken signal must never blank the whole panel */ }
   const order = { critical: 0, serious: 1, warning: 2, info: 3 };
@@ -427,15 +431,35 @@ function execRenderReminders() {
     body.innerHTML = R.length === 0
       ? `<div class="xs-rem"><p class="xs-rem-title" style="color:var(--x-ink-3);">Nothing needs your attention right now.</p></div>`
       : R.map(r => `
-        <div class="xs-rem">
+        <div class="xs-rem${r.go ? ' xs-rem-go' : ''}"${r.go ? ` onclick="execToggleReminders(false);${r.go}"` : ''}>
           <span class="xs-rem-dot" style="background:${EXEC_SEV_COLOR[r.sev]}"></span>
-          <div style="min-width:0;">
+          <div style="min-width:0;flex:1;">
             <p class="xs-rem-title">${execEsc(r.title)}${r.code ? `<span class="xs-rem-code">${execEsc(r.code)}</span>` : ''}</p>
             <p class="xs-rem-meta">${execEsc(r.meta)}</p>
           </div>
+          ${r.go ? '<span style="color:var(--x-ink-3);font-size:15px;align-self:center;flex:none;">›</span>' : ''}
         </div>`).join('');
   });
 }
+// ── reminder routes ──────────────────────────────────────────────────
+// Each opens the module that owns the work, then its own view function —
+// same module-hop pattern as ownerGoTo/salesRequestPurchase (never
+// close*Module(), which would prompt a sign-out).
+function execGoSignups() {
+  if (typeof launchAdminModule === 'function' && window.cloudUserType === 'admin') { launchAdminModule(); if (typeof adminSetView === 'function') adminSetView('approvals'); return; }
+  if (typeof launchOwnerModule === 'function') { launchOwnerModule(); if (typeof ownerNav === 'function') ownerNav('approvals'); return; }
+  if (typeof launchHRModule === 'function') { launchHRModule(); if (typeof hrSetView === 'function') hrSetView('approvals'); }
+}
+function execGoOps(page) {
+  if (typeof openOperationsModule === 'function') { openOperationsModule(); if (typeof opsGoTo === 'function' && page) opsGoTo(page); }
+}
+function execGoJob(jobId) {
+  if (typeof openJobsModule === 'function') openJobsModule(jobId);   // jumps straight to that job's hub
+}
+function execGoStock() {
+  if (typeof openStorekeeperModule === 'function') { openStorekeeperModule(); if (typeof skGoTo === 'function') skGoTo('dashboard'); }
+}
+
 function execRefreshBadges() {
   const R = getExecReminders();
   const unread = typeof getUnreadCountFor === 'function' ? getUnreadCountFor(execIdentity()) : 0;

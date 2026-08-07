@@ -178,23 +178,30 @@ function hideModuleWrap(wrapEl) {
 }
 
 function closeModuleWrap(wrapEl, homeFnName) {
-  if (wrapEl) wrapEl.style.display = 'none';
-  const scroll = document.getElementById('scroll');
-  if (scroll) scroll.style.display = '';
+  const hide = () => {
+    if (wrapEl) wrapEl.style.display = 'none';
+    const scroll = document.getElementById('scroll');
+    if (scroll) scroll.style.display = '';
+  };
   const home = window.__dashboardHome;
   if (home === undefined) {
     // window.__dashboardHome isn't assigned until the direct-landing login
     // flow (Phase 3) sets it — until then, fall back to the pre-existing
     // "return to hub" behavior so nothing breaks mid-rollout.
+    hide();
     if (typeof goTo === 'function') goTo('eco');
     return;
   }
   if (home && home !== homeFnName) {
-    if (typeof window[home] === 'function') { window[home](); return; }
+    if (typeof window[home] === 'function') { hide(); window[home](); return; }
   }
-  if (window.confirm('Sign out of AMD-APP?')) {
-    if (typeof cloudSignOut === 'function') cloudSignOut();
-  }
+  // BUG FIX (7 Aug 2026, Salman): the module used to be hidden BEFORE this
+  // confirm, so tapping Cancel still dumped the user onto the empty Home
+  // screen — indistinguishable from being signed out. Ask first; cancelling
+  // now leaves them exactly where they were, untouched.
+  if (!window.confirm('Sign out of AMD-APP?')) return;
+  hide();
+  if (typeof cloudSignOut === 'function') cloudSignOut();
 }
 
 // Nav overhaul Phase 4 (5 Aug 2026) — the bottom nav's old "Ecosystem"
