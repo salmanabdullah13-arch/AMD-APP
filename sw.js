@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v24"; // v24: Owner KPI band pairs up on mobile
+const CACHE_VERSION = "amd-app-v25"; // v25: PATCH20260808 + planner background fix
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

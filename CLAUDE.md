@@ -6419,3 +6419,65 @@ disagreed; his call settles it in favour of the prototype.
   Sales suite; all clean. Screenshot at 390px read back and compared against
   the prototype.
 - `sw.js` CACHE_VERSION v23 → v24.
+
+### 8 Aug 2026 — PATCH20260808 applied, plus a real planner bug found in passing
+
+Salman sent `PATCH20260808.md` — four changes against the Owner dashboard
+package — and, mid-run, a screenshot of the Week planner rendering broken.
+
+**§1 · bar charts: never put a label inside the fill (the patch calls this a
+bug that already shipped).** Audited all five bars in the file rather than
+just the named one. Only the pipeline funnel broke the rule — its label sat
+*inside* the percentage-width fill, so a low-count stage wrapped and clipped
+("Job Confirmed · 74" as two crushed lines). Rebuilt to the patch's shape:
+label above, fill inside a full-width track, so every row is drawn to the
+same scale and a short stage stays readable. Values now render in full BD
+format, as the patch requires. The other four bars (division share, clients,
+cash, purchases) already used the label-above pattern or, in `.od-share`'s
+case, the fixed-width label column the patch explicitly permits — checked
+rather than assumed, and the new test asserts no fill anywhere contains text.
+
+**§2 · Profit & loss**, span 2, directly above Department quality, with a
+Quarterly / Running segmented switch. Revenue is invoiced (`taxInvoices`) and
+cost is purchased (`purchaseInvoices`) — the same two transactional sources
+the app's own P&L report reads rather than the ledger layer, for the reason
+recorded when that report was built: the seed Chart of Accounts files Sales
+under Current Assets, so a pure-GL P&L shows zero direct income. Three bars
+per period in their own tracks, a headline with margin and the point change
+against the previous period, the current quarter flagged "part-quarter to
+date" so a short bar doesn't read as a collapse in trade, and the millions
+format above a thousand-k. The patch's "Owner and Accounts only, never Sales"
+is enforced with a real guard, not just by where the card lives.
+
+**§3 · back arrow** moved next to Quick actions and *grouped* with it in one
+flex wrapper — the topbar is `space-between`, so an ungrouped arrow drifts to
+the far left, which is exactly what the patch warns about. Secondary chrome:
+transparent, hairline border, 36px on a phone. It still hides itself on a
+dashboard root.
+
+**§4 · week planner period navigation** was already built (Week/Month,
+`‹ Today ›`, and the selection moving with the period) — verified rather than
+rebuilt.
+
+**The planner bug, from Salman's screenshot.** The overlay was painting
+`background:var(--x-bg)` — and `--x-bg` has never been a token in this app;
+the shell's page surface is `--x-plane`. An undefined custom property
+resolves to nothing, so the overlay was fully transparent and the dashboard
+underneath showed straight through it, which is exactly what he photographed.
+Two occurrences fixed. Worth remembering as a class: a typo'd CSS variable
+fails silently and looks like a layering bug.
+
+- **Verification**: `e2e-owner-dashboard.js` 35/35 — the card set updated for
+  the new P&L position, plus new checks for each patch rule: no bar fill
+  anywhere contains text, all four funnel stages share one track width (so
+  the rows are on one scale), values match full BD format, the P&L's three
+  bars and part-quarter flag, the Quarterly/Running switch, P&L refusing to
+  render for a Sales role, and the back arrow being grouped, secondary and
+  hidden on root. A new probe asserts the planner is opaque at both widths by
+  hit-testing a point near the bottom of the screen. Full offline sweep
+  60/61, the one failure being the long-standing stale suite.
+- **Not built, and not assumed**: the second screenshot is a much richer
+  planner (decision queue, filters, per-day timed cards, crew capacity). That
+  is a design, not a glitch — flagged for its own pass rather than folded in
+  silently here.
+- `sw.js` CACHE_VERSION v24 → v25.

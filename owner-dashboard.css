@@ -212,8 +212,26 @@
 }
 
 /* ------------------------------------------------------------- funnel --- */
-.od-funnel{ display:flex; flex-direction:column; gap:8px; }
-.od-fstep{ height:26px; border-radius:6px; display:flex; align-items:center; padding:0 8px; color:#fff; font-size:11.5px; font-weight:600; }
+/* PATCH 08 Aug 2026 §1 — a bar's fill must never share a flex line with text.
+   The old .od-fstep put the label inside the fill, so a low-count stage got a
+   narrow bar with a wrapped, clipped label. Label above, fill inside a
+   full-width track: short stages stay readable and every row is to scale. */
+.od-funnel{ display:flex; flex-direction:column; gap:11px; }
+.od-fstep-h{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:4px; }
+.od-fstep-l{ font-size:12px; font-weight:600; color:var(--tx); }
+.od-fstep-v{ flex:none; font-size:10.5px; color:var(--tx3); white-space:nowrap; }
+.od-track{ display:block; width:100%; height:10px; border-radius:5px; background:var(--line2); }
+.od-track i{ display:block; height:10px; border-radius:5px; }
+@media (max-width:880px){ .od-track, .od-track i{ height:9px; } }
+
+/* --------------------------------------------------------- profit & loss --- */
+.od-pnl{ display:flex; flex-direction:column; gap:16px; }
+@media (min-width:881px){ .od-pnl{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px; } }
+.od-pnl-q{ display:flex; flex-direction:column; gap:11px; }
+.od-pnl-qh{ display:flex; align-items:baseline; gap:7px; font-size:11px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--tx3); }
+.od-pnl-part{ font-size:9.5px; font-weight:600; letter-spacing:0; text-transform:none;
+  color:var(--tx3); opacity:.85; }
 
 /* ------------------------------------------------------------- health --- */
 .od-health{ display:flex; height:10px; border-radius:5px; overflow:hidden; gap:2px; }

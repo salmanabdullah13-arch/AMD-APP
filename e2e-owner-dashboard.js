@@ -54,11 +54,12 @@ function printReport() {
   });
   const expected = ['This week', 'My tasks', 'Recent activity', 'Company health',
     'By department', 'Revenue by division', 'Cash in hand', 'Recent expenses',
-    'Top purchases', 'Pipeline funnel', 'Top clients', 'Department quality'];
+    // PATCH20260808 §2 put Profit & loss directly above Department quality
+    'Top purchases', 'Pipeline funnel', 'Top clients', 'Profit & loss', 'Department quality'];
   record('Four KPI tiles lead, then the twelve cards in the handoff\'s row order',
     layout.kpis === 4 && JSON.stringify(layout.cards) === JSON.stringify(expected) ? 'PASS' : 'FAIL', JSON.stringify(layout.cards));
-  record('The span-2 cards are exactly By department, Revenue by division, Top purchases and Department quality',
-    JSON.stringify(layout.spans) === JSON.stringify(['By department', 'Revenue by division', 'Top purchases', 'Department quality']) ? 'PASS' : 'FAIL', JSON.stringify(layout.spans));
+  record('The span-2 cards are By department, Revenue by division, Top purchases, Profit & loss and Department quality',
+    JSON.stringify(layout.spans) === JSON.stringify(['By department', 'Revenue by division', 'Top purchases', 'Profit & loss', 'Department quality']) ? 'PASS' : 'FAIL', JSON.stringify(layout.spans));
   record('Desktop renders the four-column grid', layout.cols === 4 ? 'PASS' : 'FAIL', 'columns=' + layout.cols);
   record('Company health sits next to Recent activity (an explicit request)',
     layout.cards.indexOf('Company health') === layout.cards.indexOf('Recent activity') + 1 ? 'PASS' : 'FAIL');
@@ -185,6 +186,79 @@ function printReport() {
   });
   record('None of the handoff\'s invented sample data shipped', live.leakedMockData.length === 0 ? 'PASS' : 'FAIL', live.leakedMockData.join(', '));
   record('Active jobs shows the real job count', live.activeJobsTile === live.realJobCount ? 'PASS' : 'FAIL', JSON.stringify(live));
+
+  // ── PATCH20260808 §1: a bar fill must never share a flex line with text ──
+  currentStep = 'patch-bars';
+  const bars = await page.evaluate(() => {
+    const body = document.getElementById('owner-body');
+    // every fill in the dashboard, wherever it lives
+    const fills = [...body.querySelectorAll('.od-track i, .od-bar i, .od-fstep')];
+    const withText = fills.filter(f => f.textContent.trim().length).map(f => f.textContent.trim().slice(0, 30));
+    const rows = [...body.querySelectorAll('.od-funnel > div')];
+    const trackW = [...new Set(rows.map(r => Math.round(r.querySelector('.od-track').getBoundingClientRect().width)))];
+    return {
+      withText,
+      // all four stage tracks must be the same length, or the rows are on
+      // different scales and the chart misrepresents the data
+      trackWidths: trackW.length,
+      values: rows.map(r => r.querySelector('.od-fstep-v').textContent),
+      labels: rows.map(r => r.querySelector('.od-fstep-l').textContent)
+    };
+  });
+  record('No bar fill anywhere on the dashboard contains text',
+    bars.withText.length === 0 ? 'PASS' : 'FAIL', bars.withText.join(' | '));
+  record('Every funnel stage is drawn on the same track, so the rows share one scale',
+    bars.trackWidths === 1 ? 'PASS' : 'FAIL', 'distinct track widths=' + bars.trackWidths);
+  record('Funnel values render in full BD format, not a shortened k figure',
+    bars.values.every(v => /^BD [\d,]+\.\d{3}$/.test(v)) ? 'PASS' : 'FAIL', bars.values.join(', '));
+
+  // ── PATCH20260808 §2: profit & loss ──
+  currentStep = 'patch-pnl';
+  const pnl = await page.evaluate(async () => {
+    const card = [...document.querySelectorAll('#owner-body .od-card')].filter(c => /Profit & loss/.test(c.textContent))[0];
+    const quarterly = card.querySelectorAll('.od-pnl-q').length;
+    const barsPer = card.querySelectorAll('.od-pnl-q')[0].querySelectorAll('.od-track').length;
+    document.querySelector('#owner-body [data-act="pnlmode"][data-v="Running"]').click();
+    await new Promise(r => setTimeout(r, 250));
+    const c2 = [...document.querySelectorAll('#owner-body .od-card')].filter(c => /Profit & loss/.test(c.textContent))[0];
+    const running = c2.textContent.includes('cumulative year to date');
+    document.querySelector('#owner-body [data-act="pnlmode"][data-v="Quarterly"]').click();
+    await new Promise(r => setTimeout(r, 250));
+    return { quarterly, barsPer, running, partial: /part-quarter to date/.test(card.textContent) };
+  });
+  record('Profit & loss shows three bars per period and flags the part-quarter',
+    pnl.barsPer === 3 && pnl.partial ? 'PASS' : 'FAIL', JSON.stringify(pnl));
+  record('The Quarterly / Running switch flips the same data to cumulative',
+    pnl.running ? 'PASS' : 'FAIL', JSON.stringify(pnl));
+
+  const pnlSales = await page.evaluate(() => {
+    // The patch: "Owner and Accounts only. This card must never render for Sales."
+    const was = window.cloudUserType;
+    window.cloudUserType = 'sales';
+    const html = OwnerDashboard.render();
+    window.cloudUserType = was;
+    return { rendersForSales: /Profit &amp; loss|Profit & loss/.test(html) };
+  });
+  record('Profit & loss never renders for a Sales role',
+    !pnlSales.rendersForSales ? 'PASS' : 'FAIL', JSON.stringify(pnlSales));
+
+  // ── PATCH20260808 §3: back arrow grouped with Quick actions ──
+  currentStep = 'patch-back';
+  const back = await page.evaluate(() => {
+    const group = document.querySelector('#owner-module-wrap .xs-qa-row-top');
+    if (!group) return { grouped: false };
+    const b = group.querySelector('.xs-back'), q = group.querySelector('.xs-qa');
+    return {
+      grouped: !!b && !!q,
+      backLeftOfQa: !!b && !!q && (b.compareDocumentPosition(q) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      hiddenOnRoot: !!b && getComputedStyle(b).display === 'none',
+      secondary: !!b && getComputedStyle(b).backgroundColor === 'rgba(0, 0, 0, 0)'
+    };
+  });
+  record('Back sits immediately left of Quick actions, grouped with it, and is secondary chrome',
+    back.grouped && back.backLeftOfQa && back.secondary ? 'PASS' : 'FAIL', JSON.stringify(back));
+  record('It hides on the dashboard root, where there is nothing to go back to',
+    back.hiddenOnRoot ? 'PASS' : 'FAIL', JSON.stringify(back));
 
   // ── shell changes the handoff depends on ──
   currentStep = 'shell';

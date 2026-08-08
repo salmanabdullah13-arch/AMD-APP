@@ -283,7 +283,9 @@ window.OwnerDashboard = (function () {
 
   /* --- funnel / clients / quality ----------------------------------------- */
   function buildPipeline() {
-    // getPipelineFunnel() returns {stages:[names], byStage:{name:{count,value}}}.
+    // PATCH 08 Aug 2026 §1: the funnel now carries the stage's value as well
+    // as its count, in full BD format — the old build put a shortened "386.9k"
+    // in a narrow grey column, which is neither the house format nor legible.
     var src = safe(getPipelineFunnel, null);
     var stages = (src && src.stages) || [];
     var byStage = (src && src.byStage) || {};
@@ -293,9 +295,9 @@ window.OwnerDashboard = (function () {
       var c = (byStage[st] && byStage[st].count) || 0;
       return {
         label: st + ' · ' + c,
-        w: top ? Math.max(12, Math.round(c / top * 100)) : 100,
-        c: ramp[i % 4],
-        fg: i === 3 ? 'var(--wine)' : '#fff'
+        value: bd((byStage[st] && byStage[st].value) || 0),
+        w: top ? Math.max(4, Math.round(c / top * 100)) : 0,
+        c: ramp[i % 4]
       };
     });
 
@@ -313,6 +315,109 @@ window.OwnerDashboard = (function () {
       var pct = tot ? Math.round((t.passed || 0) / tot * 100) : 0;
       return { n: q[1], pct: pct, tone: tot === 0 || pct >= 85 ? 'ok' : 'warn' };
     });
+  }
+
+  /* --- profit & loss (PATCH 08 Aug 2026 §2) -------------------------------
+     Quarterly or running-cumulative revenue, cost and net profit. Revenue is
+     invoiced (taxInvoices) and cost is purchased (purchaseInvoices) — the same
+     two transactional sources the app's own P&L report reads, rather than the
+     ledger layer, for the reason recorded when that report was built: the seed
+     Chart of Accounts files Sales under Current Assets, so a pure-GL P&L shows
+     zero direct income. Figures are in thousands, as the patch's own shape is. */
+  function buildPnl() {
+    var now = new Date(), year = now.getFullYear();
+    function qOf(isoStr) {
+      if (!isoStr) return -1;
+      var d = new Date(isoStr + 'T00:00:00');
+      return isNaN(d) || d.getFullYear() !== year ? -1 : Math.floor(d.getMonth() / 3);
+    }
+    var rows = [0, 1, 2, 3].map(function (q) { return { q: 'Q' + (q + 1) + ' ' + year, rev: 0, cost: 0 }; });
+    (typeof taxInvoices !== 'undefined' ? taxInvoices : []).forEach(function (inv) {
+      var q = qOf(inv.date); if (q >= 0) rows[q].rev += ((inv.totals && inv.totals.netTotal) || 0) / 1000;
+    });
+    (typeof purchaseInvoices !== 'undefined' ? purchaseInvoices : []).forEach(function (pi) {
+      var q = qOf(pi.date); if (q >= 0) rows[q].cost += ((pi.totals && pi.totals.netAmount) || 0) / 1000;
+    });
+    /* The quarter we're in is only part-way through. Saying so keeps a short
+       bar from reading as a collapse in trade. */
+    var thisQ = Math.floor(now.getMonth() / 3);
+    rows[thisQ].partial = true;
+    DATA.pnl = rows.slice(0, thisQ + 1);
+  }
+  /* Above a thousand-k, read as millions — running mode crosses that. */
+  function pnlFmt(k) {
+    return k >= 1000 ? 'BD ' + (k / 1000).toFixed(2) + 'm' : 'BD ' + k.toFixed(1) + 'k';
+  }
+  function pnlSeries() {
+    var rows = DATA.pnl || [];
+    if (S.pnlMode !== 'Running') return rows.slice();
+    var rev = 0, cost = 0;
+    return rows.map(function (r) {
+      rev += r.rev; cost += r.cost;
+      return { q: r.q, rev: rev, cost: cost, partial: r.partial };
+    });
+  }
+  function pnlCard(){
+    /* The patch's own rule: Owner and Accounts only, never Sales. The Owner
+       dashboard is already role-gated, so this is belt and braces — but the
+       rule it enforces is the fraud-prevention one, so it is worth the line. */
+    if (typeof isSalesRole === 'function' && isSalesRole()) return '';
+    var rows = pnlSeries();
+    if (!rows.length) {
+      return '<section class="od-card od-span2">' +
+        '<div class="od-title">Profit &amp; loss</div>' +
+        '<div class="od-sub" style="margin-bottom:2px">Nothing invoiced or purchased yet this year.</div>' +
+      '</section>';
+    }
+    var last = rows[rows.length - 1], prev = rows.length > 1 ? rows[rows.length - 2] : null;
+    var net = last.rev - last.cost;
+    var margin = last.rev ? (net / last.rev * 100) : 0;
+    var prevMargin = prev && prev.rev ? ((prev.rev - prev.cost) / prev.rev * 100) : null;
+    var pts = prevMargin === null ? null : Math.round((margin - prevMargin) * 10) / 10;
+    var peak = rows.reduce(function (m, r) { return Math.max(m, r.rev, r.cost, Math.abs(r.rev - r.cost)); }, 0) || 1;
+
+    function bar(label, val, colour) {
+      return '<div>' +
+        '<div class="od-fstep-h">' +
+          '<span class="od-fstep-l">' + esc(label) + '</span>' +
+          '<span class="od-fstep-v">' + esc(pnlFmt(val)) + '</span>' +
+        '</div>' +
+        // a genuinely zero period draws nothing; a small non-zero one keeps a
+        // visible 1% rather than rounding away to an empty track
+        '<span class="od-track"><i style="width:' + (val ? Math.max(1, Math.round(Math.abs(val) / peak * 100)) : 0) + '%;background:' + colour + '"></i></span>' +
+      '</div>';
+    }
+
+    var groups = rows.map(function (r) {
+      var n = r.rev - r.cost;
+      return '<div class="od-pnl-q">' +
+        '<div class="od-pnl-qh">' + esc(r.q) +
+          (r.partial ? '<span class="od-pnl-part">part-quarter to date</span>' : '') + '</div>' +
+        bar('Revenue', r.rev, 'var(--wine)') +
+        bar('Cost', r.cost, 'var(--wine-line)') +
+        bar('Net profit', n, n < 0 ? 'var(--bad)' : 'var(--ok)') +
+      '</div>';
+    }).join('');
+
+    return '<section class="od-card od-span2">' +
+      '<div class="od-card-h" style="margin-bottom:4px">' +
+        '<span class="od-title">Profit &amp; loss</span>' +
+        '<div class="od-seg" role="tablist">' +
+          ['Quarterly','Running'].map(function(k){
+            return '<button role="tab" aria-selected="' + (S.pnlMode === k) + '" data-act="pnlmode" data-v="' + k + '">' + k + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+      '<div class="od-sub" style="margin-bottom:12px">Invoiced revenue against purchased cost' +
+        (S.pnlMode === 'Running' ? ' · cumulative year to date' : ' · per quarter') + '</div>' +
+      '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:13px">' +
+        '<span style="font-size:24px;font-weight:650;letter-spacing:-.02em;color:' + (net < 0 ? 'var(--bad)' : 'var(--tx)') + '">' + esc(pnlFmt(net)) + '</span>' +
+        '<span style="font-size:12px;color:var(--tx3)">net · ' + margin.toFixed(1) + '% margin</span>' +
+        (pts === null ? '' : '<span style="font-size:11.5px;font-weight:700;color:var(--' + (pts >= 0 ? 'ok' : 'bad') + ')">' +
+          (pts >= 0 ? '▲ ' : '▼ ') + Math.abs(pts).toFixed(1) + ' pts</span>') +
+      '</div>' +
+      '<div class="od-pnl">' + groups + '</div>' +
+    '</section>';
   }
 
   /* --- money: cash, expenses, purchases ----------------------------------- */
@@ -489,7 +594,7 @@ window.OwnerDashboard = (function () {
 
   function buildData() {
     buildKpis(); buildDept(); buildDivisions(); buildPipeline();
-    buildMoney(); buildHealth(); buildFeeds(); loadTasks();
+    buildMoney(); buildPnl(); buildHealth(); buildFeeds(); loadTasks();
     S.lists = LISTS.slice();
   }
 
@@ -500,6 +605,7 @@ window.OwnerDashboard = (function () {
     tasksOpen:true, weekOpen:true,
     taskFilter:'all',
     nextTask:128, nextList:1,
+    pnlMode:'Quarterly',
     planScope:'Week', planOffset:0,
     selDate:new Date().toISOString().slice(0,10),   // real today, per the README
     lists:LISTS.slice(),
@@ -790,10 +896,19 @@ window.OwnerDashboard = (function () {
   /* --- small reference cards --------------------------------------------- */
 
   function funnelCard(){
+    /* PATCH 08 Aug 2026 §1 — a bar's fill must not share a flex line with any
+       text. The label sits above; the fill lives inside a full-width track, so
+       a short stage stays readable and every row is drawn to the same scale. */
     return '<section class="od-card">' +
       '<div class="od-title" style="margin-bottom:11px">Pipeline funnel</div>' +
       '<div class="od-funnel">' + DATA.funnel.map(function(f){
-        return '<div class="od-fstep" style="width:' + f.w + '%;background:' + f.c + ';color:' + f.fg + '">' + esc(f.label) + '</div>';
+        return '<div>' +
+          '<div class="od-fstep-h">' +
+            '<span class="od-fstep-l">' + esc(f.label) + '</span>' +
+            '<span class="od-fstep-v">' + esc(f.value) + '</span>' +
+          '</div>' +
+          '<span class="od-track"><i style="width:' + f.w + '%;background:' + f.c + '"></i></span>' +
+        '</div>';
       }).join('') + '</div>' +
     '</section>';
   }
@@ -923,7 +1038,9 @@ window.OwnerDashboard = (function () {
       /* row 4 — money */
       cashCard() + expensesCard() + purchasesCard() +
       /* row 5 — pipeline and quality */
-      funnelCard() + clientsCard() + qualityCard() +
+      funnelCard() + clientsCard() +
+      /* PATCH 08 Aug 2026 §2 — directly above Department quality */
+      pnlCard() + qualityCard() +
     '</div>';
   }
 
@@ -958,6 +1075,7 @@ window.OwnerDashboard = (function () {
     pickday: function(el){ S.selDate = el.getAttribute('data-d'); },
 
     dept:   function(el){ S.dept = el.getAttribute('data-v'); },
+    pnlmode: function(el){ S.pnlMode = el.getAttribute('data-v'); },
     filter: function(el){ S.taskFilter = el.getAttribute('data-v'); },
 
     /* The four task actions write to the app's real tasks[] so they persist

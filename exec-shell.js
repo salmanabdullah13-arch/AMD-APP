@@ -121,8 +121,9 @@ execStyleTag.textContent = `
 .xshell.xs-collapsed .xs-collapse-chev{margin-left:0;}
 /* Quick actions: promoted out of the sidebar to the top-left of the content
    area, above the page title — reachable before any scrolling. */
+.xs-qa-row-top{display:flex;align-items:center;gap:9px;margin-bottom:4px;}
 .xs-qa{
-  display:inline-flex;align-items:center;gap:6px;margin-bottom:4px;padding:5px 11px;
+  display:inline-flex;align-items:center;gap:6px;padding:5px 11px;
   border-radius:9px;border:0;cursor:pointer;background:var(--x-brand);color:#fff;
   font-size:11.5px;font-weight:650;letter-spacing:.01em;
 }
@@ -191,11 +192,14 @@ execStyleTag.textContent = `
    breadcrumb trail, so no screen is ever a dead end and you can always see
    where you are. Salman: "no back button anywhere to go back to previous
    pages" + the sidebar silently changing context after a module hop. ── */
+/* PATCH 08 Aug 2026 §3: secondary chrome — transparent, hairline border,
+   never competing with the wine primary beside it. 36px on a phone. */
 .xs-back{
   width:34px;height:34px;border-radius:50%;flex:none;display:none;place-items:center;
-  background:var(--x-surface-2);border:1px solid var(--x-hairline);cursor:pointer;
+  background:transparent;border:1px solid var(--x-hairline);cursor:pointer;
   font-size:17px;color:var(--x-ink-2);font-family:inherit;line-height:1;
 }
+@media(max-width:880px){ .xs-back{width:36px;height:36px;} }
 .xs-back.on{display:grid;}
 .xs-back:hover{border-color:var(--x-brand);color:var(--x-ink);}
 .xs-crumbs{
@@ -346,7 +350,10 @@ execStyleTag.textContent = `
 .xs-sp-link:hover{text-decoration:underline;}
 
 /* ---- weekly planner overlay (Session 4) ---- */
-.xs-planner{position:fixed;inset:0;z-index:150;background:var(--x-bg);display:none;flex-direction:column;}
+/* --x-bg is not a token — the shell's page surface is --x-plane. This said
+   var(--x-bg), so the overlay painted nothing and the dashboard underneath
+   showed through it (fixed 8 Aug 2026 from Salman's screenshot). */
+.xs-planner{position:fixed;inset:0;z-index:150;background:var(--x-plane);display:none;flex-direction:column;}
 .xs-planner.open{display:flex;}
 .xs-pl-top{display:flex;align-items:center;gap:10px;padding:calc(12px + var(--safe-top,0px)) 14px 12px;
   border-bottom:1px solid var(--x-hairline);background:var(--x-surface);flex:none;}
@@ -373,7 +380,7 @@ execStyleTag.textContent = `
 .xs-pl-add:hover{color:var(--x-brand-bright);border-color:var(--x-brand-bright);}
 .xs-pl-form{margin-top:8px;display:grid;gap:6px;}
 .xs-pl-form input,.xs-pl-form select,.xs-pl-form textarea{
-  width:100%;background:var(--x-bg);border:1px solid var(--x-hairline-strong);border-radius:8px;
+  width:100%;background:var(--x-plane);border:1px solid var(--x-hairline-strong);border-radius:8px;
   padding:7px 9px;font-size:12px;color:var(--x-ink);font-family:inherit;}
 .xs-pl-form .row{display:flex;gap:6px;}
 .xs-pl-form .row > *{flex:1;min-width:0;}
@@ -1108,9 +1115,16 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
     <div class="xs-main">
       <header class="xs-top">
         <button class="xs-iconbtn xs-burger" onclick="execToggleSide()" aria-label="Menu">☰</button>
-        <button class="xs-back" onclick="execBack()" title="Back" aria-label="Back">‹</button>
         <div>
-          <button class="xs-qa" onclick="execToggleQuick()" aria-haspopup="true">＋ Quick actions</button>
+          <!-- PATCH 08 Aug 2026 §3: back sits immediately left of Quick actions
+               and is GROUPED with it. The topbar is space-between, so an
+               ungrouped back arrow drifts to the far left, away from the
+               action it belongs next to. It hides itself on a dashboard root,
+               where there is nothing to go back to (execRenderNav). -->
+          <div class="xs-qa-row-top">
+            <button class="xs-back" onclick="execBack()" title="Back" aria-label="Back">‹</button>
+            <button class="xs-qa" onclick="execToggleQuick()" aria-haspopup="true">＋ Quick actions</button>
+          </div>
           <div class="xs-title">${execEsc(title)}</div>
           <div class="xs-sub">${execEsc(sub || today)}</div>
         </div>
