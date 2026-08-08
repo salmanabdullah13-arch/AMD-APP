@@ -6545,3 +6545,77 @@ by line — a rule is not a line.
   `session5-dashboards`, plus the planner class rename). Full offline sweep
   58/59 — the one failure is the long-standing stale `e2e-batch8-phase2-4.js`.
 - `sw.js` CACHE_VERSION v25 → v26.
+
+### 8 Aug 2026 — Estimator design package 6a: costing UI rebuilt around the estimator's day
+
+Salman: *"Build exactly as per this the Ui"* (`design_handoff_estimator`). Same
+integration pattern as the Owner (4a) and Sales (5a) packages — ship the
+handoff's CSS/JS verbatim, replace only its `DATA` block with live getters.
+
+- **New `estimator-dashboard.js`** (`window.EstimatorUI`, an IIFE with its own
+  root and delegated listeners, so it *mounts* rather than returning a string)
+  and **`estimator.css`**. `renderEstimatorBody()` mounts it for the
+  `dashboard` view; the older Review screen and the Excel import still use the
+  existing renderers, deliberately untouched. Five screens: **Queue · Quote ·
+  Items · BOM · Roll-up**, plus Rate library and Estimated vs actual. The BOM
+  screen reuses `estimator.js`'s own `renderBomMaterialsTab()`/`Labour`/
+  `Others`/`Generic` — the entry logic, its Item-Master search-and-select and
+  its department lock are all unchanged.
+- **The package's non-negotiables, each with its reason:**
+  - **Scroll clearance** 88px desktop / 84px phone so the last row never sits
+    under the chat bubble ("this bit us twice"). The first build lost it — a
+    later `.ed-page{padding:16px 24px 0}` shorthand beat `.ed-scroll`'s
+    `padding-bottom`. The rule is now two selectors deep (`.ed-page.ed-scroll`)
+    so a shorthand can't quietly win. Caught by measuring computed padding, not
+    by reading the sheet.
+  - **`column-count:2`, NOT a grid** — a grid forces shared row lines, so
+    collapsing the planner leaves a hole under it. The planner and Estimated vs
+    actual sit in one wrapper so the card that follows is always the same one.
+  - **Borderless-until-focused inputs** — a table of forty boxes should read as
+    a document, not a form. Border and background appear on hover/focus only.
+  - **ONE override store**, keyed `` `${quoteId}-${lineId}` ``. **Margin is
+    never stored**: `setMargin()` writes the *rate* it implies, so there is one
+    number of record and no second source to drift.
+- **Three defects the package called out, fixed at source rather than in the
+  new UI only:** (1) `estimatorPick()` itself now opens the quote's items — a
+  pick that only re-rendered the list left you wondering whether the click
+  registered; any caller gets the fix. (2) Delegate opens from the queue row,
+  not only from inside a quote. (3) Line serials are `nnnn-nn` (quote digits +
+  zero-padded line) — `lineId` was already a stable per-quote serial, it just
+  wasn't formatted as one.
+- **`duplicateQuotation()`** (data.js) with the package's three switches: BOMs
+  and descriptions copy by default, **margin overrides do not** — quoting a
+  repeat at last quarter's margin is the mistake worth preventing, so it has to
+  be a deliberate choice. A copied build-up lands `submitted:false` (unreviewed
+  against the new qty), same convention as `cloneBOMToItem()`.
+- **Task lists made real, not a label.** `createTask()` gains an optional
+  `list`; the Estimator dashboard offers **To cost · Tenders · Rate library ·
+  Checks** as filter chips, and a task added while a list is selected joins it.
+  Optional on purpose — every other module's tasks stay untagged, so nothing
+  else has to know these names exist.
+- **Shell**: sidebar is **Dashboard · Tenders · Rate library · Estimated vs
+  actual**; quick actions lead with the role's own four verbs (a new
+  `EXEC_QUICK_BY_MODULE` hook) before the shared planner/request items.
+  **Tenders is the queue filtered, not a separate screen** — a tender is a
+  quotation with a closing date, so it belongs in the same list.
+- **Verification**: new `e2e-estimator-6a.js` (20/20) — nav, the five tabs,
+  computed scroll clearance, the two-column (not grid) flow, serial format, an
+  edit landing in the single override store with no `marginPercent` stored, the
+  30% discount ceiling routing to the Approver, both defects driven through the
+  real DOM, the task-list filter, and both tail screens. Standing battery:
+  `node --check` per file plus the full 29-file load-order concatenation;
+  duplicate top-level declaration scan (none); 488 inline handlers
+  cross-referenced (none dangling). Dark mode confirmed by **computed style**
+  (`.ed-card` → `rgb(29,24,33)`), not by eyeballing a preview — the documented
+  PNG-preview artifact; no horizontal overflow at 390px. Full offline sweep
+  green.
+- **One test repointed, not deleted**: `e2e-lighter-touch-charts.js` asserted
+  the Estimator's Category Breakdown mini-bar chart, which this package removes
+  outright (a count of curtain/upholstery/joinery quotes told the estimator
+  nothing about their own day). Repointed at the screen that replaced it — the
+  same treatment the Sales check got in the 5a redesign.
+- `sw.js` CACHE_VERSION v26 → v27; deploy verified live against the published
+  `sw.js` before reporting done.
+- **Package §10 (Sales-side Receivables KPI, Top Clients by value, salesPerson
+  scope) needs no work** — all three were already fixed during the Sales 5a
+  redesign; re-confirmed rather than rebuilt.
