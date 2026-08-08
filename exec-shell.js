@@ -365,7 +365,7 @@ execStyleTag.textContent = `
    showed through it (fixed 8 Aug 2026 from Salman's screenshot). */
 /* ---- week planner (redesigned 8 Aug 2026 from Salman's reference) ---- */
 .xs-planner{position:fixed;inset:0;z-index:150;background:var(--x-plane);display:none;}
-.xs-planner.open{display:grid;grid-template-columns:216px 1fr 300px;grid-template-rows:100%;}
+.xs-planner.open{display:block;}
 .xs-pl-rail{background:var(--x-surface);border-right:1px solid var(--x-hairline);
   display:flex;flex-direction:column;padding:calc(14px + var(--safe-top,0px)) 12px 12px;overflow-y:auto;}
 .xs-pl-brand{display:flex;align-items:center;gap:9px;margin-bottom:18px;}
@@ -387,6 +387,12 @@ execStyleTag.textContent = `
 .xs-pl-chip.on{background:var(--x-brand);border-color:var(--x-brand);color:#fff;}
 .xs-pl-user{margin-top:auto;padding-top:12px;border-top:1px solid var(--x-hairline);
   display:flex;align-items:center;gap:9px;}
+
+/* The overlay is now a plain full-screen frame around the shared widgets. */
+.xs-pl-frame{display:flex;flex-direction:column;height:100%;min-width:0;background:var(--x-plane);}
+.xs-pl-body{flex:1;overflow:auto;padding:16px 18px 88px;}
+.xs-pl-body > div{max-width:640px;margin:0 auto;}
+@media (max-width:880px){ .xs-pl-body{padding:14px 14px 84px;} }
 
 .xs-pl-main{display:flex;flex-direction:column;min-width:0;overflow:hidden;}
 .xs-pl-top{display:flex;align-items:flex-start;gap:12px;flex:none;
@@ -956,18 +962,15 @@ function execCalendarPanelHTML() {
 // (my tasks, role-relevant promised dates, planned deliveries) plus the
 // new events[] entries, so the two can never disagree.
 // ══════════════════════════════════════════
-let execPlannerAnchorDate = null;   // any date inside the week being shown
-let execPlannerFormDay = null;
-let execPlannerFilter = 'all';   // all | delivery | install | qc      // 'YYYY-MM-DD' while composing
+// The shared widget (planner-tasks.js) owns period, selection and composing;
+// the overlay is just a full-screen frame around it now.
 
 function execTodayISO() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 function execOpenPlanner(dateStr) {
-  execPlannerAnchorDate = dateStr || execPlannerAnchorDate || execTodayISO();
-  execPlannerFormDay = null;
-  execPlannerFilter = 'all';
+  if (dateStr && typeof plannerState !== 'undefined') plannerState.selDate = dateStr;
   execRenderPlanner();
   const el = document.getElementById('exec-planner');
   if (el) el.classList.add('open');
@@ -976,188 +979,34 @@ function execOpenPlanner(dateStr) {
 function execClosePlanner() {
   const el = document.getElementById('exec-planner');
   if (el) el.classList.remove('open');
-  execPlannerFormDay = null;
   // the sidebar calendar/tasks may have changed while the planner was open
   if (typeof execRefreshSidePanels === 'function') execRefreshSidePanels();
   if (typeof execRefreshBadges === 'function') execRefreshBadges();
 }
-function execPlannerNav(delta) {
-  const base = new Date((execPlannerAnchorDate || execTodayISO()) + 'T00:00:00');
-  base.setDate(base.getDate() + delta * 7);
-  execPlannerAnchorDate = base.getFullYear() + '-' + String(base.getMonth() + 1).padStart(2, '0') + '-' + String(base.getDate()).padStart(2, '0');
-  execPlannerFormDay = null;
-  execRenderPlanner();
-}
-function execPlannerShowForm(day) {
-  execPlannerFormDay = execPlannerFormDay === day ? null : day;
-  execRenderPlanner();
-  const t = document.querySelector('#exec-planner .xs-pl-form input[data-f="title"]');
-  if (t) t.focus();
-}
-function execPlannerSave(day) {
-  const root = document.querySelector('#exec-planner .xs-pl-form');
-  if (!root) return;
-  const val = f => { const el = root.querySelector('[data-f="' + f + '"]'); return el ? el.value.trim() : ''; };
-  const res = createEvent({
-    title: val('title'), date: day, time: val('time') || null, kind: val('kind'),
-    owner: execIdentity(), withWhom: val('with'), notes: val('notes')
-  });
-  if (res && res.error) { if (typeof commsToast === 'function') commsToast(res.error); return; }
-  execPlannerFormDay = null;
-  execRenderPlanner();
-}
-function execPlannerRemove(id) {
-  const res = deleteEvent(id, execIdentity());
-  if (res && res.error) { if (typeof commsToast === 'function') commsToast(res.error); return; }
-  execRenderPlanner();
-}
 
-function execPlannerSetFilter(f) { execPlannerFilter = f; execRenderPlanner(); }
-function execPlannerGo(where) {
-  // The rail's TODAY group jumps to the screen that owns each of these.
-  execClosePlanner();
-  setTimeout(function () {
-    if (where === 'decisions' && typeof execGoOps === 'function') return execGoOps('alerts');
-    if (where === 'jobs' && typeof launchJobsModule === 'function') return launchJobsModule();
-    if (where === 'departments' && typeof execGoOps === 'function') return execGoOps('dashboard');
-  }, 120);
-}
 
 function execRenderPlanner() {
   const host = document.getElementById('exec-planner');
   if (!host) return;
-  const me = execIdentity();
-  const today = execTodayISO();
-  const anchor = execPlannerAnchorDate || today;
-  const week = typeof getPlannerWeek === 'function' ? getPlannerWeek(me, execModuleKey, anchor) : null;
-  if (!week) { host.innerHTML = ''; return; }
-  const unscheduled = typeof getUnscheduledWork === 'function' ? getUnscheduledWork(me, execModuleKey) : [];
-  const capacity = typeof getWeekCapacity === 'function' ? getWeekCapacity(week.start) : [];
-  const types = typeof PLANNER_TYPES !== 'undefined' ? PLANNER_TYPES : {};
-
-  const FILTERS = [
-    { k: 'all', l: 'All' },
-    { k: 'delivery', l: 'Deliveries' },
-    { k: 'install', l: 'Installs' },
-    { k: 'qc', l: 'QC' }
-  ];
-  const passes = c => execPlannerFilter === 'all' || c.type === execPlannerFilter
-    || (execPlannerFilter === 'qc' && c.type === 'promised');
-
-  const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const shown = week.days.reduce((s, d) => s + d.cards.filter(passes).length, 0);
-
-  const cols = week.days.map(function (day, i) {
-    const isToday = day.date === today;
-    const cards = day.cards.filter(passes);
-    const body = cards.length
-      ? cards.map(function (c) {
-          const t = types[c.type] || { label: c.type, tone: '' };
-          return '<div class="xs-pl-card' + (t.tone ? ' t-' + t.tone : '') + '">' +
-            '<div class="hd">' + (c.time ? '<span class="tm">' + execEsc(c.time) + '</span>' : '') +
-              '<span class="tp">' + execEsc(t.label) + '</span></div>' +
-            '<span class="ttl">' + execEsc(c.title) + '</span>' +
-            (c.meta ? '<span class="mt">' + execEsc(c.meta) + '</span>' : '') +
-          '</div>';
-        }).join('')
-      : '<p class="xs-pl-empty">Nothing planned.</p>';
-    const form = execPlannerFormDay === day.date ? execPlannerFormHTML(day.date) : '';
-    return '<div class="xs-pl-col' + (isToday ? ' xs-pl-today' : '') + '">' +
-      '<div class="xs-pl-colh"><span class="xs-pl-dow">' + DOW[i] + '</span>' +
-        '<span class="xs-pl-dnum">' + day.date.slice(8) + '</span>' +
-        (isToday ? '<span class="xs-pl-todaytag">TODAY</span>' : '') + '</div>' +
-      body + form +
-      (form ? '' : '<button class="xs-pl-add" data-d="' + day.date + '" onclick="execPlannerShowForm(\'' + day.date + '\')">+ Log</button>') +
-    '</div>';
-  }).join('');
-
-  const slots = unscheduled.length
-    ? unscheduled.slice(0, 8).map(function (u) {
-        return '<div class="xs-pl-slot"><span class="t">' + execEsc(u.title) + '</span>' +
-          '<span class="m">' + execEsc(u.meta) + '</span></div>';
-      }).join('')
-    : '<p class="xs-pl-empty" style="padding-top:10px">Everything with a deadline has a date.</p>';
-
-  const caps = capacity.map(function (c) {
-    return '<div class="xs-pl-caprow">' +
-      '<div class="l"><span>' + execEsc(c.label) + '</span>' +
-        '<span>' + (c.avail ? c.logged.toFixed(1) + ' / ' + c.avail + 'h' : 'no roster') + '</span></div>' +
-      '<span class="xs-pl-captrack"><i style="width:' + (c.avail ? c.pct : 0) + '%"></i></span>' +
-    '</div>';
-  }).join('');
-
-  const range = execPlannerRange(week.start, week.end);
-  const initials = me.split(' ').map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
-
+  // One implementation. renderWeekPlanner()/renderMyTasks() (planner-tasks.js)
+  // are the same widgets every dashboard mounts — the package is explicit that
+  // "the same renderWeekPlanner() output works there without changes".
+  if (typeof renderPlannerAndTasks !== 'function') { host.innerHTML = ''; return; }
   host.innerHTML =
-    /* left rail — its own navigation, as the reference has it. The shell's
-       sidebar is covered while the planner is open, so this is the way out. */
-    '<aside class="xs-pl-rail">' +
-      '<div class="xs-pl-brand"><div class="mk"><img src="logo.jpeg" alt="AM" style="width:100%;height:100%;object-fit:contain" onerror="this.parentElement.textContent=\'AM\'"></div>' +
-        '<div class="nm">Al Maraya<br>Decor</div></div>' +
-      '<div class="xs-pl-grouplabel">Today</div>' +
-      '<button class="xs-pl-navitem" onclick="execPlannerGo(\'decisions\')">◈ Decision queue' +
-        (unscheduled.length ? '<span class="tag">' + unscheduled.length + '</span>' : '') + '</button>' +
-      '<button class="xs-pl-navitem on">🗓 Week planner<span class="tag">' + week.total + '</span></button>' +
-      '<button class="xs-pl-navitem" onclick="execPlannerGo(\'jobs\')">⚒ Jobs</button>' +
-      '<button class="xs-pl-navitem" onclick="execPlannerGo(\'departments\')">⚙ Departments</button>' +
-      '<div class="xs-pl-grouplabel">Filters</div>' +
-      '<div class="xs-pl-chips">' + FILTERS.map(function (f) {
-        return '<button class="xs-pl-chip' + (execPlannerFilter === f.k ? ' on' : '') + '" onclick="execPlannerSetFilter(\'' + f.k + '\')">' + f.l + '</button>';
-      }).join('') + '</div>' +
-      '<div class="xs-pl-user"><div class="xs-avatar">' + execEsc(initials) + '</div>' +
-        '<div><div class="xs-user-name">' + execEsc(me) + '</div>' +
-        '<div class="xs-user-role">' + execEsc(execModuleKey || '') + '</div></div></div>' +
-    '</aside>' +
-
-    '<div class="xs-pl-main">' +
+    '<div class="xs-pl-frame">' +
       '<header class="xs-pl-top">' +
         '<div style="min-width:0"><h3>Week planner</h3>' +
-          '<div class="xs-pl-sub">' + execEsc(range) + ' · ' + shown + ' commitment' + (shown === 1 ? '' : 's') +
-            (unscheduled.length ? ' · ' + unscheduled.length + ' unscheduled' : '') + '</div></div>' +
+          '<div class="xs-pl-sub">' + execEsc(execIdentity()) + '</div></div>' +
         '<div class="xs-pl-nav">' +
-          '<button onclick="execPlannerNav(-1)" aria-label="Previous week">‹</button>' +
-          '<button onclick="execOpenPlanner(execTodayISO())">This week</button>' +
-          '<button onclick="execPlannerNav(1)" aria-label="Next week">›</button>' +
           '<button onclick="execThemeToggle()" title="Light / dark mode">◐</button>' +
           '<button onclick="execClosePlanner()" aria-label="Close">✕</button>' +
         '</div>' +
       '</header>' +
-      '<div class="xs-pl-mobfilters">' + FILTERS.map(function (f) {
-        return '<button class="xs-pl-chip' + (execPlannerFilter === f.k ? ' on' : '') + '" onclick="execPlannerSetFilter(\'' + f.k + '\')">' + f.l + '</button>';
-      }).join('') + '</div>' +
-      '<div class="xs-pl-week">' + cols + '</div>' +
-    '</div>' +
-
-    '<aside class="xs-pl-side">' +
-      '<div class="xs-pl-sideh"><h4>Needs a slot</h4>' +
-        '<span class="tag" style="font-size:10px;font-weight:800;color:var(--x-brand-bright)">' + unscheduled.length + '</span></div>' +
-      '<p class="xs-pl-empty" style="padding:2px 0 0">Work with a deadline and no date yet.</p>' +
-      slots +
-      '<div class="xs-pl-cap"><h4 style="margin:0;font-size:13px;font-weight:650;color:var(--x-ink)">Crew capacity</h4>' +
-        '<p class="xs-pl-empty" style="padding:2px 0 0">Hours logged this week against the roster.</p>' +
-        caps + '</div>' +
-    '</aside>';
+      '<div class="xs-pl-body od">' + renderPlannerAndTasks() + '</div>' +
+    '</div>';
 }
 
-function execPlannerRange(a, b) {
-  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const d1 = new Date(a + 'T00:00:00'), d2 = new Date(b + 'T00:00:00');
-  return String(d1.getDate()).padStart(2, '0') + ' ' + M[d1.getMonth()] + ' – ' +
-         String(d2.getDate()).padStart(2, '0') + ' ' + M[d2.getMonth()] + ' ' + d2.getFullYear();
-}
 
-function execPlannerFormHTML(day) {
-  const kinds = (typeof EVENT_KINDS !== 'undefined' ? EVENT_KINDS : [{ key: 'meeting', label: 'Meeting' }])
-    .map(function (k) { return '<option value="' + k.key + '">' + execEsc(k.label) + '</option>'; }).join('');
-  return '<div class="xs-pl-form">' +
-    '<input data-f="title" type="text" placeholder="What is it?" onkeydown="if(event.key===\'Enter\')execPlannerSave(\'' + day + '\')">' +
-    '<div class="row"><select data-f="kind">' + kinds + '</select><input data-f="time" type="time"></div>' +
-    '<input data-f="with" type="text" placeholder="With whom (optional)">' +
-    '<div class="acts"><button class="save" onclick="execPlannerSave(\'' + day + '\')">Save</button>' +
-      '<button class="cancel" onclick="execPlannerShowForm(\'' + day + '\')">Cancel</button></div>' +
-  '</div>';
-}
 
 const execPlannerEl = document.createElement('div');
 execPlannerEl.id = 'exec-planner';

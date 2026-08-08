@@ -159,8 +159,10 @@ function printReport() {
     execClosePlanner();
     return {
       goneFromSidebar: !sidebar.includes('xs-cal-grid'),
-      inDashboard: dash.includes('od-days') || dash.includes('od-month'),
-      inPlanner: planner.includes('xs-pl-col')
+      // Both now render the SHARED planner widget (planner-tasks.js), which is
+      // the point of the planner/tasks design package — one implementation.
+      inDashboard: dash.includes('plTogglePlanner()'),
+      inPlanner: planner.includes('plTogglePlanner()')
     };
   });
   record('The calendar left the sidebar for the dashboard\'s This-week card and the Week planner',

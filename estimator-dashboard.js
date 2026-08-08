@@ -86,7 +86,6 @@ window.EstimatorUI = (function () {
   /* ---- state ------------------------------------------------------------ */
   var S = {
     view: 'queue',          // queue | quote | items | bom | rollup | rates | actuals
-    taskList: 'All',        // All | To cost | Tenders | Rate library | Checks
     qtnId: null, lineId: null,
     queueFilter: 'all',     // all | awaiting | returned | revision | tenders
     delegRow: null,
@@ -205,28 +204,6 @@ window.EstimatorUI = (function () {
       }).join('') : '<p class="ed-micro">Nothing scheduled.</p>') + '</section>';
   }
 
-  function tasksCard() {
-    var mine = (typeof tasks !== 'undefined' ? tasks : []).filter(function (t) { return t.assignee === me() && t.status === 'open'; });
-    var sel = S.taskList || 'All';
-    var open = sel === 'All' ? mine : mine.filter(function (t) { return t.list === sel; });
-    return '<section class="ed-card"><div class="ed-card-h"><span class="ed-title">My tasks</span>' +
-      '<span class="ed-pill is-wine">' + open.length + '</span></div>' +
-      '<div class="ed-deleg" style="padding:6px 0 9px">' +
-        ['All'].concat(TASK_LISTS).map(function (l) {
-          var on = (S.taskList || 'All') === l;
-          return '<button data-act="tasklist" data-list="' + esc(l) + '"' +
-            (on ? ' style="border-color:var(--wine);color:var(--wine);background:var(--wine-tint)"' : '') +
-            '>' + esc(l) + '</button>';
-        }).join('') +
-      '</div>' +
-      (open.length ? open.slice(0, 6).map(function (t) {
-        return '<div style="display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line2)">' +
-          '<button class="ed-btn ghost" style="padding:2px 7px" data-act="done" data-id="' + esc(t.id) + '">✓</button>' +
-          '<span style="flex:1;min-width:0"><span style="font-size:12.5px;color:var(--tx)">' + esc(t.title) + '</span>' +
-          '<span class="ed-micro" style="display:block">' + (t.dueDate ? esc(ddmmm(t.dueDate)) : 'no due date') + '</span></span></div>';
-      }).join('') : '<p class="ed-micro">Nothing open.</p>') +
-      '<button class="ed-btn ghost" style="width:100%;margin-top:9px" data-act="addtask">＋ Add task</button></section>';
-  }
 
   function ratesMovedCard() {
     var all = rateMovements();
@@ -275,8 +252,12 @@ window.EstimatorUI = (function () {
   function queueView() {
     return queueCard() +
       '<div class="ed-cols">' +
-        '<div>' + weekCard() + estVsActualCard() + '</div>' +
-        tasksCard() + ratesMovedCard() +
+        /* Shared planner/tasks widgets replace this module's own two cards —
+           one implementation across every dashboard (planner/tasks package).
+           Estimated vs actual follows them inside the same wrapper, so the
+           card after the planner is always the same one when it collapses. */
+        '<div>' + renderWeekPlanner() + renderMyTasks() + estVsActualCard() + '</div>' +
+        ratesMovedCard() +
       '</div>' +
       queueList();
   }
@@ -292,7 +273,6 @@ window.EstimatorUI = (function () {
     }).join('') + '</div>';
   }
 
-  var TASK_LISTS = ['To cost', 'Tenders', 'Rate library', 'Checks'];
   var DISCOUNT_LIMIT = 30;   // Estimator's ceiling, from the User Groups master
 
   function quoteView() {
@@ -853,15 +833,7 @@ window.EstimatorUI = (function () {
     photo: function (el) { window.open(el.getAttribute('data-v'), '_blank'); },
     planner: function () { if (typeof execOpenPlanner === 'function') execOpenPlanner(); },
     done: function (el) { safe(function () { return completeTask(el.getAttribute('data-id')); }, null); },
-    tasklist: function (el) { S.taskList = el.getAttribute('data-list'); },
-    addtask: function () {
-      var t = window.prompt('New task');
-      if (!t || !t.trim()) return;
-      // A task added while a list is selected joins that list; from "All" it
-      // stays untagged rather than guessing a bucket on the estimator's behalf.
-      var list = S.taskList && S.taskList !== 'All' ? S.taskList : null;
-      safe(function () { return createTask({ title: t.trim(), assignee: me(), list: list }); }, null);
-    }
+    addtask: function () { if (typeof plAddTask === 'function') plAddTask(); }
   };
 
   /* Inputs commit on change, not on every keystroke — a repaint per keypress

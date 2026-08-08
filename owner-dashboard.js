@@ -1032,7 +1032,11 @@ window.OwnerDashboard = (function () {
       /* row 1 — the band */
       kpiBand() +
       /* row 2 — today */
-      plannerCard() + tasksCard() + activityCard() + healthCard() +
+      /* Planner + My tasks are the shared widgets from the planner/tasks
+         design package — ONE implementation, called from every dashboard.
+         Both in one wrapper so collapsing the planner cannot reshuffle the
+         cards that follow it into the gap (the column flow is column-count). */
+      renderPlannerAndTasks('od-span2') + activityCard() + healthCard() +
       /* row 3 — analysis */
       deptCard() + divisionCard() +
       /* row 4 — money */

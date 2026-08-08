@@ -6879,6 +6879,10 @@ function getPlannerWeek(identity, moduleKey, weekStartIso) {
 
 // Work that needs a date and hasn't got one. Deliberately separate from the
 // week itself — see the note at the top.
+// UNSURFACED since 8 Aug 2026. This fed the retired planner's "needs a slot"
+// rail — work with a deadline and no date yet. The planner/tasks design package
+// has no such rail, so nothing calls this today. Kept because the capability is
+// real and worth a home; do not assume it is wired up.
 function getUnscheduledWork(identity, moduleKey) {
   const out = [];
   const jobs = plannerJobsFor(identity, moduleKey);
@@ -6926,6 +6930,10 @@ function getUnscheduledWork(identity, moduleKey) {
 // This week's real load per department, from the team-leader day-logs — the
 // same computation Operations' own Capacity page uses, lifted here so the two
 // can't drift apart.
+// UNSURFACED since 8 Aug 2026 (the retired planner's crew-capacity rail).
+// NOTE: Operations' Capacity page computes the same thing inline in
+// renderOpsCapacity() rather than calling this — a real duplication to collapse
+// if either is ever touched again.
 function getWeekCapacity(weekStartIso) {
   const start = plannerMonday(weekStartIso);
   const end = plannerAddDays(start, 6);
@@ -7046,6 +7054,103 @@ function getTasksFor(linkedType, linkedId) {
 }
 function getOpenTasksForAssignee(assignee) {
   return tasks.filter(t => t.assignee === assignee && t.status === "open").sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+}
+
+// ═══ TASK LISTS (planner/tasks design package, 8 Aug 2026) ═══
+// Apple-Reminders-style user lists. One store per person — the package is
+// explicit that a task store is never shared between roles ("Call Diyar on
+// 90-day balance" is a receivables fact and must not surface on a Sales
+// dashboard). Here that falls out of tasks[] already carrying an assignee, and
+// lists carrying an owner.
+const taskLists = [];
+const TASK_LIST_PALETTE = ["var(--d1)", "var(--d2)", "var(--d3)", "var(--d4)"];
+// The package ships four defaults. The Estimator's own four shipped a day
+// earlier and are already in use, so that role keeps them rather than being
+// silently re-bucketed.
+const DEFAULT_TASK_LISTS = {
+  estimator: [["tocost", "To cost"], ["tenders", "Tenders"], ["rates", "Rate library"], ["checks", "Checks"]],
+  _: [["ops", "Operations"], ["sales", "Sales"], ["accounts", "Accounts"], ["site", "Site visits"]]
+};
+function getTaskListsFor(owner, moduleKey) {
+  if (!owner) return [];
+  let mine = taskLists.filter(l => l.owner === owner);
+  if (!mine.length) {
+    const seed = DEFAULT_TASK_LISTS[moduleKey] || DEFAULT_TASK_LISTS._;
+    seed.forEach((s, i) => taskLists.push({
+      id: "TL" + (taskLists.length + 1), owner, key: s[0], name: s[1],
+      color: TASK_LIST_PALETTE[i % TASK_LIST_PALETTE.length]
+    }));
+    mine = taskLists.filter(l => l.owner === owner);
+  }
+  return mine;
+}
+function createTaskList(owner, name) {
+  if (!owner) return { error: "Owner is required." };
+  if (!name || !name.trim()) return { error: "List name is required." };
+  const mine = taskLists.filter(l => l.owner === owner);
+  const key = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24) || ("list" + mine.length);
+  if (mine.some(l => l.key === key)) return { error: "You already have a list with that name." };
+  const list = { id: "TL" + (taskLists.length + 1), owner, key, name: name.trim(),
+    color: TASK_LIST_PALETTE[mine.length % TASK_LIST_PALETTE.length] };
+  taskLists.push(list);
+  return list;
+}
+function setTaskList(taskId, listKey) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return { error: "Task not found." };
+  t.list = listKey || null;
+  return t;
+}
+// Urgent is its OWN flag, not "overdue". The design treats them as different
+// things — a task can be flagged urgent while due next week, and the Urgent
+// tile exists to show that count without reordering anything.
+function setTaskUrgent(taskId, urgent) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return { error: "Task not found." };
+  t.urgent = !!urgent;
+  return t;
+}
+function linkTaskToJobCard(taskId, jobId) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return { error: "Task not found." };
+  if (jobId && !jobCards.some(j => j.id === jobId)) return { error: "Job card not found." };
+  t.linkedType = jobId ? "job" : null;
+  t.linkedId = jobId || null;
+  return t;
+}
+function reopenTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return { error: "Task not found." };
+  t.status = "open";
+  t.completedDate = null;
+  return t;
+}
+
+// Planner events grouped BY DATE. The package's reference keys its sample
+// events by weekday, which is a demo artifact — real commitments have real
+// dates, and weekday keys would repeat the same events every week.
+function getPlannerEventsByDate(identity, moduleKey) {
+  const TONE = {
+    delivery: { tag: "Delivery", tone: "wine" },
+    promised: { tag: "Promised", tone: "warn" },
+    task:     { tag: "Task",     tone: "plain" },
+    event:    { tag: "Diary",    tone: "plain" }
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const byDate = {};
+  (typeof getCalendarEvents === "function" ? getCalendarEvents(identity, moduleKey) : []).forEach(e => {
+    const meta = TONE[e.type] || { tag: e.type, tone: "plain" };
+    // A promised date already past is the one thing worth colouring red.
+    const tone = (e.type === "promised" && e.date < today) ? "bad" : meta.tone;
+    let time = null, title = e.label;
+    const m = /^(\d{2}:\d{2})\s+(.*)$/.exec(e.label);   // diary entries carry their time in the label
+    if (m) { time = m[1]; title = m[2]; }
+    (byDate[e.date] = byDate[e.date] || []).push({
+      t: time, ttl: title, m: e.ref || "", tag: meta.tag, tone, type: e.type, ref: e.ref
+    });
+  });
+  Object.keys(byDate).forEach(d => byDate[d].sort((a, b) => (a.t || "99:99").localeCompare(b.t || "99:99")));
+  return byDate;
 }
 
 const activityLog = [];

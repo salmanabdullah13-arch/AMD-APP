@@ -817,7 +817,10 @@ window.SalesDashboard = (function () {
        Everything else below is the handoff's own render order. */
     return title() +
       '<div class="sd-grid">' +
-        plannerCard() + tasksCard() +
+        /* Shared planner/tasks widgets — one implementation across every
+           dashboard, per the planner/tasks design package. Both in one wrapper
+           so collapsing the planner cannot reshuffle the cards after it. */
+        renderPlannerAndTasks() +
         queueCard() +
         quotationsCard() +
         productionCard() +
