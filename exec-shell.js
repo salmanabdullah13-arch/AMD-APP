@@ -161,11 +161,21 @@ execStyleTag.textContent = `
 
 /* ---- main column ---- */
 .xs-main{min-width:0;display:flex;flex-direction:column;min-height:0;}
+/* Two rows, as the reference has it: controls on one line, then the page title
+   underneath. The controls used to be nested inside the title block, which put
+   Quick actions above the title but indented to the title's left edge — out of
+   line with the burger, and reading as a stray pill floating over the heading. */
 .xs-top{
-  display:flex;align-items:center;gap:11px;
+  display:flex;flex-direction:column;align-items:stretch;gap:7px;
   padding:calc(11px + var(--safe-top,0px)) 18px 11px;
   background:var(--x-surface);border-bottom:1px solid var(--x-hairline);flex:none;
 }
+.xs-toprow{display:flex;align-items:center;gap:9px;}
+/* Desktop keeps the compact pill the reference shows at top-left; on a phone
+   Quick actions takes the width left over, so the row reads as one control bar
+   rather than a pill adrift between two icon clusters. */
+.xs-toprow .xs-qa{flex:none;padding:8px 13px;}
+.xs-toprow .xs-spacer{margin-left:auto;}
 .xs-title{font-size:16px;font-weight:650;color:var(--x-ink);letter-spacing:-.01em;}
 .xs-sub{font-size:11px;color:var(--x-ink-3);}
 .xs-top .xs-spacer{margin-left:auto;}
@@ -493,6 +503,7 @@ execStyleTag.textContent = `
   }
   .xs-side.open{transform:none;}
   .xs-burger{display:grid;}
+  .xs-toprow .xs-qa{flex:1;justify-content:center;}
   .xs-collapse-btn{display:none;}
   /* Collapsing means "shrink to the 64px icon rail", which has no meaning in a
      drawer — the drawer is open or closed. Leaving the chevron here let a phone
@@ -1278,29 +1289,28 @@ function execShellHTML({ title, sub, role, navGroups, contentId, closeFn }) {
     </aside>
     <div class="xs-main">
       <header class="xs-top">
-        <button class="xs-iconbtn xs-burger" onclick="execToggleSide()" aria-label="Menu">☰</button>
+        <!-- Row 1: every control. Back sits immediately left of Quick actions
+             (PATCH 08 Aug 2026 §3) and hides itself on a dashboard root, where
+             there is nothing to go back to (execRenderNav). -->
+        <div class="xs-toprow">
+          <button class="xs-iconbtn xs-burger" onclick="execToggleSide()" aria-label="Menu">☰</button>
+          <button class="xs-back" onclick="execBack()" title="Back" aria-label="Back">‹</button>
+          <button class="xs-qa" onclick="execToggleQuick()" aria-haspopup="true">＋ Quick actions</button>
+          <span class="xs-spacer"></span>
+          <button class="xs-iconbtn" onclick="execThemeToggle()" title="Light / dark mode" aria-label="Toggle theme">◐</button>
+          <!-- Session 5: the header's chat icon is gone. Salman asked for ONE
+               messaging entry point and named the floating bubble as the one to
+               keep; a header icon opening the same panel was the third of three. -->
+          <button class="xs-iconbtn" onclick="execToggleReminders()" title="Reminders" aria-label="Reminders">
+            <span class="xs-pulse"></span>🔔<span class="xs-badge xs-rem-badge" style="display:none;">0</span>
+          </button>
+          <button class="xs-iconbtn" onclick="${closeFn}()" title="Close" aria-label="Close">×</button>
+        </div>
+        <!-- Row 2: the page title, on its own line under the controls. -->
         <div>
-          <!-- PATCH 08 Aug 2026 §3: back sits immediately left of Quick actions
-               and is GROUPED with it. The topbar is space-between, so an
-               ungrouped back arrow drifts to the far left, away from the
-               action it belongs next to. It hides itself on a dashboard root,
-               where there is nothing to go back to (execRenderNav). -->
-          <div class="xs-qa-row-top">
-            <button class="xs-back" onclick="execBack()" title="Back" aria-label="Back">‹</button>
-            <button class="xs-qa" onclick="execToggleQuick()" aria-haspopup="true">＋ Quick actions</button>
-          </div>
           <div class="xs-title">${execEsc(title)}</div>
           <div class="xs-sub">${execEsc(sub || today)}</div>
         </div>
-        <span class="xs-spacer"></span>
-        <button class="xs-iconbtn" onclick="execThemeToggle()" title="Light / dark mode" aria-label="Toggle theme">◐</button>
-        <!-- Session 5: the header's chat icon is gone. Salman asked for ONE
-             messaging entry point and named the floating bubble as the one to
-             keep; a header icon opening the same panel was the third of three. -->
-        <button class="xs-iconbtn" onclick="execToggleReminders()" title="Reminders" aria-label="Reminders">
-          <span class="xs-pulse"></span>🔔<span class="xs-badge xs-rem-badge" style="display:none;">0</span>
-        </button>
-        <button class="xs-iconbtn" onclick="${closeFn}()" title="Close" aria-label="Close">×</button>
       </header>
       <div class="xs-qa-scrim" onclick="execToggleQuick(false)"></div>
       <div class="xs-qa-pop"></div>

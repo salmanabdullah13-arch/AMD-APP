@@ -245,7 +245,7 @@ function printReport() {
   // ── PATCH20260808 §3: back arrow grouped with Quick actions ──
   currentStep = 'patch-back';
   const back = await page.evaluate(() => {
-    const group = document.querySelector('#owner-module-wrap .xs-qa-row-top');
+    const group = document.querySelector('#owner-module-wrap .xs-toprow');
     if (!group) return { grouped: false };
     const b = group.querySelector('.xs-back'), q = group.querySelector('.xs-qa');
     return {
@@ -277,6 +277,27 @@ function printReport() {
     shell.collapseChevInBrand && shell.noFooterCollapse ? 'PASS' : 'FAIL', JSON.stringify(shell));
   record('Quick actions is a wine button at the top-left of the content, above the page title, and gone from the sidebar',
     shell.quickBtnAboveTitle && shell.noSidebarQuickGroup ? 'PASS' : 'FAIL', JSON.stringify(shell));
+  // The controls are ONE row — burger, back, Quick actions, then the icon
+  // cluster — with the page title on its own line underneath. Nesting them in
+  // the title block put Quick actions above the heading but indented to the
+  // title's left edge, out of line with the burger (Salman's screenshot).
+  currentStep = 'topbar-one-row';
+  const rowGeom = await page.evaluate(() => {
+    const w = '#owner-module-wrap ';
+    const rc = s => { const e = document.querySelector(w + s); if (!e) return null;
+      const r = e.getBoundingClientRect(); return { l: Math.round(r.left), t: Math.round(r.top), b: Math.round(r.bottom) }; };
+    const qa = rc('.xs-qa'), bell = rc('.xs-rem-badge'), title = rc('.xs-title');
+    return {
+      qaAndBellSameRow: !!qa && !!bell && Math.abs(qa.t - bell.t) < 14,
+      titleBelowControls: !!qa && !!title && title.t >= qa.b,
+      inToprow: !!document.querySelector(w + '.xs-toprow .xs-qa') &&
+                !!document.querySelector(w + '.xs-toprow .xs-burger')
+    };
+  });
+  record('Topbar is one control row (burger · back · Quick actions · icons) with the title beneath',
+    rowGeom.qaAndBellSameRow && rowGeom.titleBelowControls && rowGeom.inToprow ? 'PASS' : 'FAIL',
+    JSON.stringify(rowGeom));
+
   record('Nav groups are Workspace · Business · Money · Company · Administration',
     JSON.stringify(shell.navGroups) === JSON.stringify(['Workspace', 'Business', 'Money', 'Company', 'Administration']) ? 'PASS' : 'FAIL', JSON.stringify(shell.navGroups));
 
