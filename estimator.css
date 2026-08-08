@@ -1,0 +1,166 @@
+/* ==========================================================================
+   AMD-APP · Estimator (design package 6a, 8 Aug 2026)
+
+   Tokens come from the shared dashboard-tokens.css — this sheet adds `.ed`
+   to that file's selector list, so the values are the same ones the Owner and
+   Sales dashboards use. Nothing here redefines a token.
+   ========================================================================== */
+
+.ed{ font-family:var(--font); color:var(--tx); background:var(--page); }
+.ed *{ box-sizing:border-box; }
+.ed button{ font-family:inherit; }
+.ed :focus-visible{ outline:2px solid var(--wine); outline-offset:2px; }
+
+/* Scroll clearance — every scroll container clears the chat bubble (56px +
+   24px offset desktop, 52px + 20px phone). Without it the last row sits under
+   the bubble at every scroll position; the package says this bit them twice. */
+.ed-scroll{ overflow:auto; }
+/* Two selectors deep so a later padding shorthand on .ed-page cannot quietly
+   win — which it did on the first build, exactly the failure the package
+   warns about. */
+.ed-page.ed-scroll{ padding-bottom:88px; }
+@media (max-width:880px){ .ed-page.ed-scroll{ padding-bottom:84px; } }
+
+/* ---------------------------------------------------------------- shell --- */
+.ed-tabs{ display:flex; gap:3px; padding:3px; border-radius:10px; background:var(--sunk);
+  border:1px solid var(--line2); margin:0 0 14px; }
+.ed-tabs button{ flex:none; white-space:nowrap; padding:7px 12px; border:0; border-radius:8px;
+  font-size:12px; font-weight:600; cursor:pointer; background:transparent; color:var(--tx3); }
+.ed-tabs button[aria-selected="true"]{ background:var(--card); color:var(--wine); box-shadow:var(--sh); }
+@media (max-width:880px){ .ed-tabs{ overflow-x:auto; scrollbar-width:none; } }
+
+.ed-page{ padding:16px 24px 0; }
+@media (max-width:880px){ .ed-page{ padding:14px 14px 0; } }
+
+.ed-card{ padding:16px; border-radius:var(--r); border:1px solid var(--line);
+  background:var(--card); box-shadow:var(--sh); margin-bottom:14px; }
+@media (max-width:880px){ .ed-card{ padding:14px; } }
+.ed-card-h{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.ed-title{ font-size:13.5px; font-weight:650; color:var(--tx); }
+.ed-sub{ font-size:11px; color:var(--tx3); margin-top:2px; }
+.ed-link{ font-size:11.5px; font-weight:600; color:var(--wine); background:none; border:0; cursor:pointer; }
+
+/* Two balanced columns, NOT a grid: a grid forces shared row lines, so
+   collapsing the planner leaves a hole underneath it. */
+.ed-cols{ column-count:2; column-gap:14px; }
+.ed-cols > *{ break-inside:avoid; }
+@media (max-width:1100px){ .ed-cols{ column-count:1; } }
+
+/* --------------------------------------------------------- needs you --- */
+.ed-q{ display:flex; align-items:center; gap:13px; padding:13px 14px; border-bottom:1px solid var(--line2);
+  border-left:3px solid transparent; cursor:pointer; background:none; width:100%; text-align:left;
+  border-top:0; border-right:0; }
+.ed-q:hover{ background:var(--wine-tint); }
+.ed-q.is-bad{ border-left-color:var(--bad); }
+.ed-q.is-warn{ border-left-color:var(--warn); }
+.ed-q.is-wine{ border-left-color:var(--wine); }
+.ed-q.is-empty{ padding:10px 14px; cursor:default; }
+.ed-q.is-empty:hover{ background:transparent; }
+.ed-q-n{ flex:none; width:26px; font-size:21px; font-weight:650; letter-spacing:-.02em; color:var(--tx); }
+.ed-q.is-bad .ed-q-n{ color:var(--bad); }
+.ed-q.is-warn .ed-q-n{ color:var(--warn); }
+.ed-q.is-wine .ed-q-n{ color:var(--wine); }
+.ed-q-t{ display:block; font-size:13px; font-weight:600; color:var(--tx); }
+.ed-q-m{ display:block; font-size:11.5px; color:var(--tx3); margin-top:2px; }
+
+/* ------------------------------------------------------------ queue --- */
+.ed-row{ display:flex; gap:11px; align-items:flex-start; padding:12px 0; border-bottom:1px solid var(--line2); }
+.ed-id{ font-size:12.5px; font-weight:650; color:var(--tx); }
+.ed-pill{ flex:none; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700;
+  background:var(--sunk); color:var(--tx2); }
+.ed-pill.is-bad{ background:var(--bad-bg); color:var(--bad); }
+.ed-pill.is-warn{ background:var(--warn-bg); color:var(--warn); }
+.ed-pill.is-ok{ background:var(--ok-bg); color:var(--ok); }
+.ed-pill.is-wine{ background:var(--wine-tint); color:var(--wine); }
+.ed-meta{ display:block; font-size:12px; color:var(--tx2); margin-top:3px; }
+.ed-micro{ font-size:10.5px; color:var(--tx3); }
+.ed-btn{ flex:none; padding:6px 12px; border-radius:9px; border:0; cursor:pointer;
+  background:var(--wine); color:#fff; font-size:11.5px; font-weight:650; }
+.ed-btn:hover{ background:var(--wine2); }
+.ed-btn.ghost{ background:transparent; border:1px solid var(--line); color:var(--tx2); }
+.ed-btn.ghost:hover{ border-color:var(--wine-line); color:var(--wine); background:var(--wine-tint); }
+.ed-btn.muted{ background:var(--sunk); color:var(--tx3); cursor:default; }
+.ed-btn.muted:hover{ background:var(--sunk); }
+.ed-deleg{ display:flex; flex-wrap:wrap; gap:6px; padding:8px 0 2px; }
+.ed-deleg button{ padding:4px 10px; border-radius:999px; border:1px solid var(--line);
+  background:transparent; color:var(--tx2); font-size:11px; font-weight:600; cursor:pointer; }
+.ed-deleg button:hover{ border-color:var(--wine); color:var(--wine); background:var(--wine-tint); }
+
+/* --------------------------------------------------------- status trail --- */
+.ed-trail{ display:flex; align-items:center; gap:0; flex-wrap:wrap; }
+.ed-trail-s{ display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--tx3); font-weight:600; }
+.ed-trail-s i{ width:9px; height:9px; border-radius:99px; background:var(--line); display:block; }
+.ed-trail-s.done i{ background:var(--wine3); }
+.ed-trail-s.now{ color:var(--wine); }
+.ed-trail-s.now i{ background:var(--wine); box-shadow:0 0 0 3px var(--wine-tint); }
+.ed-trail-c{ flex:1; min-width:18px; height:1px; background:var(--line); margin:0 9px; }
+
+/* --------------------------------------------------------------- items --- */
+.ed-table{ width:100%; border-collapse:collapse; font-size:12px; }
+.ed-table th{ text-align:left; padding:7px 6px; font-size:10px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--tx3); border-bottom:1px solid var(--line); white-space:nowrap; }
+.ed-table td{ padding:8px 6px; border-bottom:1px solid var(--line2); vertical-align:top; }
+.ed-table th.num, .ed-table td.num{ text-align:right; }
+.ed-sl{ font-size:10.5px; font-weight:700; color:var(--wine); background:var(--wine-tint);
+  padding:2px 6px; border-radius:6px; white-space:nowrap; }
+/* Borderless until focused — a table of forty boxes reads as a form, not a
+   document. Border and background appear on hover/focus only. */
+.ed-in{ width:100%; max-width:96px; border:1px solid transparent; background:transparent; border-radius:7px;
+  padding:4px 6px; font-size:12px; font-family:inherit; color:var(--tx); text-align:right; }
+.ed-in:hover{ border-color:var(--line); background:var(--sunk); }
+.ed-in:focus{ border-color:var(--wine); background:var(--card); outline:none; }
+.ed-lock{ color:var(--tx3); font-size:9.5px; }
+.ed-locked{ color:var(--tx2); }
+.ed-tag{ display:inline-block; padding:1px 6px; border-radius:999px; font-size:9.5px; font-weight:700;
+  background:var(--warn-bg); color:var(--warn); }
+.ed-thumbs{ display:flex; gap:5px; margin-top:5px; flex-wrap:wrap; }
+.ed-thumb{ width:34px; height:34px; border-radius:7px; border:1px solid var(--line); object-fit:cover;
+  cursor:pointer; background:var(--sunk); }
+.ed-prog{ display:block; width:100%; height:7px; border-radius:4px; background:var(--line2); margin-top:7px; }
+.ed-prog i{ display:block; height:7px; border-radius:4px; background:var(--wine); }
+.ed-warn{ font-size:11.5px; color:var(--warn); font-weight:600; margin-top:7px; }
+.ed-bad{ font-size:11.5px; color:var(--bad); font-weight:600; margin-top:7px; }
+
+/* ----------------------------------------------------------------- bom --- */
+.ed-bom{ display:grid; grid-template-columns:1fr 300px; gap:14px; align-items:start; }
+@media (max-width:1100px){ .ed-bom{ grid-template-columns:1fr; } }
+.ed-chips{ display:flex; gap:6px; flex-wrap:wrap; }
+.ed-chip{ padding:5px 10px; border-radius:999px; border:1px solid var(--line); background:transparent;
+  color:var(--tx2); font-size:11px; font-weight:600; cursor:pointer; }
+.ed-chip.on{ background:var(--wine); border-color:var(--wine); color:#fff; }
+.ed-chip .ok{ color:var(--ok); font-weight:800; }
+.ed-chip.on .ok{ color:#fff; }
+.ed-rail-row{ display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  padding:7px 0; border-bottom:1px solid var(--line2); font-size:12px; color:var(--tx2); }
+.ed-rail-row b{ color:var(--tx); font-weight:650; }
+.ed-rail-row.total{ border-bottom:0; padding-top:11px; margin-top:4px; border-top:1px solid var(--line); }
+.ed-seg{ display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--sunk); border:1px solid var(--line2); }
+.ed-seg button{ flex:1; padding:5px 10px; border:0; border-radius:7px; font-size:11.5px; font-weight:600;
+  cursor:pointer; background:transparent; color:var(--tx3); }
+.ed-seg button[aria-selected="true"]{ background:var(--card); color:var(--wine); box-shadow:var(--sh); }
+.ed-fold{ border:1px solid var(--line2); border-radius:11px; margin-bottom:10px; overflow:hidden; }
+.ed-fold-h{ display:flex; align-items:center; gap:9px; width:100%; padding:10px 12px; border:0;
+  background:var(--sunk); cursor:pointer; text-align:left; font-family:inherit; }
+.ed-fold-t{ flex:1; font-size:12px; font-weight:650; color:var(--tx); }
+.ed-fold-s{ font-size:10.5px; color:var(--tx3); }
+.ed-fold-b{ padding:12px; }
+
+/* -------------------------------------------------------------- rollup --- */
+.ed-step{ display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  padding:9px 0; border-bottom:1px solid var(--line2); font-size:12.5px; }
+.ed-step .l{ color:var(--tx2); }
+.ed-step .v{ font-weight:650; color:var(--tx); }
+.ed-stepper{ display:flex; align-items:center; gap:6px; }
+.ed-stepper button{ width:26px; height:26px; border-radius:8px; border:1px solid var(--line);
+  background:transparent; color:var(--tx2); cursor:pointer; font-size:13px; }
+.ed-stepper button:hover{ border-color:var(--wine); color:var(--wine); }
+
+/* Bars: label above, fill inside a full-width track. Never a label inside a
+   fill, never a fill sharing a flex line with text (CLAUDE.md chart rule). */
+.ed-bar-h{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:4px; }
+.ed-bar-l{ font-size:12px; font-weight:600; color:var(--tx); }
+.ed-bar-v{ flex:none; font-size:10.5px; color:var(--tx3); white-space:nowrap; }
+.ed-track{ display:block; width:100%; height:10px; border-radius:5px; background:var(--line2); }
+.ed-track i{ display:block; height:10px; border-radius:5px; }
+.ed-varrow{ padding:11px 0; border-bottom:1px solid var(--line2); border-left:3px solid transparent; }
+.ed-varrow.over{ border-left-color:var(--bad); padding-left:9px; }

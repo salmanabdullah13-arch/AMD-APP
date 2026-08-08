@@ -606,14 +606,26 @@ let execAutoAlerted = false; // auto-open once per page load when something need
 // Quick actions popover (desktop) / bottom sheet (mobile). Same items the
 // sidebar group used to carry, minus any this role can't use.
 let execQuickOpen = false;
+// Per-module quick actions come FIRST — a role's own four verbs are what the
+// button is for; the shared planner/request items follow. Estimator's set is
+// the design package's own (6a, 8 Aug 2026).
+const EXEC_QUICK_BY_MODULE = {
+  estimator: [
+    { ico: '⌸', label: 'Cost a quotation', on: "EstimatorUI.setView('queue')" },
+    { ico: '◈', label: 'Quick tender estimate', on: "EstimatorUI.setQueueFilter('tenders')" },
+    { ico: '▤', label: 'Rate library', on: "EstimatorUI.setView('rates')" },
+    { ico: '𝄜', label: 'Estimated vs actual', on: "EstimatorUI.setView('actuals')" }
+  ]
+};
 function execQuickItems() {
-  const items = [
+  const own = (EXEC_QUICK_BY_MODULE[execModuleKey] || []).slice();
+  const items = own.concat([
     { ico: '🗓', label: 'Weekly planner', on: 'execOpenPlanner()' },
     { ico: '✓', label: 'My tasks', on: 'execOpenPlanner()' },
     { ico: '📅', label: 'Calendar', on: 'execOpenPlanner()' },
     { ico: '🏬', label: 'Request Material', on: 'execOpenMaterialRequest()' },
     { ico: '🛒', label: 'Request Purchase', on: 'execRequestPurchase()' }
-  ];
+  ]);
   return items.filter(i => i.label !== 'Request Material' || EXEC_CAN_REQUEST_MATERIAL.includes(execModuleKey));
 }
 function execToggleQuick(force) {
@@ -1494,9 +1506,10 @@ const EXEC_NAV_CONFIGS = {
   ],
   estimator: () => [
     { label: 'Workspace', items: [
-      nv('est-dash', '▦', 'Overview', "estimatorView='dashboard';renderEstimatorBody()"),
-      nv('est-pick', '⬚', 'Pending to Pick', "estimatorView='dashboard';renderEstimatorBody();if(typeof estimatorToggleTile==='function'){estimatorDashExpanded='pending';renderEstimatorBody();}", nvTag(() => getEstimatorKPIs(estimatorCurrentUser).pendingToPick)),
-      nv('est-my', '✎', 'My Actions', "estimatorView='dashboard';renderEstimatorBody();if(typeof estimatorToggleTile==='function'){estimatorDashExpanded='my';renderEstimatorBody();}", nvTag(() => getEstimatorKPIs(estimatorCurrentUser).myActions))
+      nv('est-dash', '▦', 'Dashboard', "estimatorView='dashboard';renderEstimatorBody();EstimatorUI.setView('queue')", nvTag(() => getEstimatorKPIs(estimatorCurrentUser).pendingToPick + getEstimatorKPIs(estimatorCurrentUser).myActions)),
+      nv('est-tenders', '◈', 'Tenders', "estimatorView='dashboard';renderEstimatorBody();EstimatorUI.setQueueFilter('tenders')"),
+      nv('est-rates', '▤', 'Rate library', "estimatorView='dashboard';renderEstimatorBody();EstimatorUI.setView('rates')"),
+      nv('est-actuals', '𝄜', 'Estimated vs actual', "estimatorView='dashboard';renderEstimatorBody();EstimatorUI.setView('actuals')")
     ] }
   ],
   approver: () => [

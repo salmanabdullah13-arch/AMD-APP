@@ -17,7 +17,7 @@
    Values, names and order are verbatim from the handoffs.
    ========================================================================== */
 
-.od, .sd{
+.od, .sd, .ed{
   /* Brand — single accent, wine. No second brand colour. */
   --wine:#600131; --wine2:#7c1a4a; --wine3:#9c3d6c;
   --wine-tint:#f7eef3; --wine-line:#ecd9e3;
@@ -44,7 +44,8 @@
 }
 
 [data-theme="dark"] .od, .x-dark .od,
-[data-theme="dark"] .sd, .x-dark .sd{
+[data-theme="dark"] .sd, .x-dark .sd,
+[data-theme="dark"] .ed, .x-dark .ed{
   --wine:#a83c63; --wine2:#c2557c; --wine3:#d98aa8;
   --wine-tint:#2a1a22; --wine-line:#3d2530;
   --page:#141017; --card:#1d1821; --sunk:#241e28;

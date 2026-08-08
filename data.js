@@ -6593,6 +6593,43 @@ function closeMaterialRequest(id, status, by, note = "") {
   return req;
 }
 
+// ═══ DUPLICATE A QUOTATION (Estimator package 6a, 8 Aug 2026) ═══
+// A repeat job usually starts as last time's quote. The three switches are
+// the package's: BOMs and descriptions copy by default, margin overrides do
+// NOT — quoting a repeat at last quarter's margin is the mistake worth
+// preventing, so it has to be a deliberate choice.
+function duplicateQuotation(qtnId, { projectName = null, copyBom = true, copyDescriptions = true, copyMargins = false } = {}) {
+  const src = quotations.find(q => q.id === qtnId);
+  if (!src) return { error: "Quotation not found." };
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = nextQtnNo();
+  copy.rev = 0;
+  copy.date = new Date().toISOString().slice(0, 10);
+  copy.stage = "estimator";
+  copy.lifecycleStatus = "draft";
+  copy.confirmDate = null;
+  copy.estimatorPickedBy = null;
+  copy.approverPickedBy = null;
+  copy.auditLog = [];
+  if (projectName) copy.projectName = projectName;
+  copy.items = (copy.items || []).map(it => {
+    const out = Object.assign({}, it);
+    if (!copyBom) out.bom = null;
+    if (out.bom) {
+      out.bom.submitted = false;          // a copied build-up is unreviewed
+      out.bom.qtyAtSubmit = null;
+      if (!copyMargins) { out.bom.profitPercent = 0; out.bom.sellingOverride = null; }
+    }
+    if (!copyDescriptions) { out.description = ""; out.internalComment = ""; }
+    return out;
+  });
+  quotations.push(copy);
+  logQuotationAudit(copy, { action: "Duplicated from " + src.id, user: "Estimator", userType: "ESTIMATOR" });
+  logActivity({ type: "quotation-duplicated", linkedType: "quotation", linkedId: copy.id,
+    message: copy.id + " created as a copy of " + src.id });
+  if (typeof persistNewQuotation === "function") persistNewQuotation(copy);
+  return copy;
+}
 // ═══ CALENDAR EVENTS (backlog Session 4, 7 Aug 2026) ═══
 // Salman wanted to log a meeting or a day's note against a calendar date.
 // Deliberately its OWN array rather than an extension of tasks[] or the
@@ -6915,11 +6952,15 @@ function nextTaskId() {
   }, 0);
   return "TSK-" + String(max + 1).padStart(5, "0");
 }
-function createTask({ title, assignee, dueDate = null, linkedType = null, linkedId = null, notes = "" } = {}) {
+// `list` (Estimator package 6a, 8 Aug 2026) is an optional free-text bucket —
+// the Estimator dashboard offers To cost / Tenders / Rate library / Checks.
+// Optional on purpose: every other module's tasks stay untagged, so nothing
+// else has to know these list names exist.
+function createTask({ title, assignee, dueDate = null, linkedType = null, linkedId = null, notes = "", list = null } = {}) {
   if (!title || !title.trim()) return { error: "Task title is required." };
   if (!assignee) return { error: "Assignee is required." };
   const task = {
-    id: nextTaskId(), title: title.trim(), assignee, dueDate, notes,
+    id: nextTaskId(), title: title.trim(), assignee, dueDate, notes, list,
     linkedType, linkedId, // e.g. linkedType:"job", linkedId:"JB26AMD01000"
     status: "open", // open | done
     createdDate: new Date().toISOString().slice(0, 10), completedDate: null

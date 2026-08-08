@@ -76,8 +76,17 @@ async function openNode(page, nodeId, wrapId) {
 
   currentStep = 'estimator-chart';
   await openNode(page, 'estimation', 'estimator-module-wrap');
-  const estimatorState = await page.evaluate(() => document.getElementById('estimator-body') ? document.getElementById('estimator-body').innerHTML.includes('mini-bar-col') : document.getElementById('estimator-module-wrap').innerHTML.includes('mini-bar-col'));
-  record('Estimator Dashboard\'s Category Breakdown now renders as a mini-bar chart', estimatorState ? 'PASS' : 'FAIL');
+  // Design package 6a (8 Aug 2026) replaced the Estimator dashboard outright.
+  // The Category Breakdown mini-bar is deliberately gone — a count of curtain/
+  // upholstery/joinery quotes told the estimator nothing about their own day.
+  // Repointed (not deleted) at the screen that replaced it, same treatment the
+  // Sales check above got in the 5a redesign.
+  const estimatorState = await page.evaluate(() => {
+    const b = document.getElementById('estimator-body');
+    return !!b && b.classList.contains('ed') && b.querySelectorAll('.ed-q').length > 0
+      && /Needs you today/.test(b.textContent);
+  });
+  record('Estimator Dashboard leads with the "Needs you today" action queue', estimatorState ? 'PASS' : 'FAIL');
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
 

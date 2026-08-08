@@ -18,13 +18,13 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v26"; // v26: week planner rebuild + shell cleanup
+const CACHE_VERSION = "amd-app-v27"; // v27: Estimator design package 6a
 const CORE_ASSETS = [
-  "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./manifest.json", "./logo.jpeg",
+  "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./data.js", "./chart-widgets.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
   "./operations.js", "./curtain.js",
-  "./purchasing.js", "./storekeeper.js", "./sales-dashboard.js", "./sales.js", "./estimator.js",
+  "./purchasing.js", "./storekeeper.js", "./sales-dashboard.js", "./sales.js", "./estimator-dashboard.js", "./estimator.js",
   "./approver.js", "./jobs.js", "./accounts.js", "./hr.js", "./exec-shell.js", "./owner-dashboard.js", "./owner.js", "./admin.js",
   "./dept-pipeline-ui.js", "./joinery.js", "./upholstery.js", "./painting.js",
   "./fleet-delivery.js", "./demo-data.js"

@@ -135,6 +135,14 @@ function estimatorSetCurrentUser(name) {
 function renderEstimatorBody() {
   const body = document.getElementById('estimator-body');
   if (!body) return;
+  // Design package 6a (8 Aug 2026): the Queue/Quote/Items/BOM/Roll-up screens
+  // are EstimatorUI's. It owns its own root and delegated listeners, so it
+  // mounts rather than returning a string. The older screens below stay
+  // reachable — the Review screen and the Excel import still use them.
+  if (estimatorView === 'dashboard' && typeof EstimatorUI !== 'undefined') {
+    EstimatorUI.mount(body);
+    return;
+  }
   let content = '';
   switch (estimatorView) {
     case 'dashboard': content = renderEstimatorDashboard(); break;
@@ -158,11 +166,19 @@ function estimatorToggleTile(tile) {
 }
 
 function estimatorPick(qtnId) {
+  // Package 6a defect 1: pick and open are one action — claiming a quote
+  // lands you on its items instead of leaving you on the dashboard wondering
+  // whether the click registered.
   if (!window.confirm('Do you Want to Pick This Quotation?')) return;
   const result = pickQuotation(qtnId, estimatorCurrentUser, 'estimator');
   if (result.error) { estimatorAlert(result.error); return; }
-  estimatorAlert(`✓ Picked ${qtnId}.`);
-  renderEstimatorBody();
+  if (typeof EstimatorUI !== 'undefined') {
+    EstimatorUI.state.qtnId = qtnId;
+    EstimatorUI.state.lineId = null;
+    EstimatorUI.setView('items');
+    return;
+  }
+  openEstimationIndex(qtnId);
 }
 
 function estimatorQtnRowSummary(q) {
