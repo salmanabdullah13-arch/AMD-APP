@@ -1574,6 +1574,72 @@ function getJobMaterialRequirement() {
 // is flagged when it has real open-order demand it can't cover (reqQty > 0)
 // OR its current stock has fallen at/below its own reorderLevel. Most-urgent
 // (biggest shortfall) first.
+// ═══ RATE MOVEMENT (Estimator package 6a §8, corrected 8 Aug 2026) ═══
+// The estimator's real question is "is my costing stale?" — you cost at today's
+// board price, the quote sits with the Approver for three weeks, the price
+// moves, and nobody notices until the job is running.
+//
+// The first build answered it by comparing itemMaster.lastPurchaseRate against
+// itemMaster.cost. That is DRIFT, not movement: lastPurchaseRate carries no
+// date anywhere in this app, so an item bought once at a different price two
+// years ago read as "moved recently", while a board that jumped last week but
+// had its standard cost updated to match read as nothing at all.
+//
+// This reads the real dated history instead — purchase invoices carry
+// dateReceived and per-line rateBD, so a genuine window is derivable. Only
+// RECEIVED invoices count: a draft or a rejected one is not a price anyone paid.
+function getItemRateHistory() {
+  const hist = {};   // key → [{ date, rate }] ascending
+  (typeof purchaseInvoices !== "undefined" ? purchaseInvoices : []).forEach(inv => {
+    if (inv.status !== "received" || inv.approvalStatus === "rejected") return;
+    const date = inv.dateReceived;
+    if (!date) return;
+    (inv.items || []).forEach(line => {
+      const rate = Number(line.rateBD) || 0;
+      if (!rate) return;
+      // itemId is the reliable key; fall back to a normalised name for older
+      // lines entered before the Item Master link existed.
+      const key = line.itemId || ("name:" + String(line.itemName || "").trim().toLowerCase());
+      if (key === "name:") return;
+      (hist[key] = hist[key] || []).push({ date, rate });
+    });
+  });
+  Object.keys(hist).forEach(k => hist[k].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return hist;
+}
+
+// One item's movement, or null when there is nothing honest to report.
+function getItemRateMovement(item, days = 30, hist = null) {
+  if (!item) return null;
+  const H = hist || getItemRateHistory();
+  const entries = H[item.id] || H["name:" + String(item.name || "").trim().toLowerCase()];
+  if (!entries || entries.length < 2) return null;      // no prior price to compare against
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const latest = entries[entries.length - 1];
+  if (latest.date < cutoff) return null;                // the change is older than the window
+  // The most recent PRIOR purchase at a different price — repeat buys at the
+  // same rate are not a movement.
+  let prev = null;
+  for (let i = entries.length - 2; i >= 0; i--) {
+    if (Math.abs(entries[i].rate - latest.rate) > 0.0005) { prev = entries[i]; break; }
+  }
+  if (!prev) return null;
+  return {
+    itemId: item.id, name: item.name, unit: item.unit || "",
+    rate: latest.rate, previous: prev.rate, date: latest.date,
+    movePercent: Math.round((latest.rate - prev.rate) / prev.rate * 1000) / 10
+  };
+}
+
+// Everything that actually moved inside the window, biggest swing first.
+function getRateMovements(days = 30) {
+  const H = getItemRateHistory();
+  return (typeof itemMaster !== "undefined" ? itemMaster : [])
+    .map(it => getItemRateMovement(it, days, H))
+    .filter(Boolean)
+    .sort((a, b) => Math.abs(b.movePercent) - Math.abs(a.movePercent));
+}
+
 function getReorderAlerts() {
   return getJobMaterialRequirement()
     .map(r => {

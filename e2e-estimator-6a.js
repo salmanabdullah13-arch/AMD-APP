@@ -73,6 +73,15 @@ const check = (name, ok, extra) => {
   check('cards flow in two BALANCED columns, not a grid',
     dash.columnCount === '2' && dash.display !== 'grid', dash);
 
+  // Regression guard: the colour-coded quote-age badge (audit Phase E,
+  // 6 Aug 2026) survived the dashboard rebuild. It was dropped once when the
+  // queue row went to a plain day count, and only the Phase E suite caught it.
+  const ageBadge = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#estimator-body .ed-row')];
+    return rows.some(r => /\d+d\s*$/.test(r.textContent.trim()) || /[\d]+d</.test(r.innerHTML));
+  });
+  check('queue rows keep the colour-coded quote-age badge', ageBadge, ageBadge);
+
   console.log('\n— serial, override store, margin —');
   const money = await page.evaluate(() => {
     const q = quotations.find(x => (x.items || []).length) || quotations[0];

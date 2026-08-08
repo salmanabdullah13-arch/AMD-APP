@@ -163,6 +163,10 @@ window.EstimatorUI = (function () {
           '<span class="ed-id">' + esc(q.id) + '</span>' +
           '<span class="ed-pill' + (status.t ? ' is-' + status.t : '') + '">' + esc(status.l) + '</span>' +
           '<span class="ed-micro">' + esc(ageWords(q.date)) + '</span>' +
+          /* The colour-coded age badge from the audit Phase E work (6 Aug 2026)
+             — green <=3d, amber 4-7d, red >7d. A plain day count alone loses
+             the at-a-glance "this one has gone stale" signal. */
+          (typeof quoteAgeBadge === 'function' ? quoteAgeBadge(q) : '') +
           (wasWithApprover(q) ? '<span class="ed-pill is-bad">Returned</span>' : '') +
         '</span>' +
         '<span class="ed-meta">' + esc(clientOf(q)) + ' · ' + esc(q.projectName || '') + '</span>' +
@@ -225,16 +229,23 @@ window.EstimatorUI = (function () {
   }
 
   function ratesMovedCard() {
-    var moved = rateMovements().slice(0, 4);
+    var all = rateMovements();
+    var moved = all.slice(0, 4);
     return '<section class="ed-card"><div class="ed-card-h"><span class="ed-title">Rate movements</span>' +
       '<button class="ed-link" data-act="go" data-v="rates">Rate library ›</button></div>' +
-      '<div class="ed-sub" style="margin-bottom:9px">' + (moved.length
-        ? moved.length + ' material' + (moved.length === 1 ? '' : 's') + ' moved recently — quotes older than that are stale'
-        : 'No recorded movement') + '</div>' +
+      '<div class="ed-sub" style="margin-bottom:9px">' + (all.length
+        ? all.length + ' material' + (all.length === 1 ? '' : 's') + ' moved in the last ' + RATE_WINDOW +
+          ' days — quotes older than that are stale'
+        : 'Nothing has moved in the last ' + RATE_WINDOW + ' days') + '</div>' +
       moved.map(function (m) {
+        var up = m.movePercent > 0;
         return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2)">' +
-          '<span style="font-size:12px;color:var(--tx);min-width:0">' + esc(m.name) + '</span>' +
-          '<span class="ed-micro">' + esc(bd(m.rate)) + ' / ' + esc(m.unit || '') + '</span></div>';
+          '<span style="font-size:12px;color:var(--tx);min-width:0">' + esc(m.name) +
+            '<span class="ed-micro" style="display:block">was ' + esc(bd(m.previous)) + ' · ' + esc(ddmmm(m.date)) + '</span></span>' +
+          '<span style="text-align:right;flex:none"><span class="ed-micro" style="display:block">' +
+            esc(bd(m.rate)) + ' / ' + esc(m.unit || '') + '</span>' +
+            '<span style="font-size:11px;font-weight:700;color:' + (up ? 'var(--bad)' : 'var(--ok)') + '">' +
+            (up ? '▲ +' : '▼ ') + m.movePercent + '%</span></span></div>';
       }).join('') + '</section>';
   }
 
@@ -607,14 +618,11 @@ window.EstimatorUI = (function () {
 
   /* ======================================================== RATES / ACTUAL */
 
+  var RATE_WINDOW = 30;   // days — the package's own "last 30 days"
+  /* Real dated movement from received purchase invoices, not a
+     standard-cost-vs-last-paid proxy. See getRateMovements() in data.js. */
   function rateMovements() {
-    return (typeof itemMaster !== 'undefined' ? itemMaster : [])
-      .filter(function (i) { return i.lastPurchaseRate && i.cost && Math.abs(i.lastPurchaseRate - i.cost) > 0.0005; })
-      .map(function (i) {
-        return { name: i.name, unit: i.unit, rate: i.lastPurchaseRate,
-          move: i.cost ? Math.round((i.lastPurchaseRate - i.cost) / i.cost * 1000) / 10 : 0 };
-      })
-      .sort(function (a, b) { return Math.abs(b.move) - Math.abs(a.move); });
+    return typeof getRateMovements === 'function' ? getRateMovements(RATE_WINDOW) : [];
   }
 
   function ratesView() {
@@ -626,22 +634,32 @@ window.EstimatorUI = (function () {
       return (i.name || '').toLowerCase().indexOf(term) !== -1 || (i.unit || '').toLowerCase().indexOf(term) !== -1;
     });
     var moved = rateMovements();
+    // Index the movements once — a per-row lookup would rebuild the whole
+    // invoice history for every one of up to 200 rows.
+    var byId = {};
+    moved.forEach(function (m) { byId[m.itemId] = m; });
     return '<section class="ed-card">' +
       '<div class="ed-card-h"><span class="ed-title">Rate library</span>' +
         '<span class="ed-micro">' + hits.length + ' match' + (hits.length === 1 ? '' : 'es') + '</span></div>' +
       '<div class="ed-sub" style="margin-bottom:10px">' + (moved.length
-        ? moved.length + ' material' + (moved.length === 1 ? '' : 's') + ' moved against their standard cost — quotes older than that are stale.'
-        : 'No material has moved against its standard cost.') + '</div>' +
+        ? moved.length + ' material' + (moved.length === 1 ? '' : 's') + ' moved in the last ' + RATE_WINDOW +
+          ' days — quotes older than that are stale.'
+        : 'Nothing has moved in the last ' + RATE_WINDOW + ' days. Movement is read from received purchase invoices, so an item bought only once has none to show.') + '</div>' +
       '<input class="ed-in" style="max-width:none;text-align:left;border-color:var(--line);background:var(--card);margin-bottom:11px" placeholder="Search by name or unit" value="' + esc(S.rateSearch) + '" data-act-input="ratesearch">' +
       '<div style="overflow-x:auto"><table class="ed-table"><thead><tr>' +
         '<th>Material</th><th>Unit</th><th class="num">Rate</th><th class="num">Movement</th></tr></thead><tbody>' +
         hits.map(function (i) {
-          var mv = i.cost ? Math.round(((i.lastPurchaseRate || i.cost) - i.cost) / i.cost * 1000) / 10 : 0;
+          // No movement in the window is an honest em-dash, never a 0% that
+          // reads as "checked and stable".
+          var m = byId[i.id];
           return '<tr><td style="font-size:12px">' + esc(i.name) + '</td>' +
             '<td class="ed-micro">' + esc(i.unit || '') + '</td>' +
             '<td class="num">' + esc(bd(i.cost || 0)) + '</td>' +
-            '<td class="num" style="color:' + (mv > 0 ? 'var(--bad)' : mv < 0 ? 'var(--ok)' : 'var(--tx3)') + ';font-weight:' + (mv ? 700 : 400) + '">' +
-              (mv ? (mv > 0 ? '▲ ' : '▼ ') + Math.abs(mv) + '%' : '—') + '</td></tr>';
+            '<td class="num" style="color:' + (m ? (m.movePercent > 0 ? 'var(--bad)' : 'var(--ok)') : 'var(--tx3)') +
+              ';font-weight:' + (m ? 700 : 400) + '">' +
+              (m ? (m.movePercent > 0 ? '▲ +' : '▼ ') + m.movePercent + '%' +
+                   '<span class="ed-micro" style="display:block;font-weight:400">' + esc(ddmmm(m.date)) + '</span>'
+                 : '—') + '</td></tr>';
         }).join('') + '</tbody></table></div></section>';
   }
 

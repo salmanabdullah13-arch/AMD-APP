@@ -100,7 +100,8 @@
 .ed-table th{ text-align:left; padding:7px 6px; font-size:10px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color:var(--tx3); border-bottom:1px solid var(--line); white-space:nowrap; }
 .ed-table td{ padding:8px 6px; border-bottom:1px solid var(--line2); vertical-align:top; }
-.ed-table th.num, .ed-table td.num{ text-align:right; }
+/* nowrap so a wide figure never breaks mid-number (BD 28.500 -> "BD" / "28.500") */
+.ed-table th.num, .ed-table td.num{ text-align:right; white-space:nowrap; }
 .ed-sl{ font-size:10.5px; font-weight:700; color:var(--wine); background:var(--wine-tint);
   padding:2px 6px; border-radius:6px; white-space:nowrap; }
 /* Borderless until focused — a table of forty boxes reads as a form, not a
