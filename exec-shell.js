@@ -494,8 +494,28 @@ execStyleTag.textContent = `
   .xs-side.open{transform:none;}
   .xs-burger{display:grid;}
   .xs-collapse-btn{display:none;}
+  /* Collapsing means "shrink to the 64px icon rail", which has no meaning in a
+     drawer — the drawer is open or closed. Leaving the chevron here let a phone
+     tap put the drawer into the rail state, which is what Salman hit. The old
+     .xs-collapse-btn was already hidden; the chevron replaced it during the
+     Owner redesign and was never covered. */
+  .xs-collapse-chev{display:none;}
   .xshell.xs-collapsed .xs-app{grid-template-columns:1fr;}
-  .xshell.xs-collapsed .xs-item .xs-lbl,.xshell.xs-collapsed .xs-navlabel,.xshell.xs-collapsed .xs-sidepanels{display:initial;}
+  /* The drawer is ALWAYS a full drawer, never the 64px icon rail — so the
+     collapsed state is neutralised wholesale here rather than undone rule by
+     rule. Collapse is persisted per device, so a sidebar collapsed on desktop
+     was arriving on the phone as a rail: centred rows with no left padding, no
+     brand text and no user name. Undoing only the hidden labels (what this rule
+     used to do) left the centring and the missing brand/user behind. */
+  .xshell.xs-collapsed .xs-brand > div:not(.xs-brand-mark),
+  .xshell.xs-collapsed .xs-navlabel,
+  .xshell.xs-collapsed .xs-item .xs-lbl,
+  .xshell.xs-collapsed .xs-item .xs-tag,
+  .xshell.xs-collapsed .xs-user > div:not(.xs-avatar),
+  .xshell.xs-collapsed .xs-sidepanels{display:initial;}
+  .xshell.xs-collapsed .xs-brand{justify-content:flex-start;padding-left:14px;padding-right:14px;}
+  .xshell.xs-collapsed .xs-item{justify-content:flex-start;padding:9px 10px;}
+  .xshell.xs-collapsed .xs-user{justify-content:flex-start;padding:7px;}
 }
 `;
 document.head.appendChild(execStyleTag);

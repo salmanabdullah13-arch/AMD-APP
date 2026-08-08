@@ -257,6 +257,37 @@ function printReport() {
   await mobilePage.evaluate(() => execToggleSide(false));
   record('Operations drawer opens full-height from the top on mobile (was clipped)',
     opsDrawer.open && opsDrawer.top === 0 && opsDrawer.coversViewport ? 'PASS' : 'FAIL', JSON.stringify(opsDrawer));
+
+  // Collapse is persisted per device, so a sidebar collapsed on desktop arrived
+  // on the phone as the 64px icon rail: rows centred with no left padding, no
+  // brand text, no user name — and a chevron that could put it back there.
+  // The drawer is always a full drawer.
+  currentStep = 'mobile-drawer-never-a-rail';
+  await mobilePage.evaluate(() => {
+    localStorage.setItem('amd-exec-side-collapsed', '1');
+    launchSalesModule();
+  });
+  await mobilePage.waitForTimeout(500);
+  await mobilePage.click('#sales-module-wrap .xs-burger'); await mobilePage.waitForTimeout(300);
+  const rail = await mobilePage.evaluate(() => {
+    const side = document.querySelector('#sales-module-wrap .xs-side.open');
+    const items = [...side.querySelectorAll('.xs-item')];
+    const chev = document.querySelector('#sales-module-wrap .xs-collapse-chev');
+    const iconX = items.map(i => Math.round((i.firstElementChild || i).getBoundingClientRect().left));
+    return {
+      justify: getComputedStyle(items[0]).justifyContent,
+      oneIconColumn: new Set(iconX).size === 1,
+      chevHidden: !chev || getComputedStyle(chev).display === 'none',
+      brandText: !!side.querySelector('.xs-brand > div:not(.xs-brand-mark)') &&
+        getComputedStyle(side.querySelector('.xs-brand > div:not(.xs-brand-mark)')).display !== 'none',
+      userName: !!side.querySelector('.xs-user > div:not(.xs-avatar)') &&
+        getComputedStyle(side.querySelector('.xs-user > div:not(.xs-avatar)')).display !== 'none'
+    };
+  });
+  await mobilePage.evaluate(() => { localStorage.removeItem('amd-exec-side-collapsed'); execToggleSide(false); });
+  record('mobile drawer never renders as the collapsed rail, even when collapse was persisted',
+    rail.justify === 'flex-start' && rail.oneIconColumn && rail.chevHidden &&
+    rail.brandText && rail.userName ? 'PASS' : 'FAIL', JSON.stringify(rail));
   await mobilePage.close();
 
   record('Mobile drawer closes via ×, tap-outside scrim, and picking a nav item (which still navigates)',
