@@ -6392,3 +6392,30 @@ and JS ship as written, only its `DATA` block is replaced with live calls.
   so they now prove the money is gone. Full offline sweep 60/61, the one
   failure being the long-standing stale `e2e-batch8-phase2-4.js`.
 - `sw.js` CACHE_VERSION v22 → v23; the three new files added to CORE_ASSETS.
+
+### 8 Aug 2026 — Owner dashboard: the KPI band pairs up on mobile
+
+Salman, with his phone next to the design prototype: *"Owner dashboard needs
+to be stacked side by side and not a list."* He circled the Company-snapshot
+band.
+
+The handoff's README and CSS both said "≤880px → 1 column", which is what
+shipped — so on his iPhone the four KPI tiles ran one per row down the page.
+Its own iPhone prototype image, though, shows them as a 2×2 block. The two
+disagreed; his call settles it in favour of the prototype.
+
+- Mobile is now two columns, with every full card spanning both, so **only
+  the KPI band pairs up**. A calendar, a tab strip or a share-row list at
+  187px wide would be unreadable — and the prototype shows those full-width
+  too, so this matches it exactly rather than splitting the difference.
+- Sales (handoff 5a) is unaffected and deliberately untouched: it has no KPI
+  band, and its mobile path is the column-flex scroller its own handoff warns
+  must keep `flex:none` on every card.
+- **Verification**: `e2e-owner-dashboard.js` updated — the responsive check
+  now expects 4 → 2 → 2 columns, and a new assertion measures the tiles' own
+  geometry (four KPI tiles across exactly two rows, all full cards at a
+  single width) rather than trusting the column count alone. 27/27. Spot-
+  checked demo-data, exec-shell, exec-shell-rollout, direct-landing and the
+  Sales suite; all clean. Screenshot at 390px read back and compared against
+  the prototype.
+- `sw.js` CACHE_VERSION v23 → v24.

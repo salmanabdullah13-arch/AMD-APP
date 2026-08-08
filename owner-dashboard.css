@@ -43,8 +43,15 @@
 .od-tabs, .od-dept, .od-dtile{ min-width:0; }
 @media (max-width:1100px){ .od-grid{ grid-template-columns:repeat(2,1fr); } }
 @media (max-width:880px){
-  .od-grid{ grid-template-columns:1fr; padding:14px 14px 24px; gap:12px; }
-  .od-span2{ grid-column:span 1; }
+  /* Salman, 8 Aug 2026, with his phone next to the prototype: the KPI band
+     goes side by side on mobile, not one tile per row. The handoff's README
+     said "≤880px → 1 column", but its own iPhone prototype shows the four
+     tiles as a 2×2 block — his call settles it in favour of the prototype.
+     Two columns, with every full card spanning both so only the band pairs
+     up: a calendar or a tab strip at 187px wide would be unreadable. */
+  .od-grid{ grid-template-columns:1fr 1fr; padding:14px 14px 24px; gap:12px; }
+  .od-grid > .od-card{ grid-column:span 2; }
+  .od-span2{ grid-column:span 2; }
 }
 
 /* ---------------------------------------------------------------- card --- */

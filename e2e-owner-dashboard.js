@@ -226,17 +226,25 @@ function printReport() {
   // ── responsive: two steps down to one column, with no horizontal overflow ──
   currentStep = 'responsive';
   const resp = [];
-  for (const [w, want] of [[1280, 4], [1000, 2], [390, 1]]) {
+  // 8 Aug 2026, Salman with his phone next to the prototype: the KPI band
+  // pairs up on mobile rather than stacking one tile per row, so 390px is two
+  // columns with the full cards spanning both.
+  for (const [w, want] of [[1280, 4], [1000, 2], [390, 2]]) {
     await page.setViewportSize({ width: w, height: 900 });
     await page.waitForTimeout(300);
     const r = await page.evaluate(() => {
       const g = document.querySelector('#owner-body .od-grid');
-      return { cols: getComputedStyle(g).gridTemplateColumns.split(' ').length, overflow: g.scrollWidth - Math.round(g.getBoundingClientRect().width) };
+      const kpiTops = [...g.querySelectorAll('.od-kpi')].map(k => Math.round(k.getBoundingClientRect().top));
+      const cardW = [...new Set([...g.querySelectorAll('.od-card')].map(c => Math.round(c.getBoundingClientRect().width)))];
+      return { cols: getComputedStyle(g).gridTemplateColumns.split(' ').length, overflow: g.scrollWidth - Math.round(g.getBoundingClientRect().width), kpiRows: [...new Set(kpiTops)].length, cardWidths: cardW.length };
     });
-    resp.push({ w, cols: r.cols, want, overflow: r.overflow });
+    resp.push({ w, cols: r.cols, want, overflow: r.overflow, kpiRows: r.kpiRows, cardWidths: r.cardWidths });
   }
-  record('The grid steps 4 → 2 → 1 columns and never overflows horizontally',
+  record('The grid steps 4 → 2 → 2 columns and never overflows horizontally',
     resp.every(r => r.cols === r.want && r.overflow <= 1) ? 'PASS' : 'FAIL', JSON.stringify(resp));
+  const phone = resp[resp.length - 1];
+  record('On a phone the four KPI tiles pair up 2×2 and the full cards still span the width',
+    phone.kpiRows === 2 && phone.cardWidths === 1 ? 'PASS' : 'FAIL', JSON.stringify(phone));
 
   // ── mutual exclusivity and a clean close, as for every module ──
   currentStep = 'module-hygiene';
