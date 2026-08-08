@@ -6481,3 +6481,67 @@ fails silently and looks like a layering bug.
   is a design, not a glitch — flagged for its own pass rather than folded in
   silently here.
 - `sw.js` CACHE_VERSION v24 → v25.
+
+### 8 Aug 2026 — Week planner rebuilt to the reference; three bits of stale chrome removed
+
+Salman: *"build it"* — the richer planner from his second screenshot — then,
+moving Owner → Estimation: *"my tasks on taskbar serves no useful purpose
+now / logged in as - doesnt serve any purpose / and no back button still ?"*
+
+**The planner.** Left rail (brand, a Today group, four type filters, user
+chip), a seven-column week of typed commitment cards, and a right rail with
+"needs a slot" work and crew capacity — as the reference has it.
+
+Every card in the week is a **real dated commitment**: booked deliveries
+(`deliverySchedule`), Curtain installs (their own `installation.scheduledDate`
+and team), a job's promised date — which becomes a *QC deadline* when one of
+its lines is sitting at QC or back in rework, since that is the thing worth
+seeing — diary entries with their own time, and the viewer's due-dated tasks.
+Work that genuinely has no date is never given one to fill a column; it goes
+to the unscheduled rail, which is what that rail is for. Crew capacity is the
+same day-log computation Operations' Capacity page already used, lifted into
+`getWeekCapacity()` so the two can't drift.
+
+- Scoping reuses the rule `getCalendarEvents()` uses, extracted to
+  `plannerJobsFor()` so there is one copy.
+- On a phone the left rail folds away (its filters move into the header) but
+  the **unscheduled list does not** — hiding it left a count in the header
+  with nothing behind it, on the device he actually uses.
+
+**The three bits of chrome.**
+- *No back button after Owner → another dashboard*: `execRenderNav()` shows
+  the arrow when there's a return ticket, and Owner's own hops never pushed
+  one. `ownerGoTo()`/`ownerGoToOperations()` now do.
+- *"Logged in as"*: a dev-era simulated-identity switcher from before there
+  was a real login. His screenshot showed it saying "Karthik Silva" while the
+  shell's user chip said "Salman Abdullah" — it actively contradicted the
+  session. Removed from Estimation and Approvals; the identity now follows
+  the signed-in session, with the module default kept offline so the suites
+  still work.
+- *Sidebar My Tasks*: he's right that it had become a third view of the same
+  list — the dashboards carry a full task card and the planner shows tasks on
+  their due day. Removed. So nothing was lost with it, **undated tasks now
+  appear in the planner's unscheduled rail**, and Quick actions → My tasks
+  opens the planner.
+
+**A real self-inflicted bug worth recording.** Rebuilding the planner CSS, I
+preserved the compose-form rules by filtering *lines* that matched their
+selector — which kept only the FIRST line of two multi-line rules and left
+their braces open. An unclosed CSS rule swallows every rule after it, so the
+shell's grid definition was lost and the sidebar and content swapped places;
+the symptom surfaced three suites away as an Approver row that wouldn't
+respond to a click. Found by bisecting file-by-file against a baseline, then
+checking brace balance in the injected stylesheet. Lesson: never filter CSS
+by line — a rule is not a line.
+
+- **Verification**: new `e2e-week-planner.js` (19/19) — the layout and rails,
+  each commitment type landing on its real day, the QC-deadline promotion,
+  undated work staying out of the week and in the rail, type filters, week
+  stepping, capacity coming from the real roster, logging a meeting, and the
+  phone path keeping the unscheduled list. Regression checks added to
+  `e2e-session2-nav.js` for all three chrome fixes. Five suites repointed
+  from the removed panel/switcher to where the behaviour now lives
+  (`exec-shell`, `exec-shell-rollout`, `session4-planner`,
+  `session5-dashboards`, plus the planner class rename). Full offline sweep
+  58/59 — the one failure is the long-standing stale `e2e-batch8-phase2-4.js`.
+- `sw.js` CACHE_VERSION v25 → v26.

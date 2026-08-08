@@ -92,23 +92,30 @@ function printReport() {
   });
   record('Sidebar collapse toggles and persists across modules', col.collapsed1 && col.collapsed2 ? 'PASS' : 'FAIL', JSON.stringify(col));
 
-  currentStep = 'tasks-panel';
+  currentStep = 'tasks-reachable';
+  // The sidebar tasks panel was removed on 8 Aug 2026 — Salman: "my tasks on
+  // taskbar serves no useful purpose now". Tasks are still reachable from any
+  // module: Quick actions opens the planner, which shows dated tasks on their
+  // day and undated ones in its "needs a slot" rail.
   const tasks = await page.evaluate(async () => {
     window.__eco3d.NODES.find(n => n.id === 'estimation').launch();
-    await new Promise(r => setTimeout(r, 300));
-    const input = document.querySelector('#estimator-module-wrap input.xs-task-input');
-    if (!input) return { error: 'no input' };
-    input.value = 'Rollout test task';
-    execAddTask();
-    await new Promise(r => setTimeout(r, 150));
-    const t = tasks_find();
-    function tasks_find() { return tasks.find(x => x.title === 'Rollout test task'); }
-    const shown = document.querySelector('#estimator-module-wrap .xs-sidepanels').innerHTML.includes('Rollout test task');
-    execCompleteTask(t.id);
-    await new Promise(r => setTimeout(r, 150));
-    return { created: !!t, assignee: t.assignee, shown, done: tasks.find(x => x.id === t.id).status === 'done' };
+    await new Promise(r => setTimeout(r, 400));
+    const panel = document.querySelector('#estimator-module-wrap .xs-sidepanels');
+    const t = createTask({ title: 'Rollout test task', assignee: execIdentity() });
+    execOpenPlanner();
+    await new Promise(r => setTimeout(r, 400));
+    const planner = document.getElementById('exec-planner');
+    const shown = planner.textContent.includes('Rollout test task');
+    completeTask(t.id);
+    execClosePlanner();
+    return {
+      panelGone: !panel || panel.innerHTML === '',
+      created: !!t, shown,
+      done: tasks.find(x => x.id === t.id).status === 'done'
+    };
   });
-  record('My Tasks panel works from inside a non-owner module (add + complete)', tasks.created && tasks.shown && tasks.done ? 'PASS' : 'FAIL', JSON.stringify(tasks));
+  record('The sidebar tasks panel is gone, and an undated task is still reachable — it lands in the planner\'s unscheduled rail',
+    tasks.panelGone && tasks.created && tasks.shown && tasks.done ? 'PASS' : 'FAIL', JSON.stringify(tasks));
 
   currentStep = 'calendar';
   const cal = await page.evaluate(async () => {
@@ -153,7 +160,7 @@ function printReport() {
     return {
       goneFromSidebar: !sidebar.includes('xs-cal-grid'),
       inDashboard: dash.includes('od-days') || dash.includes('od-month'),
-      inPlanner: planner.includes('xs-pl-day')
+      inPlanner: planner.includes('xs-pl-col')
     };
   });
   record('The calendar left the sidebar for the dashboard\'s This-week card and the Week planner',

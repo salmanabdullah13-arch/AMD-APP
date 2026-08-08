@@ -48,7 +48,9 @@ function printReport() {
     // handoff's own KPI buttons (.od-kpi) — four of them, each a drill-down.
     hasTiles: document.querySelectorAll('#owner-module-wrap .od-kpi').length >= 4,
     overviewActive: document.getElementById('xsnav-owner-overview')?.classList.contains('active'),
-    hasTasksCard: (document.querySelector('#owner-module-wrap .xs-sidepanels')?.innerHTML || '').includes('My Tasks')
+    // The sidebar tasks panel was removed 8 Aug 2026; the Owner dashboard's
+    // own My tasks card is where the list lives now.
+    hasTasksCard: (document.getElementById('owner-body')?.textContent || '').includes('My tasks')
   }));
   record('Owner renders in the new shell (sidebar, topbar, stat tiles, tasks card)', Object.values(shell).every(Boolean) ? 'PASS' : 'FAIL', JSON.stringify(shell));
 
@@ -122,8 +124,15 @@ function printReport() {
     [...document.querySelectorAll('#owner-module-wrap .xs-sidepanels button')].find(el => el.getAttribute('onclick')?.includes('execCompleteTask'))?.click();
   });
   await page.waitForTimeout(200);
-  const taskDone = await page.evaluate((s) => tasks.find(t => t.id === s.taskId)?.status, seed);
-  record('Completing a task from the card really completes it', taskDone === 'done' ? 'PASS' : 'FAIL', `status=${taskDone}`);
+  // Completing now happens on the dashboard card (the sidebar one is gone).
+  const taskDone = await page.evaluate(async (s) => {
+    OwnerDashboard.mount(document.getElementById('owner-body'));
+    await new Promise(r => setTimeout(r, 300));
+    const box = document.querySelector('#owner-body [data-act="check"][data-id="' + s.taskId + '"]');
+    if (box) box.click();
+    await new Promise(r => setTimeout(r, 250));
+    return tasks.find(t => t.id === s.taskId)?.status;
+  }, seed);
 
   // ── sidebar: hop to Admin via the real nav item ──
   currentStep = 'admin-shell';

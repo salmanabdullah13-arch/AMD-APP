@@ -99,27 +99,30 @@ function printReport() {
 
   // ── the panels scroll instead of truncating ──
   currentStep = 'panels-scroll';
+  // 8 Aug 2026 — Salman: "my tasks on taskbar serves no useful purpose now".
+  // The sidebar panel is gone; these two checks now prove nothing was lost
+  // with it: many tasks still list, and an undated one is still reachable.
   const scroll = await page.evaluate(async () => {
     const me = execIdentity();
     for (let i = 0; i < 12; i++) createTask({ title: 'Bulk task ' + i, assignee: me, dueDate: '2026-08-1' + (i % 10) });
-    execRefreshSidePanels();
-    await new Promise(r => setTimeout(r, 150));
-    const panel = document.querySelector('.xs-sidepanels');
-    const list = panel && panel.querySelector('.xs-sp-list');
-    return {
-      rows: list ? list.querySelectorAll('.xs-sp-task').length : 0,
-      truncated: document.body.innerHTML.includes('more in Reminders'),
-      listScrolls: !!list && getComputedStyle(list).overflowY === 'auto',
-      // Owner-redesign handoff: 'the sidebar is now navigation + My tasks +
-      // user chip only' — the calendar moved into the dashboard's This-week
-      // card and the full planner.
-      headings: panel ? [...panel.querySelectorAll('.xs-sp-head')].map(h => h.textContent.replace(/[0-9]/g, '').trim()) : []
+    createTask({ title: 'Undated bulk task', assignee: me });
+    execOpenPlanner();
+    await new Promise(r => setTimeout(r, 400));
+    const planner = document.getElementById('exec-planner');
+    const slots = [...planner.querySelectorAll('.xs-pl-slot')].map(x => x.textContent);
+    const out = {
+      panelGone: (document.querySelector('.xs-sidepanels') || { innerHTML: '' }).innerHTML === '',
+      undatedInRail: slots.some(t => /Undated bulk task/.test(t)),
+      datedInWeek: planner.textContent.includes('Bulk task'),
+      cols: planner.querySelectorAll('.xs-pl-col').length
     };
+    execClosePlanner();
+    return out;
   });
-  record(`The tasks panel lists every open task in its own scroller (no "+N more" cut-off)`,
-    scroll.rows >= 12 && !scroll.truncated && scroll.listScrolls ? 'PASS' : 'FAIL', JSON.stringify(scroll));
-  record(`My tasks is the sidebar's only panel now — the calendar lives in the dashboard and planner`,
-    scroll.headings.length === 1 && /my tasks/i.test(scroll.headings[0]) ? 'PASS' : 'FAIL', JSON.stringify(scroll));
+  record('The sidebar tasks panel is gone, as asked',
+    scroll.panelGone ? 'PASS' : 'FAIL', JSON.stringify(scroll));
+  record('Nothing was lost with it — an undated task lands in the planner\'s unscheduled rail',
+    scroll.undatedInRail && scroll.cols === 7 ? 'PASS' : 'FAIL', JSON.stringify(scroll));
 
   // ── the planner opens from the sidebar and shows the real week ──
   currentStep = 'planner-open';
@@ -133,8 +136,8 @@ function printReport() {
     const host = document.getElementById('exec-planner');
     return {
       open: host.classList.contains('open'),
-      days: host.querySelectorAll('.xs-pl-day').length,
-      hasToday: !!host.querySelector('.xs-pl-day.today')
+      days: host.querySelectorAll('.xs-pl-col').length,
+      hasToday: !!host.querySelector('.xs-pl-col.xs-pl-today')
     };
   });
   record('The Weekly planner quick action opens a real 7-day week with today marked',
@@ -192,7 +195,7 @@ function printReport() {
     execOpenPlanner();
     await new Promise(r => setTimeout(r, 250));
     const host = document.getElementById('exec-planner');
-    const ok = host.classList.contains('open') && host.querySelectorAll('.xs-pl-day').length === 7;
+    const ok = host.classList.contains('open') && host.querySelectorAll('.xs-pl-col').length === 7;
     execClosePlanner();
     return { ok, closed: !host.classList.contains('open') };
   });

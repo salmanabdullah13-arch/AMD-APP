@@ -6655,6 +6655,192 @@ function weekDatesOf(dateStr) {
   });
 }
 
+// ═══ WEEK PLANNER (8 Aug 2026) ═══
+// Salman's planner design: a seven-column week of typed commitment cards, a
+// "needs a slot" rail for work with no date yet, and crew capacity.
+//
+// Every card here is a REAL dated commitment. Things that genuinely have no
+// date — a budget waiting on a decision, a job with no promised date — are
+// deliberately not given one; they go to the unscheduled rail instead, which
+// is what that rail is for. Inventing a date to fill a column would make the
+// week read as planned when it isn't.
+const PLANNER_TYPES = {
+  delivery: { label: "Delivery", tone: "wine" },
+  install:  { label: "Install",  tone: "wine" },
+  qc:       { label: "QC",       tone: "bad"  },
+  promised: { label: "Promised", tone: "warn" },
+  meeting:  { label: "Meeting",  tone: ""     },
+  site:     { label: "Site",     tone: ""     },
+  note:     { label: "Note",     tone: ""     },
+  reminder: { label: "Reminder", tone: "warn" },
+  task:     { label: "Task",     tone: "warn" }
+};
+
+function plannerMonday(dateIso) {
+  const d = new Date((dateIso || new Date().toISOString().slice(0, 10)) + "T00:00:00");
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function plannerAddDays(iso, n) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+// Which jobs a viewer's planner covers — the same scoping rule
+// getCalendarEvents() uses, kept in one place so the two can't drift.
+function plannerJobsFor(identity, moduleKey) {
+  const all = ["owner", "admin", "operations", "jobs", null, undefined].includes(moduleKey);
+  return jobCards.filter(j => {
+    if (j.status === "cancelled") return false;
+    if (all) return true;
+    if (moduleKey === "sales") {
+      const qtn = quotations.find(q => q.id === j.quotationId);
+      const enq = qtn && enquiries.find(e => e.id === qtn.enquiryId);
+      return !!(enq && enq.salesPerson === identity);
+    }
+    const dept = CAL_DEPT_OF_MODULE[moduleKey];
+    return dept ? j.items.some(it => (it.departmentSequence || []).includes(dept)) : false;
+  });
+}
+
+function getPlannerWeek(identity, moduleKey, weekStartIso) {
+  const start = plannerMonday(weekStartIso);
+  const days = [];
+  for (let i = 0; i < 7; i++) days.push({ date: plannerAddDays(start, i), cards: [] });
+  const byDate = {};
+  days.forEach(d => { byDate[d.date] = d; });
+  const push = (date, card) => { if (byDate[date]) byDate[date].cards.push(card); };
+
+  const jobs = plannerJobsFor(identity, moduleKey);
+  const jobIds = new Set(jobs.map(j => j.id));
+  const clientOf = j => { const c = customers.find(x => x.id === j.customerId); return c ? c.name : ""; };
+
+  // Booked deliveries.
+  (typeof deliverySchedule !== "undefined" ? deliverySchedule : [])
+    .filter(d => d.status === "planned" && jobIds.has(d.jobId))
+    .forEach(d => {
+      const j = getJobCard(d.jobId);
+      push(d.plannedDate, {
+        type: "delivery", time: "", ref: d.jobId,
+        title: "Delivery · " + (j ? j.projectName : d.jobId),
+        meta: [j ? clientOf(j) : "", d.driver, d.vehicleId].filter(Boolean).join(" · ")
+      });
+    });
+
+  // Curtain installs carry their own scheduled date and team.
+  (typeof curtainJobs !== "undefined" ? curtainJobs : []).forEach(cj => {
+    const inst = cj.installation;
+    if (!inst || !inst.scheduledDate) return;
+    if (cj.linkedJobCardId && !jobIds.has(cj.linkedJobCardId)) return;
+    push(inst.scheduledDate, {
+      type: "install", time: "", ref: cj.id,
+      title: "Install · " + (cj.name || cj.id),
+      meta: [(inst.team || []).join(", "), inst.siteContact].filter(Boolean).join(" · ")
+    });
+  });
+
+  // A job's promised date is a real deadline. If any of its lines is sitting
+  // at QC or back in rework, that deadline is a QC deadline — which is the
+  // thing worth seeing, so it takes the QC type and its keyline.
+  jobs.filter(j => j.promisedDate).forEach(j => {
+    const stuck = j.items.some(it => (it.departmentStatuses || [])
+      .some(d => d.status === "qc" || d.status === "rework"));
+    const late = j.promisedDate < new Date().toISOString().slice(0, 10);
+    push(j.promisedDate, {
+      type: stuck ? "qc" : "promised", time: "", ref: j.id,
+      title: (stuck ? "QC deadline · " : "Promised · ") + j.projectName,
+      meta: [clientOf(j), late ? "overdue" : "", j.urgent ? "urgent" : ""].filter(Boolean).join(" · ")
+    });
+  });
+
+  // Diary entries the viewer logged or was named in.
+  (typeof getEventsForIdentity === "function" ? getEventsForIdentity(identity) : []).forEach(e => {
+    push(e.date, {
+      type: PLANNER_TYPES[e.kind] ? e.kind : "note", time: e.time || "", ref: e.id,
+      title: e.title, meta: [e.withWhom, e.notes].filter(Boolean).join(" · ")
+    });
+  });
+
+  // The viewer's own due-dated tasks.
+  (typeof tasks !== "undefined" ? tasks : [])
+    .filter(t => t.assignee === identity && t.status === "open" && t.dueDate)
+    .forEach(t => push(t.dueDate, {
+      type: "task", time: "", ref: t.id, title: t.title,
+      meta: t.linkedType === "job" ? t.linkedId : ""
+    }));
+
+  days.forEach(d => d.cards.sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99")));
+  return { start, end: plannerAddDays(start, 6), days, total: days.reduce((s, d) => s + d.cards.length, 0) };
+}
+
+// Work that needs a date and hasn't got one. Deliberately separate from the
+// week itself — see the note at the top.
+function getUnscheduledWork(identity, moduleKey) {
+  const out = [];
+  const jobs = plannerJobsFor(identity, moduleKey);
+  const booked = new Set((typeof deliverySchedule !== "undefined" ? deliverySchedule : [])
+    .filter(d => d.status !== "cancelled").map(d => d.jobId));
+
+  jobs.forEach(j => {
+    const c = customers.find(x => x.id === j.customerId);
+    if (jobProductionComplete(j) && !booked.has(j.id)) {
+      out.push({ kind: "delivery", ref: j.id, title: j.id + " · " + (c ? c.name : j.projectName), meta: "Ready to deliver — no slot booked" });
+    } else if (!j.promisedDate && j.routingConfirmed) {
+      out.push({ kind: "promise", ref: j.id, title: j.id + " · " + (c ? c.name : j.projectName), meta: "No promised date set" });
+    }
+  });
+
+  // Curtain jobs awaiting an install date.
+  (typeof curtainJobs !== "undefined" ? curtainJobs : []).forEach(cj => {
+    const inst = cj.installation;
+    if (!inst || inst.scheduledDate) return;
+    if (cj.linkedJobCardId && !jobs.some(j => j.id === cj.linkedJobCardId)) return;
+    out.push({ kind: "install", ref: cj.id, title: cj.id + " · " + (cj.name || ""), meta: "Awaiting an install date" });
+  });
+
+  // The viewer's own tasks with no due date. They used to live in the shell
+  // sidebar; that panel is gone (8 Aug 2026), and an undated task IS
+  // unscheduled work, so this rail is where it belongs.
+  (typeof tasks !== "undefined" ? tasks : [])
+    .filter(t => t.assignee === identity && t.status === "open" && !t.dueDate)
+    .forEach(t => out.push({ kind: "task", ref: t.id, title: t.title, meta: "Task with no due date" }));
+
+  // Decisions with no date of their own — they still need someone's day.
+  if (["owner", "admin", "operations", null, undefined].includes(moduleKey)) {
+    (typeof getAllPendingBudgetApprovals === "function" ? getAllPendingBudgetApprovals() : [])
+      .forEach(({ job, deptKey }) => out.push({
+        kind: "approval", ref: job.id,
+        title: job.id + " · " + dc(deptKey).n + " budget",
+        meta: "Waiting on an approval"
+      }));
+    (typeof getJobsPendingRouting === "function" ? getJobsPendingRouting() : [])
+      .forEach(j => out.push({ kind: "routing", ref: j.id, title: j.id + " · " + j.projectName, meta: "Confirmed but not routed" }));
+  }
+  return out;
+}
+
+// This week's real load per department, from the team-leader day-logs — the
+// same computation Operations' own Capacity page uses, lifted here so the two
+// can't drift apart.
+function getWeekCapacity(weekStartIso) {
+  const start = plannerMonday(weekStartIso);
+  const end = plannerAddDays(start, 6);
+  const logs = (typeof labourDayLogs !== "undefined" ? labourDayLogs : [])
+    .filter(l => l.date >= start && l.date <= end);
+  return [["carp", "Joinery"], ["uph", "Upholstery"], ["paint", "Painting"], ["curt", "Curtain"]].map(([k, label]) => {
+    const roster = (typeof getDeptRoster === "function" ? getDeptRoster(k) : []).length;
+    const avail = roster * 8 * 6;   // a six-day week
+    const logged = logs.filter(l => {
+      const j = getJobCard(l.jobId);
+      if (j) { const it = j.items.find(x => x.lineId === l.lineId); if (it) return (it.departmentSequence || []).includes(k); }
+      if (k === "curt") return typeof curtainJobs !== "undefined" && curtainJobs.some(cj => cj.id === l.jobId);
+      return false;
+    }).reduce((s, l) => s + l.hours, 0);
+    return { key: k, label, roster, avail, logged, pct: avail > 0 ? Math.min(100, Math.round(logged / avail * 100)) : 0 };
+  });
+}
+
 function getCalendarEvents(identity, moduleKey) {
   const ev = [];
   try {

@@ -14,8 +14,6 @@ approverStyleTag.textContent = `
 #approver-module-wrap { font-family: var(--font-biz); background: var(--biz-page-bg); }
 #approver-module-wrap .ops-header{background:var(--biz-crimson);padding:calc(11px + var(--safe-top,0px)) 18px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;}
 #approver-module-wrap .approver-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 80px;}
-#approver-module-wrap .approver-userbar{background:#f4e6ec;border-bottom:1px solid #e0c2d0;padding:8px 18px;font-size:11.5px;color:var(--biz-primary-dark);display:flex;align-items:center;gap:8px;flex:none;}
-#approver-module-wrap .approver-userbar select{font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #e0c2d0;background:#fff;}
 #approver-module-wrap .sales-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
 #approver-module-wrap .sales-kpi-tile{background:var(--biz-card-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r);padding:12px;text-align:center;box-shadow:var(--biz-shadow);}
 #approver-module-wrap .sales-kpi-tile .num{font-size:21px;font-weight:700;color:var(--biz-crimson);}
@@ -73,10 +71,6 @@ approverModuleWrap.innerHTML = `
     </div>
     <button onclick="closeApproverModule()" style="background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;">×</button>
   </div>
-  <div class="approver-userbar">
-    Logged in as
-    <select id="approver-user-select" onchange="approverSetCurrentUser(this.value)"></select>
-  </div>
   <div class="approver-scroll">
     <div id="approver-body"></div>
   </div>
@@ -121,8 +115,10 @@ function openApproverModule() {
     if (el) el.style.display = 'none';
   });
   approverModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
-  const sel = document.getElementById('approver-user-select');
-  if (sel) sel.innerHTML = APPROVER_USERS.map(u => `<option value="${u}" ${u === approverCurrentUser ? 'selected' : ''}>${u}</option>`).join('');
+  // The role switcher is gone (8 Aug 2026, Salman: "logged in as — doesnt
+  // serve any purpose"). Identity comes from the real signed-in session;
+  // offline it keeps the module default the e2e suites rely on.
+  if (window.__realCloudSession && window.cloudIdentity) approverCurrentUser = window.cloudIdentity;
   approverView = 'dashboard';
   execEnsureShell(approverModuleWrap, { key: 'approver', title: 'Approvals', role: 'Approver', navGroupsFn: EXEC_NAV_CONFIGS.approver, closeFn: 'closeApproverModule' });
   renderApproverBody();

@@ -133,8 +133,11 @@ function printReport() {
     const switcher = !!document.getElementById('estimator-user-select');
     return { count, switcher };
   });
-  record('Estimation shows the identity once, and keeps its role switcher',
-    dupes.count <= 1 && dupes.switcher ? 'PASS' : 'FAIL', JSON.stringify(dupes));
+  // 8 Aug 2026 — Salman: "logged in as - doesnt serve any purpose". The
+  // dev-era switcher is gone; the shell's own user chip names who you are,
+  // and with a real login the identity comes from the session.
+  record('Estimation no longer carries the dev-era \"Logged in as\" switcher',
+    dupes.count === 0 && !dupes.switcher ? 'PASS' : 'FAIL', JSON.stringify(dupes));
 
   // ── every KPI tile leads somewhere ──
   currentStep = 'kpis-clickable';

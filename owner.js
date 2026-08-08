@@ -52,7 +52,7 @@ function ownerBuildShell() {
         label: 'Workspace', items: [
           { id: 'owner-overview', ico: '▦', label: 'Overview', onclick: "ownerNav('dashboard')" },
           { id: 'owner-planner', ico: '🗓', label: 'Week planner', onclick: 'execOpenPlanner()' },
-          { id: 'owner-tasks', ico: '✓', label: 'My tasks', onclick: "execFocusPanel('tasks')" }
+          { id: 'owner-tasks', ico: '✓', label: 'My tasks', onclick: "ownerNav('dashboard')" }
         ]
       },
       {
@@ -163,10 +163,14 @@ function launchOwnerModule() { openOwnerModule(); }
 // Jumps straight into a real module, same pattern as every other
 // cross-module hop in this app (jobsNewVariation, salesRequestPurchase).
 function ownerGoTo(fn) {
+  // Leave a return ticket first, or the module we land on has no way back
+  // (execRenderNav only shows the arrow when the stack has one).
+  if (typeof execPushCurrent === 'function') execPushCurrent();
   hideModuleWrap(ownerModuleWrap);
   setTimeout(() => { if (typeof window[fn] === 'function') window[fn](); }, 150);
 }
 function ownerGoToOperations() {
+  if (typeof execPushCurrent === 'function') execPushCurrent();
   hideModuleWrap(ownerModuleWrap);
   setTimeout(() => goTo('operations'), 150);
 }

@@ -119,6 +119,39 @@ function printReport() {
   record('Choosing a sidebar destination clears the record trail (fresh context)',
     !sidebar.crumbsOn && !sidebar.back ? 'PASS' : 'FAIL', JSON.stringify(sidebar));
 
+  // ── 8 Aug 2026, from Salman moving Owner → Estimation: no back button,
+  //    a stale "Logged in as" switcher, and a sidebar tasks panel that had
+  //    become a third view of the same list. ──
+  currentStep = 'owner-hop-back';
+  const hop = await page.evaluate(async () => {
+    launchOwnerModule();
+    await new Promise(r => setTimeout(r, 600));
+    document.querySelector('#owner-module-wrap #xsnav-m-sales').click();
+    await new Promise(r => setTimeout(r, 700));
+    const back = document.querySelector('#sales-module-wrap .xs-back');
+    const visible = getComputedStyle(back).display !== 'none';
+    back.click();
+    await new Promise(r => setTimeout(r, 700));
+    return { visible, returned: getComputedStyle(document.getElementById('owner-module-wrap')).display !== 'none' };
+  });
+  record('Hopping from Owner to another dashboard leaves a back arrow that returns to Owner',
+    hop.visible && hop.returned ? 'PASS' : 'FAIL', JSON.stringify(hop));
+
+  currentStep = 'stale-chrome';
+  const chrome = await page.evaluate(async () => {
+    const out = {};
+    for (const [fn, id] of [['launchEstimatorModule','estimator-module-wrap'],['launchApproverModule','approver-module-wrap']]) {
+      window[fn]();
+      await new Promise(r => setTimeout(r, 500));
+      const w = document.getElementById(id);
+      out[id] = { loggedInAs: /Logged in as/.test(w.textContent), panel: (w.querySelector('.xs-sidepanels') || {}).innerHTML };
+    }
+    return out;
+  });
+  record('The dev-era "Logged in as" switcher is gone from Estimation and Approvals',
+    Object.values(chrome).every(c => !c.loggedInAs) ? 'PASS' : 'FAIL', JSON.stringify(chrome));
+  record('The sidebar no longer carries its own tasks panel',
+    Object.values(chrome).every(c => c.panel === '') ? 'PASS' : 'FAIL', JSON.stringify(chrome));
   printReport();
   await browser.close();
   process.exit(results.every(r => r.status === 'PASS') ? 0 : 1);
