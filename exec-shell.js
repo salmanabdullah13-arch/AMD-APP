@@ -647,6 +647,13 @@ let execQuickOpen = false;
 // button is for; the shared planner/request items follow. Estimator's set is
 // the design package's own (6a, 8 Aug 2026).
 const EXEC_QUICK_BY_MODULE = {
+  jobs: [
+    { ico: '🖨', label: 'Print job order', on: "jobsQuickPrint()" },
+    { ico: '➕', label: 'New variation', on: "jobsQuickVariation()" },
+    { ico: '🛒', label: 'Raise purchase request', on: "jobsQuickPurchase()" },
+    { ico: '✓', label: 'Add a task to this job', on: "jobsQuickTask()" },
+    { ico: '💬', label: 'Message operations', on: "openComposeMessage(execIdentity(), 'Operations Manager', null, null)" }
+  ],
   estimator: [
     { ico: '⌸', label: 'Cost a quotation', on: "EstimatorUI.setView('queue')" },
     { ico: '◈', label: 'Quick tender estimate', on: "EstimatorUI.setQueueFilter('tenders')" },
@@ -1396,12 +1403,30 @@ const EXEC_NAV_CONFIGS = {
       nv('apr-dash', '▦', 'For Approval', "approverView='dashboard';renderApproverBody()", nvTag(() => quotations.filter(q => q.stage === 'approver').length))
     ] }
   ],
-  jobs: () => [
-    { label: 'Workspace', items: [
-      nv('job-list', '⚒', 'Job Cards', "jobsView='list';renderJobsBody()", nvTag(() => jobCards.filter(j => j.status === 'open').length)),
-      nv('job-rep', '𝄜', 'Reports', "jobsView='reports';renderJobsBody()")
-    ] }
-  ],
+  jobs: () => {
+    // 'This job' only exists while a record is open — the anchors have nothing
+    // to point at from the list, and a nav group that scrolls to nowhere is
+    // worse than one that isn't there.
+    const job = (typeof jobsView !== 'undefined' && jobsView === 'hub' && typeof getJobCard === 'function')
+      ? getJobCard(jobsActiveJobId) : null;
+    const groups = [
+      { label: 'Workspace', items: [
+        nv('job-list', '⚒', 'Job Cards', "jobsView='list';renderJobsBody()", nvTag(() => jobCards.filter(j => j.status === 'open').length)),
+        nv('job-rep', '𝄜', 'Reports', "jobsView='reports';renderJobsBody()")
+      ] }
+    ];
+    if (job) {
+      const docs = (typeof getInvoicesForJob === 'function' ? getInvoicesForJob(job.id).length : 0) + (job.deliveryNotes || []).length;
+      const depts = [...new Set((job.items || []).flatMap(it => routedDepartmentsFor(it)))].length;
+      groups.push({ label: 'This job', items: [
+        nv('job-a-items', '▤', 'Items', "jobsScrollTo('jr-items')", nvTag(() => (job.items || []).length)),
+        nv('job-a-dept', '⚙', 'Departments', "jobsScrollTo('jr-departments')", nvTag(() => depts)),
+        nv('job-a-docs', '🗎', 'Documents', "jobsScrollTo('jr-documents')", nvTag(() => docs)),
+        nv('job-a-act', '◷', 'Activity', "jobsScrollTo('jr-activity')")
+      ] });
+    }
+    return groups;
+  },
   accounts: () => [
     { label: 'Money', items: [
       nv('ac-dash', '▦', 'Overview', "accountsSetView('dashboard')"),

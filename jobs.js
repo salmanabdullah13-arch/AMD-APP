@@ -92,6 +92,60 @@ jobsStyleTag.textContent = `
 #jobs-module-wrap .invoice-sign{text-align:right;margin-top:28px;font-family:var(--font-biz);font-size:12px;}
 #jobs-module-wrap .invoice-sign .line{margin-top:36px;border-top:1px solid #1a1a1a;width:180px;margin-left:auto;padding-top:4px;font-size:10.5px;color:#666;}
 #jobs-module-wrap .invoice-footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-family:var(--font-biz);font-size:9.5px;color:#888;text-align:center;line-height:1.6;}
+/* ── Job Card record page (design package 9a, 9 Aug 2026) ───────────────
+   Scroll clearance: the floating chat bubble sits bottom-right, so the
+   content column keeps 68px on the right and 84px at the bottom. Before the
+   padding, the bubble landed squarely on the Departments card status column,
+   which is right-aligned. */
+#jobs-module-wrap .jobs-scroll{padding-right:68px;padding-bottom:84px;}
+@media (max-width:880px){ #jobs-module-wrap .jobs-scroll{padding-right:18px;padding-bottom:84px;} }
+#jobs-module-wrap .jr-head{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+#jobs-module-wrap .jr-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;}
+/* Stack on a phone. flex-wrap alone was not enough: the identity column is
+   flex:1;min-width:0, so it shrank to nothing rather than pushing the 216px
+   rail onto its own line — the rail landed on top of the job id. */
+@media (max-width:880px){ #jobs-module-wrap .jr-head{flex-direction:column;} #jobs-module-wrap .jr-fields{grid-template-columns:repeat(2,1fr);} #jobs-module-wrap .jr-rail{width:100%;} }
+#jobs-module-wrap .jr-fields label,#jobs-module-wrap .jr-rail label{display:block;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--biz-text-faint);margin-bottom:3px;}
+#jobs-module-wrap .jr-fields span{font-size:12.5px;color:var(--biz-text);}
+#jobs-module-wrap .jr-link{color:var(--biz-primary);cursor:pointer;font-weight:600;}
+#jobs-module-wrap .jr-rail{width:216px;flex:none;background:var(--biz-input-bg);border:1px solid var(--biz-border-light);border-radius:var(--biz-r-sm);padding:12px;}
+#jobs-module-wrap .jr-pct{font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--biz-text);line-height:1.1;}
+#jobs-module-wrap .jr-target{font-size:13px;font-weight:600;color:var(--biz-text);}
+#jobs-module-wrap .jr-target.is-late{color:var(--bad,#b42318);}
+/* Chart rule: label ABOVE, value in its own fixed column beside a full-width
+   track. Never a label inside the fill. */
+#jobs-module-wrap .jr-track{display:block;width:100%;height:7px;border-radius:4px;background:var(--biz-border-light);overflow:hidden;margin-top:5px;}
+#jobs-module-wrap .jr-track i{display:block;height:7px;border-radius:4px;background:var(--biz-primary);}
+#jobs-module-wrap .jr-item{padding:9px 0;border-bottom:1px solid var(--biz-border-light);}
+#jobs-module-wrap .jr-item:last-child{border-bottom:0;}
+#jobs-module-wrap .jr-item-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#jobs-module-wrap .jr-serial{font-size:10px;font-weight:700;color:var(--biz-primary);background:var(--biz-input-bg);padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums;}
+#jobs-module-wrap .jr-item-n{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--biz-text);}
+#jobs-module-wrap .jr-qty{font-size:11.5px;color:var(--biz-text-muted);font-variant-numeric:tabular-nums;}
+#jobs-module-wrap .jr-dept{font-size:10.5px;color:var(--biz-text-faint);}
+#jobs-module-wrap .jr-bar{display:flex;align-items:center;gap:9px;margin-top:5px;}
+#jobs-module-wrap .jr-bar .jr-track{margin-top:0;}
+#jobs-module-wrap .jr-pctcol{flex:none;width:38px;text-align:right;font-size:11px;font-weight:700;color:var(--biz-text-muted);font-variant-numeric:tabular-nums;}
+#jobs-module-wrap .jr-dept-row{display:flex;align-items:center;gap:9px;padding:6px 0;}
+#jobs-module-wrap .jr-dept-n{flex:none;width:78px;font-size:11.5px;font-weight:600;color:var(--biz-text);}
+#jobs-module-wrap .jr-dept-row .jr-track{margin-top:0;}
+#jobs-module-wrap .jr-dept-s{flex:none;width:96px;text-align:right;font-size:10.5px;color:var(--biz-text-muted);}
+#jobs-module-wrap .jr-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+#jobs-module-wrap .jr-btn{padding:8px 14px;border-radius:var(--biz-r-sm);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid transparent;}
+#jobs-module-wrap .jr-btn.fill{background:var(--biz-primary);color:#fff;}
+#jobs-module-wrap .jr-btn.outline{background:transparent;border-color:var(--biz-primary);color:var(--biz-primary);}
+#jobs-module-wrap .jr-btn.grey{background:transparent;border-color:var(--biz-border);color:var(--biz-text-muted);}
+#jobs-module-wrap .jr-chip{padding:7px 12px;border-radius:var(--biz-r-sm);border:1px dashed var(--biz-border);color:var(--biz-text-faint);font-size:11.5px;cursor:default;}
+#jobs-module-wrap .jr-chip.is-done{border-color:var(--ok,#0f9d58);color:var(--ok,#0f9d58);}
+#jobs-module-wrap .jr-doc-h{display:flex;align-items:center;gap:10px;cursor:pointer;}
+#jobs-module-wrap .jr-docs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:11px;}
+@media (max-width:880px){ #jobs-module-wrap .jr-docs{grid-template-columns:repeat(2,1fr);} }
+#jobs-module-wrap .jr-doc{border:1px solid var(--biz-border-light);border-radius:var(--biz-r-sm);padding:9px 10px;}
+#jobs-module-wrap .jr-doc.has{border-color:var(--biz-primary);}
+#jobs-module-wrap .jr-doc label{display:block;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--biz-text-faint);margin-bottom:3px;}
+#jobs-module-wrap .jr-doc b{font-size:17px;font-weight:700;color:var(--biz-text);}
+#jobs-module-wrap .jr-none{font-size:11.5px;color:var(--biz-text-faint);}
+#jobs-module-wrap .jr-attach{margin-top:11px;padding:10px;border-radius:var(--biz-r-sm);background:#f4e6ec;}
 `;
 document.head.appendChild(jobsStyleTag);
 
@@ -294,83 +348,272 @@ function renderJobHub() {
   // PO price/vendor detail are hidden AND blocked at the function level.
   const sales = typeof isSalesRole === 'function' && isSalesRole();
 
+  const lock = typeof quotationLock === 'function' ? null : null;
+  const qtn = quotations.find(q => q.id === job.quotationId);
+  const hier = qtn && typeof computeQuoteHierarchy === 'function'
+    ? computeQuoteHierarchy(qtn.items || []) : null;
+  const serialOf = lineId => {
+    if (!hier) return '';
+    const row = (hier.rows || hier || []).find(r => r && r.item && r.item.lineId === lineId);
+    return row && row.serial ? row.serial : '';
+  };
+  const pct = typeof jobProgressPercent === 'function' ? jobProgressPercent(job) : 0;
+  const routedDepts = [...new Set((job.items || []).flatMap(it => routedDepartmentsFor(it)))];
+  const deptNames = routedDepts.map(k => dc(k).n).join(', ');
+  const docCounts = {
+    invoices: getInvoicesForJob(job.id).length,
+    receipts: getReceiptsForJob(job.id).length,
+    credits: getCreditNotesForJob(job.id).length,
+    proforma: getProformasForJob(job.id).length,
+    delivery: (job.deliveryNotes || []).length,
+    files: 0
+  };
+  const docTotal = Object.values(docCounts).reduce((a, b) => a + b, 0);
+
   return `
-    <span class="sales-back" onclick="jobsView='list';renderJobsBody();">‹ Back to Job Card List</span>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:15px;">${job.id} <span class="sales-pill ${job.status}">${job.status}</span></p>
-      <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${jEsc(c ? c.name : '—')} · Project: ${jEsc(job.projectName)}</p>
-      <p style="font-size:12px;color:#64748b;">Job Date: ${job.date} · Amount: BD ${job.amount.toFixed(3)} · Confirm Date: ${job.confirmDate || '—'}</p>
-      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Linked Quotation: ${jEsc(job.quotationId)}</p>
-    </div>
     ${cancelled ? `<div class="sales-banner">This job is cancelled — Delivery Note, Material Issue/Return, and Invoice generation are locked permanently.</div>`
       : !routed ? `<div class="sales-banner">Awaiting Operations Routing — Delivery Note, Material Issue/Return, and Invoice generation unlock once the Operations Manager confirms department routing for this job.</div>` : ''}
-    <div class="sales-tile-row">
-      <div class="sales-tile t-blue" onclick="printJobOrder('${job.id}')"><span class="sales-tile-icon">🖨</span>Job Order</div>
-      ${sales ? '' : `<div class="sales-tile t-blue" onclick="printJobCosting('${job.id}')"><span class="sales-tile-icon">📊</span>Job Costing</div>`}
-      ${sales ? '' : `<div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>`}
-      ${sales ? '' : (routed ? `<div class="sales-tile t-teal" onclick="openDeliveryNote('${job.id}')"><span class="sales-tile-icon">🚚</span>Delivery Note</div>` : jobsLockedTile('t-teal', '🚚', 'Delivery Note', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'))}
-      ${sales ? '' : (routed ? `<div class="sales-tile t-amber" onclick="openMaterialsMove('${job.id}','issue')"><span class="sales-tile-icon">📦</span>Material Issue</div>` : jobsLockedTile('t-amber', '📦', 'Material Issue', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'))}
-      ${sales ? '' : (routed ? `<div class="sales-tile t-magenta" onclick="openMaterialsMove('${job.id}','return')"><span class="sales-tile-icon">↩</span>Material Return</div>` : jobsLockedTile('t-magenta', '↩', 'Material Return', cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'))}
-      ${cancelled ? jobsLockedTile('t-cyan', '➕', 'New Variation', 'This job is cancelled.') : `<div class="sales-tile t-cyan" onclick="jobsNewVariation('${job.id}')"><span class="sales-tile-icon">➕</span>New Variation</div>`}
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Job Actions</p>
-      ${sales ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="secondary" style="flex:1;" onclick="openUpdateJobStatus('${job.id}')">Update Job Status</button>
-        <button class="secondary" style="flex:1;" onclick="openLabourCost('${job.id}')">Labour Cost</button>
-      </div>`}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-        <button class="secondary" style="flex:1;" onclick="openPurchaseRequestJob('${job.id}')">Raise Purchase Request (Job)</button>
+
+    <!-- ── header card: identity left, production rail right ── -->
+    <div class="sales-card jr-head">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
+          <span style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;">${jEsc(job.id)}</span>
+          <span class="sales-pill ${job.status}">${job.status}</span>
+          ${routed && deptNames ? `<span class="sales-pill open">Routed — ${jEsc(deptNames)}</span>` : ''}
+        </div>
+        <div class="jr-fields">
+          <div><label>Client</label><span>${jEsc(c ? c.name : '—')}</span></div>
+          <div><label>Project</label><span>${jEsc(job.projectName)}</span></div>
+          <div><label>Job date</label><span>${job.date} · confirmed ${job.confirmDate || '—'}</span></div>
+          <div><label>Linked quotation</label><span class="jr-link" onclick="jobsOpenLinkedQuote('${job.id}')">${jEsc(job.quotationId)}</span></div>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-        ${job.status !== 'completed' ? `<button class="secondary" style="flex:1;" onclick="jobsSetStatus('${job.id}','completed')">Mark Completed</button>` : ''}
-        ${sales || job.status === 'cancelled' ? '' : `<button class="secondary" style="flex:1;color:#b91c1c;" onclick="jobsSetStatus('${job.id}','cancelled')">Cancel Job</button>`}
-      </div>
+      <aside class="jr-rail">
+        <label>Production</label>
+        <div class="jr-pct">${pct}%</div>
+        <span class="jr-track"><i style="width:${pct}%"></i></span>
+        <label style="margin-top:11px;">Target date</label>
+        <div class="jr-target ${jobTargetTone(job)}">${job.targetDate || '—'}</div>
+        <label style="margin-top:9px;">Site contact</label>
+        <div style="font-size:12px;color:var(--biz-text);">${jEsc((c && c.contactPerson) || '—')}</div>
+      </aside>
     </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">File Manager</p>
-      <p style="font-size:11.5px;color:#94a3b8;">No upload infrastructure in this app yet.</p>
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Invoices</p>
-      ${getInvoicesForJob(job.id).length === 0
-        ? `<p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">No invoice generated yet.</p>`
-        : `<table class="sales-items"><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th>Received</th><th>Balance</th></tr>${getInvoicesForJob(job.id).map(inv => `<tr style="cursor:pointer;" onclick="openInvoicePrint('${inv.id}')"><td>${jEsc(inv.id)}</td><td>${inv.date}</td><td>${inv.totals.netTotal.toFixed(3)}</td><td>${(inv.paidAmount || 0).toFixed(3)}</td><td>${invoiceBalance(inv).toFixed(3)}</td></tr>`).join('')}</table>`}
-      ${sales ? '' : `<button class="secondary" style="width:100%;margin-top:6px;${routed ? '' : 'opacity:.5;cursor:not-allowed;'}" onclick="${routed ? `jobsGenerateInvoice('${job.id}')` : `jobsAlert('${cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'}')`}">Generate Invoice</button>`}
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Related records</p>
-      <p style="font-weight:700;font-size:12px;margin:6px 0 4px;">Receipts</p>
-      ${getReceiptsForJob(job.id).length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Invoice List Exist...</p>` :
-        `<table class="sales-items"><tr><th>Receipt No.</th><th>Date</th><th>Amount</th></tr>${getReceiptsForJob(job.id).map(r => `<tr><td>${jEsc(r.id)}</td><td>${r.receiptDate}</td><td>${r.amount.toFixed(3)}</td></tr>`).join('')}</table>`}
-      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Credit Notes</p>
-      ${getCreditNotesForJob(job.id).length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Invoice List Exist...</p>` :
-        `<table class="sales-items"><tr><th>Credit Note No.</th><th>Date</th><th>Amount</th><th>Status</th></tr>${getCreditNotesForJob(job.id).map(cn => `<tr style="${cn.status === 'cancelled' ? 'background:#fee2e2;' : ''}"><td>${jEsc(cn.id)}</td><td>${cn.creditNoteDate}</td><td>${cn.amount.toFixed(3)}</td><td>${cn.status}</td></tr>`).join('')}</table>`}
-      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Proforma</p>
-      ${getProformasForJob(job.id).length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No Proforma generated yet.</p>` :
-        `<table class="sales-items"><tr><th>Proforma No.</th><th>Date</th><th>Amount</th></tr>${getProformasForJob(job.id).map(p => `<tr><td>${jEsc(p.id)}</td><td>${p.date}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`).join('')}</table>`}
-      <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Delivery Notes</p>
-      ${job.deliveryNotes.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No delivery notes yet.</p>` : `<table class="sales-items"><tr><th>DN</th><th>Date</th><th>Lines</th></tr>${job.deliveryNotes.map(dn => `<tr><td>${dn.id}</td><td>${dn.date}</td><td>${dn.lines.length}</td></tr>`).join('')}</table>`}
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">PO / Vendor</p>
-      ${sales ? `<p style="font-size:12px;color:#64748b;">Supplier and pricing detail is not available for the Sales role.</p>` : (job.poNo ? `<p style="font-size:12px;">PO No: ${jEsc(job.poNo)} · Date: ${job.poDate} · Vendor: ${jEsc(job.vendor)}</p>` : `<p style="font-size:12px;color:#64748b;">Empty unless materials were purchased specifically for this job.</p>`)}
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Items (${job.items.length})</p>
-      <table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Delivered</th><th>Rate</th><th>Net</th><th>Actual</th><th></th></tr>
-      ${job.items.map(it => {
-        const act = getLineActualCost(job.id, it.lineId);
-        return `<tr><td>${jEsc(it.product)}</td><td>${it.qty} ${jEsc(it.unit)}</td><td>${it.deliveredQty}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
-          <td><span style="color:var(--biz-primary);cursor:pointer;white-space:nowrap;" title="Material Cost sheet — derived from real issues + labour day-logs" onclick="printMaterialCost('${job.id}',${it.lineId})">🧾 ${act && act.totalCost ? act.totalCost.toFixed(3) : '0.000'}</span></td>
-          <td>${it.variationId ? `<span class="sales-pill open" style="font-size:9.5px;">${jEsc(it.variationId)}</span>` : ''}</td></tr>`;
-      }).join('')}
-      </table>
-    </div>
-    ${renderJobCostComparison(job)}
+
+    ${renderJobActionsRow(job, { sales, routed, cancelled })}
+    ${sales ? '' : renderJobOperationalActions(job, { routed, cancelled })}
+    ${renderJobItemsCard(job, serialOf, sales)}
+    ${renderJobDepartmentsCard(job, routedDepts)}
+    ${sales ? '' : renderJobCostedItems(job)}
+    ${sales ? '' : renderJobPoVendor(job)}
+    ${renderJobDocumentsCard(job, docCounts, docTotal, sales, routed, cancelled)}
+    ${sales ? '' : renderJobCostComparison(job)}
     ${renderJobVariations(job)}
     ${renderJobTasksAndActivity(job)}`;
 }
+
+// Target date tone — red inside 5 days or overdue. Never red when absent:
+// an unset date is unknown, not urgent.
+function jobTargetTone(job) {
+  if (!job.targetDate) return '';
+  const days = Math.round((new Date(job.targetDate + 'T00:00:00') - Date.now()) / 864e5);
+  return days <= 5 ? 'is-late' : '';
+}
+function jobsOpenLinkedQuote(jobId) {
+  const job = getJobCard(jobId);
+  if (!job) return;
+  hideModuleWrap(jobsModuleWrap);
+  setTimeout(() => { launchSalesModule(); openQuotationHub(job.quotationId); }, 150);
+}
+
+// §6 — four normal-weight controls. An action the role cannot perform is NOT
+// rendered; jobsLockedTile() stays only for the routing gate, where the lock
+// is temporary and the reason is real.
+function renderJobActionsRow(job, { sales, routed, cancelled }) {
+  const btn = (label, cls, on) =>
+    `<button class="jr-btn ${cls}" onclick="${on}">${label}</button>`;
+  return `<div class="jr-actions">
+    ${btn('Print job order', 'fill', `printJobOrder('${job.id}')`)}
+    ${cancelled ? '' : btn('New variation', 'outline', `jobsNewVariation('${job.id}')`)}
+    ${btn('Raise purchase request', 'grey', `openPurchaseRequestJob('${job.id}')`)}
+    ${job.status === 'completed'
+      ? '<span class="jr-chip is-done">Completed — every line delivered and finished.</span>'
+      : '<span class="jr-chip">Completes itself — last line delivered and installed.</span>'}
+    ${sales || cancelled || job.status === 'completed' ? '' : btn('Close manually…', 'grey', `jobsOverrideCompletion('${job.id}')`)}
+  </div>`;
+}
+
+// Operations' safety valve (§5). Sales/Estimator/Approver never see it —
+// deriving completion was precisely so they could not assert it.
+function jobsOverrideCompletion(jobId) {
+  if (typeof isSalesRole === 'function' && isSalesRole()) { jobsAlert('Completion is derived from delivery and production — Sales has no override.'); return; }
+  const reason = window.prompt('This closes the job without the system seeing it finish.\n\nWhy is it complete?');
+  if (!reason || !reason.trim()) return;
+  const res = overrideJobCompletion(jobId, reason, 'Operations');
+  if (res && res.error) { jobsAlert(res.error); return; }
+  jobsAlert('✓ Job closed manually — the reason is on the activity log.');
+  renderJobsBody();
+}
+
+// The people who actually run a job still need the controls that run it. The
+// design package's four-control row (§6) is the RECORD-page row — it is not a
+// list of everything Operations may do, and dropping Delivery Note, Material
+// Issue/Return, Edit Job, Job Costing, Update Job Status, Labour Cost and
+// Cancel would have taken the Jobs module away from the roles it exists for.
+// Sales never sees this block; jobsLockedTile() stays only for the ROUTING
+// gate, where the lock is temporary and the reason is real.
+function renderJobOperationalActions(job, { routed, cancelled }) {
+  const why = cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.';
+  const gated = (cls, icon, label, on) => routed
+    ? `<div class="sales-tile ${cls}" onclick="${on}"><span class="sales-tile-icon">${icon}</span>${label}</div>`
+    : jobsLockedTile(cls, icon, label, why);
+  return `<div class="sales-tile-row">
+      <div class="sales-tile t-blue" onclick="printJobCosting('${job.id}')"><span class="sales-tile-icon">📊</span>Job Costing</div>
+      <div class="sales-tile t-purple" onclick="openEditJob('${job.id}')"><span class="sales-tile-icon">✎</span>Edit Job</div>
+      ${gated('t-teal', '🚚', 'Delivery Note', `openDeliveryNote('${job.id}')`)}
+      ${gated('t-amber', '📦', 'Material Issue', `openMaterialsMove('${job.id}','issue')`)}
+      ${gated('t-magenta', '↩', 'Material Return', `openMaterialsMove('${job.id}','return')`)}
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Job Actions</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="secondary" style="flex:1;" onclick="openUpdateJobStatus('${job.id}')">Update Job Status</button>
+        <button class="secondary" style="flex:1;" onclick="openLabourCost('${job.id}')">Labour Cost</button>
+        ${job.status === 'cancelled' ? '' : `<button class="secondary" style="flex:1;color:#b91c1c;" onclick="jobsSetStatus('${job.id}','cancelled')">Cancel Job</button>`}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <!-- Generate Invoice sat inside the Documents card, which is CLOSED by
+             default on a job with no records — so Operations could not reach the
+             very action that creates the first one. It is an action, not a
+             document listing, and belongs here. -->
+        <button class="secondary" style="flex:1;${routed ? '' : 'opacity:.5;cursor:not-allowed;'}" onclick="${routed ? `jobsGenerateInvoice('${job.id}')` : `jobsAlert('${cancelled ? 'This job is cancelled.' : 'Locked until Operations routes this job to a department.'}')`}">Generate Invoice</button>
+      </div>
+    </div>`;
+}
+
+// §4 — "What is being made". The card Sales has never had: the lines and their
+// progress, with no rate, amount, actual cost or Material Cost link anywhere.
+function renderJobItemsCard(job, serialOf, sales) {
+  const rows = (job.items || []).map(it => {
+    const p = jobLineProgressPercent(it);
+    const deps = routedDepartmentsFor(it);
+    const last = deps.length ? latestDeptEntry(it, deps[deps.length - 1]) : null;
+    const stage = last ? last.status : 'not routed';
+    const dept = last ? dc(last.department).n : '—';
+    const serial = serialOf(it.lineId);
+    return `<div class="jr-item">
+      <div class="jr-item-h">
+        <span class="jr-serial">${jEsc(serial || String(it.lineId))}</span>
+        <span class="jr-item-n">${jEsc(it.product)}</span>
+        <span class="jr-qty">${jobQty(it.qty)} ${jEsc(it.unit || '')}</span>
+        <span class="sales-pill ${last && last.status === 'done' ? 'confirmed' : 'open'}" style="font-size:9.5px;">${jEsc(stage)}</span>
+        <span class="jr-dept">${jEsc(dept)}</span>
+      </div>
+      <div class="jr-bar"><span class="jr-track"><i style="width:${p}%"></i></span><span class="jr-pctcol">${p}%</span></div>
+    </div>`;
+  }).join('');
+  return `<div class="sales-card" id="jr-items">
+    <p style="font-weight:700;font-size:13px;margin-bottom:9px;">What is being made (${(job.items || []).length})</p>
+    ${rows || '<p style="font-size:11.5px;color:#94a3b8;">No lines on this job.</p>'}
+  </div>`;
+}
+
+// Whole numbers. The workshop does not build 6.000 panels.
+function jobQty(n) { const v = Number(n) || 0; return Number.isInteger(v) ? String(v) : String(+v.toFixed(2)); }
+
+function renderJobDepartmentsCard(job, routedDepts) {
+  if (!routedDepts.length) return '';
+  const rows = routedDepts.map(dep => {
+    const lines = (job.items || []).filter(it => routedDepartmentsFor(it).includes(dep));
+    const each = lines.map(it => {
+      const e = latestDeptEntry(it, dep);
+      if (!e) return 0;
+      if ((e.status === 'in-production' || e.status === 'rework') && e.joinerySubStage) {
+        return JOINERY_SUB_STAGE_PERCENT[e.joinerySubStage] || JOB_STAGE_PERCENT['in-production'];
+      }
+      return JOB_STAGE_PERCENT[e.status] !== undefined ? JOB_STAGE_PERCENT[e.status] : 0;
+    });
+    const p = each.length ? Math.round(each.reduce((a, b) => a + b, 0) / each.length) : 0;
+    const done = lines.filter(it => { const e = latestDeptEntry(it, dep); return e && e.status === 'done'; }).length;
+    return `<div class="jr-dept-row">
+      <span class="jr-dept-n">${jEsc(dc(dep).n)}</span>
+      <span class="jr-track"><i style="width:${p}%"></i></span>
+      <span class="jr-dept-s">${done}/${lines.length} done</span>
+    </div>`;
+  }).join('');
+  return `<div class="sales-card" id="jr-departments">
+    <p style="font-weight:700;font-size:13px;margin-bottom:9px;">Departments</p>${rows}</div>`;
+}
+
+// The costed table non-Sales roles keep — a different question from the one
+// the Items card answers, so both render for them.
+function renderJobCostedItems(job) {
+  return `<div class="sales-card">
+    <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Line costs</p>
+    <table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Delivered</th><th>Rate</th><th>Net</th><th>Actual</th><th></th></tr>
+    ${(job.items || []).map(it => {
+      const act = getLineActualCost(job.id, it.lineId);
+      return `<tr><td>${jEsc(it.product)}</td><td>${jobQty(it.qty)} ${jEsc(it.unit || '')}</td><td>${it.deliveredQty}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
+        <td><span style="color:var(--biz-primary);cursor:pointer;white-space:nowrap;" title="Material Cost sheet — derived from real issues + labour day-logs" onclick="printMaterialCost('${job.id}',${it.lineId})">🧾 ${act && act.totalCost ? act.totalCost.toFixed(3) : '0.000'}</span></td>
+        <td>${it.variationId ? `<span class="sales-pill open" style="font-size:9.5px;">${jEsc(it.variationId)}</span>` : ''}</td></tr>`;
+    }).join('')}
+    </table>
+    <p style="font-size:11.5px;color:#64748b;margin-top:7px;">Amount: BD ${job.amount.toFixed(3)}</p>
+  </div>`;
+}
+
+// Not rendered at all for Sales — a card whose only content is the refusal is
+// worse than no card.
+function renderJobPoVendor(job) {
+  return `<div class="sales-card">
+    <p style="font-weight:700;font-size:13px;margin-bottom:6px;">PO / Vendor</p>
+    ${job.poNo ? `<p style="font-size:12px;">PO No: ${jEsc(job.poNo)} · Date: ${job.poDate} · Vendor: ${jEsc(job.vendor)}</p>`
+      : `<p style="font-size:12px;color:#64748b;">Empty unless materials were purchased specifically for this job.</p>`}
+  </div>`;
+}
+
+// §7 — one collapsible card replacing six that each said nothing was there.
+let jobsDocsOpen = null;   // null = follow the data, true/false = user's choice
+function jobsToggleDocs() {
+  const job = getJobCard(jobsActiveJobId);
+  const anyDocs = job && (getInvoicesForJob(job.id).length || getReceiptsForJob(job.id).length ||
+    getCreditNotesForJob(job.id).length || getProformasForJob(job.id).length || (job.deliveryNotes || []).length);
+  jobsDocsOpen = !(jobsDocsOpen === null ? !!anyDocs : jobsDocsOpen);
+  renderJobsBody();
+}
+function jobsAttachFile() {
+  jobsAlert('Files go to this job\'s project folder — send them to Operations and they will be attached here. In-app upload is not built yet.');
+}
+function renderJobDocumentsCard(job, counts, total, sales, routed, cancelled) {
+  const open = jobsDocsOpen === null ? total > 0 : jobsDocsOpen;
+  const summary = total === 0
+    ? `Nothing yet — 0 invoices, 0 delivery notes, 0 files`
+    : `${counts.invoices} invoice${counts.invoices === 1 ? '' : 's'} · ${counts.delivery} delivery note${counts.delivery === 1 ? '' : 's'} · ${counts.receipts + counts.credits + counts.proforma} other record${counts.receipts + counts.credits + counts.proforma === 1 ? '' : 's'}`;
+  const tile = (label, n, body) => `<div class="jr-doc${n ? ' has' : ''}">
+    <label>${label}</label>${n ? (body || `<b>${n}</b>`) : '<span class="jr-none">None</span>'}</div>`;
+  return `<div class="sales-card" id="jr-documents">
+    <div class="jr-doc-h" onclick="jobsToggleDocs()">
+      <div style="flex:1;min-width:0;">
+        <p style="font-weight:700;font-size:13px;">Documents &amp; records</p>
+        <p style="font-size:11px;color:#94a3b8;margin-top:2px;">${summary}</p>
+      </div>
+      <span style="color:#94a3b8;font-size:12px;">${open ? '⌃' : '⌄'}</span>
+    </div>
+    ${open ? `<div class="jr-docs">
+      ${tile('Invoices', counts.invoices)}
+      ${tile('Receipts', counts.receipts)}
+      ${tile('Credit notes', counts.credits)}
+      ${tile('Proforma', counts.proforma)}
+      ${tile('Delivery notes', counts.delivery)}
+      ${tile('Files', counts.files)}
+    </div>
+    ${counts.invoices ? `<table class="sales-items" style="margin-top:10px;"><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th>Received</th><th>Balance</th></tr>${getInvoicesForJob(job.id).map(inv => `<tr style="cursor:pointer;" onclick="openInvoicePrint('${inv.id}')"><td>${jEsc(inv.id)}</td><td>${inv.date}</td><td>${inv.totals.netTotal.toFixed(3)}</td><td>${(inv.paidAmount || 0).toFixed(3)}</td><td>${invoiceBalance(inv).toFixed(3)}</td></tr>`).join('')}</table>` : ''}
+    ${counts.delivery ? `<table class="sales-items" style="margin-top:10px;"><tr><th>DN</th><th>Date</th><th>Lines</th></tr>${job.deliveryNotes.map(dn => `<tr><td>${dn.id}</td><td>${dn.date}</td><td>${dn.lines.length}</td></tr>`).join('')}</table>` : ''}
+    <div class="jr-attach"><button class="jr-btn outline" onclick="jobsAttachFile()">Attach a file</button></div>
+    ` : ''}
+  </div>`;
+}
+
 
 // ── STAGE 4 (cost ledger): Estimated vs Budgeted vs Actual ──
 // Estimated = the Estimator's BOM cost (per line, from the linked
@@ -406,6 +649,14 @@ function renderJobCostComparison(job) {
 
 function jobsSetStatus(jobId, status) {
   if (status === 'cancelled' && typeof salesBlocked==='function' && salesBlocked('cancelJob', jobsAlert)) return;
+  // Completion is DERIVED now (9 Aug 2026) — it is a claim about physical work,
+  // and Sales, the one role that never touches the work, could assert it with a
+  // button. It flips itself when the last line is delivered and finished; only
+  // Operations can force it, through overrideJobCompletion() with a reason.
+  if (status === 'completed') {
+    jobsAlert('Completion is derived from delivery and production — it flips on its own when the last line closes.');
+    return;
+  }
   if (!window.confirm(`Mark this job as ${status}?`)) return;
   setJobStatus(jobId, status);
   jobsAlert(`✓ Job marked ${status}.`);
@@ -995,6 +1246,32 @@ function jobsSaveNewTask() {
 }
 function jobsCompleteTask(id) { completeTask(id); renderJobsBody(); }
 
+// Sidebar anchors (§2). Each scrolls within the record rather than
+// navigating — the record IS the page.
+function jobsScrollTo(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (typeof execCloseSideOnMobile === "function") execCloseSideOnMobile();
+}
+// Quick actions act on the record you are looking at; from the list they say
+// so rather than silently doing nothing.
+function jobsQuickJob() {
+  const job = jobsView === "hub" ? getJobCard(jobsActiveJobId) : null;
+  if (!job) { jobsAlert("Open a job card first — these act on the job you are looking at."); return null; }
+  return job;
+}
+function jobsQuickPrint() { const j = jobsQuickJob(); if (j) printJobOrder(j.id); }
+function jobsQuickVariation() { const j = jobsQuickJob(); if (j) jobsNewVariation(j.id); }
+function jobsQuickPurchase() { const j = jobsQuickJob(); if (j) openPurchaseRequestJob(j.id); }
+function jobsQuickTask() {
+  const j = jobsQuickJob(); if (!j) return;
+  const title = window.prompt("Task for " + j.id);
+  if (!title || !title.trim()) return;
+  const res = createTask({ title: title.trim(), assignee: execIdentity(), linkedType: "job", linkedId: j.id });
+  if (res && res.error) { jobsAlert(res.error); return; }
+  renderJobsBody();
+}
+
 function renderJobTasksAndActivity(job) {
   const jobTasks = getTasksFor('job', job.id);
   const openTasks = jobTasks.filter(t => t.status === 'open');
@@ -1021,8 +1298,8 @@ function renderJobTasksAndActivity(job) {
           </div>
         </div>` : `<button class="secondary" style="width:100%;margin-top:8px;" onclick="jobsOpenNewTask('${job.id}')">+ Add Task</button>`}
     </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Activity</p>
+    <div class="sales-card" id="jr-activity">
+    <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Activity</p>
       ${activity.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No activity logged yet.</p>` :
         activity.map(a => `<p style="font-size:11.5px;color:#334155;margin:4px 0;">${a.date} · <b>${jEsc(a.user)}</b> — ${jEsc(a.message)}</p>`).join('')}
     </div>`;

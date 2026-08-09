@@ -468,6 +468,50 @@ function buildJobCostingPrintHTML(qtn, job) {
 // ── JOB ORDER (production copy) — matches the real template: NO prices ──
 // Descriptions/groups come from the linked quotation's items (matched by
 // lineId) since Job Card lines don't carry description/group themselves.
+// A COUNT formatter. prFmtPlain() is a 3-decimal currency formatter and it was
+// being used for quantities, so the workshop was reading "6.000 panels".
+// prFmtPlain stays for money documents only (Job Costing, Material Cost,
+// invoices) — this is the one for things you can count.
+function prQty(n) {
+  const v = Number(n) || 0;
+  return Number.isInteger(v) ? String(v) : String(+v.toFixed(2));
+}
+
+// Print rules specific to the Job Order. A six-line job must come out on one
+// A4 page, and a long one must break BETWEEN rows — never through a row, and
+// never orphaning a group band from the rows it heads.
+function jobOrderCSS() {
+  return `
+    @page { size: A4 portrait; margin: 12mm; }
+    .jo-row { break-inside: avoid; page-break-inside: avoid; }
+    .jo-grp, .jo-sub { break-after: avoid; page-break-after: avoid; }
+    thead { display: table-header-group; }   /* repeat the column head on page 2+ */
+    .jo-title{background:#e3e3e3;font-size:15px;font-weight:700;text-align:center;padding:7px;margin-bottom:6px;font-family:Georgia,serif;}
+    tr.jo-grp td{font-weight:700;font-size:14px;font-family:Georgia,serif;border-bottom:1px solid #999;}
+    tr.jo-sub td{font-weight:700;text-decoration:underline;font-size:12px;}
+    .jo-band{display:grid;grid-template-columns:196px 1fr;border:1px solid #600131;margin:10px 0 4px;}
+    .jo-band-dept{background:#600131;color:#fff;font-family:Georgia,serif;font-size:22px;
+      display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px;line-height:1.15;}
+    .jo-band-grid{display:grid;grid-template-columns:repeat(4,1fr);}
+    .jo-band-grid div{border-left:1px solid #600131;border-bottom:1px solid #600131;padding:5px 8px;font-size:10px;}
+    .jo-band-grid div:nth-child(-n+4){border-bottom:1px solid #600131;}
+    .jo-band-grid div:nth-child(n+5){border-bottom:0;}
+    .jo-band-grid label{display:block;font-size:7.5px;letter-spacing:.07em;text-transform:uppercase;color:#777;margin-bottom:2px;}
+    .jo-band-grid b{font-size:11px;font-weight:700;color:#1a1a1a;}
+    .jo-band-grid .late b{color:#b42318;}
+    .jo-tick{width:20px;height:20px;border:1.5px solid #444;display:block;margin:0 auto;}
+    .jo-photo{width:74px;height:56px;object-fit:contain;display:block;margin:0 auto;}
+    .jo-photo-none{width:74px;height:56px;border:1px dashed #bbb;display:flex;align-items:center;
+      justify-content:center;font-size:8px;color:#bbb;margin:0 auto;}
+    .jo-notes{border-left:3px solid #b42318;padding:7px 10px;margin-top:12px;font-size:10.5px;color:#333;background:#fdf6f5;}
+    .jo-notes b{display:block;font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:#b42318;margin-bottom:3px;}
+    .jo-rule{margin-top:12px;font-size:9px;color:#777;font-style:italic;}
+    .jo-sign{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:22px;}
+    .jo-sign div{font-size:9px;color:#666;}
+    .jo-sign .rule{border-top:1px dotted #999;margin-top:26px;padding-top:3px;}
+  `;
+}
+
 function buildJobOrderPrintHTML(job) {
   const qtn = quotations.find(q => q.id === job.quotationId);
   const c = customers.find(x => x.id === job.customerId);
@@ -475,24 +519,51 @@ function buildJobOrderPrintHTML(job) {
   const items = qtn ? qtn.items : job.items;
   const hierarchy = computeQuoteHierarchy(items);
 
+  // Header band sources: the routed department(s) from confirmJobRouting(),
+  // job.targetDate (absent -> "—" and no red; never fabricate a date), and the
+  // latest stage any line has reached.
+  const routedDepts = [...new Set((job.items || []).flatMap(it =>
+    typeof routedDepartmentsFor === 'function' ? routedDepartmentsFor(it) : []))];
+  const deptLabel = routedDepts.length ? routedDepts.map(k => dc(k).n).join(' / ') : 'Unrouted';
+  // The furthest stage any line has reached. Taking whichever entry happened to
+  // be written last was arbitrary — on a two-line job it reported the second
+  // line's stage regardless of which was further on.
+  let stageNow = '—', stageRank = -1;
+  (job.items || []).forEach(it => {
+    (it.departmentStatuses || []).forEach(d => {
+      const rank = (typeof JOB_STAGE_PERCENT !== 'undefined' && JOB_STAGE_PERCENT[d.status] !== undefined)
+        ? JOB_STAGE_PERCENT[d.status] : -1;
+      if (d.status && d.status !== 'pending' && rank > stageRank) { stageRank = rank; stageNow = d.status; }
+    });
+  });
+  const target = job.targetDate || null;
+  const late = target ? (Math.round((new Date(target + 'T00:00:00') - Date.now()) / 864e5) <= 5) : false;
+
+  // The rework reasons the floor never sees today — they are on screen only.
+  const reworkNotes = (job.items || []).flatMap(it =>
+    (it.departmentStatuses || []).filter(d => d.rejectReason)
+      .map(d => `${it.product} — ${d.rejectReason}`));
+  const notes = [job.notes, ...reworkNotes].filter(Boolean).join('\n');
+
   let bodyRows = '';
-  hierarchy.forEach(h => {
+  hierarchy.forEach((h, i) => {
     const it = h.item;
-    if (h.isNewGroup && it.group) bodyRows += `<tr class="jo-grp"><td colspan="3">${prEsc(it.group)}</td></tr>`;
-    if (h.isNewSubgroup && it.subgroup) bodyRows += `<tr class="jo-sub"><td colspan="3">${prEsc(it.subgroup)}</td></tr>`;
-    bodyRows += `<tr>
+    if (h.isNewGroup && it.group) bodyRows += `<tr class="jo-grp"><td colspan="6">${prEsc(it.group)}</td></tr>`;
+    if (h.isNewSubgroup && it.subgroup) bodyRows += `<tr class="jo-sub"><td colspan="6">${prEsc(it.subgroup)}</td></tr>`;
+    const jobLine = (job.items || []).find(x => x.lineId === it.lineId);
+    bodyRows += `<tr class="jo-row">
+      <td style="text-align:center;font-size:10px;color:#777;">${prEsc(h.serial || String(i + 1))}</td>
       <td>${prEsc(it.product)}${it.description ? `<div class="desc">${prEsc(it.description).replace(/\n/g, '<br>')}</div>` : ''}</td>
-      <td class="qty" style="text-align:right;">${prFmtPlain(it.qty)}</td>
-      <td class="img-cell">${it.imageUrl ? `<img src="${prEsc(it.imageUrl)}" style="max-width:86px;max-height:86px;object-fit:contain;">` : 'no image'}</td>
+      <td style="text-align:right;white-space:nowrap;">${prQty(jobLine ? jobLine.qty : it.qty)} ${prEsc(it.unit || '')}</td>
+      <td>${it.imageUrl ? `<img class="jo-photo" src="${prEsc(it.imageUrl)}">` : '<span class="jo-photo-none">photo</span>'}</td>
+      <td><span class="jo-tick"></span></td>
+      <td><span class="jo-tick"></span></td>
     </tr>`;
   });
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Job Order ${prEsc(job.id)}</title>
-  <style>${printBaseCSS()}
+  <style>${printBaseCSS()}${jobOrderCSS()}
     body{font-family:Arial,Helvetica,sans-serif;}
-    .jo-title{background:#e3e3e3;font-size:15px;font-weight:700;text-align:center;padding:7px;margin-bottom:6px;font-family:Georgia,serif;}
-    tr.jo-grp td{font-weight:700;font-size:14px;font-family:Georgia,serif;border-bottom:1px solid #999;}
-    tr.jo-sub td{font-weight:700;text-decoration:underline;font-size:12px;}
   </style></head>
   <body>
     <div class="print-btn"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
@@ -502,18 +573,44 @@ function buildJobOrderPrintHTML(job) {
       </div>
       <div style="min-width:300px;">
         <div class="jo-title">JOB ORDER</div>
-        <table class="meta-table" style="margin-left:0;width:100%;">
-          <tr><td>Job Card No</td><td>${prEsc(job.id)}</td></tr>
-          <tr><td>Date</td><td>${prEsc(job.date)}</td></tr>
-          <tr><td>Qtn No</td><td>${prEsc(job.quotationId || '—')}</td></tr>
-          <tr><td>Salesman</td><td>${prEsc(enq ? enq.salesPerson : '—')}</td></tr>
-        </table>
       </div>
     </div>
-    <table class="items" style="margin-top:10px;">
-      <tr><th style="text-align:left;">Name/Description</th><th>Qty</th><th>Image</th></tr>
-      ${bodyRows}
+
+    <div class="jo-band">
+      <div class="jo-band-dept">${prEsc(deptLabel)}</div>
+      <div class="jo-band-grid">
+        <div><label>Job card no</label><b>${prEsc(job.id)}</b></div>
+        <div class="${late ? 'late' : ''}"><label>Target date</label><b>${prEsc(target || '—')}</b></div>
+        <div><label>Stage now</label><b>${prEsc(stageNow)}</b></div>
+        <div><label>Client</label><b>${prEsc(c ? c.name : '—')}</b></div>
+        <div><label>Project</label><b>${prEsc(job.projectName || '—')}</b></div>
+        <div><label>Qtn no</label><b>${prEsc(job.quotationId || '—')}</b></div>
+        <div><label>Salesman</label><b>${prEsc(enq ? enq.salesPerson : '—')}</b></div>
+        <div><label>Job date</label><b>${prEsc(job.date)}</b></div>
+      </div>
+    </div>
+
+    <table class="items" style="margin-top:6px;">
+      <thead><tr>
+        <th style="width:34px;">#</th>
+        <th style="text-align:left;">Item &amp; specification</th>
+        <th style="width:76px;">Qty</th>
+        <th style="width:92px;">Photo</th>
+        <th style="width:56px;">Made</th>
+        <th style="width:56px;">QC</th>
+      </tr></thead>
+      <tbody>${bodyRows}</tbody>
     </table>
+
+    ${notes ? `<div class="jo-notes"><b>Notes</b>${prEsc(notes).replace(/\n/g, '<br>')}</div>` : ''}
+    <div class="jo-rule">Rates, amounts and supplier names live on the Job Costing sheet. Do not write prices here.</div>
+
+    <div class="jo-sign">
+      <div><div class="rule">Issued by — name · date</div></div>
+      <div><div class="rule">Received — workshop · date</div></div>
+      <div><div class="rule">Completed by — name · date</div></div>
+      <div><div class="rule">QC passed — name · date</div></div>
+    </div>
     ${printPageFooter()}
   </body></html>`;
 }

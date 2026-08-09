@@ -171,7 +171,10 @@ async function openNode(page, nodeId, wrapId) {
     submitLineForQC(jobId, lineId, 'carp');
     recordLineQCResult(jobId, lineId, 'carp', true, DEPT_QC_AUTHORITY.carp);
     handOffLine(jobId, lineId, 'carp', 'Lead');
-    jobsSetStatus(jobId, 'completed');
+    // Completion is DERIVED now (9 Aug 2026) — delivering the last line is what
+    // closes a job; jobsSetStatus(...,'completed') no longer does anything.
+    const jc = getJobCard(jobId);
+    addDeliveryNote(jobId, jc.items.map(it => ({ lineId: it.lineId, requiredQty: it.qty })), 'Operations');
   }, seed.clearJobId);
   await openNode(page, 'operations', 'ops-module-wrap');
   const refreshedKpi = await page.evaluate(() => document.querySelector('#ops-dashboard-body .kpi .kv').textContent.trim());

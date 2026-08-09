@@ -76,7 +76,8 @@ async function openNode(page, nodeId, wrapId) {
   await page.evaluate((id) => { openJobHub(id); }, seed.jobId);
   await page.waitForTimeout(200);
   await shot(page, 'job-hub-before-variation');
-  await page.click('#jobs-body .sales-tile:has-text("New Variation")');
+  // Record page (9a): New variation is a .jr-btn in the actions row now.
+  await page.click('#jobs-body .jr-btn:has-text("New variation")');
   await page.waitForTimeout(300);
   // should now be in Sales module, wizard step 2 for the new variation
   const inWizard = await page.evaluate(() => ({ view: typeof salesView !== 'undefined' ? salesView : null, wrapVisible: getComputedStyle(document.getElementById('sales-module-wrap')).display !== 'none' }));

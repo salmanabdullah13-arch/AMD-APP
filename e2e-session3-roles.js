@@ -79,15 +79,17 @@ function printReport() {
       labour: h('Labour Cost'), cancel: h('Cancel Job'),
       invoice: h('Generate Invoice'),
       // deliberately kept for Sales:
-      order: h('Job Order'), variation: h('New Variation'),
-      pr: h('Raise Purchase Request'), completed: h('Mark Completed')
+      // Record page (9a, 9 Aug 2026) relabelled these, and Mark Completed is
+      // gone for everyone — completion is derived from delivery + production now.
+      order: h('Print job order'), variation: h('New variation'),
+      pr: h('Raise purchase request'), completed: h('Mark Completed')
     };
   });
   const hidden = ['costing', 'edit', 'delivery', 'issue', 'ret', 'status', 'labour', 'cancel', 'invoice'].filter(k => sales[k]);
   record('Sales sees no Job Costing / Edit Job / Delivery Note / Material Issue+Return / Update Status / Labour Cost / Cancel Job / Generate Invoice',
     hidden.length === 0 ? 'PASS' : 'FAIL', hidden.length ? 'still visible: ' + hidden.join(', ') : '');
-  record('Sales keeps Job Order, New Variation, Raise Purchase Request and Mark Completed',
-    sales.order && sales.variation && sales.pr && sales.completed ? 'PASS' : 'FAIL', JSON.stringify(sales));
+  record('Sales keeps Print job order, New variation and Raise purchase request — and has no completion control',
+    sales.order && sales.variation && sales.pr && !sales.completed ? 'PASS' : 'FAIL', JSON.stringify(sales));
 
   // ── the actual security check: the functions themselves refuse ──
   currentStep = 'sales-function-guards';
@@ -128,10 +130,12 @@ function printReport() {
     await new Promise(r => setTimeout(r, 400));
     const body = document.querySelector('#jobs-module-wrap #jobs-body') || document.getElementById('jobs-module-wrap');
     const t = body.textContent;
-    return { vendorShown: t.includes('Gulf Timber Trading'), poShown: t.includes('PO-TEST-001'), notice: t.includes('not available for the Sales role') };
+    // The PO/Vendor card is no longer rendered for Sales at all — a card whose
+    // only content is the refusal is worse than no card (record package §1).
+    return { vendorShown: t.includes('Gulf Timber Trading'), poShown: t.includes('PO-TEST-001'), cardGone: !t.includes('PO / Vendor') };
   });
   record('A Job Card with a real PO shows Sales neither the PO number nor the vendor name',
-    !po.vendorShown && !po.poShown && po.notice ? 'PASS' : 'FAIL', JSON.stringify(po));
+    !po.vendorShown && !po.poShown && po.cardGone ? 'PASS' : 'FAIL', JSON.stringify(po));
 
   // ── the same rule everywhere POs surface, not just Job Cards ──
   currentStep = 'sales-purchasing';

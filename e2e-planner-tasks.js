@@ -140,7 +140,10 @@ const check = (name, ok, extra) => {
   // A real company commitment (not just a diary entry) must land on its own
   // day — the strongest thing the retired planner suite proved.
   const realCommitment = await page.evaluate(() => {
-    const job = jobCards.find(j => j.status !== 'cancelled');
+    // Must be an OPEN job: getCalendarEvents() only carries promised dates for
+    // open jobs, and demo jobs now auto-complete once delivered (9 Aug 2026,
+    // derived completion) so 'not cancelled' is no longer the same thing.
+    const job = jobCards.find(j => j.status === 'open');
     if (!job) return { skipped: true };
     const d = plIso(plAddDays(plToday(), 2));
     setJobPromisedDate(job.id, d);

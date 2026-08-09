@@ -4031,7 +4031,11 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
     routingConfirmed: false, routingConfirmedBy: null, routingConfirmedDate: null,
     // 6 Aug 2026 audit, loophole #8 — no urgency/deadline concept existed
     // anywhere. Set via setJobUrgent()/setJobPromisedDate() (Operations).
-    urgent: false, promisedDate: null
+    urgent: false, promisedDate: null,
+    // Record-page package (9 Aug 2026). targetDate is typed by Operations at
+    // routing; notes reach the workshop on the printed Job Order. Neither is
+    // ever fabricated — an absent targetDate prints "—" and shows no red.
+    targetDate: null, notes: ""
   };
   jobCards.push(job);
   qtn.lifecycleStatus = "confirmed";
@@ -4065,9 +4069,10 @@ function getJobsPendingRouting() {
 // departmentStatuses (first stop "queued" and ready to start, any later
 // stops "pending" until hand-off) and flips routingConfirmed so the job
 // drops off this queue for good.
-function confirmJobRouting(jobId, lineOverrides = {}, confirmedBy) {
+function confirmJobRouting(jobId, lineOverrides = {}, confirmedBy, targetDate = null) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
+  if (targetDate) job.targetDate = targetDate;
   if (job.routingConfirmed) return { error: "Routing already confirmed for this job." };
   job.items.forEach(item => {
     const seq = lineOverrides[item.lineId] || item.departmentSequence || [];
@@ -4275,6 +4280,7 @@ function handOffLine(jobId, lineId, deptKey, user) {
     logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
   }
   persistJobCardUpdate(job);
+  maybeAutoCompleteJob(job.id, item.product);
   return item;
 }
 
@@ -4523,6 +4529,7 @@ function handOffPaintingLine(jobId, lineId, user) {
     logActivity({ type: "line-complete", linkedType: "job", linkedId: job.id, user, message: `${item.product} completed all routed departments` });
   }
   persistJobCardUpdate(job);
+  maybeAutoCompleteJob(job.id, item.product);
   return item;
 }
 
@@ -5030,6 +5037,107 @@ function jobLineProductionComplete(item) {
 function jobProductionComplete(job) {
   return (job.items || []).every(jobLineProductionComplete);
 }
+
+// ═══ JOB PROGRESS + DERIVED COMPLETION (record-page package, 9 Aug 2026) ═══
+//
+// RECONCILIATION, because the design package's stage list is not this app's.
+// It assumes Not started / Cutting list / Machining / Assembly / Finishing /
+// QC / Ready-Delivered. Two real vocabularies exist here and neither is that:
+//   * JOB_LINE_STATUSES = ["Pending","In Progress","Delivered"] — the coarse
+//     per-line/department status updateJobLineStatus() writes;
+//   * departmentStatuses[].status = pending | queued | in-production | qc |
+//     ready-for-handoff | rework | done — what the real production pipeline
+//     actually advances, and what the design's "stage pill" is describing.
+// So the map below is built on the pipeline's own values, keeping the design's
+// shape (monotonic 0 -> 100, QC near the end). The design's middle tier
+// (Cutting list / Machining / Assembly) genuinely exists for Joinery as
+// JOINERY_SUB_STAGES, so a carp line in production is refined by its sub-stage
+// instead of sitting flat at one number.
+const JOB_STAGE_PERCENT = {
+  "pending": 0, "queued": 10, "in-production": 45, "rework": 45,
+  "qc": 90, "ready-for-handoff": 95, "done": 100
+};
+const JOINERY_SUB_STAGE_PERCENT = { "drafting": 15, "cutting": 30, "veneer-pressing": 45, "assembly": 60 };
+// Terminal = "done". The design's ['Ready','Delivered','Installed'] are labels
+// from its own vocabulary; "done" is the one this pipeline actually sets, in
+// handOffLine()/handOffPaintingLine().
+const JOB_LINE_TERMINAL = ["done"];
+
+// The departments a line is really routed through. "curt" is excluded for the
+// same reason jobLineProductionComplete() excludes it: Curtain tracks its own
+// production in curtainJobs[] and never advances the curt departmentStatuses
+// entry, so counting it would leave every curtain job permanently unfinished.
+function routedDepartmentsFor(item) {
+  return (item.departmentStatuses || [])
+    .map(d => d.department)
+    .filter(dep => dep !== "curt");
+}
+function latestDeptEntry(item, dep) {
+  return (item.departmentStatuses || []).filter(d => d.department === dep).pop() || null;
+}
+function jobLineProgressPercent(item) {
+  const deps = routedDepartmentsFor(item);
+  if (!deps.length) return (item.deliveredQty >= item.qty && item.qty > 0) ? 100 : 0;
+  const each = deps.map(dep => {
+    const e = latestDeptEntry(item, dep);
+    if (!e) return 0;
+    if ((e.status === "in-production" || e.status === "rework") && e.joinerySubStage) {
+      return JOINERY_SUB_STAGE_PERCENT[e.joinerySubStage] || JOB_STAGE_PERCENT["in-production"];
+    }
+    return JOB_STAGE_PERCENT[e.status] !== undefined ? JOB_STAGE_PERCENT[e.status] : 0;
+  });
+  return Math.round(each.reduce((s, n) => s + n, 0) / each.length);
+}
+function jobProgressPercent(job) {
+  if (!job || !(job.items || []).length) return 0;
+  return Math.round(job.items.reduce((s, it) => s + jobLineProgressPercent(it), 0) / job.items.length);
+}
+
+// Completion is DERIVED, not clicked. It was a claim about physical work that
+// Sales — the one role that never touches it — could assert with a button.
+// A job is complete when every line is fully delivered AND every department it
+// was routed to has finished it.
+function jobIsComplete(job) {
+  if (!job || job.status === "cancelled" || !(job.items || []).length) return false;
+  return job.items.every(it =>
+    (it.deliveredQty || 0) >= (it.qty || 0) &&
+    routedDepartmentsFor(it).every(dep => {
+      const e = latestDeptEntry(it, dep);
+      return e && JOB_LINE_TERMINAL.includes(e.status);
+    })
+  );
+}
+// Called after anything that can close the last line. Flips the status itself
+// and names the line that closed it, so the log says WHY it completed.
+function maybeAutoCompleteJob(jobId, lastLineLabel) {
+  const job = getJobCard(jobId);
+  if (!job || job.status !== "open") return null;
+  if (!jobIsComplete(job)) return null;
+  job.status = "completed";
+  logActivity({
+    type: "job-auto-completed", linkedType: "job", linkedId: job.id,
+    message: `${job.id} completed automatically — ${lastLineLabel || "the last line"} delivered and finished`
+  });
+  persistJobCardUpdate(job);
+  return job;
+}
+// Operations' safety valve for a job that closed outside the system. Typed
+// reason, logged. Deliberately NOT offered to Sales/Estimator/Approver — the
+// whole point of deriving completion was that they were asserting it.
+function overrideJobCompletion(jobId, reason, byName) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  if (job.status === "cancelled") return { error: "This job is cancelled." };
+  if (!reason || !reason.trim()) return { error: "A reason is required to close a job manually." };
+  job.status = "completed";
+  logActivity({
+    type: "job-completed-override", linkedType: "job", linkedId: job.id, user: byName,
+    message: `${job.id} closed manually by ${byName || "Operations"} — ${reason.trim()}`
+  });
+  persistJobCardUpdate(job);
+  return job;
+}
+
 function nextDeliveryNoteId(job) { return "DN-" + job.id + "-" + (job.deliveryNotes.length + 1); }
 // entries: [{ lineId, requiredQty }] — increments deliveredQty on each line,
 // capped at the line's own Qty (can't over-deliver).
@@ -5067,8 +5175,11 @@ function addDeliveryNote(jobId, entries) {
     return { lineId: e.lineId, requiredQty };
   }).filter(Boolean);
   const note = { id: nextDeliveryNoteId(job), date: new Date().toISOString().slice(0, 10), lines };
+  const lastDelivered = lines.length
+    ? (job.items.find(it => it.lineId === lines[lines.length - 1].lineId) || {}).product : null;
   job.deliveryNotes.push(note);
   persistJobCardUpdate(job);
+  maybeAutoCompleteJob(job.id, lastDelivered);
   return note;
 }
 
@@ -5186,6 +5297,7 @@ function updateJobLineStatus(jobId, lineId, department, status) {
   if (existing) existing.status = status;
   else item.departmentStatuses.push({ department, status });
   persistJobCardUpdate(job);
+  maybeAutoCompleteJob(jobId, item.product);
   return item;
 }
 
