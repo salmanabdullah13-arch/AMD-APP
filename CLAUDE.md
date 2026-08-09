@@ -6706,3 +6706,59 @@ manage quote."*
   running it against HEAD~1 — same TimeoutError. Carried since Session 3; needs
   its own pass.
 - `sw.js` v31 → v33.
+
+### 9 Aug 2026 — Job Card record page (9a) + Job Order print package (8a)
+
+- **The five behaviour items first.** `renderJobHub()` printed `Amount: BD …` to
+  every role including Sales; the PO/Vendor card rendered for Sales purely to
+  say Sales couldn't see it; Sales could call `jobsSetStatus(id,'completed')`;
+  Sales saw no items at all (the table carries Rate/Net/Actual); and
+  `buildJobOrderPrintHTML()` formatted quantities with `prFmtPlain()`, a
+  3-decimal CURRENCY formatter — the workshop read "6.000 panels".
+- **Completion is derived.** `jobIsComplete()` requires every line fully
+  delivered AND every routed department finished; `maybeAutoCompleteJob()` fires
+  from `addDeliveryNote`, `updateJobLineStatus` and both hand-off paths, flips
+  the status and logs `job-auto-completed` naming the line that closed it. A
+  dashed chip replaces the button. Operations keeps `overrideJobCompletion()`
+  (typed, logged reason) as the safety valve — the package offered to drop it;
+  kept as specified, flagged to Salman.
+- **Reconciliations the package demanded, and they mattered.** Its stage list is
+  neither real vocabulary here: `JOB_LINE_STATUSES` is `["Pending","In
+  Progress","Delivered"]`, while the pipeline advances `pending → queued →
+  in-production → qc → ready-for-handoff → rework → done`. `JOB_STAGE_PERCENT`
+  is built on the pipeline's own values, keeping the design's shape; the
+  design's middle tier genuinely exists for Joinery as `JOINERY_SUB_STAGES`, so
+  a carp line in production is refined by sub-stage rather than sitting flat.
+  `JOB_LINE_TERMINAL` is `["done"]`. **`routedDepartmentsFor()` excludes
+  "curt"** for the same reason `jobLineProductionComplete()` does — Curtain
+  never advances that entry, so counting it would leave every curtain job
+  permanently unfinished.
+- **The page**: derived Production %, target-date rail (red inside 5 days; "—"
+  and no red when absent — never fabricated), an Items card Sales has never had
+  (serial · name · whole-number qty · stage · department · progress), a
+  Departments card, and ONE collapsible Documents & records card replacing six
+  that each said nothing was there. Label above every bar, percent in its own
+  column. Third way back removed. 68px/84px scroll clearance for the chat bubble.
+- **One over-reach of mine, caught by the sweep.** The first pass took §6's
+  four-control row literally and removed Delivery Note, Material Issue/Return,
+  Edit Job, Job Costing, Update Job Status, Labour Cost and Cancel for
+  EVERYONE — that's the record-page row, not a list of what Operations may do,
+  and it would have taken the Jobs module away from the roles it exists for.
+  Restored as a non-Sales block. **Generate Invoice** also moved out of the
+  Documents card, which is closed by default on a job with no records, so
+  Operations couldn't reach the action that creates the first one.
+- **Job Order**: `prQty()` counts with the unit beside them (`prFmtPlain` stays
+  for money documents only); wine department band with job no / target date /
+  stage now / client / project / qtn / salesman; `# | Item & specification |
+  Qty | Photo | Made ☐ | QC ☐`; notes block carrying `job.notes` AND the rework
+  reasons that never reached the floor; sign-off strip; the do-not-write-prices
+  rule; A4 rules so rows never break and the column head repeats. No figures
+  anywhere, TRN/CR intact, a missing photo is a dashed box not "no image".
+  "Stage now" reports the FURTHEST line — taking whichever entry was written
+  last was arbitrary.
+- New fields `job.targetDate` (typed by Operations at routing, 4th arg to
+  `confirmJobRouting()`) and `job.notes`.
+- **Verification**: new `e2e-job-record-page.js` (31/31), written against the
+  package's own acceptance checklist. Six suites updated for the deliberate
+  changes. Full offline sweep green but for the long-documented stale
+  `e2e-batch8-phase2-4.js`. `sw.js` v33 → v34.
