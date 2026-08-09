@@ -91,6 +91,24 @@ let estimatorDashExpanded = null;      // null | 'pending' | 'my'
 
 function eEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 
+// A confirmed quote is frozen (quotationLock, data.js). Estimation is where
+// the money is actually set, so its controls go dead here too — Salman's ask
+// covered "sales and whoever has access to manage quote", and that is this.
+function estLock(qtnId) {
+  return typeof quotationLock === 'function'
+    ? quotationLock(quotations.find(q => q.id === qtnId)) : null;
+}
+function estLockBanner(lock) {
+  return '<div class="sales-banner">' + eEsc(lock.reason) + '</div>';
+}
+// Same idiom as jobsLockedTile()/salesLockedTile(): keeps the label, dims,
+// and the click explains instead of acting.
+function estDeadBtn(label, reason, cls) {
+  const safe = String(reason).replace(/'/g, "\\'");
+  return '<button class="' + (cls || 'secondary') + '" style="font-size:10.5px;padding:5px 8px;opacity:.5;cursor:not-allowed;"' +
+    ' onclick="estimatorAlert(\'' + safe + '\')">' + label + '</button>';
+}
+
 function estimatorAlert(msg) {
   if (typeof showAlert === 'function') { showAlert(msg); return; }
   let toast = document.getElementById('estimator-toast');
@@ -393,6 +411,7 @@ function openEstimationIndex(qtnId) {
 function renderEstimationIndex() {
   const q = quotations.find(x => x.id === estimatorActiveQtnId);
   if (!q) return `<p style="font-size:12.5px;color:#64748b;">Quotation not found.</p>`;
+  const lock = estLock(q.id);
 
   const rows = q.items.map((it, i) => {
     const hasBom = !!(it.bom && it.bom.submitted);
@@ -409,13 +428,13 @@ function renderEstimationIndex() {
         ${it.internalComments ? `<span title="${eEsc(it.internalComments)}" style="cursor:help;">💬 Sales comment</span>` : ''}
         ${it.approverComment ? ` <span title="${eEsc(it.approverComment)}" style="cursor:help;">👁 Approver comment</span>` : ''}
       </div>` : '';
-    const deptEditing = estimatorEditingDeptLineId === it.lineId;
+    const deptEditing = !lock && estimatorEditingDeptLineId === it.lineId;
     const deptCell = deptEditing ? `
       <div style="display:flex;flex-direction:column;gap:2px;">
         ${ROUTABLE_DEPTS.map(d => `<label style="font-size:10.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${(it.departmentSequence || []).includes(d.k) ? 'checked' : ''} onchange="estimatorToggleDept('${q.id}',${it.lineId},'${d.k}',this.checked)"> ${d.n}</label>`).join('')}
         <span style="font-size:10px;color:var(--biz-primary);cursor:pointer;" onclick="estimatorEditingDeptLineId=null;renderEstimatorBody();">Done</span>
       </div>` :
-      `<div style="cursor:pointer;" onclick="estimatorEditingDeptLineId=${it.lineId};renderEstimatorBody();">
+      `<div style="cursor:${lock ? 'default' : 'pointer'};"${lock ? '' : ` onclick="estimatorEditingDeptLineId=${it.lineId};renderEstimatorBody();"`}>
         ${(it.departmentSequence || []).length === 0 ? '<span style="color:#94a3b8;font-size:11px;">— tap to set —</span>' :
           (it.departmentSequence || []).map(k => `<span style="display:inline-block;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin:1px;background:${dc(k).c}22;color:${dc(k).c};">${eEsc(dc(k).n)}</span>`).join(' → ')}
       </div>`;
@@ -428,21 +447,26 @@ function renderEstimationIndex() {
         <td>${hasBom ? '✓' : ''}</td>
         <td>${deptCell}</td>
         <td>
-          ${it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">${qtyDrifted ? 'Review BOM' : 'Update BOM'}</button>
+          ${lock
+            ? (it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">View BOM</button>` + estDeadBtn('Clear BOM', lock.reason)
+                      : estDeadBtn('+ Add BOM', lock.reason, 'primary'))
+            : (it.bom ? `<button class="secondary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">${qtyDrifted ? 'Review BOM' : 'Update BOM'}</button>
           <button class="secondary" style="font-size:10.5px;padding:5px 8px;color:#b91c1c;" onclick="estimatorClearBOMConfirm('${q.id}',${it.lineId})">Clear BOM</button>`
-          : `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">+ Add BOM</button>`}
+          : `<button class="primary" style="font-size:10.5px;padding:5px 8px;" onclick="openJobEstimationBOM('${q.id}',${it.lineId})">+ Add BOM</button>`)}
         </td>
       </tr>`;
   }).join('');
 
   return `
     <span class="sales-back" onclick="openEstimatorQuoteHub('${q.id}');">‹ Back to Manage Quote</span>
+    ${lock ? estLockBanner(lock) : ''}
     <div class="sales-card">
       <p style="font-weight:700;font-size:14px;">${q.id} — Estimation</p>
       <p style="font-size:11.5px;color:#64748b;">${eEsc(q.projectName)}</p>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
         <button class="secondary" style="font-size:11.5px;" onclick="estimatorDownloadExcel('${q.id}')">⬇ Download BOM Excel</button>
-        <button class="secondary" style="font-size:11.5px;" onclick="document.getElementById('bom-xlsx-file').click()">⬆ Upload filled Excel</button>
+        ${lock ? estDeadBtn('⬆ Upload filled Excel', lock.reason)
+          : `<button class="secondary" style="font-size:11.5px;" onclick="document.getElementById('bom-xlsx-file').click()">⬆ Upload filled Excel</button>`}
         <input id="bom-xlsx-file" type="file" accept=".xlsx,.xls" style="display:none;" onchange="estimatorUploadExcel('${q.id}', this.files[0]); this.value='';">
       </div>
     </div>
@@ -450,7 +474,7 @@ function renderEstimationIndex() {
       <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Department routing is auto-suggested per line (tap a job's Departments cell to review/override) — the Operations Manager confirms it for real once the job is created, this is just getting it right early.</p>
       <table class="sales-items"><tr><th>SL</th><th>Product</th><th>Qty</th><th>Rate</th><th>BOM</th><th>Departments</th><th>Actions</th></tr>${rows}</table>
     </div>
-    <button class="primary" style="width:100%;" onclick="openEstimatorReview('${q.id}')">Review & Send to Approver →</button>`;
+    ${lock ? '' : `<button class="primary" style="width:100%;" onclick="openEstimatorReview('${q.id}')">Review & Send to Approver →</button>`}`;
 }
 
 // Job Routing (Batch 8, Phase 0) — Estimator's override of the
@@ -495,10 +519,15 @@ function renderJobEstimationBOM() {
   const q = quotations.find(x => x.id === estimatorActiveQtnId);
   const item = q && q.items.find(it => it.lineId === estimatorActiveLineId);
   if (!q || !item) return `<p style="font-size:12.5px;color:#64748b;">Item not found.</p>`;
+  // Frozen quote: the tabs still render so the costing stays READABLE (it is
+  // the record of how this job was priced), but every write is refused by the
+  // data layer and the banner says so up front.
+  const bomLock = estLock(q.id);
   const enq = enquiries.find(e => e.id === q.enquiryId);
   const c = customers.find(x => x.id === q.customerId);
 
   const header = `
+    ${bomLock ? estLockBanner(bomLock) : ''}
     <div class="sales-preview">
       <p><b>BOQ Ref:</b> ${eEsc(q.id)}-${item.lineId}</p>
       <p><b>Customer Name:</b> ${eEsc(c ? c.name : '—')}</p>

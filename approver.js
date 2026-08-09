@@ -88,6 +88,18 @@ let approverActiveQtnId = null;
 let approverDashExpanded = null;       // null | 'pending' | 'forApproval'
 let approverCommentLineId = null;      // which line's Comment modal is open
 
+// A confirmed quote is frozen (quotationLock, data.js) — the Approver can
+// still read it and comment on it, but cannot correct a price or delete a
+// line on work that is already a live Job Card. Corrections normally happen
+// BEFORE approval, so this closes a path the 4 Aug audit flagged as
+// theoretical: a correction at that point silently edits a record the Job
+// Card no longer reads from, except via Update BOM, where it changes the
+// job's value with no approval at all.
+function aprLock(qtnId) {
+  return typeof quotationLock === 'function'
+    ? quotationLock(quotations.find(q => q.id === qtnId)) : null;
+}
+
 function aEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 
 function approverAlert(msg) {
@@ -325,7 +337,9 @@ function renderApproverReview() {
         <td>${profitPct}</td>
         <td><button class="secondary" style="font-size:10px;padding:4px 7px;" onclick="event.stopPropagation();approverOpenCommentModal(${it.lineId})">${it.approverComment ? '✎ Comment' : '+ Comment'}</button></td>
         <td>—</td>
-        <td><span style="cursor:pointer;color:#b91c1c;" onclick="event.stopPropagation();approverDeleteItem('${q.id}',${it.lineId})">✕</span></td>
+        <td>${aprLock(q.id)
+          ? '<span style="color:#cbd5e1;cursor:not-allowed;" title="Confirmed — this quote is frozen">✕</span>'
+          : `<span style="cursor:pointer;color:#b91c1c;" onclick="event.stopPropagation();approverDeleteItem('${q.id}',${it.lineId})">✕</span>`}</td>
       </tr>`;
   }).join('');
 
@@ -444,7 +458,9 @@ function approverRenderDetailModal() {
         <button class="primary" style="flex:1;" onclick="approverSaveCorrection()">Save Correction</button>
         <button class="secondary" style="flex:1;" onclick="approverCorrectingLineId=null;approverRenderDetailModal();">Cancel</button>
       </div>
-    </div>` : `<button class="secondary" style="width:100%;margin-top:10px;" onclick="approverCorrectingLineId=${lineId};approverRenderDetailModal();">✎ Correct Product/Description/Price</button>`;
+    </div>` : (aprLock(approverActiveQtnId)
+    ? `<p style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px;margin-top:10px;">Confirmed — this quote is frozen. Corrections are not possible once a Job Card exists; raise a Variation on the job instead.</p>`
+    : `<button class="secondary" style="width:100%;margin-top:10px;" onclick="approverCorrectingLineId=${lineId};approverRenderDetailModal();">✎ Correct Product/Description/Price</button>`);
 
   const correctionsHistory = (item.corrections && item.corrections.length) ? `
     <div style="margin-top:10px;font-size:10.5px;color:#94a3b8;border-top:1px solid var(--biz-border-light);padding-top:6px;">
@@ -506,16 +522,22 @@ function approverCloseDetailModal() {
 }
 
 // Matches the live confirmation copy exactly ("Do you Want to Change Status?").
+// Both of these used to DISCARD the {error} return and claim success anyway,
+// so every gate the data layer added (the 6 Aug lifecycle checks, and now the
+// confirmed-quote freeze) was invisible — the user was told the opposite of
+// what happened. Report what actually came back.
 function approverTransferToEstimator(qtnId) {
   if (!window.confirm('Do you Want to Change Status?')) return;
-  transferQuotationStage(qtnId, 'estimator', approverCurrentUser);
+  const res = transferQuotationStage(qtnId, 'estimator', approverCurrentUser);
+  if (res && res.error) { approverAlert(res.error); return; }
   approverAlert('✓ Sent back to Estimator.');
   approverView = 'dashboard';
   renderApproverBody();
 }
 function approverApproveQuote(qtnId) {
   if (!window.confirm('Do you Want to Change Status?')) return;
-  approveQuotation(qtnId, approverCurrentUser);
+  const res = approveQuotation(qtnId, approverCurrentUser);
+  if (res && res.error) { approverAlert(res.error); return; }
   approverAlert('✓ Quotation approved — back with Sales, status Open.');
   approverView = 'dashboard';
   renderApproverBody();

@@ -1174,10 +1174,18 @@ function renderCustomerUpdateTool() {
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">(c) Update VAT</p>
-      <div class="sales-field"><label>VAT %</label>
+      ${(() => {
+        // VAT is money on a contracted record, so it freezes with the rest of
+        // the quote once confirmed (quotationLock, data.js). The Customer /
+        // Contact and Salesman corrections above stay open deliberately —
+        // those are administrative, with no money in them.
+        const lock = typeof quotationLock === 'function' ? quotationLock(qtn) : null;
+        if (lock) return `<p style="font-size:11.5px;color:#92400e;">${acEsc(lock.reason)}</p>`;
+        return `<div class="sales-field"><label>VAT %</label>
         <select id="cu-vat">${[10, 5, 0].map(v => `<option value="${v}" ${qtn.taxPercent === v ? 'selected' : ''}>${v}%</option>`).join('')}</select>
       </div>
-      <button class="primary" onclick="custUpdateApplyVat()">Update VAT</button>
+      <button class="primary" onclick="custUpdateApplyVat()">Update VAT</button>`;
+      })()}
     </div>`;
 }
 // ── CUSTOMER BANKING DETAILS (Phase 3, 5 Aug 2026) — view/edit the six

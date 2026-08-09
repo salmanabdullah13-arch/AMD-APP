@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v31"; // v31: shared weekly planner + My tasks widgets
+const CACHE_VERSION = "amd-app-v32"; // v32: confirmed quotes are frozen
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

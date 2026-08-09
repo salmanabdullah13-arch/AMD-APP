@@ -85,6 +85,33 @@ function printReport() {
   const wizardOpened = await page.evaluate(() => salesView === 'qtn-wizard');
   record('Edit Quote is actually clickable and opens the wizard once reopened', wizardOpened ? 'PASS' : 'FAIL');
 
+  // 9 Aug 2026: this suite never exercised lifecycleStatus === 'confirmed',
+  // which is exactly how an editable confirmed quote shipped. The stage-based
+  // lock above passes on a confirmed quote — approveQuotation() sets stage back
+  // to 'sales' so Sales can confirm, so the tile is visible at that point and
+  // always was. The freeze is a separate rule (quotationLock, data.js), and
+  // e2e-quote-confirmed-lock.js covers it in full; this is the regression guard
+  // that stops the two locks being confused for each other again.
+  currentStep = 'confirmed-is-a-different-lock';
+  const confirmedState = await page.evaluate((id) => {
+    const q = quotations.find(x => x.id === id);
+    q.lifecycleStatus = 'open';
+    q.stage = 'sales';
+    const job = confirmQuotationToJobCard(id, 'Sales User');
+    return { jobId: job && job.id, stage: q.stage, lifecycle: q.lifecycleStatus };
+  }, qtnId);
+  await openHub();
+  await shot(page, 'hub-confirmed');
+  const confirmedLock = await page.evaluate(() => {
+    const tiles = Array.from(document.querySelectorAll('#sales-body .sales-tile'));
+    const edit = tiles.find(t => t.textContent.includes('Edit Quote'));
+    return { present: !!edit, greyed: !!edit && /not-allowed/.test(edit.getAttribute('style') || '') };
+  });
+  record('A confirmed quote sits at stage "sales", so the stage lock alone does NOT hide Edit Quote',
+    confirmedState.stage === 'sales' && confirmedLock.present ? 'PASS' : 'FAIL', JSON.stringify(confirmedState));
+  record('The confirmed-quote freeze greys it instead',
+    confirmedLock.greyed ? 'PASS' : 'FAIL', JSON.stringify(confirmedLock));
+
   await browser.close();
   printReport();
 })();

@@ -2578,10 +2578,60 @@ function convertEnquiryToQuotation(enquiryId, { projectName, taxPercent, contact
   persistEnquiryUpdate(enq);
   return qtn;
 }
+// ═══ CONFIRMED QUOTES ARE FROZEN (Salman, 9 Aug 2026) ═══
+// "once a quote is confirmed, the edit tab and discount tab is still
+// accessible. It should be greyed out."
+//
+// He was right, and the hole was bigger than the two tiles he named. Before
+// this, the ONLY gate on quotation editing anywhere in the app was
+// `q.stage === 'sales'` on Sales' Edit Quote tile — but approveQuotation()
+// sets stage back to "sales" so Sales can confirm, which means a confirmed
+// quote sits at that exact stage and the gate never fired. Everything else —
+// the wizard, both discount surfaces, all BOM entry, the Approver's
+// correction and delete-line UI — had no lifecycle check at all.
+//
+// It isn't cosmetic: the Job Card's "Update BOM" (jobs.js) calls
+// refreshJobFromQuotation(), which re-pulls the quotation's rates into the
+// live job AND recomputes job.amount. So "edit a confirmed quote -> Update
+// BOM -> the job's value changes, with no Approver in it" was reachable.
+// That runs against the standing pricing lock, which is fraud prevention.
+//
+// The rule: a confirmed quote's CONTENTS AND PRICING are frozen. You can
+// still read it, print it, comment on it, duplicate it into a new quote, or
+// raise a Variation against the job — each of those either changes nothing
+// or creates a new draft rather than editing the confirmed record.
+//
+// Salman's call on cancellation: a quote UNLOCKS if its Job Card is
+// cancelled, so the same quote can be corrected and re-confirmed.
+// lifecycleStatus deliberately stays "confirmed" rather than being rewritten
+// back to "open" — it was confirmed, and rewriting that would make the audit
+// trail lie. Only the lock reads through to the job's live status.
+function quotationLock(qtn) {
+  if (!qtn || qtn.lifecycleStatus !== "confirmed") return null;
+  const live = qtn.parentJobId
+    ? (typeof getJobCard === "function" ? getJobCard(qtn.parentJobId) : null)
+    : jobCards.find(j => j.quotationId === qtn.id && j.status !== "cancelled");
+  if (!live || live.status === "cancelled") return null;   // cancelled job → editable again
+  return {
+    jobId: live.id,
+    reason: `This quote is confirmed into Job Card ${live.id} — its items and pricing are frozen. ` +
+            `Raise a Variation on the Job Card to change the work.`
+  };
+}
+// Data-layer guard. Returns the {error} to hand straight back, or null.
+// Every mutator below checks this, not just the screens that render them:
+// "a hidden button that's still reachable via a stale event handler is the
+// actual security bug, not the visual" (Salman, Session 3).
+function quotationFrozen(qtnId) {
+  const lock = quotationLock(quotations.find(q => q.id === qtnId));
+  return lock ? { error: lock.reason } : null;
+}
+
 function nextQuotationItemId(qtn) { return qtn.items.length + 1; }
 function addQuotationItem(qtnId, item) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const amount = (item.qty || 0) * (item.rate || 0);
   const discAmt = item.discAmt || (amount * (item.discPercent || 0) / 100);
   const netAmount = qtn.withEstimation ? 0 : (amount - discAmt) * (1 + (item.vatPercent || 0) / 100);
@@ -2619,6 +2669,7 @@ function addQuotationItem(qtnId, item) {
 function copyQuoteSection(qtnId, group, subgroup) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const matches = qtn.items.filter(it => it.group === group && (subgroup === undefined || subgroup === null || it.subgroup === subgroup));
   if (!matches.length) return { error: "Nothing to copy." };
   return matches.map(it => addQuotationItem(qtnId, {
@@ -2652,6 +2703,7 @@ function computeQuoteHierarchy(items) {
 function setItemDepartmentSequence(qtnId, lineId, sequence) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   item.departmentSequence = sequence || [];
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item;
@@ -2659,6 +2711,7 @@ function setItemDepartmentSequence(qtnId, lineId, sequence) {
 function removeQuotationItem(qtnId, lineId) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   qtn.items = qtn.items.filter(it => it.lineId !== lineId);
   persistQuotationUpdate(qtn);
   return { ok: true };
@@ -2676,6 +2729,13 @@ function removeQuotationItem(qtnId, lineId) {
 function applyCustomerUpdate(qtnId, { customerId, contactPerson, salesPerson, taxPercent } = {}) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  // Only the VAT branch is frozen on a confirmed quote — it's money on a
+  // contracted record. Customer/Contact and Salesman corrections stay open:
+  // administrative, and Accounts genuinely needs to be able to fix them.
+  if (taxPercent !== undefined) {
+    const frozen = quotationFrozen(qtnId);
+    if (frozen) return frozen;
+  }
   if (customerId !== undefined) {
     const cust = customers.find(c => c.id === customerId);
     if (!cust) return { error: "Please select a Customer." };
@@ -2703,6 +2763,7 @@ function applyCustomerUpdate(qtnId, { customerId, contactPerson, salesPerson, ta
 function finaliseQuotation(qtnId, { coveringLetterTemplate, termsTemplate }) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   if (coveringLetterTemplate && COVERING_LETTER_TEMPLATES[coveringLetterTemplate]) {
     qtn.coveringLetterTemplate = coveringLetterTemplate;
     qtn.coveringLetterBody = COVERING_LETTER_TEMPLATES[coveringLetterTemplate](qtn.projectName);
@@ -2733,6 +2794,7 @@ function finaliseQuotation(qtnId, { coveringLetterTemplate, termsTemplate }) {
 function transferQuotationStage(qtnId, newStage, actorName) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   qtn.stage = newStage;
   logQuotationAudit(qtn, { action: "Transfer", user: actorName, userType: newStage.toUpperCase() });
   logActivity({ type: "quotation-transferred", linkedType: "quotation", linkedId: qtn.id, user: actorName, message: `${qtn.id} moved to ${newStage === "sales" ? "Sales" : newStage === "estimator" ? "Estimator" : "Approver"}` });
@@ -3086,6 +3148,7 @@ const EMP_CATEGORIES = ["Skilled", "Semi-Skilled", "Helper", "Supervisor"];
 function pickQuotation(qtnId, personName, expectedStage) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   if (qtn.stage !== expectedStage) return { error: `This quotation is not in the ${expectedStage[0].toUpperCase()}${expectedStage.slice(1)} stage.` };
   const field = expectedStage === "approver" ? "approverPickedBy" : "estimatorPickedBy";
   if (qtn[field]) return { error: "This quotation has already been picked." };
@@ -3117,6 +3180,7 @@ function ensureItemBOM(item) {
 function addBOMMaterial(qtnId, lineId, { name, description = "", qty, unit, rate }) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const bom = ensureItemBOM(item);
   const amount = (qty || 0) * (rate || 0);
   // If the name exactly matches a real Item Master entry (as it will when
@@ -3136,6 +3200,7 @@ function addBOMMaterial(qtnId, lineId, { name, description = "", qty, unit, rate
 function addBOMLabour(qtnId, lineId, { department, empCategory, calcMode = "hours", noOfPpl, qty, rate }) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   if (!rate) return { error: "Rate is required." };
   const bom = ensureItemBOM(item);
   const manQty = (noOfPpl || 0) * (qty || 0);
@@ -3164,6 +3229,7 @@ function getDeptAvgLabourRate(deptKey) {
 function addBOMSubcontract(qtnId, lineId, { vendor, workType, amount }) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const bom = ensureItemBOM(item);
   bom.subcontract.push({ id: bom.subcontract.length + 1, vendor, workType, amount: amount || 0 });
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
@@ -3172,6 +3238,7 @@ function addBOMSubcontract(qtnId, lineId, { vendor, workType, amount }) {
 function addBOMHiring(qtnId, lineId, { vendor, workType, amount }) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const bom = ensureItemBOM(item);
   bom.hiring.push({ id: bom.hiring.length + 1, vendor, workType, amount: amount || 0 });
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
@@ -3180,6 +3247,7 @@ function addBOMHiring(qtnId, lineId, { vendor, workType, amount }) {
 function addBOMOther(qtnId, lineId, { party, details, amount }) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const bom = ensureItemBOM(item);
   bom.others.push({ id: bom.others.length + 1, party, details, amount: amount || 0 });
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
@@ -3188,6 +3256,7 @@ function addBOMOther(qtnId, lineId, { party, details, amount }) {
 function removeBOMEntry(qtnId, lineId, category, entryId) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   item.bom[category] = item.bom[category].filter(r => r.id !== entryId);
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
@@ -3195,6 +3264,7 @@ function removeBOMEntry(qtnId, lineId, category, entryId) {
 function setBOMOHPercent(qtnId, lineId, category, val) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   item.bom.ohPercents[category] = val;
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
@@ -3202,6 +3272,7 @@ function setBOMOHPercent(qtnId, lineId, category, val) {
 function setBOMProfitPercent(qtnId, lineId, val) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   item.bom.profitPercent = val;
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
@@ -3209,6 +3280,7 @@ function setBOMProfitPercent(qtnId, lineId, val) {
 function setBOMSellingOverride(qtnId, lineId, val) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   item.bom.sellingPriceOverride = (val === null || val === "") ? null : Number(val);
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
   return item.bom;
@@ -3244,6 +3316,7 @@ function computeBOMTotals(bom) {
 function submitItemBOM(qtnId, lineId, submittedBy = "Estimator") {
   const item = findQuotationItem(qtnId, lineId);
   if (!item || !item.bom) return { error: "BOM not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const totals = computeBOMTotals(item.bom);
   const sellingPrice = item.bom.sellingPriceOverride !== null ? item.bom.sellingPriceOverride : totals.calculatedSellingPrice;
   item.rate = sellingPrice;
@@ -3259,6 +3332,7 @@ function submitItemBOM(qtnId, lineId, submittedBy = "Estimator") {
 function clearItemBOM(qtnId, lineId) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   item.bom = null;
   item.rate = 0; item.amount = 0; item.discAmt = 0; item.netAmount = 0;
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
@@ -3275,6 +3349,7 @@ function cloneBOMToItem(qtnId, sourceLineId, targetLineId) {
   const source = findQuotationItem(qtnId, sourceLineId);
   const target = findQuotationItem(qtnId, targetLineId);
   if (!source || !target) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   if (!source.bom) return { error: "Source item has no BOM to copy." };
   target.bom = JSON.parse(JSON.stringify(source.bom));
   target.bom.submitted = false;
@@ -3410,6 +3485,7 @@ function setLineApproverComment(qtnId, lineId, text) {
 function approverCorrectItem(qtnId, lineId, patch, reason, approverName) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   if (!reason || !reason.trim()) return { error: "A reason is required for this correction." };
   const changes = {};
   ["product", "description"].forEach(f => {
@@ -3440,6 +3516,7 @@ function approverCorrectItem(qtnId, lineId, patch, reason, approverName) {
 function updateQuotationItemFields(qtnId, lineId, { qty, description, internalComments }) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   if (qty !== undefined) item.qty = qty;
   if (description !== undefined) item.description = description;
   if (internalComments !== undefined) item.internalComments = internalComments;
@@ -3921,7 +3998,15 @@ function bridgeJobToOperationsAndCurtain(job) {
 function confirmQuotationToJobCard(qtnId, confirmedBy) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
-  if (qtn.lifecycleStatus !== "open") return { error: "Quotation must be Open before it can be confirmed." };
+  // "confirmed" is allowed through as well as "open" (9 Aug 2026): once a Job
+  // Card is cancelled its quote unlocks for correction (Salman's call), and
+  // re-confirming it is the whole point of unlocking. lifecycleStatus stays
+  // "confirmed" rather than being rewritten back — it WAS confirmed, and
+  // rewriting that would make the audit trail lie. The double-confirm guard
+  // immediately below is what actually stops a second live Job Card.
+  if (qtn.lifecycleStatus !== "open" && qtn.lifecycleStatus !== "confirmed") {
+    return { error: "Quotation must be Open before it can be confirmed." };
+  }
   // Double-confirm guard (6 Aug 2026 audit, Critical #1). Even if some path
   // reopens an already-confirmed quote, never mint a second Job Card for a
   // quotation that still has a live (non-cancelled) one.
@@ -6394,6 +6479,7 @@ function findSimilarCompletedLines(product, excludeQtnId = null) {
 function pullActualCostingToBOM(qtnId, lineId, srcJobId, srcLineId, pulledBy = null) {
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: 'Item not found.' };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const act = getLineActualCost(srcJobId, srcLineId);
   if (!act || act.totalCost <= 0) return { error: 'No actual costing recorded on that line.' };
   const bom = ensureItemBOM(item);
@@ -6429,6 +6515,7 @@ function pullActualCostingToBOM(qtnId, lineId, srcJobId, srcLineId, pulledBy = n
 function delegateQuotation(qtnId, toName, byName, note = "") {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   if (qtn.stage !== "estimator") return { error: "Only a quotation at the Estimator stage can be delegated." };
   if (!toName || toName === byName) return { error: "Pick a different estimator to delegate to." };
   const from = qtn.estimatorPickedBy || byName;
@@ -6474,6 +6561,7 @@ function applyBOMTemplate(templateId, qtnId, lineId) {
   if (!t) return { error: "Template not found." };
   const item = findQuotationItem(qtnId, lineId);
   if (!item) return { error: "Item not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   item.bom = JSON.parse(JSON.stringify(t.bom));
   item.bom.submitted = false; item.bom.qtyAtSubmit = null; item.bom.sellingPriceOverride = null;
   persistQuotationUpdate(quotations.find(q => q.id === qtnId));
@@ -6490,6 +6578,7 @@ function applyBOMTemplate(templateId, qtnId, lineId) {
 function setQuoteDiscount(qtnId, totalDiscount) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
   const amt = Number(totalDiscount) || 0;
   const base = qtn.items.reduce((s, it) => s + it.amount, 0);
   if (amt < 0) return { error: "Discount cannot be negative." };

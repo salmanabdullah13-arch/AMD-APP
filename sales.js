@@ -636,6 +636,15 @@ function renderQuotationList() {
   return tabsHtml + filterHtml + listHtml;
 }
 
+// Same shape as jobsLockedTile() (jobs.js) — the tile keeps its colour, icon
+// and label, dims, and its click becomes the explanation rather than the
+// action. A greyed control that still says what it is beats a missing one
+// here: the user is meant to understand WHY this quote can't be edited.
+function salesLockedTile(cls, icon, label, reason) {
+  const safe = String(reason).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return `<div class="sales-tile ${cls}" style="opacity:.5;cursor:not-allowed;" onclick="salesAlert('${safe}')"><span class="sales-tile-icon">${icon}</span>${label}</div>`;
+}
+
 // ── Manage Quote hub ──
 function openQuotationHub(id) {
   if (typeof execSetCrumb === 'function') setTimeout(() => execSetCrumb(id), 0);
@@ -651,6 +660,11 @@ function renderQuotationHub() {
   const totals = computeQuotationTotals(q);
   const enq = enquiries.find(e => e.id === q.enquiryId);
   const c = customers.find(x => x.id === q.customerId);
+  // Frozen once confirmed (Salman, 9 Aug 2026) — see quotationLock() in
+  // data.js. Greyed rather than hidden: the capability exists, it's this
+  // quote that's closed. Print/Duplicate stay live, and the banner names the
+  // Variation route so the lock never becomes a dead end.
+  const lock = typeof quotationLock === 'function' ? quotationLock(q) : null;
 
   return `
     <span class="sales-back" onclick="salesView='qtn-list';renderSalesBody();">‹ Back to Quotation List</span>
@@ -660,13 +674,16 @@ function renderQuotationHub() {
       <p style="font-size:12px;color:#64748b;">Qtn Date: ${q.date} · Confirm Date: ${q.confirmDate || '—'} · Amount: BD ${totals.netTotal.toFixed(3)}</p>
       <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${q.parentJobId ? `Variation for Job <b>${esc(q.parentJobId)}</b>` : `Linked Enquiry: ${esc(q.enquiryId)} · Salesman: ${esc(enq ? enq.salesPerson : '—')}`}</p>
     </div>
+    ${lock ? `<div class="sales-banner">${esc(lock.reason)}</div>` : ''}
     <div class="sales-tile-row">
-      ${q.stage === 'sales' ? `<div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>` : ''}
+      ${lock ? salesLockedTile('t-blue', '✎', 'Edit Quote', lock.reason)
+        : (q.stage === 'sales' ? `<div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>` : '')}
       ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile t-purple" onclick="openPrintDialog('${q.id}',false)"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
       <div class="sales-tile t-teal" onclick="salesAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
-      <div class="sales-tile t-magenta" onclick="salesAlert('Discount — apply from the Product & Services step.')"><span class="sales-tile-icon">%</span>Discount</div>
+      ${lock ? salesLockedTile('t-magenta', '%', 'Discount', lock.reason)
+        : `<div class="sales-tile t-magenta" onclick="salesAlert('Discount — apply from the Product &amp; Services step.')"><span class="sales-tile-icon">%</span>Discount</div>`}
     </div>
-    ${q.stage !== 'sales' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Edit Quote is locked while this is with the ${q.stage === 'estimator' ? 'Estimator' : 'Approver'} — it reopens once they send it back to Sales.</p>` : ''}
+    ${!lock && q.stage !== 'sales' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Edit Quote is locked while this is with the ${q.stage === 'estimator' ? 'Estimator' : 'Approver'} — it reopens once they send it back to Sales.</p>` : ''}
     ${q.lifecycleStatus === 'draft' && q.stage === 'sales' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Print Quote becomes available once the Approver has approved this quote.</p>` : ''}
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
@@ -784,6 +801,12 @@ function salesConfirmVariation(qtnId) {
 
 // ── Edit Quote wizard (3 steps) ──
 function openQuotationWizard(id, step) {
+  // The wizard is callable directly (jobs.js's New Variation drops straight
+  // into step 2), so the tile-level lock alone would be bypassable. Refuse
+  // at the entry point too.
+  const lock = typeof quotationLock === 'function'
+    ? quotationLock(quotations.find(q => q.id === id)) : null;
+  if (lock) { salesAlert(lock.reason); return; }
   salesActiveQtnId = id;
   salesWizardStep = step || 1;
   salesView = 'qtn-wizard';

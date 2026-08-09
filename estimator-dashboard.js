@@ -275,9 +275,29 @@ window.EstimatorUI = (function () {
 
   var DISCOUNT_LIMIT = 30;   // Estimator's ceiling, from the User Groups master
 
+  /* A confirmed quote is frozen (quotationLock, data.js). Estimation is the
+     one screen where the money is actually set, so every control that writes
+     to the quote has to go dead here — not just Sales' two tiles. */
+  function lockOf(q) {
+    return typeof quotationLock === 'function' ? quotationLock(q) : null;
+  }
+  /* An unactionable button: same label, muted, and NO data-act, so the
+     delegated handler skips it (the idiom this UI already uses for a queue
+     row someone else holds). */
+  function deadBtn(label, reason, extraCls) {
+    return '<button class="ed-btn muted' + (extraCls ? ' ' + extraCls : '') +
+      '" title="' + esc(reason) + '">' + esc(label) + '</button>';
+  }
+  function lockBanner(lock) {
+    return '<section class="ed-card" style="border-color:var(--warn);background:var(--warn-bg)">' +
+      '<div class="ed-title" style="color:var(--warn)">Confirmed — frozen</div>' +
+      '<p class="ed-micro" style="margin-top:5px;color:var(--tx2)">' + esc(lock.reason) + '</p></section>';
+  }
+
   function quoteView() {
     var q = qtn(S.qtnId);
     if (!q) return '<section class="ed-card"><p class="ed-micro">Pick a quotation from the queue first.</p></section>';
+    var lock = lockOf(q);
     var totals = safe(function () { return computeQuotationTotals(q); }, { netTotal: 0, subtotal: 0 });
     var gross = (q.items || []).reduce(function (s, it) { return s + lineAmount(q, it); }, 0);
     var discPct = q.discountPercent || 0;
@@ -290,9 +310,13 @@ window.EstimatorUI = (function () {
       trail(q) +
     '</section>' +
 
+    (lock ? lockBanner(lock) : '') +
+
     '<section class="ed-card"><div class="ed-title" style="margin-bottom:10px">Manage quote</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-        '<button class="ed-btn" data-act="editquote">Edit quote</button>' +
+        /* Duplicate and Print stay live on a frozen quote — one makes a NEW
+           draft, the other changes nothing. */
+        (lock ? deadBtn('Edit quote', lock.reason) : '<button class="ed-btn" data-act="editquote">Edit quote</button>') +
         '<button class="ed-btn ghost" data-act="dup">Duplicate quote</button>' +
         '<button class="ed-btn ghost" data-act="printquote">Print quote</button>' +
       '</div>' +
@@ -307,11 +331,12 @@ window.EstimatorUI = (function () {
         '<span style="font-size:12px;font-weight:600;color:var(--tx2)">Discount</span>' +
         '<div class="ed-seg" style="flex:none">' +
           ['%', 'BD'].map(function (m) {
-            return '<button aria-selected="' + (S.discMode === m) + '" data-act="discmode" data-v="' + m + '">' + m + '</button>';
+            return '<button aria-selected="' + (S.discMode === m) + '"' +
+              (lock ? '' : ' data-act="discmode" data-v="' + m + '"') + '>' + m + '</button>';
           }).join('') + '</div>' +
         '<input class="ed-in" style="max-width:120px;text-align:left;border-color:' + (over ? 'var(--bad)' : 'var(--line)') + ';background:var(--card)"' +
           ' type="number" step="0.1" value="' + (S.discMode === '%' ? discPct : Math.round(discBd * 1000) / 1000) + '"' +
-          ' data-act-input="disc">' +
+          (lock ? ' disabled title="' + esc(lock.reason) + '"' : ' data-act-input="disc"') + '>' +
         '<span class="ed-micro">' + (S.discMode === '%' ? esc(bd(discBd)) : discPct.toFixed(1) + '%') + '</span>' +
       '</div>' +
       (over ? '<p class="ed-bad">Above your ' + DISCOUNT_LIMIT + '% limit — the Approver must release this.</p>'
@@ -320,8 +345,9 @@ window.EstimatorUI = (function () {
 
     '<section class="ed-card"><div class="ed-title" style="margin-bottom:10px">Move this quote</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-        '<button class="ed-btn ghost" data-act="tostage" data-v="sales">‹ Back to Sales</button>' +
-        '<button class="ed-btn" data-act="tostage" data-v="approver">Transfer to Approver →</button>' +
+        (lock ? deadBtn('‹ Back to Sales', lock.reason) + deadBtn('Transfer to Approver →', lock.reason)
+          : '<button class="ed-btn ghost" data-act="tostage" data-v="sales">‹ Back to Sales</button>' +
+            '<button class="ed-btn" data-act="tostage" data-v="approver">Transfer to Approver →</button>') +
       '</div>' +
       '<div class="ed-sub" style="margin:11px 0 6px">Or hand it to another estimator</div>' +
       '<div class="ed-deleg">' + (typeof ESTIMATOR_USERS !== 'undefined' ? ESTIMATOR_USERS : [])
@@ -841,6 +867,10 @@ window.EstimatorUI = (function () {
   function onChange(e) {
     var el = e.target.closest('[data-act-input]');
     if (!el || !root.contains(el)) return;
+    // Belt and braces: even if a stale input survives a re-render, a frozen
+    // quote takes no writes. The data layer refuses too — this just stops the
+    // screen showing a value that was never saved.
+    if (lockOf(qtn(S.qtnId))) { paint(); return; }
     var kind = el.getAttribute('data-act-input');
     var q = qtn(S.qtnId);
     var val = el.value;
