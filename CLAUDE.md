@@ -6619,3 +6619,90 @@ handoff's CSS/JS verbatim, replace only its `DATA` block with live getters.
 - **Package §10 (Sales-side Receivables KPI, Top Clients by value, salesPerson
   scope) needs no work** — all three were already fixed during the Sales 5a
   redesign; re-confirmed rather than rebuilt.
+
+### 9 Aug 2026 — A confirmed quote is frozen
+
+Salman: *"once a quote is confirmed, the edit tab and discount tab is still
+accessible. It should be greyed out … for sales and whoever has access to
+manage quote."*
+
+- **The hole was bigger than the two tiles.** Exploration found exactly ONE gate
+  on quotation editing anywhere in the app — `q.stage === 'sales'` on Sales'
+  Edit Quote tile — and `approveQuotation()` sets stage back to `"sales"` so
+  Sales can confirm, so a confirmed quote sat at that exact stage and the gate
+  never fired. The wizard, both discount surfaces, all BOM entry and the
+  Approver's correction/delete UI had no lifecycle check at all.
+- **Not cosmetic.** The Job Card's "Update BOM" calls
+  `refreshJobFromQuotation()`, which re-pulls the quotation's rates into the
+  live job AND recomputes `job.amount`. So *edit a confirmed quote → Update BOM
+  → the job's value changes*, with no Approver in it, was reachable — against
+  the standing pricing lock, which is fraud prevention.
+- **`quotationLock()` / `quotationFrozen()`** (data.js) hold the rule in one
+  place: a confirmed quote's CONTENTS AND PRICING are frozen. 25 mutators refuse,
+  guarded at the function level per the house rule ("a hidden button that's
+  still reachable via a stale event handler is the actual security bug").
+  Deliberately still open, because each makes a NEW draft rather than editing
+  the confirmed record: Duplicate, New Variation, Print, Approver comments.
+- **Greyed, not hidden** (his ask, and right here — the capability exists, it's
+  this quote that's closed). Sales' Edit Quote/Discount dim with a banner naming
+  the Variation route; `openQuotationWizard()` refuses directly too, since
+  jobs.js proves it's callable without the tile. Estimation Index greys Clear
+  BOM/Excel upload and drops Review & Send; EstimatorUI disables the discount
+  and strips its write hooks (`.ed-btn muted` with no `data-act` — its own
+  existing idiom); the Approver can't correct a price or delete a line;
+  Accounts' Customer Update freezes VAT % only, leaving the administrative
+  Customer/Salesman fixes open (my call, flagged not buried).
+- **Two related fixes in the same pass**: `transferQuotationStage()` had no gate
+  whatsoever — the hole *underneath* the old lock, since bouncing a confirmed
+  quote back to `sales` reopened editing; and `approverApproveQuote()` /
+  `approverTransferToEstimator()` DISCARDED their `{error}` returns and claimed
+  success regardless, so every data-layer gate (including the 6 Aug lifecycle
+  checks) was invisible to the user.
+- **Cancellation unlocks** (Salman's call): a cancelled Job Card frees its quote
+  for correction and re-confirmation. `lifecycleStatus` deliberately stays
+  `"confirmed"` rather than being rewritten to `"open"` — it *was* confirmed,
+  and rewriting that would make the audit trail lie; only the lock reads through
+  to the job's live status. `confirmQuotationToJobCard()` now accepts a
+  confirmed quote, its existing double-confirm guard being what actually
+  prevents a second live Job Card.
+- **Verification**: new `e2e-quote-confirmed-lock.js` (23/23) — every mutator
+  refused with the record proven unchanged, greyed tiles asserted three ways
+  (renders not-allowed, click doesn't navigate, function refuses directly), the
+  pass-throughs still working, and the full cancel→correct→re-confirm cycle.
+  `e2e-edit-quote-lock.js` 7→9: it never exercised `'confirmed'` at all, which
+  is how this shipped.
+
+### 9 Aug 2026 (same session) — A verification blind spot, and what it hid
+
+- **My sweep graded suites by comparing the two halves of an "N/N checks passed"
+  line. A CRASHED suite prints no such line — both halves were empty, compared
+  equal, and read as green.** That is how the previous session reported "full
+  offline sweep green" while five suites were actually broken. The sweep
+  (`_sweep.sh`, committed) now treats a missing result line as a failure and
+  prints the error. It found all five immediately.
+- **Two real product bugs it had been hiding:**
+  1. **The Estimator's quote total read BD 0.000 for priced lines.**
+     `EstimatorUI.lineRate()` read `computeBOMTotals(...).sellingPrice`; the
+     field is `calculatedSellingPrice`. Every costed line fell through to 0, so
+     Quote total / Items / Roll-up showed zero for exactly the lines that HAD
+     been costed. Now reads the right field and honours `sellingPriceOverride`
+     with the same precedence `submitItemBOM()` uses — the screen must not show
+     a different number from the one that gets saved. Shipped with the 6a build.
+  2. **The Sales job sheet could open below the fold** — it renders inline, and
+     the shared planner/tasks widget made the page taller, so clicking a job
+     looked like it did nothing. It scrolls itself into view now.
+- **Five suites repointed, not deleted** — all asserted the bespoke planner/task
+  cards the design package replaced with ONE shared widget. `owner-dashboard`
+  and `sales-dashboard-5a` now drive the shared widget and each gained an
+  explicit "renders as the ONE shared pair" check, so the consolidation itself
+  is covered; `session4-planner` drops the retired unscheduled-rail/7-column
+  selectors; `estimator-6a`'s task chips move to the shared store;
+  `back-button-check` was pre-exec-shell AND pre-7-Aug (it clicked the deleted
+  bottom nav and Operations' removed back strip) and **printed no tally at all,
+  so no sweep could ever grade it** — now targets the shell's real close button
+  and reports 13/13 across every module.
+- **Still genuinely failing, still pre-existing**: `e2e-batch8-phase2-4.js`
+  times out finding Joinery's Start Production button. Confirmed unchanged by
+  running it against HEAD~1 — same TimeoutError. Carried since Session 3; needs
+  its own pass.
+- `sw.js` v31 → v33.
