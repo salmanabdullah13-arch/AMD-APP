@@ -849,7 +849,17 @@ window.SalesDashboard = (function () {
     quote: function(el){ sdOpenQuotation(el.getAttribute('data-id')); },
     queue: function(el){ openQueueStep(el.getAttribute('data-k')); },
 
-    job:      function(el){ S.job = el.getAttribute('data-id'); },
+    // Scroll the sheet into view after it renders. It opens inline in the
+    // grid, so on a long dashboard it can land below the fold and the click
+    // looks like it did nothing — which is what happened once the shared
+    // planner/tasks widget made the page taller (9 Aug 2026).
+    job:      function(el){
+                S.job = el.getAttribute('data-id');
+                setTimeout(function(){
+                  var sheet = root && root.querySelector('.sd-sheet');
+                  if (sheet) sheet.scrollIntoView({ block: 'nearest' });
+                }, 0);
+              },
     closejob: function(){ S.job = null; },
 
     toggleweek:  function(){ S.weekOpen = !S.weekOpen; },

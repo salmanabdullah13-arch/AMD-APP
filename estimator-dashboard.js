@@ -69,7 +69,22 @@ window.EstimatorUI = (function () {
   function lineRate(q, it) {
     var o = ovGet(q.id, it.lineId);
     if (o.rate !== undefined) return o.rate;
-    if (it.bom) { var t = safe(function () { return computeBOMTotals(it.bom); }, null); if (t) return t.sellingPrice || 0; }
+    // computeBOMTotals() returns calculatedSellingPrice — there is no
+    // `sellingPrice` on it. Reading the wrong name made every costed line
+    // fall through to 0, so the Quote total, Items list and Roll-up all read
+    // BD 0.000 for exactly the lines that HAD been priced. Found while
+    // screenshotting the confirmed-quote lock (9 Aug 2026); shipped with the
+    // 6a build.
+    if (it.bom) {
+      // Same precedence submitItemBOM() uses when it writes the rate onto the
+      // item: an explicit override wins, otherwise the calculated figure. The
+      // screen must not show a different number from the one that gets saved.
+      if (it.bom.sellingPriceOverride !== null && it.bom.sellingPriceOverride !== undefined) {
+        return it.bom.sellingPriceOverride;
+      }
+      var t = safe(function () { return computeBOMTotals(it.bom); }, null);
+      if (t) return t.calculatedSellingPrice || 0;
+    }
     return it.rate || 0;
   }
   function lineAmount(q, it) { return lineQty(q, it) * lineRate(q, it); }

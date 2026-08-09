@@ -52,12 +52,21 @@ function printReport() {
       cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0
     };
   });
-  const expected = ['This week', 'My tasks', 'Recent activity', 'Company health',
+  // 'This week' and 'My tasks' left this list on 8 Aug 2026: they are the
+  // SHARED planner/tasks widget now (planner-tasks.js), not .od-card children.
+  // Their presence is asserted separately, just below.
+  const expected = ['Recent activity', 'Company health',
     'By department', 'Revenue by division', 'Cash in hand', 'Recent expenses',
     // PATCH20260808 §2 put Profit & loss directly above Department quality
     'Top purchases', 'Pipeline funnel', 'Top clients', 'Profit & loss', 'Department quality'];
   record('Four KPI tiles lead, then the twelve cards in the handoff\'s row order',
     layout.kpis === 4 && JSON.stringify(layout.cards) === JSON.stringify(expected) ? 'PASS' : 'FAIL', JSON.stringify(layout.cards));
+  const sharedWidgets = await page.evaluate(() => ({
+    planner: document.querySelectorAll('#owner-body [onclick="plTogglePlanner()"]').length,
+    tasks: document.querySelectorAll('#owner-body [onclick="plToggleTasks()"]').length
+  }));
+  record('This week and My tasks render as the ONE shared widget pair',
+    sharedWidgets.planner === 1 && sharedWidgets.tasks === 1 ? 'PASS' : 'FAIL', JSON.stringify(sharedWidgets));
   record('The span-2 cards are By department, Revenue by division, Top purchases, Profit & loss and Department quality',
     JSON.stringify(layout.spans) === JSON.stringify(['By department', 'Revenue by division', 'Top purchases', 'Profit & loss', 'Department quality']) ? 'PASS' : 'FAIL', JSON.stringify(layout.spans));
   record('Desktop renders the four-column grid', layout.cols === 4 ? 'PASS' : 'FAIL', 'columns=' + layout.cols);
@@ -94,30 +103,33 @@ function printReport() {
 
   // ── collapsibles: the count is open tasks, not total ──
   currentStep = 'collapsibles';
+  // My tasks is the SHARED widget now (planner-tasks.js) — its collapse rule
+  // is the package's own: collapsed shows a count only, nothing else.
   const collapse = await page.evaluate(async () => {
-    const before = document.querySelectorAll('#owner-body .od-tasks').length;
-    document.querySelector('#owner-body [data-act="toggltasks"]').click();
+    const card = () => document.querySelector('#owner-body [onclick="plToggleTasks()"]').parentElement;
+    const before = /Urgent|Completed/.test(card().textContent);
+    plToggleTasks();
     await new Promise(r => setTimeout(r, 150));
-    const after = document.querySelectorAll('#owner-body .od-tasks').length;
-    const headerOnly = document.querySelectorAll('#owner-body [data-act="toggltasks"]').length;
-    document.querySelector('#owner-body [data-act="toggltasks"]').click();
+    const after = /Urgent|Completed/.test(card().textContent);
+    const countOnly = /^\d+$/.test(card().querySelector('span:nth-child(2)').textContent.trim());
+    plToggleTasks();
     await new Promise(r => setTimeout(r, 150));
-    return { before, after, headerOnly, restored: document.querySelectorAll('#owner-body .od-tasks').length };
+    return { before, after, countOnly, restored: /Urgent|Completed/.test(card().textContent) };
   });
-  record('My tasks collapses to its header line and reopens',
-    collapse.before === 1 && collapse.after === 0 && collapse.headerOnly === 1 && collapse.restored === 1 ? 'PASS' : 'FAIL', JSON.stringify(collapse));
+  record('My tasks collapses to a count-only header and reopens',
+    collapse.before && !collapse.after && collapse.countOnly && collapse.restored ? 'PASS' : 'FAIL', JSON.stringify(collapse));
 
   const countIsOpen = await page.evaluate(async () => {
-    const me = execIdentity();
-    const t = createTask({ title: 'E2E count check', assignee: me, dueDate: new Date().toISOString().slice(0, 10) });
-    OwnerDashboard.mount(document.getElementById('owner-body'));
+    const pill = () => Number(document.querySelector('#owner-body [onclick="plToggleTasks()"]')
+      .parentElement.querySelector('span:nth-child(2)').textContent.trim());
+    const t = createTask({ title: 'E2E count check', assignee: execIdentity(), dueDate: new Date().toISOString().slice(0, 10) });
+    rerenderDashboard();
     await new Promise(r => setTimeout(r, 200));
-    const openCount = Number(document.querySelectorAll('#owner-body .od-count')[1].textContent);
+    const openCount = pill();
     completeTask(t.id);
-    OwnerDashboard.mount(document.getElementById('owner-body'));
+    rerenderDashboard();
     await new Promise(r => setTimeout(r, 200));
-    const afterDone = Number(document.querySelectorAll('#owner-body .od-count')[1].textContent);
-    return { openCount, afterDone };
+    return { openCount, afterDone: pill() };
   });
   record('The My tasks count is OPEN tasks — completing one lowers it',
     countIsOpen.afterDone === countIsOpen.openCount - 1 ? 'PASS' : 'FAIL', JSON.stringify(countIsOpen));
@@ -125,31 +137,39 @@ function printReport() {
   // ── the week planner: stepping the period moves the selection with it ──
   currentStep = 'planner-selection';
   const stepping = await page.evaluate(async () => {
-    const sel = () => OwnerDashboard.state.selDate;
-    document.querySelector('#owner-body [data-act="period"][data-v="0"]').click();
-    await new Promise(r => setTimeout(r, 150));
-    const start = sel();
-    document.querySelector('#owner-body [data-act="period"][data-v="1"]').click();
-    await new Promise(r => setTimeout(r, 150));
-    const next = sel();
-    const visible = [...document.querySelectorAll('#owner-body .od-day')].map(d => d.getAttribute('data-d'));
-    return { start, next, movedAWeek: (new Date(next) - new Date(start)) === 7 * 864e5, selectionVisible: visible.indexOf(next) !== -1 };
+    // Shared widget: stepping MUST carry the selection with it, or the agenda
+    // shows a day outside the visible period (the package calls this a real bug).
+    plannerState.scope = 'Week'; plannerState.offset = 0; plannerState.selDate = null;
+    const start = plIso(plSelectedDay());
+    plStepPeriod(1);
+    const after = plIso(plSelectedDay());
+    const visible = plWeekCells().some(c => c.iso === after);
+    plResetPeriod();
+    return { start, after, visible,
+      sameWeekday: new Date(start + 'T00:00:00Z').getUTCDay() === new Date(after + 'T00:00:00Z').getUTCDay() };
   });
   record('Stepping the week moves the day selection with it, so the agenda stays inside the visible period',
-    stepping.movedAWeek && stepping.selectionVisible ? 'PASS' : 'FAIL', JSON.stringify(stepping));
+    stepping.visible && stepping.sameWeekday && stepping.start !== stepping.after ? 'PASS' : 'FAIL', JSON.stringify(stepping));
 
   const monthScope = await page.evaluate(async () => {
-    document.querySelector('#owner-body [data-act="scope"][data-v="Month"]').click();
+    // Shared widget (planner-tasks.js): Month is a 42-cell six-week grid with a
+    // weekday header, out-of-month days dimmed but still tappable so the edges
+    // of the month don't look broken.
+    plSetScope('Month');
     await new Promise(r => setTimeout(r, 200));
-    const cells = document.querySelectorAll('#owner-body .od-month [data-act="pickday"]').length;
-    const header = document.querySelectorAll('#owner-body .od-month-h').length;
-    const outside = document.querySelectorAll('#owner-body .od-day.is-out').length;
-    document.querySelector('#owner-body [data-act="scope"][data-v="Week"]').click();
+    const cells = plMonthCells();
+    const out = {
+      cells: cells.length,
+      header: /M\s*T\s*W\s*T\s*F\s*S\s*S/.test(document.getElementById('owner-body').textContent.replace(/\s+/g, ' ')),
+      outside: cells.filter(c => !c.inMonth).length
+    };
+    plSetScope('Week');
     await new Promise(r => setTimeout(r, 200));
-    return { cells, header, outside, backToWeek: document.querySelectorAll('#owner-body .od-days .od-day').length };
+    out.backToWeek = plWeekCells().length;
+    return out;
   });
   record('Month scope renders a 42-cell six-week grid with a weekday header, and Week scope returns seven days',
-    monthScope.cells === 42 && monthScope.header === 7 && monthScope.backToWeek === 7 ? 'PASS' : 'FAIL', JSON.stringify(monthScope));
+    monthScope.cells === 42 && monthScope.header && monthScope.backToWeek === 7 ? 'PASS' : 'FAIL', JSON.stringify(monthScope));
 
   // ── by department: workflow order, six tiles, production carries a split ──
   currentStep = 'departments';

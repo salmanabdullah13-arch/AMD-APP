@@ -82,6 +82,28 @@ const check = (name, ok, extra) => {
   });
   check('queue rows keep the colour-coded quote-age badge', ageBadge, ageBadge);
 
+  // A costed line must show the rate that submitItemBOM() actually SAVES.
+  // lineRate() read `t.sellingPrice`, which computeBOMTotals() does not return
+  // (it is calculatedSellingPrice), so every priced line fell through to 0 and
+  // the Quote total / Items / Roll-up all read BD 0.000 for exactly the lines
+  // that had been costed.
+  const priced = await page.evaluate(() => {
+    const c = createCustomer({ name: 'Rate Check Co', contactPerson: 'A', tel: '39777001', address: 'M' });
+    const e = createEnquiry({ division: 'Joinery', customerId: c.id, contactPerson: 'A', tel: c.tel,
+      source: 'walk inn', salesPerson: 'Silva' });
+    const q = convertEnquiryToQuotation(e.id, { projectName: 'Rate Check' });
+    addQuotationItem(q.id, { product: 'Cabinet', qty: 2, unit: 'Nos', vatPercent: 10 });
+    addBOMMaterial(q.id, 1, { name: 'Ply', qty: 4, unit: 'Nos', rate: 25 });
+    submitItemBOM(q.id, 1, 'Arun Kumar A');
+    EstimatorUI.state.qtnId = q.id;
+    EstimatorUI.setView('quote');
+    const shown = (document.getElementById('estimator-body').textContent.match(/Quote total\s*BD ([\d,.]+)/) || [])[1];
+    const expected = (q.items[0].rate * q.items[0].qty).toFixed(3);
+    return { shown, expected, rate: q.items[0].rate };
+  });
+  check('a costed line shows the rate that actually gets saved, not BD 0.000',
+    priced.rate > 0 && priced.shown === priced.expected, priced);
+
   console.log('\n— serial, override store, margin —');
   const money = await page.evaluate(() => {
     const q = quotations.find(x => (x.items || []).length) || quotations[0];
@@ -152,20 +174,25 @@ const check = (name, ok, extra) => {
   check('a discount past the 30% limit says the Approver must release it', disc.warned, disc);
 
   console.log('\n— task lists —');
+  // The Estimator's own task card was replaced by the SHARED My-tasks widget
+  // (planner/tasks design package, 8 Aug 2026) — one implementation across
+  // every dashboard. Its lists are seeded per person from
+  // DEFAULT_TASK_LISTS.estimator, so this role still gets its own four; they
+  // are just no longer this module's private chips.
   const lists = await page.evaluate(() => {
     EstimatorUI.setView('queue');
-    const chips = [...document.querySelectorAll('#estimator-body [data-act="tasklist"]')].map(b => b.textContent.trim());
-    const t = createTask({ title: 'Cost the Ewan repeat', assignee: estimatorCurrentUser, list: 'To cost' });
-    document.querySelector('#estimator-body [data-act="tasklist"][data-list="Tenders"]').click();
+    const chips = ['All'].concat(getTaskListsFor(execIdentity(), 'estimator').map(l => l.name));
+    const t = createTask({ title: 'Cost the Ewan repeat', assignee: execIdentity(), list: 'tocost' });
+    tasksState.filter = 'tenders'; rerenderDashboard();
     const underTenders = document.getElementById('estimator-body').textContent.includes('Cost the Ewan repeat');
-    document.querySelector('#estimator-body [data-act="tasklist"][data-list="To cost"]').click();
+    tasksState.filter = 'tocost'; rerenderDashboard();
     const underToCost = document.getElementById('estimator-body').textContent.includes('Cost the Ewan repeat');
     return { chips, list: t.list, underTenders, underToCost };
   });
   check('four task lists: To cost, Tenders, Rate library, Checks',
     lists.chips.join('|') === 'All|To cost|Tenders|Rate library|Checks', lists.chips);
   check('a task filters to its own list only',
-    lists.list === 'To cost' && lists.underToCost && !lists.underTenders, lists);
+    lists.list === 'tocost' && lists.underToCost && !lists.underTenders, lists);
 
   console.log('\n— rate library and estimated vs actual —');
   const tails = await page.evaluate(() => {

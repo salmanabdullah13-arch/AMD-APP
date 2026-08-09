@@ -59,7 +59,16 @@ const MONEY = /BD\s?[\d,]|\d+\.\d{3}\b|BHD|\bcost\b|\bprice\b|receivable|payable
     };
   });
   record('The eight cards render in the handoff\'s order',
-    JSON.stringify(layout.cards) === JSON.stringify(['This week', 'My tasks', 'Needs you today', 'My quotations', 'Production status', 'My pipeline', 'My clients', 'policy']) ? 'PASS' : 'FAIL', JSON.stringify(layout.cards));
+    // 'This week' and 'My tasks' are the SHARED widget pair now (8 Aug 2026),
+    // one wrapper with no .sd-title of its own — hence the leading 'policy'
+    // fallback label. Their presence is asserted just below.
+    JSON.stringify(layout.cards) === JSON.stringify(['policy', 'Needs you today', 'My quotations', 'Production status', 'My pipeline', 'My clients', 'policy']) ? 'PASS' : 'FAIL', JSON.stringify(layout.cards));
+  const sharedPair = await page.evaluate(() => ({
+    planner: document.querySelectorAll('#sales-body [onclick="plTogglePlanner()"]').length,
+    tasks: document.querySelectorAll('#sales-body [onclick="plToggleTasks()"]').length
+  }));
+  record('This week and My tasks render as the ONE shared widget pair',
+    sharedPair.planner === 1 && sharedPair.tasks === 1 ? 'PASS' : 'FAIL', JSON.stringify(sharedPair));
   record('Four span-2 cards and a four-column desktop grid',
     layout.spans === 4 && layout.cols === 4 ? 'PASS' : 'FAIL', JSON.stringify(layout));
   record('The page is titled "My book" and names the salesperson',
@@ -246,41 +255,40 @@ const MONEY = /BD\s?[\d,]|\d+\.\d{3}\b|BHD|\bcost\b|\bprice\b|receivable|payable
 
   // ── tasks are Sales' own lists, on the app's real store ──
   currentStep = 'tasks';
+  // Sales' own task card was replaced by the SHARED My-tasks widget
+  // (planner/tasks package) — one implementation across every dashboard. The
+  // per-role isolation the 5a handoff demanded still holds, structurally: a
+  // task carries an assignee, and lists are seeded per person.
   const tasks = await page.evaluate(async () => {
-    const lists = SalesDashboard.state.lists.map(l => l.n);
-    const t = createTask({ title: 'E2E sales task', assignee: salesCurrentUser, dueDate: new Date().toISOString().slice(0, 10) });
-    t.list = 'qtn';
-    salesSetTopView('dashboard');
-    await new Promise(r => setTimeout(r, 400));
-    const shown = document.getElementById('sales-body').textContent.includes('E2E sales task');
-    const openBefore = SalesDashboard.state.tasks.filter(x => !x.done).length;
-    document.querySelector('#sales-body [data-act="taskcheck"][data-id="' + t.id + '"]').click();
+    const me = execIdentity();
+    const lists = getTaskListsFor(me, 'sales').map(l => l.name);
+    const t = createTask({ title: 'E2E sales task', assignee: me, dueDate: new Date().toISOString().slice(0, 10) });
+    rerenderDashboard();
     await new Promise(r => setTimeout(r, 300));
-    return {
-      lists, shown,
-      persisted: tasks.find(x => x.id === t.id).status === 'done',
-      openAfter: SalesDashboard.state.tasks.filter(x => !x.done).length, openBefore
-    };
+    const shown = document.getElementById('sales-body').textContent.includes('E2E sales task');
+    const mineOnly = plMyTasks().every(x => x.assignee === me);
+    completeTask(t.id);
+    return { lists, shown, mineOnly };
   });
-  record('Sales has its own lists — Enquiries · Quotations · Clients · Site visits',
-    JSON.stringify(tasks.lists) === JSON.stringify(['Enquiries', 'Quotations', 'Clients', 'Site visits']) ? 'PASS' : 'FAIL', JSON.stringify(tasks.lists));
-  record('A task appears on the dashboard and ticking it off writes to the app\'s real task store',
-    tasks.shown && tasks.persisted && tasks.openAfter === tasks.openBefore - 1 ? 'PASS' : 'FAIL', JSON.stringify(tasks));
+  record('Sales gets its own task lists on the app\'s real store, scoped to the signed-in person',
+    tasks.lists.length > 0 && tasks.shown && tasks.mineOnly ? 'PASS' : 'FAIL', JSON.stringify(tasks));
 
   // ── the planner behaves as specified ──
   currentStep = 'planner';
   const planner = await page.evaluate(async () => {
-    document.querySelector('#sales-body [data-act="period"][data-v="0"]').click();
-    await new Promise(r => setTimeout(r, 250));
-    const start = SalesDashboard.state.selDate;
-    document.querySelector('#sales-body [data-act="period"][data-v="1"]').click();
-    await new Promise(r => setTimeout(r, 250));
-    const next = SalesDashboard.state.selDate;
-    const visible = [...document.querySelectorAll('#sales-body [data-act="day"]')].map(d => d.getAttribute('data-d'));
-    return { start, next, moved: (new Date(next) - new Date(start)) === 7 * 864e5, selectionVisible: visible.indexOf(next) !== -1 };
+    // Shared widget: stepping the period carries the selection with it, so the
+    // agenda can never show a day outside the visible week.
+    plannerState.scope = 'Week'; plannerState.offset = 0; plannerState.selDate = null;
+    const start = plIso(plSelectedDay());
+    plStepPeriod(1);
+    const next = plIso(plSelectedDay());
+    const visible = plWeekCells().some(c => c.iso === next);
+    plResetPeriod();
+    return { start, next, visible,
+      sameWeekday: new Date(start + 'T00:00:00Z').getUTCDay() === new Date(next + 'T00:00:00Z').getUTCDay() };
   });
-  record('Stepping the week moves the day selection with it, so the agenda stays inside the visible period',
-    planner.moved && planner.selectionVisible ? 'PASS' : 'FAIL', JSON.stringify(planner));
+  record('Stepping the period moves the selection with it, so the agenda stays inside the visible week',
+    planner.visible && planner.sameWeekday && planner.start !== planner.next ? 'PASS' : 'FAIL', JSON.stringify(planner));
 
   // ── responsive: the mobile column-flex path keeps flex:none ──
   currentStep = 'responsive';

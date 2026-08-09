@@ -5,6 +5,7 @@ const SHOT_DIR = path.join(__dirname, 'e2e-shots-diag');
 if (!fs.existsSync(SHOT_DIR)) fs.mkdirSync(SHOT_DIR);
 for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
 
+let cbPass = 0, cbFail = 0;
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -36,26 +37,12 @@ for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
   });
   console.log('OPERATIONS:', JSON.stringify(opsInfo, null, 2));
 
-  // Try actually clicking bnav's eco button while on Operations
-  try {
-    await page.click('#bn-eco', { timeout: 2000 });
-    await page.waitForTimeout(300);
-    const activePage = await page.evaluate(() => document.querySelector('#scroll > .page.active')?.id);
-    console.log('Clicking #bn-eco from Operations -> active page is now:', activePage);
-    await page.screenshot({ path: path.join(SHOT_DIR, '02-after-bnav-eco-click.png') });
-  } catch (e) { console.log('FAILED clicking #bn-eco from Operations:', e.message); }
+  // The bottom nav (#bn-eco) and Operations' internal "‹ Home" strip were both
+  // DELETED on 7 Aug 2026 when the dev-era chrome was retired app-wide, and
+  // Operations became a real full-screen overlay. Those two checks are gone
+  // with the thing they tested; every module's close is covered by the loop
+  // below, Operations now included.
 
-  // Go back to operations and try the internal back button directly (even if "invisible")
-  await page.evaluate(() => goTo('operations'));
-  await page.waitForTimeout(300);
-  try {
-    // Nav overhaul Phase 4 (5 Aug 2026) renamed this button's handler from
-    // goTo('eco') to goHome() — same fallback behavior pre-login.
-    await page.click('#p-operations button[onclick="goHome()"]', { timeout: 2000 });
-    await page.waitForTimeout(300);
-    const activePage2 = await page.evaluate(() => document.querySelector('#scroll > .page.active')?.id);
-    console.log('Clicking internal Operations back button -> active page is now:', activePage2);
-  } catch (e) { console.log('FAILED clicking internal Operations back button:', e.message); }
 
   // ── Check 2: each overlay module's own close button, opened via real launch() ──
   await page.evaluate(() => goTo('eco'));
@@ -82,7 +69,10 @@ for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
     }, m.id);
     await page.waitForSelector(`#${m.wrap}`, { state: 'visible', timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(200);
-    const closeSel = `#${m.wrap} button:has-text("×"), #${m.wrap} .icon-btn`;
+    // The shell owns the close button now (exec-shell.js topbar) — it carries
+    // the module's real close function in its onclick, so target that rather
+    // than a glyph, which also appears on the drawer and the reminders panel.
+    const closeSel = `#${m.wrap} .xs-toprow .xs-iconbtn[onclick*="close"]`;
     let clicked = false, err = null;
     try {
       await page.click(closeSel, { timeout: 2000 });
@@ -95,7 +85,9 @@ for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
       scrollVisible: getComputedStyle(document.getElementById('scroll')).display !== 'none'
     }), m.wrap);
     console.log(`${m.id}: clicked=${clicked} ${err ? '(' + err.split('\n')[0] + ')' : ''} ->`, JSON.stringify(state));
+    if (clicked && state.wrapHidden) cbPass++; else cbFail++;
   }
 
+  console.log('\n' + cbPass + '/' + (cbPass + cbFail) + ' checks passed');
   await browser.close();
 })();

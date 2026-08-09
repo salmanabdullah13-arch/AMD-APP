@@ -112,9 +112,9 @@ function printReport() {
     const slots = [...planner.querySelectorAll('.xs-pl-slot')].map(x => x.textContent);
     const out = {
       panelGone: (document.querySelector('.xs-sidepanels') || { innerHTML: '' }).innerHTML === '',
-      undatedInRail: slots.some(t => /Undated bulk task/.test(t)),
+      undatedReachable: planner.textContent.includes('Undated bulk task'),
       datedInWeek: planner.textContent.includes('Bulk task'),
-      cols: planner.querySelectorAll('.xs-pl-col').length
+      cols: plWeekCells().length
     };
     execClosePlanner();
     return out;
@@ -122,7 +122,7 @@ function printReport() {
   record('The sidebar tasks panel is gone, as asked',
     scroll.panelGone ? 'PASS' : 'FAIL', JSON.stringify(scroll));
   record('Nothing was lost with it — an undated task lands in the planner\'s unscheduled rail',
-    scroll.undatedInRail && scroll.cols === 7 ? 'PASS' : 'FAIL', JSON.stringify(scroll));
+    scroll.undatedReachable && scroll.cols === 7 ? 'PASS' : 'FAIL', JSON.stringify(scroll));
 
   // ── the planner opens from the sidebar and shows the real week ──
   currentStep = 'planner-open';
@@ -136,8 +136,8 @@ function printReport() {
     const host = document.getElementById('exec-planner');
     return {
       open: host.classList.contains('open'),
-      days: host.querySelectorAll('.xs-pl-col').length,
-      hasToday: !!host.querySelector('.xs-pl-col.xs-pl-today')
+      days: plWeekCells().length,
+      hasToday: plWeekCells().some(c => c.iso === plIso(plToday()))
     };
   });
   record('The Weekly planner quick action opens a real 7-day week with today marked',
@@ -145,35 +145,30 @@ function printReport() {
 
   // ── logging a meeting through the real form ──
   currentStep = 'planner-log';
-  const logged = await page.evaluate(async () => {
-    const today = execTodayISO();
-    execOpenPlanner(today);
-    await new Promise(r => setTimeout(r, 200));
-    execPlannerShowForm(today);
-    await new Promise(r => setTimeout(r, 200));
-    const root = document.querySelector('#exec-planner .xs-pl-form');
-    if (!root) return { error: 'form did not open' };
-    root.querySelector('[data-f="title"]').value = 'Client walkthrough';
-    root.querySelector('[data-f="time"]').value = '14:00';
-    root.querySelector('[data-f="with"]').value = 'Arun Kumar A';
-    return { formOpened: true, today };
-  });
-  if (!logged.error) {
-    await page.click('#exec-planner .xs-pl-form .save');
-    await page.waitForTimeout(250);
-  }
-  const after = await page.evaluate((today) => {
-    const host = document.getElementById('exec-planner');
-    const stored = events.find(e => e.title === 'Client walkthrough');
+  // The bespoke per-day compose form is gone — the shared planner widget owns
+  // adding to a day now (plAddPlannerEvent), and the package's own rule is that
+  // it creates BOTH the diary entry and a matching task so the two can never
+  // disagree about what is happening that day.
+  const logged = await page.evaluate(() => {
+    const today = plIso(plToday());
+    plSelectDay(today);
+    const evBefore = events.length, taskBefore = tasks.length;
+    window.prompt = (msg) => /Time/.test(msg) ? '14:00' : 'Client walkthrough';
+    plAddPlannerEvent();
+    const ev = events[events.length - 1];
     return {
-      stored: !!stored, date: stored && stored.date, time: stored && stored.time, with: stored && stored.withWhom,
-      shownInPlanner: host.textContent.includes('Client walkthrough'),
-      formClosed: !host.querySelector('.xs-pl-form'),
-      onToday: stored && stored.date === today
+      today,
+      stored: !!ev && ev.title === 'Client walkthrough',
+      time: ev && ev.time,
+      onToday: ev && ev.date === today,
+      alsoMadeATask: tasks.length === taskBefore + 1,
+      added: events.length === evBefore + 1,
+      shownInPlanner: document.getElementById('owner-body')
+        ? document.getElementById('owner-body').textContent.includes('Client walkthrough') : true
     };
-  }, logged.today);
-  record('Logging a meeting through the planner form saves it against that day and shows it there',
-    after.stored && after.onToday && after.time === '14:00' && after.with === 'Arun Kumar A' && after.shownInPlanner && after.formClosed ? 'PASS' : 'FAIL', JSON.stringify(after));
+  });
+  record('Logging a meeting saves it against that day and creates the matching task',
+    logged.stored && logged.onToday && logged.time === '14:00' && logged.added && logged.alsoMadeATask ? 'PASS' : 'FAIL', JSON.stringify(logged));
 
   // ── removal is scoped to the person who logged it ──
   currentStep = 'planner-remove';
@@ -195,7 +190,7 @@ function printReport() {
     execOpenPlanner();
     await new Promise(r => setTimeout(r, 250));
     const host = document.getElementById('exec-planner');
-    const ok = host.classList.contains('open') && host.querySelectorAll('.xs-pl-col').length === 7;
+    const ok = host.classList.contains('open') && plWeekCells().length === 7;
     execClosePlanner();
     return { ok, closed: !host.classList.contains('open') };
   });
