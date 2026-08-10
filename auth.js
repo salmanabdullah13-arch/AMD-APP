@@ -533,7 +533,14 @@ function finishCloudLogin(displayName, isRealSession = true, userType = 'owner')
       // cache back (RLS), not an error.
       typeof initCloudCustomerBankingCache === 'function' ? initCloudCustomerBankingCache() : Promise.resolve()
     ]);
-    businessDataReady.then(() => { if (typeof bridgeAllJobCards === 'function') bridgeAllJobCards(); });
+    businessDataReady.then(() => {
+      if (typeof bridgeAllJobCards === 'function') bridgeAllJobCards();
+      // Quote validity (Manage Quote package §7). Clause 4 of the printed terms
+      // has always promised 5 days and nothing enforced it. Sweep once the data
+      // is really here, then hourly — a device left open overnight has to see
+      // the quote close at 23:59 without a reload.
+      if (typeof startQuoteExpirySweep === 'function') startQuoteExpirySweep();
+    });
   }
   if (typeof updCP === 'function') updCP();
   if (typeof updateHubBadges === 'function') updateHubBadges();

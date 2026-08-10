@@ -647,6 +647,13 @@ let execQuickOpen = false;
 // button is for; the shared planner/request items follow. Estimator's set is
 // the design package's own (6a, 8 Aug 2026).
 const EXEC_QUICK_BY_MODULE = {
+  sales: [
+    { ico: '✓', label: 'Confirm quote', on: "qhQuickConfirm()" },
+    { ico: '☎', label: 'Log a client call', on: "qhQuickFollowUp()" },
+    { ico: '🖨', label: 'Print / send PDF', on: "qhQuickPrint()" },
+    { ico: '⧉', label: 'Raise revision', on: "qhQuickRevision()" },
+    { ico: '+', label: 'New enquiry', on: "salesSetTopView('enquiries');salesView='enq-form';renderSalesBody()" }
+  ],
   jobs: [
     { ico: '🖨', label: 'Print job order', on: "jobsQuickPrint()" },
     { ico: '➕', label: 'New variation', on: "jobsQuickVariation()" },
@@ -1103,6 +1110,23 @@ function execFocusPanel() {
   if (typeof execOpenPlanner === 'function') execOpenPlanner();
 }
 
+// Rebuild the visible shell's sidebar without re-adopting it. Needed by any
+// module whose nav groups depend on what is on screen — the Jobs record page
+// and the Manage Quote record page both grow a "This …" group only while a
+// record is open, and the sidebar is otherwise only built at adopt time.
+function execRefreshNavGroups() {
+  const fn = EXEC_NAV_CONFIGS[execModuleKey];
+  if (typeof fn !== 'function') return;
+  // Not execVisibleShell(): it filters on offsetParent, which is null for a
+  // position:fixed element — and every module wrap is one. Pick the shell that
+  // is actually displayed instead.
+  const shell = [...document.querySelectorAll('.xshell')].filter(el =>
+    el.id && el.id !== 'exec-chat-float' && getComputedStyle(el).display !== 'none').pop();
+  const nav = shell && shell.querySelector('.xs-nav');
+  if (nav) nav.innerHTML = execNavHTML(execWithSharedNav(fn()));
+  execRefreshBadges();
+}
+
 function execNavHTML(navGroups) {
   return navGroups.map(g => `
     <div class="xs-navlabel">${execEsc(g.label)}</div>
@@ -1378,18 +1402,36 @@ function nvTag(fn) { try { const n = fn(); return n > 0 ? n : null; } catch (e) 
 function nv(id, ico, label, onclick, tag) { return { id, ico, label, onclick: onclick + ";execMarkActive('" + id + "')", tag }; }
 
 const EXEC_NAV_CONFIGS = {
-  sales: () => [
-    { label: 'Workspace', items: [
-      nv('sal-dash', '▦', 'Overview', "salesSetTopView('dashboard')"),
-      nv('sal-enq', '☎', 'Enquiries', "salesSetTopView('enquiries')"),
-      nv('sal-qtn', '⎘', 'Quotations', "salesSetTopView('quotations')", nvTag(() => quotations.filter(q => q.lifecycleStatus === 'open').length)),
-      nv('sal-jobs', '⚒', 'My Jobs', "salesSetTopView('myjobs')"),
-      nv('sal-rep', '𝄜', 'Reports', "salesSetTopView('reports')")
-    ] },
-    { label: 'Quick actions', items: [
-      nv('sal-new', '＋', 'New Enquiry', "salesView='enq-create';renderSalesBody()")
-    ] }
-  ],
+  sales: () => {
+    const groups = [
+      { label: 'Workspace', items: [
+        nv('sal-dash', '▦', 'Overview', "salesSetTopView('dashboard')"),
+        nv('sal-enq', '☎', 'Enquiries', "salesSetTopView('enquiries')"),
+        nv('sal-qtn', '⎘', 'Quotations', "salesSetTopView('quotations')", nvTag(() => quotations.filter(q => q.lifecycleStatus === 'open').length)),
+        nv('sal-jobs', '⚒', 'My Jobs', "salesSetTopView('myjobs')"),
+        nv('sal-rep', '𝄜', 'Reports', "salesSetTopView('reports')")
+      ] },
+      { label: 'Quick actions', items: [
+        nv('sal-new', '＋', 'New Enquiry', "salesView='enq-create';renderSalesBody()")
+      ] }
+    ];
+    // 'This quote' only exists while a record is open — anchors that point at
+    // nothing are worse than a group that isn't there.
+    const q = (typeof salesView !== 'undefined' && salesView === 'qtn-hub')
+      ? quotations.find(x => x.id === salesActiveQtnId) : null;
+    if (q) {
+      const enq = enquiries.find(e => e.id === q.enquiryId);
+      groups.push({ label: 'This quote', items: [
+        nv('qh-a-where', '◷', 'Where it is', "qhSetTab('record');qhScrollTo('qh-summary')"),
+        nv('qh-a-items', '▤', 'Items', "qhSetTab('items')", nvTag(() => (q.items || []).length)),
+        nv('qh-a-doc', '🗎', 'Document', "qhSetTab('document')"),
+        nv('qh-a-hist', '𝄜', 'History', "qhSetTab('history')", nvTag(() => (q.auditLog || []).length)),
+        nv('qh-a-att', '📎', 'Attachments', "qhSetTab('record');qhScrollTo('qh-attachments')",
+          nvTag(() => (enq && enq.followUps ? enq.followUps.length : 0)))
+      ] });
+    }
+    return groups;
+  },
   estimator: () => [
     { label: 'Workspace', items: [
       nv('est-dash', '▦', 'Dashboard', "estimatorView='dashboard';renderEstimatorBody();EstimatorUI.setView('queue')", nvTag(() => getEstimatorKPIs(estimatorCurrentUser).pendingToPick + getEstimatorKPIs(estimatorCurrentUser).myActions)),

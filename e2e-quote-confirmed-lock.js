@@ -106,9 +106,9 @@ const check = (name, ok, extra) => {
     launchSalesModule();
     openQuotationHub(id);
     const body = document.getElementById('sales-body');
-    const tile = label => [...body.querySelectorAll('.sales-tile')].find(t => t.textContent.includes(label));
-    const edit = tile('Edit Quote'), disc = tile('Discount'), print = tile('Print Quote'), dup = tile('Duplicate');
-    const greyed = el => !!el && /not-allowed/.test(el.getAttribute('style') || '');
+    const tile = label => [...body.querySelectorAll('.qh-pill')].find(t => t.textContent.includes(label));
+    const edit = tile('Edit quote'), disc = tile('Raise revision'), print = tile('Print / send'), dup = tile('Duplicate');
+    const greyed = el => !!el && el.classList.contains('is-off');
     return {
       editPresent: !!edit, editGreyed: greyed(edit),
       discPresent: !!disc, discGreyed: greyed(disc),
@@ -125,7 +125,7 @@ const check = (name, ok, extra) => {
 
   // Clicking a greyed tile must not navigate — the behavioural half.
   await page.evaluate(() => { salesView = 'qtn-hub'; });
-  const editTile = await page.$('#sales-body .sales-tile:has-text("Edit Quote")');
+  const editTile = await page.$('#sales-body .qh-pill:has-text("Edit quote")');
   if (editTile) await editTile.click();
   await page.waitForTimeout(150);
   const stayed = await page.evaluate(() => salesView);
@@ -208,8 +208,8 @@ const check = (name, ok, extra) => {
     launchSalesModule();
     openQuotationHub(id);
     const body = document.getElementById('sales-body');
-    const edit = [...body.querySelectorAll('.sales-tile')].find(t => t.textContent.includes('Edit Quote'));
-    out.editLive = !!edit && !/not-allowed/.test(edit.getAttribute('style') || '');
+    const edit = [...body.querySelectorAll('.qh-pill')].find(t => t.textContent.includes('Edit Quote'));
+    out.editLive = !!edit && !edit.classList.contains('is-off');
     const re = confirmQuotationToJobCard(id, 'Silva');
     out.reconfirmed = re.error || re.id;
     return out;

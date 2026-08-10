@@ -34,7 +34,7 @@ async function openNode(page, nodeId, wrapId) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push({ step: currentStep, text: msg.text() }); });
   page.on('pageerror', err => pageErrors.push({ step: currentStep, text: err.message }));
   page.on('dialog', async d => { await d.accept(); });

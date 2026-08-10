@@ -2539,6 +2539,175 @@ function persistQuotationUpdate(q) {
 // Qtn No format matches the live reference (AMD-15350-0) — "-0" is revision 0.
 const quotations = [];
 function nextQtnNo() { return "AMD-" + (15350 + quotations.length) + "-0"; }
+
+// ═══ REVISIONS, VALIDITY AND AUTO-CLOSE (Manage Quote package, 9 Aug 2026) ═══
+//
+// COLLISION RECONCILED FIRST. A quote id is base + "-" + suffix, and the suffix
+// has always meant "revision" (AMD-15350-0). But variations ALSO mint ids on the
+// same base — confirmVariationToJobCard's family used nextVariationRev(), a
+// per-job count — so a quote revised to -1 and a job varied to -1 would have
+// been two different documents with one id. The suffix now means one thing: the
+// nth document in this base's family, whatever created it. Both paths ask for
+// the next free one.
+// Idempotent on purpose. The format is AMD-<seq>-<rev>, so the base is only
+// the part before the LAST hyphen when there are two of them — applied to an
+// already-stripped base, a naive replace(/-\d+$/) turns "AMD-15351" into "AMD"
+// and the family lookup comes back empty, handing every revision suffix 0.
+function quoteBaseId(id) {
+  const s = String(id || "");
+  return (s.match(/-/g) || []).length >= 2 ? s.replace(/-\d+$/, "") : s;
+}
+function quoteFamily(baseId) {
+  const base = quoteBaseId(baseId);
+  return quotations.filter(q => quoteBaseId(q.id) === base)
+    .sort((a, b) => (a.rev || 0) - (b.rev || 0));
+}
+function nextRevSuffix(baseId) {
+  const fam = quoteFamily(baseId);
+  return fam.reduce((m, q) => Math.max(m, Number(q.rev) || 0), -1) + 1;
+}
+
+// Clause 4 of TERMS_TEMPLATES has always promised "The offer is valid for 5
+// days" — and nothing anywhere enforced it, so a quote could sit Open forever
+// against a written promise. Validity is real now.
+const QUOTE_VALID_DAYS = 5;
+function addDaysISO(iso, n) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+// validUntil is stored once set (extending re-dates it); otherwise derived from
+// the quote's own date so existing rows behave without a migration.
+function quoteValidUntil(qtn) {
+  if (!qtn) return null;
+  return qtn.validUntil || addDaysISO(qtn.date, QUOTE_VALID_DAYS);
+}
+function quoteIsExpired(qtn) {
+  if (!qtn || qtn.lifecycleStatus === "confirmed" || qtn.lifecycleStatus === "closed") return false;
+  return quoteValidUntil(qtn) < new Date().toISOString().slice(0, 10);
+}
+function quoteDaysLeft(qtn) {
+  const until = quoteValidUntil(qtn);
+  if (!until) return null;
+  return Math.round((new Date(until + "T23:59:59") - Date.now()) / 864e5);
+}
+
+// The scheduled job. A state change, not a filter: it writes an audit row so
+// History can show it as a pending row BEFORE it fires, and the quote really
+// leaves the open and follow-up lists.
+function expireDueQuotations() {
+  const closed = [];
+  quotations.forEach(q => {
+    if (q.lifecycleStatus !== "open") return;
+    if (!quoteIsExpired(q)) return;
+    q.lifecycleStatus = "closed";
+    q.closedReason = "expired";
+    q.closedDate = new Date().toISOString().slice(0, 10);
+    logQuotationAudit(q, { action: "Auto-close on expiry", user: "system", userType: "SYSTEM", status: "Closed" });
+    logActivity({ type: "quotation-expired", linkedType: "quotation", linkedId: q.id,
+      message: `${q.id} closed automatically — the ${QUOTE_VALID_DAYS}-day validity in clause 4 ran out` });
+    persistQuotationUpdate(q);
+    closed.push(q.id);
+  });
+  return closed;
+}
+let quoteExpiryTimer = null;
+function startQuoteExpirySweep() {
+  if (quoteExpiryTimer) return;   // idempotent — the login race calls this twice
+  const sweep = () => {
+    const closed = expireDueQuotations();
+    if (closed.length && typeof renderSalesBody === 'function' &&
+        typeof salesModuleWrap !== 'undefined' && salesModuleWrap.style.display !== 'none') {
+      renderSalesBody();
+    }
+  };
+  sweep();
+  quoteExpiryTimer = setInterval(sweep, 60 * 60 * 1000);
+}
+
+function extendQuotationValidity(qtnId, days, byName) {
+  const q = quotations.find(x => x.id === qtnId);
+  if (!q) return { error: "Quotation not found." };
+  if (q.lifecycleStatus === "confirmed") return { error: "This quote is already confirmed." };
+  const from = quoteValidUntil(q) < new Date().toISOString().slice(0, 10)
+    ? new Date().toISOString().slice(0, 10) : quoteValidUntil(q);
+  q.validUntil = addDaysISO(from, Number(days) || 7);
+  if (q.lifecycleStatus === "closed" && q.closedReason === "expired") { q.lifecycleStatus = "open"; q.closedReason = null; }
+  logQuotationAudit(q, { action: `Validity extended to ${q.validUntil}`, user: byName, userType: "SALES", status: "Open" });
+  persistQuotationUpdate(q);
+  return q;
+}
+
+// ── the three ways back after expiry (§7) ────────────────────────────────
+// Reinstate keeps the old rates, so it is deliberately time-boxed: a quote that
+// closed months ago must not silently switch back on at prices that have moved.
+const QUOTE_REINSTATE_DAYS = 30;
+function quoteCanReinstate(qtn) {
+  if (!qtn || qtn.lifecycleStatus !== "closed") return false;
+  if (!qtn.closedDate) return false;
+  return Math.round((Date.now() - new Date(qtn.closedDate + "T00:00:00")) / 864e5) <= QUOTE_REINSTATE_DAYS;
+}
+function reinstateQuotation(qtnId, byName) {
+  const q = quotations.find(x => x.id === qtnId);
+  if (!q) return { error: "Quotation not found." };
+  if (!quoteCanReinstate(q)) {
+    return { error: `Closed more than ${QUOTE_REINSTATE_DAYS} days ago — re-cost it into a new revision instead of reopening old rates.` };
+  }
+  q.lifecycleStatus = "open";
+  q.closedReason = null;
+  q.validUntil = addDaysISO(new Date().toISOString().slice(0, 10), QUOTE_VALID_DAYS);
+  logQuotationAudit(q, { action: "Reinstated as it stands — same lines, same rates", user: byName, userType: "SALES", status: "Open" });
+  persistQuotationUpdate(q);
+  return q;
+}
+function closeQuotationForGood(qtnId, reason, byName) {
+  const q = quotations.find(x => x.id === qtnId);
+  if (!q) return { error: "Quotation not found." };
+  if (!reason || !reason.trim()) return { error: "A reason is required to close this quote." };
+  q.lifecycleStatus = "closed";
+  q.closedReason = reason.trim();
+  q.closedDate = new Date().toISOString().slice(0, 10);
+  logQuotationAudit(q, { action: `Closed — ${reason.trim()}`, user: byName, userType: "SALES", status: "Closed" });
+  persistQuotationUpdate(q);
+  return q;
+}
+
+// ── raise a revision / duplicate, both from ANY revision (§6) ────────────
+// Copying from the newest is not always right — the client may have agreed to
+// an earlier one, which is exactly why the picker exists.
+function raiseQuotationRevision(copyFromId, byName) {
+  const src = quotations.find(q => q.id === copyFromId);
+  if (!src) return { error: "Quotation not found." };
+  const base = quoteBaseId(src.id);
+  const rev = nextRevSuffix(base);
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = base + "-" + rev;
+  copy.rev = rev;
+  copy.date = new Date().toISOString().slice(0, 10);
+  copy.validUntil = null;
+  copy.lifecycleStatus = "draft";
+  copy.stage = "sales";
+  copy.confirmDate = null;
+  copy.closedReason = null;
+  copy.closedDate = null;
+  copy.estimatorPickedBy = null;
+  copy.approverPickedBy = null;
+  copy.auditLog = [];
+  copy.supersedes = src.id;
+  quotations.push(copy);
+  logQuotationAudit(copy, { action: `Revision ${rev} raised from rev ${src.rev}`, user: byName, userType: "SALES", status: "Draft" });
+  // The source is superseded, not deleted — earlier revisions stay printable.
+  src.supersededBy = copy.id;
+  if (src.lifecycleStatus === "open") { src.lifecycleStatus = "closed"; src.closedReason = "superseded"; src.closedDate = copy.date; }
+  logQuotationAudit(src, { action: `Superseded by ${copy.id}`, user: byName, userType: "SALES", status: src.lifecycleStatus });
+  logActivity({ type: "quotation-revised", linkedType: "quotation", linkedId: copy.id,
+    message: `${copy.id} raised from ${src.id}` });
+  persistQuotationUpdate(src);
+  persistNewQuotation(copy);
+  return copy;
+}
+
+
 function computeQuotationTotals(qtn) {
   let itemTotal = 0, discTotal = 0, vatTotal = 0, netTotal = 0;
   qtn.items.forEach(it => {
@@ -4908,7 +5077,13 @@ function isDepartmentBudgetApproved(job, deptKey) {
 // pipeline to maintain.
 // ═══════════════════════════════════════
 
-function nextVariationRev(jobId) { return quotations.filter(q => q.parentJobId === jobId).length + 1; }
+// Shares the family's suffix pool with raiseQuotationRevision() — see the
+// collision note at nextRevSuffix(). Was a per-job count, which could hand a
+// variation the same id a quote revision had already taken.
+function nextVariationRev(jobId) {
+  const job = getJobCard(jobId);
+  return job ? nextRevSuffix(job.quotationId) : quotations.filter(q => q.parentJobId === jobId).length + 1;
+}
 
 function createVariationForJob(jobId, { notes = "" } = {}) {
   const job = getJobCard(jobId);

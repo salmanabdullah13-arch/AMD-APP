@@ -53,14 +53,14 @@ function printReport() {
   currentStep = 'edit-visible-at-sales-stage';
   await openHub();
   await shot(page, 'hub-stage-sales');
-  const editVisibleAtSales = await page.evaluate(() => Array.from(document.querySelectorAll('#sales-body .sales-tile')).some(t => t.textContent.includes('Edit Quote')));
+  const editVisibleAtSales = await page.evaluate(() => Array.from(document.querySelectorAll('#sales-body .qh-pill')).some(t => t.textContent.includes('Edit quote')));
   record('Edit Quote tile IS visible while stage=sales', editVisibleAtSales ? 'PASS' : 'FAIL');
 
   currentStep = 'edit-locked-at-estimator-stage';
   await page.evaluate((id) => { transferQuotationStage(id, 'estimator', 'Salman Abdullah'); }, qtnId);
   await openHub();
   await shot(page, 'hub-stage-estimator');
-  const editHiddenAtEstimator = await page.evaluate(() => !Array.from(document.querySelectorAll('#sales-body .sales-tile')).some(t => t.textContent.includes('Edit Quote')));
+  const editHiddenAtEstimator = await page.evaluate(() => !Array.from(document.querySelectorAll('#sales-body .qh-pill')).some(t => t.textContent.includes('Edit quote')));
   record('Edit Quote tile is GONE while stage=estimator', editHiddenAtEstimator ? 'PASS' : 'FAIL');
   const lockNoteShown = await page.evaluate(() => document.getElementById('sales-body').innerHTML.includes('Edit Quote is locked'));
   record('Lock explanation note shown while stage=estimator', lockNoteShown ? 'PASS' : 'FAIL');
@@ -69,18 +69,23 @@ function printReport() {
   await page.evaluate((id) => { transferQuotationStage(id, 'approver', 'Estimator User'); }, qtnId);
   await openHub();
   await shot(page, 'hub-stage-approver');
-  const editHiddenAtApprover = await page.evaluate(() => !Array.from(document.querySelectorAll('#sales-body .sales-tile')).some(t => t.textContent.includes('Edit Quote')));
+  const editHiddenAtApprover = await page.evaluate(() => !Array.from(document.querySelectorAll('#sales-body .qh-pill')).some(t => t.textContent.includes('Edit quote')));
   record('Edit Quote tile is GONE while stage=approver', editHiddenAtApprover ? 'PASS' : 'FAIL');
 
   currentStep = 'edit-reopens-after-back-to-sales';
   await page.evaluate((id) => { transferQuotationStage(id, 'sales', 'Approver User'); }, qtnId);
   await openHub();
   await shot(page, 'hub-back-to-sales');
-  const editReopened = await page.evaluate(() => Array.from(document.querySelectorAll('#sales-body .sales-tile')).some(t => t.textContent.includes('Edit Quote')));
+  const editReopened = await page.evaluate(() => Array.from(document.querySelectorAll('#sales-body .qh-pill')).some(t => t.textContent.includes('Edit quote')));
   record('Edit Quote tile REOPENS once sent back to Sales', editReopened ? 'PASS' : 'FAIL');
 
   // And confirm it's actually clickable/functional again, not just visible
-  await page.click('#sales-body .sales-tile:has-text("Edit Quote")');
+  await page.setViewportSize({ width: 1280, height: 900 });   // action row is desktop-only (§10)
+  await page.click('#sales-body .qh-pill:has-text("Edit quote")');
+  await page.waitForTimeout(150);
+  // The pill opens an inline sheet (record package §4); the item editor is the
+  // action inside it.
+  await page.click('#sales-body .qh-pill:has-text("Open the item editor")');
   await page.waitForTimeout(150);
   const wizardOpened = await page.evaluate(() => salesView === 'qtn-wizard');
   record('Edit Quote is actually clickable and opens the wizard once reopened', wizardOpened ? 'PASS' : 'FAIL');
@@ -103,9 +108,9 @@ function printReport() {
   await openHub();
   await shot(page, 'hub-confirmed');
   const confirmedLock = await page.evaluate(() => {
-    const tiles = Array.from(document.querySelectorAll('#sales-body .sales-tile'));
-    const edit = tiles.find(t => t.textContent.includes('Edit Quote'));
-    return { present: !!edit, greyed: !!edit && /not-allowed/.test(edit.getAttribute('style') || '') };
+    const tiles = Array.from(document.querySelectorAll('#sales-body .qh-pill'));
+    const edit = tiles.find(t => t.textContent.includes('Edit quote'));
+    return { present: !!edit, greyed: !!edit && edit.classList.contains('is-off') };
   });
   record('A confirmed quote sits at stage "sales", so the stage lock alone does NOT hide Edit Quote',
     confirmedState.stage === 'sales' && confirmedLock.present ? 'PASS' : 'FAIL', JSON.stringify(confirmedState));

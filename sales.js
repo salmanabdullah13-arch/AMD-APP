@@ -73,6 +73,116 @@ salesStyleTag.textContent = `
 #sales-module-wrap table.sales-items th{text-align:left;padding:7px 6px;background:var(--biz-input-bg);color:var(--biz-text-muted);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--biz-border-light);}
 #sales-module-wrap table.sales-items td{padding:7px 6px;border-bottom:1px solid var(--biz-border-light);}
 #sales-module-wrap table.sales-items tr:hover td{background:#FAFBFD;}
+/* ── Manage Quote record page (10b / 12a, 9 Aug 2026) ─────────────────── */
+#sales-module-wrap .qh-head{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px;}
+#sales-module-wrap .qh-crumb{font-size:11px;color:var(--biz-text-faint);margin-bottom:3px;}
+#sales-module-wrap .qh-crumb span{color:var(--biz-primary);cursor:pointer;font-weight:600;}
+#sales-module-wrap .qh-title{margin:0;font-size:21px;font-weight:600;letter-spacing:-.01em;color:var(--biz-text);}
+#sales-module-wrap .qh-sub{font-size:12px;color:var(--biz-text-muted);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#sales-module-wrap .qh-money{flex:none;text-align:right;}
+#sales-module-wrap .qh-net{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--biz-text);}
+#sales-module-wrap .qh-net-sub{font-size:11px;color:var(--biz-text-faint);margin-top:2px;}
+#sales-module-wrap .qh-tabs{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--biz-input-bg);
+  border:1px solid var(--biz-border-light);margin-bottom:14px;}
+#sales-module-wrap .qh-tab{flex:none;padding:7px 14px;border:0;border-radius:8px;font-size:12px;font-weight:600;
+  cursor:pointer;background:transparent;color:var(--biz-text-muted);font-family:inherit;}
+#sales-module-wrap .qh-tab.on{background:var(--biz-card-bg);color:var(--biz-primary);box-shadow:var(--biz-shadow);}
+/* §4 — Confirm is the only filled control on the page. */
+#sales-module-wrap .qh-actions{display:flex;gap:9px;align-items:center;flex-wrap:nowrap;margin-bottom:14px;overflow-x:auto;}
+#sales-module-wrap .qh-cta{flex:none;padding:10px 18px;border:0;border-radius:var(--biz-r-sm);background:var(--biz-primary);
+  color:#fff;font-size:12.5px;font-weight:650;cursor:pointer;font-family:inherit;white-space:nowrap;}
+#sales-module-wrap .qh-cta.is-off{background:var(--biz-input-bg);color:var(--biz-text-faint);cursor:default;}
+#sales-module-wrap .qh-pill{flex:none;height:34px;padding:0 13px;border-radius:999px;border:1px solid var(--biz-border);
+  background:transparent;color:var(--biz-text-muted);font-size:11.5px;font-weight:600;cursor:pointer;
+  font-family:inherit;white-space:nowrap;}
+#sales-module-wrap .qh-pill.on{border-color:var(--biz-primary);color:var(--biz-primary);background:#f7eef3;}
+#sales-module-wrap .qh-pill.is-off{opacity:.5;cursor:not-allowed;}
+#sales-module-wrap .qh-note{font-size:10.5px;color:var(--biz-text-faint);flex:none;}
+#sales-module-wrap .qh-pills{display:flex;gap:8px;flex-wrap:wrap;}
+#sales-module-wrap .qh-sheet{border:1px solid var(--biz-primary);border-radius:var(--biz-r);padding:14px;
+  background:#f7eef3;margin-bottom:14px;}
+#sales-module-wrap .qh-sheet-t{font-size:13px;font-weight:700;color:var(--biz-primary);}
+#sales-module-wrap .qh-sheet-d{font-size:11.5px;color:var(--biz-text-muted);margin:4px 0 9px;}
+#sales-module-wrap .qh-revs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px;}
+#sales-module-wrap .qh-rev{text-align:left;padding:8px 11px;border-radius:var(--biz-r-sm);border:1px solid var(--biz-border);
+  background:var(--biz-card-bg);cursor:pointer;font-family:inherit;font-size:11px;color:var(--biz-text-muted);}
+#sales-module-wrap .qh-rev.on{border-color:var(--biz-primary);color:var(--biz-primary);}
+#sales-module-wrap .qh-rev b{display:block;font-size:12px;color:var(--biz-text);}
+#sales-module-wrap .qh-rev span{display:block;font-variant-numeric:tabular-nums;margin-top:2px;}
+#sales-module-wrap .qh-card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+#sales-module-wrap .qh-link{border:0;background:none;color:var(--biz-primary);font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+#sales-module-wrap .qh-valid.is-due{border-color:var(--warn,#b54708);}
+#sales-module-wrap .qh-valid.is-closed{border-color:var(--biz-border);background:var(--biz-input-bg);}
+#sales-module-wrap .qh-trail{display:flex;gap:14px;flex-wrap:wrap;}
+#sales-module-wrap .qh-step{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--biz-text-faint);font-weight:600;}
+#sales-module-wrap .qh-step i{width:8px;height:8px;border-radius:99px;background:var(--biz-border);display:block;}
+#sales-module-wrap .qh-step.on{color:var(--biz-primary);}
+#sales-module-wrap .qh-step.on i{background:var(--biz-primary);}
+#sales-module-wrap .qh-grow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--biz-border-light);cursor:pointer;}
+#sales-module-wrap .qh-gn{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--biz-text);}
+#sales-module-wrap .qh-gc{font-size:11px;color:var(--biz-text-faint);}
+#sales-module-wrap .qh-gv{font-size:12px;font-variant-numeric:tabular-nums;color:var(--biz-text);}
+/* §5 — the 300-line quote */
+#sales-module-wrap .qh-items{display:flex;gap:14px;align-items:flex-start;}
+#sales-module-wrap .qh-rail{flex:none;width:190px;position:sticky;top:0;max-height:70vh;overflow-y:auto;
+  display:flex;flex-direction:column;gap:4px;}
+#sales-module-wrap .qh-rail-b{text-align:left;padding:7px 9px;border-radius:var(--biz-r-sm);border:1px solid var(--biz-border-light);
+  background:var(--biz-card-bg);cursor:pointer;font-family:inherit;font-size:11.5px;color:var(--biz-text-muted);}
+#sales-module-wrap .qh-rail-b.on{border-color:var(--biz-primary);color:var(--biz-primary);}
+#sales-module-wrap .qh-rail-b i{display:block;font-style:normal;font-size:10px;color:var(--biz-text-faint);margin-top:2px;}
+#sales-module-wrap .qh-items-main{flex:1;min-width:0;}
+#sales-module-wrap .qh-items-h{display:flex;gap:8px;align-items:center;margin-bottom:9px;flex-wrap:wrap;}
+#sales-module-wrap .qh-table{width:100%;border-collapse:collapse;font-size:12px;}
+#sales-module-wrap .qh-table thead th{position:sticky;top:0;z-index:2;background:var(--biz-input-bg);
+  padding:7px 6px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--biz-text-faint);border-bottom:1px solid var(--biz-border);}
+#sales-module-wrap .qh-table td{padding:9px 6px;border-bottom:1px solid var(--biz-border-light);vertical-align:top;}
+#sales-module-wrap .qh-table.is-compact td{padding:5px 6px;}
+#sales-module-wrap .qh-table .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+#sales-module-wrap .qh-band td{position:sticky;top:29px;z-index:1;background:var(--biz-input-bg);cursor:pointer;
+  text-align:center;font-weight:700;font-size:12px;color:var(--biz-text);}
+#sales-module-wrap .qh-band td b{font-weight:600;color:var(--biz-text-muted);font-size:11px;margin-left:10px;}
+#sales-module-wrap .qh-sl{font-size:10.5px;color:var(--biz-text-faint);font-variant-numeric:tabular-nums;}
+#sales-module-wrap .qh-nm{display:block;font-weight:600;color:var(--biz-text);}
+#sales-module-wrap .qh-spec{display:block;font-size:10.5px;color:var(--biz-text-faint);margin-top:2px;}
+#sales-module-wrap .qh-disc{color:var(--warn,#b54708);}
+/* Fixed cell so row heights — and therefore print break points — stay predictable. */
+#sales-module-wrap .qh-ph{width:66px;height:50px;object-fit:cover;border-radius:5px;margin-top:5px;display:block;}
+#sales-module-wrap .qh-ph.is-none{width:66px;height:50px;border:1px dashed var(--biz-border);border-radius:5px;
+  display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--biz-text-faint);margin-top:5px;}
+#sales-module-wrap .qh-more{text-align:center;padding:9px;}
+#sales-module-wrap .qh-more button{border:1px solid var(--biz-border);background:transparent;border-radius:999px;
+  padding:5px 13px;font-size:11px;color:var(--biz-text-muted);cursor:pointer;font-family:inherit;}
+#sales-module-wrap .qh-foot{display:flex;gap:18px;justify-content:flex-end;padding:11px 6px;font-size:12px;
+  color:var(--biz-text-muted);font-variant-numeric:tabular-nums;flex-wrap:wrap;}
+#sales-module-wrap .qh-foot b{color:var(--biz-text);}
+#sales-module-wrap .qh-hrow{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--biz-border-light);font-size:11.5px;}
+#sales-module-wrap .qh-hrow span{flex:none;width:96px;color:var(--biz-text-faint);}
+#sales-module-wrap .qh-hrow b{flex:1;min-width:0;font-weight:600;color:var(--biz-text);}
+#sales-module-wrap .qh-hrow i{flex:none;font-style:normal;color:var(--biz-text-faint);}
+#sales-module-wrap .qh-hrow.is-pending{opacity:.65;}
+#sales-module-wrap .qh-hrow.is-pending b::after{content:' · scheduled';color:var(--biz-text-faint);font-weight:400;}
+#sales-module-wrap .qh-bottom{display:none;}
+/* §10 — phone. The primary action lives under the thumb, because Sales works
+   this screen standing in a client's lobby. */
+@media (max-width:880px){
+  #sales-module-wrap .qh-head{flex-direction:column;gap:8px;}
+  #sales-module-wrap .qh-money{text-align:left;}
+  #sales-module-wrap .qh-items{flex-direction:column;}
+  #sales-module-wrap .qh-rail{width:100%;position:static;max-height:none;flex-direction:row;overflow-x:auto;}
+  #sales-module-wrap .qh-rail-b{flex:none;}
+  #sales-module-wrap .qh-actions{display:none;}
+  #sales-module-wrap .qh-bottom{position:fixed;left:0;right:0;bottom:0;z-index:120;display:flex;gap:9px;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:var(--biz-card-bg);
+    border-top:1px solid var(--biz-border);}
+  #sales-module-wrap .qh-bottom .qh-cta{flex:1;min-height:44px;}
+  #sales-module-wrap .qh-bottom .qh-pill{min-width:44px;min-height:44px;}
+  #sales-module-wrap .sales-scroll{padding-bottom:132px;}
+}
+#sales-module-wrap .qh-morerow{display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;
+  border:1px solid var(--biz-border);border-radius:var(--biz-r-sm);background:var(--biz-card-bg);cursor:pointer;font-family:inherit;min-height:44px;}
+#sales-module-wrap .qh-morerow b{display:block;font-size:12.5px;color:var(--biz-text);}
+#sales-module-wrap .qh-morerow i{display:block;font-style:normal;font-size:11px;color:var(--biz-text-faint);margin-top:2px;}
 #sales-module-wrap .sales-locked{background:var(--biz-border-light) !important;color:var(--biz-text-faint) !important;}
 #sales-module-wrap .sales-tile-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
 #sales-module-wrap .sales-tile{border:0;border-radius:var(--biz-r);padding:14px 10px;text-align:center;font-size:11.5px;font-weight:700;color:#fff;cursor:pointer;box-shadow:var(--biz-shadow);transition:transform .12s,box-shadow .12s;text-transform:uppercase;letter-spacing:.2px;}
@@ -652,72 +762,460 @@ function openQuotationHub(id) {
   salesTopView = 'quotations';
   salesView = 'qtn-hub';
   renderSalesBody();
+  if (typeof execRefreshNavGroups === 'function') execRefreshNavGroups();
+}
+
+// ══════════════════════════════════════════
+// MANAGE QUOTE — record page (design package 10b/12a, 9 Aug 2026)
+//
+// Replaces four gradient tiles (two of which existed only to refuse), three
+// cards that rendered only to report absence, and a flat item table that
+// disagreed with the grouped printed sheet about what the quote contains.
+// ══════════════════════════════════════════
+let qhTab = 'record';            // record | items | document | history
+let qhSheet = null;              // null | edit | print | revision | duplicate
+let qhCopyFrom = null;           // which revision the sheet copies from
+let qhCollapsed = {};            // group name -> true when closed
+let qhDensity = 'full';          // full | compact
+let qhPhotos = false;            // photos are OFF until asked for — see §5
+let qhWindow = {};               // group name -> how many lines are rendered
+
+function qhSetTab(t) { qhTab = t; qhSheet = null; renderSalesBody(); if (typeof execRefreshNavGroups === 'function') execRefreshNavGroups(); }
+function qhToggleSheet(k) { qhSheet = qhSheet === k ? null : k; qhCopyFrom = null; renderSalesBody(); }
+function qhSetDensity(d) { qhDensity = d; renderSalesBody(); }
+function qhTogglePhotos() { qhPhotos = !qhPhotos; renderSalesBody(); }
+function qhToggleGroup(g) { qhCollapsed[g] = !qhCollapsed[g]; renderSalesBody(); }
+function qhAllGroups(open) {
+  const q = quotations.find(x => x.id === salesActiveQtnId);
+  qhGroupsOf(q).forEach(g => { qhCollapsed[g.name] = !open; });
+  renderSalesBody();
+}
+function qhScrollTo(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (typeof execCloseSideOnMobile === 'function') execCloseSideOnMobile();
+}
+function qhScrollToGroup(g) {
+  qhCollapsed[g] = false;
+  renderSalesBody();
+  setTimeout(() => {
+    const el = document.getElementById('qh-g-' + qhSlug(g));
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 30);
+}
+function qhSlug(t) { return String(t).replace(/[^a-z0-9]+/gi, '-').toLowerCase(); }
+function qhMore(g) { qhWindow[g] = (qhWindow[g] || QH_PAGE) + QH_PAGE; renderSalesBody(); }
+const QH_PAGE = 60;              // windowed rendering — first 60 lines per open group
+
+// Quantities are 2 dp, money 3. prFmtPlain() prints 6.000 Nos of curtain.
+function qhQty(n) { return (Number(n) || 0).toFixed(2); }
+function qhBD(n) { return 'BD ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
+function qhDate(iso) {
+  if (!iso) return '—';
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d) ? String(iso) : `${String(d.getDate()).padStart(2,'0')} ${M[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// ONE hierarchy, shared with buildQuotationPrintHTML() — the screen and the
+// paper were disagreeing about what the quote contains.
+function qhGroupsOf(q) {
+  if (!q) return [];
+  const rows = typeof computeQuoteHierarchy === 'function' ? computeQuoteHierarchy(q.items || []) : [];
+  const out = [];
+  rows.forEach(r => {
+    const name = (r.item.group || 'Ungrouped');
+    let g = out.find(x => x.name === name);
+    if (!g) { g = { name, rows: [], total: 0 }; out.push(g); }
+    g.rows.push(r);
+    g.total += Number(r.item.netAmount) || 0;
+  });
+  return out;
 }
 
 function renderQuotationHub() {
   const q = quotations.find(x => x.id === salesActiveQtnId);
   if (!q) return `<p style="font-size:12.5px;color:#64748b;">Quotation not found.</p>`;
   const totals = computeQuotationTotals(q);
-  const enq = enquiries.find(e => e.id === q.enquiryId);
   const c = customers.find(x => x.id === q.customerId);
-  // Frozen once confirmed (Salman, 9 Aug 2026) — see quotationLock() in
-  // data.js. Greyed rather than hidden: the capability exists, it's this
-  // quote that's closed. Print/Duplicate stay live, and the banner names the
-  // Variation route so the lock never becomes a dead end.
   const lock = typeof quotationLock === 'function' ? quotationLock(q) : null;
+  const expired = typeof quoteIsExpired === 'function' && quoteIsExpired(q);
+
+  const tab = (k, label) =>
+    `<button class="qh-tab${qhTab === k ? ' on' : ''}" onclick="qhSetTab('${k}')">${label}</button>`;
 
   return `
-    <span class="sales-back" onclick="salesView='qtn-list';renderSalesBody();">‹ Back to Quotation List</span>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:15px;">${q.id} <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus}</span> <span class="sales-pill stage-${q.stage}">${q.stage.toUpperCase()}</span></p>
-      <p style="font-size:12px;color:#64748b;margin-top:4px;">Client: ${esc(c ? c.name : '—')} · Project: ${esc(q.projectName)}</p>
-      <p style="font-size:12px;color:#64748b;">Qtn Date: ${q.date} · Confirm Date: ${q.confirmDate || '—'} · Amount: BD ${totals.netTotal.toFixed(3)}</p>
-      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${q.parentJobId ? `Variation for Job <b>${esc(q.parentJobId)}</b>` : `Linked Enquiry: ${esc(q.enquiryId)} · Salesman: ${esc(enq ? enq.salesPerson : '—')}`}</p>
+    <div class="qh-head">
+      <div style="flex:1;min-width:0;">
+        <div class="qh-crumb"><span onclick="salesView='qtn-list';renderSalesBody();">Quotations</span> / ${esc(q.id)}</div>
+        <h2 class="qh-title">${esc(q.projectName)}</h2>
+        <div class="qh-sub">${esc(c ? c.name : '—')}
+          <span class="sales-pill ${q.lifecycleStatus}">${q.lifecycleStatus.toUpperCase()} · REV ${q.rev || 0}</span></div>
+      </div>
+      <!-- The money appears ONCE on this page, large. The three other places
+           the hub used to print an amount are gone. -->
+      <div class="qh-money">
+        <div class="qh-net">${qhBD(totals.netTotal)}</div>
+        <div class="qh-net-sub">incl. VAT ${qhBD(totals.vatTotal)}${totals.discTotal ? ' · after discount ' + qhBD(totals.discTotal) : ''}</div>
+      </div>
     </div>
+    <div class="qh-tabs">${tab('record','Record')}${tab('items','Items')}${tab('document','Document')}${tab('history','History')}</div>
     ${lock ? `<div class="sales-banner">${esc(lock.reason)}</div>` : ''}
-    <div class="sales-tile-row">
-      ${lock ? salesLockedTile('t-blue', '✎', 'Edit Quote', lock.reason)
-        : (q.stage === 'sales' ? `<div class="sales-tile t-blue" onclick="openQuotationWizard('${q.id}',1)"><span class="sales-tile-icon">✎</span>Edit Quote</div>` : '')}
-      ${q.lifecycleStatus !== 'draft' ? `<div class="sales-tile t-purple" onclick="openPrintDialog('${q.id}',false)"><span class="sales-tile-icon">🖨</span>Print Quote</div>` : ''}
-      <div class="sales-tile t-teal" onclick="salesAlert('Duplicate — not implemented yet.')"><span class="sales-tile-icon">⧉</span>Duplicate</div>
-      ${lock ? salesLockedTile('t-magenta', '%', 'Discount', lock.reason)
-        : `<div class="sales-tile t-magenta" onclick="salesAlert('Discount — apply from the Product &amp; Services step.')"><span class="sales-tile-icon">%</span>Discount</div>`}
-    </div>
-    ${!lock && q.stage !== 'sales' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Edit Quote is locked while this is with the ${q.stage === 'estimator' ? 'Estimator' : 'Approver'} — it reopens once they send it back to Sales.</p>` : ''}
-    ${q.lifecycleStatus === 'draft' && q.stage === 'sales' ? `<p style="font-size:10.5px;color:#94a3b8;margin:-8px 0 10px;">Print Quote becomes available once the Approver has approved this quote.</p>` : ''}
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Action</p>
-      ${q.stage === 'sales' && q.lifecycleStatus === 'draft'
-        ? `<button class="primary" style="width:100%;" onclick="salesTransferToEstimator('${q.id}')">Transfer to Estimator</button>` : ''}
-      ${q.stage === 'sales' && q.lifecycleStatus === 'open'
-        ? `<button class="primary" style="width:100%;" onclick="${q.parentJobId ? `salesConfirmVariation('${q.id}')` : `salesConfirmQuote('${q.id}')`}">${q.parentJobId ? 'Confirm Variation — Merge into Job' : 'Confirm Quote'}</button>` : ''}
-      ${q.stage !== 'sales'
-        ? `<p style="font-size:11.5px;color:#64748b;">This quotation is with ${q.stage === 'estimator' ? 'the Estimator' : 'the Approver'} — Sales has no action here until it's sent back.</p>` : ''}
-      ${q.stage === 'estimator' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.estimatorPickedBy ? 'Picked by ' + esc(q.estimatorPickedBy) : 'Not yet picked'} — see the Estimator module.</p>` : ''}
-      ${q.stage === 'approver' ? `<p style="font-size:11px;color:#92400e;margin-top:8px;">${q.approverPickedBy ? 'Picked by ' + esc(q.approverPickedBy) : 'Not yet picked'} — see the Approver module.</p>` : ''}
-      ${q.lifecycleStatus === 'confirmed' ? (() => {
-        const job = q.parentJobId ? getJobCard(q.parentJobId) : jobCards.find(j => j.quotationId === q.id);
-        if (!job) return '';
-        const label = q.parentJobId ? `✓ Merged into Job Card <b>${esc(job.id)}</b>.` : `✓ Confirmed — Job Card <b>${esc(job.id)}</b> created.`;
-        return `<p style="font-size:11.5px;color:#166534;margin-top:8px;">${label}</p><button class="secondary" style="width:100%;margin-top:6px;" onclick="hideModuleWrap(salesModuleWrap);setTimeout(()=>launchJobsModule('${job.id}'),150);">Open Job Card →</button>`;
-      })() : ''}
+    ${qhTab === 'record' ? qhRecordTab(q, totals, c, lock, expired)
+      : qhTab === 'items' ? qhItemsTab(q, totals, lock)
+      : qhTab === 'document' ? qhDocumentTab(q)
+      : qhHistoryTab(q)}
+    ${qhBottomBar(q, lock)}`;
+}
+
+// ── Record tab ───────────────────────────────────────────────────────────
+function qhRecordTab(q, totals, c, lock, expired) {
+  const groups = qhGroupsOf(q);
+  return `
+    ${qhValidityCard(q, expired)}
+    ${qhActionRow(q, lock)}
+    ${qhSheet ? qhSheetHTML(q, lock) : ''}
+    <div class="sales-card" id="qh-summary">
+      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Where it is</p>
+      <div class="qh-trail">${['Enquiry','Quotation','Costing','Approval','Confirmed'].map((st, i) => {
+        const reached = [true, true, q.stage !== 'sales' || q.lifecycleStatus !== 'draft',
+          q.lifecycleStatus === 'open' || q.lifecycleStatus === 'confirmed', q.lifecycleStatus === 'confirmed'][i];
+        return `<span class="qh-step${reached ? ' on' : ''}"><i></i>${st}</span>`;
+      }).join('')}</div>
     </div>
     <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Approver Comments</p>
-      <p style="font-size:12px;color:#334155;">${q.headerComment ? esc(q.headerComment) : '(none yet)'}</p>
+      <div class="qh-card-h"><p style="font-weight:700;font-size:13px;">Groups (${groups.length})</p>
+        <button class="qh-link" onclick="qhSetTab('items')">All ${(q.items || []).length} lines ›</button></div>
+      ${groups.length ? groups.map(g => `<div class="qh-grow" onclick="qhSetTab('items')">
+        <span class="qh-gn">${esc(g.name)}</span>
+        <span class="qh-gc">${g.rows.length} line${g.rows.length === 1 ? '' : 's'}</span>
+        <span class="qh-gv">${qhBD(g.total)}</span></div>`).join('')
+        : '<p style="font-size:11.5px;color:#94a3b8;">No lines yet.</p>'}
     </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Items (${q.items.length})</p>
-      ${q.items.length === 0 ? `<p style="font-size:12px;color:#64748b;">No line items yet — add them from Edit Quote → Product & Services.</p>` :
-        `<table class="sales-items"><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th></tr>` +
-        q.items.map(it => `<tr><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td></tr>`).join('') + `</table>`}
+    ${qhFollowUpCard(q)}
+    ${qhLinkedCard(q)}`;
+}
+
+// §7 — validity, auto-close, and the way back.
+function qhValidityCard(q, expired) {
+  if (q.lifecycleStatus === 'confirmed') return '';
+  const until = quoteValidUntil(q);
+  const left = quoteDaysLeft(q);
+  if (q.lifecycleStatus === 'closed') {
+    const canReinstate = typeof quoteCanReinstate === 'function' && quoteCanReinstate(q);
+    return `<div class="sales-card qh-valid is-closed">
+      <div class="qh-card-h"><p style="font-weight:700;font-size:13px;">Closed — ${q.closedReason === 'expired' ? 'expired' : esc(q.closedReason || 'closed')} ${qhDate(q.closedDate)}</p></div>
+      <p style="font-size:11.5px;color:var(--biz-text-muted);margin:4px 0 9px;">Client came back? A closed quote never silently switches back on at old prices.</p>
+      <div class="qh-pills">
+        ${canReinstate ? `<button class="qh-pill" onclick="qhReinstate('${q.id}')">Reinstate as it stands</button>`
+          : `<span class="qh-pill is-off" title="Only within 30 days of closing">Reinstate (over 30 days)</span>`}
+        <button class="qh-pill" onclick="qhRecost('${q.id}')">Re-date and re-cost into a new revision</button>
+        <button class="qh-pill" onclick="qhCloseForGood('${q.id}')">Close it for good</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="sales-card qh-valid${left !== null && left <= 1 ? ' is-due' : ''}">
+    <div class="qh-card-h">
+      <p style="font-weight:700;font-size:13px;">Valid until ${qhDate(until)}</p>
+      <span style="font-size:11px;color:${left !== null && left <= 1 ? 'var(--bad,#b42318)' : 'var(--biz-text-muted)'};">
+        ${left === null ? '' : left < 0 ? 'overdue' : left === 0 ? 'Auto-closes tonight' : left === 1 ? 'Auto-closes tomorrow' : left + ' days left'}</span>
     </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">File Manager</p>
-      <p style="font-size:11.5px;color:#94a3b8;">No upload infrastructure in this app yet — Q-Pro's File Manager is not reproduced here.</p>
+    <p style="font-size:11px;color:var(--biz-text-faint);margin-top:3px;">Clause 4 of the printed terms promises ${QUOTE_VALID_DAYS} days. This closes itself at 23:59 on the date above.</p>
+    <div class="qh-pills" style="margin-top:9px;">
+      <button class="qh-pill" onclick="qhExtend('${q.id}')">Extend 7 days</button>
+      <button class="qh-pill" onclick="qhMarkLost('${q.id}')">Mark lost</button>
     </div>
-    ${renderRelatedRecords(jobCards.find(j => j.quotationId === q.id))}
-    ${renderQuotationAuditTable(q)}`;
+  </div>`;
+}
+
+// §4 — Confirm is the ONLY filled control on the page.
+function qhActionRow(q, lock) {
+  const canConfirm = q.stage === 'sales' && q.lifecycleStatus === 'open';
+  // A DRAFT at the Sales stage has one forward move: send it to the Estimator.
+  // The redesign's single CTA has to carry that too, or a draft has no way out.
+  const canTransfer = q.stage === 'sales' && q.lifecycleStatus === 'draft';
+  const pill = (k, label) => `<button class="qh-pill${qhSheet === k ? ' on' : ''}" onclick="qhToggleSheet('${k}')">${label}</button>`;
+  // A confirmed quote is frozen (quotationLock). GREYED, not hidden — Salman's
+  // ask, and right here: the capability exists, it is this quote that is closed.
+  const dead = (label, reason) => `<button class="qh-pill is-off" onclick="salesAlert('${String(reason).replace(/'/g, "\'")}')">${label}</button>`;
+  return `<div class="qh-actions">
+    ${canTransfer
+      ? `<button class="qh-cta" onclick="salesTransferToEstimator('${q.id}')">Transfer to Estimator</button>`
+      : canConfirm
+      ? `<button class="qh-cta" onclick="${q.parentJobId ? `salesConfirmVariation('${q.id}')` : `salesConfirmQuote('${q.id}')`}">${q.parentJobId ? 'Confirm variation → merge into Job' : 'Confirm quote → open Job Card'}</button>`
+      : `<span class="qh-cta is-off">${q.lifecycleStatus === 'confirmed' ? 'Confirmed' : q.stage !== 'sales' ? 'With the ' + (q.stage === 'estimator' ? 'Estimator' : 'Approver') : 'Awaiting approval'}</span>`}
+    <span style="flex:1;"></span>
+    <!-- Two pre-existing gates the redesign must not drop: Edit only while the
+         quote is at the Sales stage (it belongs to whoever holds it), and Print
+         only once the Approver has approved it. -->
+    ${lock ? dead('Edit quote', lock.reason) : (q.stage === 'sales' ? pill('edit', 'Edit quote') : '')}
+    ${q.lifecycleStatus !== 'draft' ? pill('print', 'Print / send') : ''}
+    ${lock ? dead('Raise revision', lock.reason) : pill('revision', 'Raise revision')}
+    ${pill('duplicate', 'Duplicate')}
+    ${q.stage !== 'sales' && !lock ? `<span class="qh-note">Edit Quote is locked while this is with the ${q.stage === 'estimator' ? 'Estimator' : 'Approver'} — it reopens once they send it back to Sales.</span>` : ''}
+  </div>`;
+}
+
+// Inline sheets — on this page, not a tab jump and not a modal.
+function qhSheetHTML(q, lock) {
+  if (qhSheet === 'more') {
+    // Phone: one sheet, each row with a line of description.
+    const row = (label, desc, on) => `<button class="qh-morerow" onclick="${on}"><b>${label}</b><i>${desc}</i></button>`;
+    return `<div class="qh-sheet">
+      <p class="qh-sheet-t">More</p>
+      ${lock ? '' : row('Edit quote', 'Change lines, quantities and discount', `qhToggleSheet('edit')`)}
+      ${row('Print / send', 'A4 with photographs, bank block and terms', `qhToggleSheet('print')`)}
+      ${lock ? '' : row('Raise revision', 'Copy this quote forward as a new revision', `qhToggleSheet('revision')`)}
+      ${row('Duplicate', 'Start a new quotation from this one', `qhToggleSheet('duplicate')`)}
+      ${row('Mark lost', 'Close it with a reason and drop it from follow-up', `qhMarkLost('${q.id}')`)}
+    </div>`;
+  }
+  if (qhSheet === 'edit') {
+    return `<div class="qh-sheet">
+      <p class="qh-sheet-t">Edit lines</p>
+      <p class="qh-sheet-d">Rates stay with the Estimator. Discount above the approved cap routes to the Approver.</p>
+      <div class="qh-pills"><button class="qh-pill on" onclick="qhSheet=null;openQuotationWizard('${q.id}',2)">Open the item editor</button>
+        <button class="qh-pill" onclick="qhToggleSheet('edit')">Cancel</button></div>
+    </div>`;
+  }
+  if (qhSheet === 'print') {
+    return `<div class="qh-sheet">
+      <p class="qh-sheet-t">Print / send</p>
+      <p class="qh-sheet-d">Valid until ${qhDate(quoteValidUntil(q))} prints on the meta grid, where the client sees it.</p>
+      <div class="qh-pills">
+        <button class="qh-pill on" onclick="openPrintDialog('${q.id}',false)">Open print dialog</button>
+        <button class="qh-pill" onclick="salesAlert('Email delivery is not wired to a mail service yet — download the PDF and send it from your own mail.')">Email PDF</button>
+      </div>
+    </div>`;
+  }
+  if (qhSheet === 'revision' || qhSheet === 'duplicate') {
+    const fam = quoteFamily(q.id);
+    const from = qhCopyFrom || q.id;
+    const src = quotations.find(x => x.id === from) || q;
+    const nextRev = nextRevSuffix(q.id);
+    const isDup = qhSheet === 'duplicate';
+    return `<div class="qh-sheet">
+      <p class="qh-sheet-t">${isDup ? 'Duplicate' : 'Raise revision'}</p>
+      <p class="qh-sheet-d">Copy from — the newest revision is not always the one the client agreed to.</p>
+      <div class="qh-revs">${fam.map(r => {
+        const t = computeQuotationTotals(r);
+        return `<button class="qh-rev${from === r.id ? ' on' : ''}" onclick="qhCopyFrom='${r.id}';renderSalesBody()">
+          <b>rev ${r.rev}</b> ${r.id === q.id ? '· current' : r.supersededBy ? '· superseded' : ''} ${qhDate(r.date)}
+          <span>${qhBD(t.netTotal)}</span></button>`;
+      }).join('')}</div>
+      <p class="qh-sheet-d">${isDup ? `Creates a new quotation, copying rev ${src.rev} at today's rates.`
+        : `Create rev ${nextRev} from rev ${src.rev}. Rev ${src.rev} stays on file and stays printable.`}</p>
+      <div class="qh-pills">
+        <button class="qh-pill on" onclick="${isDup ? `qhDuplicateFrom('${from}')` : `qhRaiseRevision('${from}')`}">
+          ${isDup ? 'Create a new quotation' : `Create rev ${nextRev} from rev ${src.rev}`}</button>
+        <button class="qh-pill" onclick="qhToggleSheet('${qhSheet}')">Cancel</button>
+      </div>
+    </div>`;
+  }
+  return '';
+}
+
+// §3/§1 — one strip instead of three cards that only reported absence.
+function qhLinkedCard(q) {
+  const enq = enquiries.find(e => e.id === q.enquiryId);
+  const job = jobCards.find(j => j.quotationId === q.id);
+  const fam = quoteFamily(q.id);
+  const bits = [];
+  if (q.parentJobId) bits.push(`Variation for Job <b>${esc(q.parentJobId)}</b>`);
+  else if (enq) bits.push(`Enquiry <b>${esc(enq.id)}</b> · ${esc(enq.salesPerson || '—')}`);
+  if (job) bits.push(`Job card <b>${esc(job.id)}</b>`);
+  if (fam.length > 1) bits.push(`${fam.length} revisions`);
+  bits.push('No files attached');
+  return `<div class="sales-card" id="qh-attachments">
+    <div class="qh-card-h"><p style="font-weight:700;font-size:13px;">Linked &amp; attached</p></div>
+    <p style="font-size:11.5px;color:var(--biz-text-muted);margin-top:5px;">${bits.join(' · ')}</p>
+    <div class="qh-pills" style="margin-top:8px;">
+      <button class="qh-pill" onclick="salesAlert('Files go to this project\\'s folder — send them to Operations and they will be attached here. In-app upload is not built yet.')">Attach a file</button>
+      ${job ? `<button class="qh-pill" onclick="hideModuleWrap(salesModuleWrap);setTimeout(()=>launchJobsModule('${job.id}'),150)">Open job card</button>` : ''}
+    </div>
+  </div>`;
+}
+
+// §8 — follow-ups belong to the ENQUIRY. This reads and writes the same store.
+function qhFollowUpCard(q) {
+  const enq = enquiries.find(e => e.id === q.enquiryId);
+  const list = enq ? (enq.followUps || []) : [];
+  const last = list.length ? list[list.length - 1] : null;
+  return `<div class="sales-card">
+    <div class="qh-card-h"><p style="font-weight:700;font-size:13px;">Follow-up</p>
+      <span style="font-size:11px;color:var(--biz-text-faint);">${list.length} on the enquiry</span></div>
+    ${last ? `<p style="font-size:12px;color:var(--biz-text);margin-top:5px;">
+        <b>${esc(last.meetingType || '—')}</b> · ${esc(last.outcome || '—')} · ${qhDate(last.date)}</p>
+      <p style="font-size:11.5px;color:var(--biz-text-muted);margin-top:3px;">${esc(last.notes || '')}</p>`
+      : '<p style="font-size:11.5px;color:#94a3b8;margin-top:5px;">Nothing logged yet.</p>'}
+    <div class="qh-pills" style="margin-top:9px;">
+      <button class="qh-pill" onclick="qhLogFollowUp('${q.id}')">Log a client call</button>
+    </div>
+  </div>`;
+}
+
+function qhBottomBar(q, lock) {
+  const canConfirm = q.stage === 'sales' && q.lifecycleStatus === 'open';
+  return `<div class="qh-bottom">
+    ${canConfirm ? `<button class="qh-cta" onclick="${q.parentJobId ? `salesConfirmVariation('${q.id}')` : `salesConfirmQuote('${q.id}')`}">Confirm quote</button>`
+      : `<span class="qh-cta is-off" style="flex:1;text-align:center;">${q.lifecycleStatus === 'confirmed' ? 'Confirmed' : 'Not ready to confirm'}</span>`}
+    <button class="qh-pill" onclick="qhToggleSheet('more')" aria-label="More">⋯</button>
+  </div>`;
+}
+
+// Quick actions act on the quote you are looking at; from the list they say so
+// rather than silently doing nothing.
+function qhQuickQuote() {
+  const q = salesView === 'qtn-hub' ? quotations.find(x => x.id === salesActiveQtnId) : null;
+  if (!q) { salesAlert('Open a quotation first — these act on the quote you are looking at.'); return null; }
+  return q;
+}
+function qhQuickConfirm() {
+  const q = qhQuickQuote(); if (!q) return;
+  if (q.stage !== 'sales' || q.lifecycleStatus !== 'open') { salesAlert('This quote is not ready to confirm yet.'); return; }
+  if (q.parentJobId) salesConfirmVariation(q.id); else salesConfirmQuote(q.id);
+}
+function qhQuickPrint() { const q = qhQuickQuote(); if (q) openPrintDialog(q.id, false); }
+function qhQuickRevision() { const q = qhQuickQuote(); if (q) { qhSheet = 'revision'; qhSetTab('record'); } }
+function qhQuickFollowUp() { const q = qhQuickQuote(); if (q) qhLogFollowUp(q.id); }
+
+// ── Items tab (§5) — built for a 300-line quote ──────────────────────────
+function qhItemsTab(q, totals, lock) {
+  const groups = qhGroupsOf(q);
+  const rail = groups.map(g => `<button class="qh-rail-b${qhCollapsed[g.name] ? '' : ' on'}" onclick="qhScrollToGroup('${esc(g.name)}')">
+      <span>${esc(g.name)}</span><i>${g.rows.length} · ${qhBD(g.total)}</i></button>`).join('');
+
+  const body = groups.map(g => {
+    const closed = !!qhCollapsed[g.name];
+    const band = `<tr class="qh-band" id="qh-g-${qhSlug(g.name)}" onclick="qhToggleGroup('${esc(g.name)}')">
+        <td colspan="6"><span>${closed ? '▸' : '▾'} ${esc(g.name)}</span>
+          <b>${g.rows.length} · ${qhBD(g.total)}</b></td></tr>`;
+    // A closed group is ONE row — the rows are skipped, not rendered and hidden.
+    if (closed) return band;
+    const limit = qhWindow[g.name] || QH_PAGE;
+    const shown = g.rows.slice(0, limit);
+    const rows = shown.map(r => {
+      const it = r.item;
+      return `<tr class="qh-row">
+        <td class="qh-sl">${esc(r.serial)}</td>
+        <td><span class="qh-nm">${esc(it.product)}</span>${qhDensity === 'full' && it.description ? `<span class="qh-spec">${esc(it.description)}</span>` : ''}
+          ${qhPhotos ? (it.imageUrl ? `<img class="qh-ph" src="${esc(it.imageUrl)}">` : '<span class="qh-ph is-none">photo</span>') : ''}</td>
+        <td class="num">${qhQty(it.qty)} ${esc(it.unit || '')}</td>
+        <td class="num">${qhBD(it.rate)}</td>
+        <td class="num qh-disc">${it.discPercent ? it.discPercent + '%' : '—'}</td>
+        <td class="num">${qhBD(it.netAmount)}</td></tr>`;
+    }).join('');
+    const more = g.rows.length > shown.length
+      ? `<tr><td colspan="6" class="qh-more"><button onclick="qhMore('${esc(g.name)}')">Show ${Math.min(QH_PAGE, g.rows.length - shown.length)} more of ${g.rows.length}</button></td></tr>`
+      : '';
+    return band + rows + more;
+  }).join('');
+
+  return `
+    ${qhActionRow(q, lock)}
+    ${qhSheet ? qhSheetHTML(q, lock) : ''}
+    <div class="qh-items">
+      <aside class="qh-rail">${rail || '<p class="qh-spec">No groups</p>'}</aside>
+      <div class="qh-items-main">
+        <div class="qh-items-h">
+          <button class="qh-pill" onclick="qhAllGroups(false)">Collapse all</button>
+          <button class="qh-pill" onclick="qhAllGroups(true)">Expand all</button>
+          <span style="flex:1;"></span>
+          <button class="qh-pill${qhDensity === 'compact' ? ' on' : ''}" onclick="qhSetDensity('${qhDensity === 'compact' ? 'full' : 'compact'}')">${qhDensity === 'compact' ? 'Compact' : 'Full'}</button>
+          <button class="qh-pill${qhPhotos ? ' on' : ''}" onclick="qhTogglePhotos()">Photos ${qhPhotos ? 'on' : 'off'}</button>
+        </div>
+        <table class="qh-table ${qhDensity === 'compact' ? 'is-compact' : ''}">
+          <thead><tr><th>#</th><th style="text-align:left;">Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Disc</th><th class="num">Net</th></tr></thead>
+          <tbody>${body || '<tr><td colspan="6" style="padding:14px;color:#94a3b8;font-size:11.5px;">No lines yet.</td></tr>'}</tbody>
+        </table>
+        <div class="qh-foot">
+          <span>Total ${qhBD(totals.itemTotal)}</span><span>Discount ${qhBD(totals.discTotal)}</span>
+          <span>VAT ${qhBD(totals.vatTotal)}</span><b>Net ${qhBD(totals.netTotal)}</b>
+        </div>
+      </div>
+    </div>`;
+}
+
+function qhDocumentTab(q) {
+  return `<div class="sales-card">
+    <div class="qh-card-h"><p style="font-weight:700;font-size:13px;">The printed quotation</p></div>
+    <p style="font-size:11.5px;color:var(--biz-text-muted);margin-top:5px;">
+      A4 · with the bank block, eleven clauses and three signature panels. Valid until ${qhDate(quoteValidUntil(q))} prints on the meta grid.</p>
+    <div class="qh-pills" style="margin-top:9px;">
+      <button class="qh-pill on" onclick="openPrintDialog('${q.id}',false)">Open print dialog</button>
+    </div>
+  </div>`;
+}
+
+function qhHistoryTab(q) {
+  const until = quoteValidUntil(q);
+  const pending = q.lifecycleStatus === 'open'
+    ? `<div class="qh-hrow is-pending"><span>${qhDate(until)} 23:59</span><b>Auto-close on expiry</b><i>scheduled · system</i></div>` : '';
+  const rows = (q.auditLog || []).slice().reverse().map(a =>
+    `<div class="qh-hrow"><span>${qhDate(a.date || a.dateTime)}</span><b>${esc(a.action)}</b><i>${esc(a.user || '—')}</i></div>`).join('');
+  return `<div class="sales-card" id="qh-history">
+    <div class="qh-card-h"><p style="font-weight:700;font-size:13px;">History</p></div>
+    ${pending}${rows || '<p style="font-size:11.5px;color:#94a3b8;">Nothing recorded yet.</p>'}
+  </div>`;
+}
+
+// ── actions ──────────────────────────────────────────────────────────────
+function qhExtend(id) {
+  const res = extendQuotationValidity(id, 7, salesCurrentUser);
+  if (res && res.error) { salesAlert(res.error); return; }
+  salesAlert('✓ Valid until ' + qhDate(res.validUntil) + ' — reprint the quotation so the client sees the new date.');
+  renderSalesBody();
+}
+function qhMarkLost(id) {
+  const reason = window.prompt('Mark this quote lost. Why?');
+  if (!reason || !reason.trim()) return;
+  const res = closeQuotationForGood(id, reason.trim(), salesCurrentUser);
+  if (res && res.error) { salesAlert(res.error); return; }
+  renderSalesBody();
+}
+function qhCloseForGood(id) { qhMarkLost(id); }
+function qhReinstate(id) {
+  const res = reinstateQuotation(id, salesCurrentUser);
+  if (res && res.error) { salesAlert(res.error); return; }
+  salesAlert('✓ Reinstated — same lines, same rates, valid until ' + qhDate(res.validUntil) + '.');
+  renderSalesBody();
+}
+function qhRecost(id) {
+  const rev = raiseQuotationRevision(id, salesCurrentUser);
+  if (rev && rev.error) { salesAlert(rev.error); return; }
+  transferQuotationStage(rev.id, 'estimator', salesCurrentUser);
+  salesActiveQtnId = rev.id;
+  salesAlert('✓ ' + rev.id + ' created and sent to the Estimator to re-price at today\'s rates.');
+  renderSalesBody();
+}
+function qhRaiseRevision(fromId) {
+  const rev = raiseQuotationRevision(fromId, salesCurrentUser);
+  if (rev && rev.error) { salesAlert(rev.error); return; }
+  salesActiveQtnId = rev.id;
+  qhSheet = null;
+  salesAlert('✓ ' + rev.id + ' raised.');
+  renderSalesBody();
+}
+function qhDuplicateFrom(fromId) {
+  const copy = duplicateQuotation(fromId, {});
+  if (copy && copy.error) { salesAlert(copy.error); return; }
+  salesActiveQtnId = copy.id;
+  qhSheet = null;
+  salesAlert('✓ ' + copy.id + ' created.');
+  renderSalesBody();
+}
+function qhLogFollowUp(id) {
+  const q = quotations.find(x => x.id === id);
+  if (!q || !q.enquiryId) { salesAlert('Follow-ups belong to the enquiry — this quote has none linked.'); return; }
+  const meetingType = window.prompt('Meeting type (Call / Site visit / Meeting)');
+  if (!meetingType) return;
+  const outcome = window.prompt('Outcome');
+  if (!outcome) return;
+  const notes = window.prompt('Notes (at least 10 characters)');
+  if (!notes) return;
+  const res = addFollowUp(q.enquiryId, { date: new Date().toISOString().slice(0, 10), meetingType, outcome, notes });
+  if (res && res.error) { salesAlert(res.error); return; }
+  renderSalesBody();
 }
 
 // Shared by the Quotation Hub and the Job Card Management hub (jobs.js) —

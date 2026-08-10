@@ -72,7 +72,13 @@ async function openNode(page, nodeId, wrapId) {
   await openNode(page, 'sales', 'sales-module-wrap');
   await page.evaluate((id) => { openQuotationHub(id); }, seed.qtnId);
   await page.waitForTimeout(200);
-  await page.click('#sales-body .sales-tile:has-text("Print Quote")');
+  await page.setViewportSize({ width: 1280, height: 900 });   // action row is desktop-only (§10)
+  await page.evaluate(() => { qhSetTab('record'); qhSheet = 'print'; renderSalesBody(); });
+  // §4: the pill opens an inline sheet; the dialog is the action inside it.
+  await page.waitForTimeout(200);
+  await page.evaluate(() => { if (typeof qhTab !== 'undefined' && qhTab !== 'record') qhSetTab('record'); });
+  await page.waitForTimeout(150);
+  await page.click('#sales-body .qh-pill:has-text("Open print dialog")');
   await page.waitForTimeout(150);
   await shot(page, 'sales-print-dialog');
   const salesDialogState = await page.evaluate(() => ({
@@ -138,7 +144,11 @@ async function openNode(page, nodeId, wrapId) {
   await openNode(page, 'sales', 'sales-module-wrap');
   await page.evaluate((id) => { openQuotationHub(id); }, seed.qtnId);
   await page.waitForTimeout(200);
-  await page.click('#sales-body .sales-tile:has-text("Print Quote")');
+  await page.setViewportSize({ width: 1280, height: 900 });   // action row is desktop-only (§10)
+  await page.evaluate(() => { qhSetTab('record'); qhSheet = 'print'; renderSalesBody(); });
+  // §4: the pill opens an inline sheet; the dialog is the action inside it.
+  await page.waitForTimeout(150);
+  await page.click('#sales-body .qh-pill:has-text("Open print dialog")');
   await page.waitForTimeout(150);
   await page.click('#print-modal-inner input[onchange*="withoutVat"]');
   await page.click('#print-modal-inner input[onchange*="withoutSubTotal"]');
