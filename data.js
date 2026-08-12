@@ -1640,6 +1640,52 @@ function getRateMovements(days = 30) {
     .sort((a, b) => Math.abs(b.movePercent) - Math.abs(a.movePercent));
 }
 
+// Who an item has actually been bought from, keyed the same way as
+// getItemRateHistory() (itemId, falling back to a normalised name for lines
+// entered before the Item Master link existed).
+//
+// Why this is derived rather than read off the item: createItemMasterEntry()
+// carries a vendorId, but the real 200-item stock export had NO vendor column
+// (Stage 9 flagged this), so every seeded item's vendorId is null. Purchase
+// invoices are therefore the only honest vendor signal in the data today. An
+// item's own vendorId still wins when someone has set one in Item Master.
+function getItemVendorIndex() {
+  const idx = {};
+  const supName = id => {
+    const s = (typeof suppliers !== "undefined" ? suppliers : []).find(x => String(x.id) === String(id));
+    return s ? s.name : null;
+  };
+  (typeof purchaseInvoices !== "undefined" ? purchaseInvoices : []).forEach(inv => {
+    if (inv.status !== "received" || inv.approvalStatus === "rejected") return;
+    const name = supName(inv.supplierId) || (inv.supplierNameTel || "").split("/")[0].trim();
+    if (!name) return;
+    (inv.items || []).forEach(line => {
+      const key = line.itemId || ("name:" + String(line.itemName || "").trim().toLowerCase());
+      if (key === "name:") return;
+      const e = (idx[key] = idx[key] || { vendors: [], last: null, lastDate: null });
+      if (e.vendors.indexOf(name) === -1) e.vendors.push(name);
+      if (!e.lastDate || (inv.dateReceived && inv.dateReceived >= e.lastDate)) {
+        e.last = name; e.lastDate = inv.dateReceived || e.lastDate;
+      }
+    });
+  });
+  return idx;
+}
+
+// The vendor to show for one item: whoever Item Master says, else whoever we
+// last actually bought it from. null when neither exists — an honest blank,
+// never a guess.
+function getItemVendorName(item, idx = null) {
+  if (!item) return null;
+  if (item.vendorId) {
+    const s = (typeof suppliers !== "undefined" ? suppliers : []).find(x => String(x.id) === String(item.vendorId));
+    if (s) return s.name;
+  }
+  const I = idx || getItemVendorIndex();
+  const e = I[item.id] || I["name:" + String(item.name || "").trim().toLowerCase()];
+  return e ? e.last : null;
+}
+
 function getReorderAlerts() {
   return getJobMaterialRequirement()
     .map(r => {
@@ -3967,6 +4013,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "activity_log", arr: () => activityLog, prefix: "act:" },
   { table: "app_events", arr: () => events, prefix: "evt:" },
   { table: "material_requests", arr: () => materialRequests, prefix: "mrq:" },
+  { table: "task_lists", arr: () => taskLists, prefix: "tl:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.
@@ -7439,6 +7486,16 @@ function getOpenTasksForAssignee(assignee) {
 // dashboard). Here that falls out of tasks[] already carrying an assignee, and
 // lists carrying an owner.
 const taskLists = [];
+// Max-based, not length+1: these sync across devices (CLOUD_JSON_COLLECTIONS),
+// and length+1 hands two people the same id — the same fix nextTaskId() and
+// logActivity() needed once their arrays went cloud-backed.
+function nextTaskListId() {
+  const max = taskLists.reduce((m, l) => {
+    const n = parseInt(String(l.id).replace(/^TL/, ""), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return "TL" + (max + 1);
+}
 const TASK_LIST_PALETTE = ["var(--d1)", "var(--d2)", "var(--d3)", "var(--d4)"];
 // The package ships four defaults. The Estimator's own four shipped a day
 // earlier and are already in use, so that role keeps them rather than being
@@ -7453,7 +7510,7 @@ function getTaskListsFor(owner, moduleKey) {
   if (!mine.length) {
     const seed = DEFAULT_TASK_LISTS[moduleKey] || DEFAULT_TASK_LISTS._;
     seed.forEach((s, i) => taskLists.push({
-      id: "TL" + (taskLists.length + 1), owner, key: s[0], name: s[1],
+      id: nextTaskListId(), owner, key: s[0], name: s[1],
       color: TASK_LIST_PALETTE[i % TASK_LIST_PALETTE.length]
     }));
     mine = taskLists.filter(l => l.owner === owner);
@@ -7466,7 +7523,7 @@ function createTaskList(owner, name) {
   const mine = taskLists.filter(l => l.owner === owner);
   const key = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24) || ("list" + mine.length);
   if (mine.some(l => l.key === key)) return { error: "You already have a list with that name." };
-  const list = { id: "TL" + (taskLists.length + 1), owner, key, name: name.trim(),
+  const list = { id: nextTaskListId(), owner, key, name: name.trim(),
     color: TASK_LIST_PALETTE[mine.length % TASK_LIST_PALETTE.length] };
   taskLists.push(list);
   return list;

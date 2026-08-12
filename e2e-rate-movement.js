@@ -33,16 +33,21 @@ const check = (name, ok, extra) => {
   console.log('\n— data layer —');
   const seeded = await page.evaluate(() => {
     const item = itemMaster[0];
+    // A real supplier on the invoices: the item records themselves carry no
+    // vendor (the real stock export had no vendor column), so purchase history
+    // is the only place a vendor can honestly come from.
+    const sup = createSupplier({ name: 'Gulf Timber & Boards', contactPerson: 'A. Rahman', telephone: '17001122', address: 'Sitra' });
     const ago = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
     const inv = (date, rate, status) => purchaseInvoices.push({
       id: 'TESTINV' + purchaseInvoices.length, dateReceived: date,
       status: status || 'received', approvalStatus: 'approved',
+      supplierId: sup.id,
       items: [{ itemId: item.id, itemName: item.name, qty: 1, rateBD: rate }]
     });
     inv(ago(200), 10);      // long ago
     inv(ago(120), 10);      // repeat buy at the same price — not a movement
     inv(ago(5), 12.5);      // the real move, inside the window: +25%
-    return { itemId: item.id, name: item.name };
+    return { itemId: item.id, name: item.name, supplier: sup.name };
   });
 
   const m = await page.evaluate(id => {
@@ -125,18 +130,69 @@ const check = (name, ok, extra) => {
     EstimatorUI.setView('rates');
     const b = document.getElementById('estimator-body');
     const rows = [...b.querySelectorAll('tbody tr')];
-    const moveCells = rows.map(r => r.cells[3].textContent.trim());
+    // cells: Material | Vendor | Unit | Rate | Movement
+    const moveCells = rows.map(r => r.cells[4].textContent.trim());
     return {
       header: b.textContent.replace(/\s+/g, ' ').slice(0, 200),
       dashes: moveCells.filter(t => t === '—').length,
       moved: moveCells.filter(t => /%/.test(t)).length,
-      zeros: moveCells.filter(t => /(^|[^\d])0%/.test(t)).length
+      zeros: moveCells.filter(t => /(^|[^\d])0%/.test(t)).length,
+      rowCount: rows.length,
+      masterCount: itemMaster.length
     };
   });
+  check('Rate library lists the WHOLE master, not a silent first-40 slice',
+    lib.rowCount === lib.masterCount && lib.masterCount > 40,
+    { rows: lib.rowCount, master: lib.masterCount });
   check('Rate library: an unmoved item shows an em-dash, never a 0%',
     lib.dashes > 0 && lib.zeros === 0, lib);
   check('Rate library header names the window, not "against their standard cost"',
     /in the last 30 days/.test(lib.header) && !/against their standard cost/.test(lib.header), lib.header);
+
+  // Search now spans name, item code, unit, stock category and vendor. Vendor
+  // is derived from received purchase invoices, because the real 200-item
+  // export carried no vendor column at all.
+  const search = await page.evaluate(() => {
+    const b = document.getElementById('estimator-body');
+    const rowsNow = () => [...b.querySelectorAll('tbody tr')].length;
+    const firstNameCell = () => {
+      const r = b.querySelector('tbody tr');
+      return r ? r.cells[0].textContent : '';
+    };
+    // Type into the REAL search box and fire the real event, so this also
+    // proves the box filters as you type rather than only on blur.
+    const run = (term) => {
+      const box = b.querySelector('[data-act-input="ratesearch"]');
+      box.value = term;
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      return { n: rowsNow(), first: firstNameCell() };
+    };
+
+    const anItem = itemMaster[5];
+    const byCode = run(anItem.id);
+    const byCat = run(anItem.stockCategory);
+    const vendorName = (() => {
+      for (const it of itemMaster) { const v = getItemVendorName(it); if (v) return v; }
+      return null;
+    })();
+    const byVendor = vendorName ? run(vendorName) : null;
+    const noHits = run('zzzz-no-such-item');
+    run('');   // leave it clean
+    return {
+      all: rowsNow(), byCode, byCat, byVendor, vendorName, noHits: noHits.n,
+      vendorsInData: itemMaster.filter(i => getItemVendorName(i)).length
+    };
+  });
+  check('searching an item CODE finds that item', search.byCode.n >= 1 && search.byCode.first.includes(search.byCode.first.trim().slice(0, 3)), search.byCode);
+  check('searching a stock CATEGORY narrows the list without emptying it',
+    search.byCat.n >= 1 && search.byCat.n < search.all, { cat: search.byCat.n, all: search.all });
+  check('a term matching nothing returns nothing, not the whole list', search.noHits === 0, search.noHits);
+  check('a vendor is derived from real purchase history, since items carry none',
+    search.vendorName === 'Gulf Timber & Boards' && search.vendorsInData >= 1,
+    { vendorName: search.vendorName, itemsWithAVendor: search.vendorsInData });
+  check('searching that VENDOR finds its items and nothing else',
+    search.byVendor && search.byVendor.n === search.vendorsInData && search.byVendor.n < search.all,
+    { hits: search.byVendor && search.byVendor.n, all: search.all });
 
   check('zero console/page errors', errors.length === 0, errors.slice(0, 3));
 

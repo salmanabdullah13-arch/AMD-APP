@@ -61,24 +61,29 @@ async function signIn(page, fileUrl) {
   record('initCloudJsonCollections ran', live.init ? 'PASS' : 'FAIL');
   const financialLive = ['tax_invoices', 'suppliers', 'app_tasks', 'activity_log'].every(t => live.map[t]);
   record('Financial-record tables live on the project (run schema.sql if FAIL)', financialLive ? 'PASS' : 'FAIL', JSON.stringify(live.map));
+  record('task_lists live (a user\'s own task lists survive a reload)', live.map['task_lists'] ? 'PASS' : 'FAIL');
 
   currentStep = 'supplier-and-task';
   const created = await page.evaluate(async () => {
     const sup = createSupplier({ name: 'Cloud Sync Test Supplier ' + Date.now(), contactPerson: 'T', telephone: String(Date.now()).slice(-8), address: 'Manama' });
     const task = createTask({ title: 'Cloud sync check task', assignee: 'Salman Abdullah' });
+    const list = createTaskList('Salman Abdullah', 'Cloud sync list ' + Date.now());
     logActivity({ type: 'job-created', linkedType: 'task', linkedId: task.id, user: 'E2E', message: 'cloud sync activity probe' });
     await new Promise(r => setTimeout(r, 7000)); // > 2 scanner ticks
     const supRow = await sb.from('suppliers').select('*').eq('id', String(sup.id)).maybeSingle();
     const taskRow = await sb.from('app_tasks').select('*').eq('id', task.id).maybeSingle();
+    const listRow = list.error ? { data: null, error: list } : await sb.from('task_lists').select('*').eq('id', list.id).maybeSingle();
     return {
-      supId: sup.id, taskId: task.id,
+      supId: sup.id, taskId: task.id, listId: list.id,
       supFound: !!(supRow.data), supErr: supRow.error && supRow.error.message,
       taskFound: !!(taskRow.data), taskErr: taskRow.error && taskRow.error.message,
+      listFound: !!(listRow.data), listErr: listRow.error && listRow.error.message,
       actIdIsString: typeof activityLog[activityLog.length - 1].id === 'string'
     };
   });
   record('Supplier persisted by the scanner alone (no persist call anywhere)', created.supFound ? 'PASS' : 'FAIL', JSON.stringify(created));
   record('Task persisted (exec-shell My Tasks becomes cross-device)', created.taskFound ? 'PASS' : 'FAIL');
+  record('Task LIST persisted — a custom list no longer vanishes on reload', created.listFound ? 'PASS' : 'FAIL', JSON.stringify({ id: created.listId, err: created.listErr }));
   record('Activity log entries mint unique string ids (multi-device safe)', created.actIdIsString ? 'PASS' : 'FAIL');
 
   currentStep = 'second-session';
@@ -90,9 +95,11 @@ async function signIn(page, fileUrl) {
     await page2.waitForTimeout(4000);
     const synced = await page2.evaluate((ids) => ({
       supplier: suppliers.some(s => String(s.id) === String(ids.supId)),
-      task: tasks.some(t => t.id === ids.taskId)
+      task: tasks.some(t => t.id === ids.taskId),
+      list: taskLists.some(l => l.id === ids.listId)
     }), created);
     record('Second device hydrates the supplier + task', synced.supplier && synced.task ? 'PASS' : 'FAIL', JSON.stringify(synced));
+    record('Second device hydrates the task list too', synced.list ? 'PASS' : 'FAIL');
   }
 
   printReport();

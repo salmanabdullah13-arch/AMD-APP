@@ -649,10 +649,23 @@ window.EstimatorUI = (function () {
   function ratesView() {
     var term = (S.rateSearch || '').trim().toLowerCase();
     var all = (typeof itemMaster !== 'undefined' ? itemMaster : []);
-    /* Search matches name OR unit — a unit search ("sheet") is how you check
-       whether a board price rise hit everything. */
-    var hits = !term ? all.slice(0, 40) : all.filter(function (i) {
-      return (i.name || '').toLowerCase().indexOf(term) !== -1 || (i.unit || '').toLowerCase().indexOf(term) !== -1;
+    var vidx = typeof getItemVendorIndex === 'function' ? getItemVendorIndex() : {};
+    var vendorOf = function (i) {
+      return (typeof getItemVendorName === 'function' ? getItemVendorName(i, vidx) : null) || '';
+    };
+    /* Search matches name, item code, unit, stock category OR vendor. A unit
+       search ("sheet") is how you check whether a board price rise hit
+       everything; a vendor search is how you check what one supplier's rise
+       hit. The code is searchable because the real master carries Q-Pro codes
+       (IT003318-IT003517) and that is what a purchase document quotes.
+       No cap: the previous `all.slice(0, 40)` silently showed 40 of 200 with
+       nothing on screen saying so, which read as "the import didn't work". */
+    var hits = !term ? all.slice() : all.filter(function (i) {
+      return (i.name || '').toLowerCase().indexOf(term) !== -1
+        || String(i.id || '').toLowerCase().indexOf(term) !== -1
+        || (i.unit || '').toLowerCase().indexOf(term) !== -1
+        || (i.stockCategory || '').toLowerCase().indexOf(term) !== -1
+        || vendorOf(i).toLowerCase().indexOf(term) !== -1;
     });
     var moved = rateMovements();
     // Index the movements once — a per-row lookup would rebuild the whole
@@ -661,19 +674,24 @@ window.EstimatorUI = (function () {
     moved.forEach(function (m) { byId[m.itemId] = m; });
     return '<section class="ed-card">' +
       '<div class="ed-card-h"><span class="ed-title">Rate library</span>' +
-        '<span class="ed-micro">' + hits.length + ' match' + (hits.length === 1 ? '' : 'es') + '</span></div>' +
+        '<span class="ed-micro">' + (term
+          ? hits.length + ' of ' + all.length + ' match' + (hits.length === 1 ? '' : 'es')
+          : all.length + ' item' + (all.length === 1 ? '' : 's')) + '</span></div>' +
       '<div class="ed-sub" style="margin-bottom:10px">' + (moved.length
         ? moved.length + ' material' + (moved.length === 1 ? '' : 's') + ' moved in the last ' + RATE_WINDOW +
           ' days — quotes older than that are stale.'
         : 'Nothing has moved in the last ' + RATE_WINDOW + ' days. Movement is read from received purchase invoices, so an item bought only once has none to show.') + '</div>' +
-      '<input class="ed-in" style="max-width:none;text-align:left;border-color:var(--line);background:var(--card);margin-bottom:11px" placeholder="Search by name or unit" value="' + esc(S.rateSearch) + '" data-act-input="ratesearch">' +
-      '<div style="overflow-x:auto"><table class="ed-table"><thead><tr>' +
-        '<th>Material</th><th>Unit</th><th class="num">Rate</th><th class="num">Movement</th></tr></thead><tbody>' +
+      '<input class="ed-in" style="max-width:none;text-align:left;border-color:var(--line);background:var(--card);margin-bottom:11px" placeholder="Search by item, code, vendor, category or unit" value="' + esc(S.rateSearch) + '" data-act-input="ratesearch">' +
+      '<div style="max-height:62vh;overflow:auto"><table class="ed-table"><thead><tr>' +
+        '<th>Material</th><th>Vendor</th><th>Unit</th><th class="num">Rate</th><th class="num">Movement</th></tr></thead><tbody>' +
         hits.map(function (i) {
           // No movement in the window is an honest em-dash, never a 0% that
-          // reads as "checked and stable".
+          // reads as "checked and stable". Same for an unknown vendor.
           var m = byId[i.id];
-          return '<tr><td style="font-size:12px">' + esc(i.name) + '</td>' +
+          var v = vendorOf(i);
+          return '<tr><td style="font-size:12px">' + esc(i.name) +
+              '<span class="ed-micro" style="display:block">' + esc(i.id || '') + '</span></td>' +
+            '<td class="ed-micro"' + (v ? '' : ' style="color:var(--tx3)"') + '>' + (v ? esc(v) : '—') + '</td>' +
             '<td class="ed-micro">' + esc(i.unit || '') + '</td>' +
             '<td class="num">' + esc(bd(i.cost || 0)) + '</td>' +
             '<td class="num" style="color:' + (m ? (m.movePercent > 0 ? 'var(--bad)' : 'var(--ok)') : 'var(--tx3)') +
@@ -924,6 +942,24 @@ window.EstimatorUI = (function () {
     paint();
   }
 
+  /* Search fields filter as you type; everything else stays on `change`.
+     A re-render on every keystroke of a RATE would fight the caret, which is
+     why `change` was the right default — but a search box that does nothing
+     until you tab away reads as broken, especially against a 200-row rate
+     library. paint() replaces innerHTML wholesale, so the caret is restored by
+     hand rather than left at position 0. */
+  function onSearchInput(e) {
+    var el = e.target.closest('[data-act-input]');
+    if (!el || !root.contains(el)) return;
+    var kind = el.getAttribute('data-act-input');
+    if (kind !== 'ratesearch' && kind !== 'copysearch') return;
+    var caret = el.selectionStart;
+    if (kind === 'ratesearch') S.rateSearch = el.value; else S.copySearch = el.value;
+    paint();
+    var again = root.querySelector('[data-act-input="' + kind + '"]');
+    if (again) { again.focus(); try { again.setSelectionRange(caret, caret); } catch (err) { /* older inputs */ } }
+  }
+
   function mount(el) {
     root = el;
     root.classList.add('ed');
@@ -931,6 +967,8 @@ window.EstimatorUI = (function () {
     root.addEventListener('click', onClick);
     root.removeEventListener('change', onChange);
     root.addEventListener('change', onChange);
+    root.removeEventListener('input', onSearchInput);
+    root.addEventListener('input', onSearchInput);
     paint();
   }
 

@@ -6762,3 +6762,68 @@ manage quote."*
   package's own acceptance checklist. Six suites updated for the deliberate
   changes. Full offline sweep green but for the long-documented stale
   `e2e-batch8-phase2-4.js`. `sw.js` v33 → v34.
+
+### 12 Aug 2026 — task_lists joins the cloud; rate library uncapped and searchable by vendor; three demo quotes seeded live
+
+Salman handed over a fresh Management API PAT ("in any case", before naming a
+task), then asked for demo quotes to pick up as an estimator and why the rate
+library showed so few items.
+
+- **The PAT paid for itself immediately.** `CLOUD_TABLES_PENDING_DEPLOY` is
+  *declared, not discovered* — a publishable key can't ask PostgREST what
+  exists. With the PAT it can be checked against `information_schema`: all 18
+  registered collections have live tables, so nothing was pending. But the
+  cross-check found **`taskLists[]` had no table at all**. Tasks persisted;
+  the *lists* they're filed under didn't. Create a custom list, file tasks in
+  it, reload — the list is gone, the four defaults are re-seeded, and those
+  tasks show only under "All" with no chip, because
+  `plLists().find(l => l.key === t.list)` matches nothing. Added `task_lists`
+  to schema.sql's generated block and to `CLOUD_JSON_COLLECTIONS`, and made
+  the id `nextTaskListId()` (max-based) — `"TL" + (length + 1)` hands two
+  devices the same id, the same fix `nextTaskId()`/`logActivity()` needed when
+  their arrays went cloud-backed. Applied live and verified by querying
+  columns, RLS, all four policies and the realtime publication rather than
+  trusting the 201.
+- **Rate library showed 40 of 200 items** — `all.slice(0, 40)` when no search
+  term, with nothing on screen saying so, which reads as "the import didn't
+  work". Cap removed (scrolling table, header states the real count).
+- **Search widened to item code, stock category and vendor**, alongside name
+  and unit. Vendor needed a real source: `createItemMasterEntry()` carries a
+  `vendorId`, but the 200-item stock export had **no vendor column**, so every
+  seeded item's is null (the Stage 9 gap). New `getItemVendorIndex()` /
+  `getItemVendorName()` derive it from received purchase invoices — the only
+  honest vendor signal in the data — with an item's own `vendorId` winning
+  when someone sets one. No purchase history means an em-dash, never a guess.
+- **The search box now filters as you type.** It was bound to `change` only,
+  so nothing happened until blur — defensible for a rate field (a re-render
+  per keystroke fights the caret) but broken-feeling on a 200-row list. Added
+  an `input` listener scoped to the two search fields, restoring focus and
+  caret by hand since `paint()` replaces innerHTML wholesale.
+- **`seed-demo-quotes.js`** (new, committed) — seeds 3 quotations at the
+  Estimator stage into the live project, built through the app's own functions
+  against a real cloud session rather than hand-written rows (the `items`
+  jsonb carries nested BOMs, routing, serials and an audit log). Products are
+  chosen to exercise real routing: a painted TV unit (carp + paint), a
+  motorized track (curt, since Metal Works was dropped), and a sofa — which
+  the systems audit found never suggests `carp` for its frame, so the override
+  has to be done by hand. That last one is a KNOWN gap, included on purpose.
+- **The first run demonstrated the documented cross-record FK race for real**:
+  3 customers landed, 1 of 3 enquiries, **0 quotations**. `serializedPersist()`
+  only orders repeat writes to the SAME record, so a customer and the enquiry
+  referencing it race, and losing that race is a hard FK rejection, not a
+  retry. It is surfaced (`commsToast`), not silent — but the record survives
+  only locally. Fixed the fixture with 2s gaps, not the app, same call as
+  `e2e-cloud-jobcards.js`; a real person takes seconds between these steps, a
+  script takes none. Orphans from the failed run were deleted before re-running.
+- **Verification**: `e2e-rate-movement.js` 13 → 19 — the whole master listed
+  (not a 40-slice), search by code/category/vendor driven through the REAL
+  input with a real `input` event (so it also proves type-to-filter), and a
+  vendor seeded onto real invoices so the vendor check proves derivation
+  instead of taking its own skip branch. `e2e-cloud-financial.js` 8 → 11
+  (task_lists live, persisted, and hydrating on a second device) — passes
+  11/11 live. `e2e-estimator-6a.js` 22/22. Full offline sweep back to the
+  known two: the long-stale `e2e-batch8-phase2-4.js` and
+  `e2e-quote-confirmed-lock.js` 22/23. `e2e-session4-planner.js` failed in one
+  sweep and passed 13/13 standalone — a flake, not a regression.
+- `sw.js` CACHE_VERSION v35 → v36. PAT used only in ephemeral shell calls;
+  repo grepped for `sbp_` before committing (clean).
