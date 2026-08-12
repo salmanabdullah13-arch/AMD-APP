@@ -1583,19 +1583,23 @@ const EXEC_NAV_CONFIGS = {
       nv('cu-inst', '🏠', 'Installation', "curtGoTo('curt-install')")
     ] }
   ],
+  // Order, labels and counts are 13b's own nav list. The four decision
+  // entries select the dashboard widget's step rather than opening a separate
+  // page — that IS the design ("the decision queue is the dashboard"); each
+  // step's full page stays one tap away behind the widget's ⤢ menu.
+  // "Documents" from 13b's list is omitted: Operations has no such page, and
+  // a nav item pointing at nothing is worse than one that isn't there.
   operations: () => [
     { label: 'Workspace', items: [
-      nv('op-dash', '▦', 'Dashboard', "opsGoTo('dashboard')"),
-      nv('op-new', '🆕', 'New Jobs', "opsGoTo('alerts')", nvTag(() => getJobsPendingRouting().length)),
-      nv('op-bud', '💰', 'Budget Approvals', "opsGoTo('budgetapprovals')", nvTag(() => typeof getAllPendingBudgetApprovals === 'function' ? getAllPendingBudgetApprovals().length : 0)),
-      nv('op-curt', '🪟', 'Curtain Approvals', "opsGoTo('curtapp')"),
-      nv('op-bom', '🧾', 'BOM / Budget', "opsGoTo('bom')"),
-      nv('op-proj', '🏗', 'All Projects', "opsGoTo('projects')"),
-      nv('op-del', '🚚', 'Delivery', "opsGoTo('delivery')"),
-      nv('op-cap', '👷', 'Capacity', "opsGoTo('capacity')")
-      // Reminders page retired from the sidebar 6 Aug 2026 — the shell's
-      // own bell (real signals) owns this now; the page stays reachable
-      // for old links but isn't day-to-day navigation.
+      nv('op-dash', '▤', 'Dashboard', "opsGoTo('dashboard')"),
+      nv('op-quote', '◇', 'Quote approval', "opsStep('quote')", nvTag(() => typeof quotations !== 'undefined' ? quotations.filter(q => q.stage === 'approver' && q.lifecycleStatus !== 'confirmed').length : 0)),
+      nv('op-new', '⇄', 'New jobs', "opsStep('route')", nvTag(() => getJobsPendingRouting().length)),
+      nv('op-bud', '✓', 'BOM verification', "opsStep('budget')", nvTag(() => typeof getAllPendingBudgetApprovals === 'function' ? getAllPendingBudgetApprovals().length : 0)),
+      nv('op-curt', '≋', 'Curtain BOM', "opsStep('curt')", nvTag(() => typeof curtainPendingApprovals === 'function' ? curtainPendingApprovals().length : 0)),
+      nv('op-proj', '▣', 'Jobs in production', "opsGoTo('projects')"),
+      nv('op-cap', '◴', 'Capacity', "opsGoTo('capacity')"),
+      nv('op-del', '⇢', 'Upcoming deliveries', "opsStep('del')", nvTag(() => typeof opsReadyToScheduleJobs === 'function' ? opsReadyToScheduleJobs().length : 0)),
+      nv('op-rem', '⏱', 'Reminders', "opsGoTo('reminders')")
     ] }
   ]
 };

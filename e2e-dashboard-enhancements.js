@@ -58,16 +58,16 @@ async function openNode(page, nodeId, wrapId) {
     const html = document.getElementById('ops-dashboard-body').innerHTML;
     return {
       noFakeProject: !html.includes('Majlis Refurbishment') && !html.includes('AMD-15010'),
-      // The 4-Aug redesign leads with the action queue and compacts the
-      // numbers band to three tiles — 'Needs Action' is deliberately gone
-      // (the queue owns it) and Approval Pending/Open Tasks moved into it.
-      hasRealKpiLabels: html.includes('Active Jobs') && html.includes('Jobs On Budget') && html.includes('Invoiced This Month'),
-      hasActionQueue: html.includes('opsGoTo('),
+      // 12 Aug 2026 — design handoff 13b replaced the 4-Aug action-queue
+      // strip and three-tile numbers band with the step buttons and the KPI
+      // stack. Same intent (real numbers, no fakes), new markers.
+      hasRealKpiLabels: html.includes('On the promised date') && html.includes('BOMs waiting on you') && html.includes('Deliveries ready'),
+      hasActionQueue: html.includes('Your day, in the order it runs') && html.includes('opsd-step'),
       noSubsOrSnags: !html.includes('Subs overdue') && !html.includes('Snags open')
     };
   });
   record('Old static fake project rows (Majlis Refurbishment, AMD-15010) are gone', emptyState.noFakeProject ? 'PASS' : 'FAIL', JSON.stringify(emptyState));
-  record('Real KPI tiles render (Active Jobs / Jobs On Budget / Invoiced This Month) above a real action queue', emptyState.hasRealKpiLabels && emptyState.hasActionQueue ? 'PASS' : 'FAIL', JSON.stringify(emptyState));
+  record('Real KPI stack renders alongside 13b\'s decision-queue step buttons', emptyState.hasRealKpiLabels && emptyState.hasActionQueue ? 'PASS' : 'FAIL', JSON.stringify(emptyState));
   record('Fabricated "Subs overdue"/"Snags open" tiles removed rather than faked (no real data backs them)', emptyState.noSubsOrSnags ? 'PASS' : 'FAIL');
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
@@ -113,21 +113,28 @@ async function openNode(page, nodeId, wrapId) {
     const html = document.getElementById('ops-dashboard-body').innerHTML;
     return {
       showsUnroutedInAttention: html.includes('Dash Unrouted Job') && html.includes('Awaiting Routing'),
-      showsClearJobInAllClear: html.includes('Dash Clear Job'),
+      // 13b has no "All clear" list — the left column is the day queue, the
+      // widget, capacity, Needs you now and Held jobs. A clear job proving
+      // itself clear now means it is ABSENT from Needs you now.
+      clearJobNotFlagged: !html.includes('Dash Clear Job'),
       showsBudgetPendingJobFlagged: html.includes('Dash Budget Job') && html.includes('Budget Pending'),
       newJobsBadgeReal: document.querySelector('#ops-module-wrap [data-p="alerts"] .nbadge')?.textContent
     };
   }, seed);
   record('Unrouted job appears in "Needs your attention now" tagged Awaiting Routing', opsState.showsUnroutedInAttention ? 'PASS' : 'FAIL', JSON.stringify(opsState));
-  record('Clear (routed, no flags) job appears in "All clear"', opsState.showsClearJobInAllClear ? 'PASS' : 'FAIL');
+  record('Clear (routed, no flags) job is correctly absent from "Needs you now"', opsState.clearJobNotFlagged ? 'PASS' : 'FAIL');
   record('Job with a pending department budget is flagged "Needs Action" too', opsState.showsBudgetPendingJobFlagged ? 'PASS' : 'FAIL');
   record('"New Jobs" nav badge reflects real unrouted count, not stale/fake', opsState.newJobsBadgeReal === '1' ? 'PASS' : 'FAIL', `badge=${opsState.newJobsBadgeReal}`);
 
+  // 13b: the routed-job count now lives on the "Items in production" card's
+  // own sub-line ("across N job cards"), not a KPI tile.
   const opsKpis = await page.evaluate(() => {
-    const nums = Array.from(document.querySelectorAll('#ops-dashboard-body .kpi .kv')).map(el => el.textContent.trim());
-    return nums;
+    const b = document.getElementById('ops-dashboard-body');
+    const sub = Array.from(b.querySelectorAll('.opsd-sub')).map(e => e.textContent.trim())
+      .find(t => /across \d+ job card/.test(t)) || '';
+    return { sub, match: (sub.match(/across (\d+) job card/) || [])[1] };
   });
-  record('Active Jobs KPI counts only routed, non-cancelled jobs (2: clear + budget job)', opsKpis[0] === '2' ? 'PASS' : 'FAIL', JSON.stringify(opsKpis));
+  record('Routed, non-cancelled job count is real (2: clear + budget job)', opsKpis.match === '2' ? 'PASS' : 'FAIL', JSON.stringify(opsKpis));
 
   // ── Dashboard Analytics rollout (5 Aug 2026), Phase 5 — new Pipeline
   // Funnel + Department Queue Depth cards, genuinely new information on
@@ -140,15 +147,18 @@ async function openNode(page, nodeId, wrapId) {
   const analytics = await page.evaluate(() => {
     const html = document.getElementById('ops-dashboard-body').innerHTML;
     return {
-      hasPipelineFunnelSection: html.includes('Pipeline Funnel'),
-      hasJobConfirmedStage: html.includes('Job Confirmed'),
-      hasInProductionStage: html.includes('In Production'),
-      hasQueueDepthSection: html.includes('Department Queue Depth'),
+      // 13b replaces the Phase-5 funnel + queue-depth charts: the step
+      // buttons carry the pipeline, and "Capacity this week" (hours booked vs
+      // available, rolling down to live items) carries department load — a
+      // richer answer to the same question than a bar of queue counts.
+      hasCapacity: html.includes('Capacity this week'),
+      hasItemsInProduction: html.includes('Items in production'),
+      hasSubcontracted: html.includes('Items subcontracted'),
       hasJoineryBar: html.includes('Carpentry') || html.includes('Joinery')
     };
   });
-  record('Operations Dashboard renders the new Pipeline Funnel section with real stage buckets (Job Confirmed / In Production)', analytics.hasPipelineFunnelSection && analytics.hasJobConfirmedStage && analytics.hasInProductionStage ? 'PASS' : 'FAIL', JSON.stringify(analytics));
-  record('Operations Dashboard renders the new Department Queue Depth section', analytics.hasQueueDepthSection && analytics.hasJoineryBar ? 'PASS' : 'FAIL', JSON.stringify(analytics));
+  record('Operations Dashboard renders Capacity this week, rolling down to live items', analytics.hasCapacity && analytics.hasJoineryBar ? 'PASS' : 'FAIL', JSON.stringify(analytics));
+  record('Operations Dashboard renders the Items in production / subcontracted cards', analytics.hasItemsInProduction && analytics.hasSubcontracted ? 'PASS' : 'FAIL', JSON.stringify(analytics));
 
   // Navigating INTO Operations from the ecosystem hub re-renders — this was
   // the actual bug found live-testing the fix: goTo('operations') never
@@ -177,8 +187,13 @@ async function openNode(page, nodeId, wrapId) {
     addDeliveryNote(jobId, jc.items.map(it => ({ lineId: it.lineId, requiredQty: it.qty })), 'Operations');
   }, seed.clearJobId);
   await openNode(page, 'operations', 'ops-module-wrap');
-  const refreshedKpi = await page.evaluate(() => document.querySelector('#ops-dashboard-body .kpi .kv').textContent.trim());
-  record('Re-entering Operations from the ecosystem hub shows fresh data (not stale from first load)', refreshedKpi === '1' ? 'PASS' : 'FAIL', `activeJobs now shows ${refreshedKpi}, expected 1 (clear job marked completed)`);
+  const refreshedKpi = await page.evaluate(() => {
+    const b = document.getElementById('ops-dashboard-body');
+    const sub = Array.from(b.querySelectorAll('.opsd-sub')).map(e => e.textContent.trim())
+      .find(t => /across \d+ job card/.test(t)) || '';
+    return (sub.match(/across (\d+) job card/) || [])[1];
+  });
+  record('Re-entering Operations from the ecosystem hub shows fresh data (not stale from first load)', refreshedKpi === '1' ? 'PASS' : 'FAIL', `routed jobs now shows ${refreshedKpi}, expected 1 (clear job completed)`);
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
 

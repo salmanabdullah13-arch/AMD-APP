@@ -17,7 +17,20 @@
    Values, names and order are verbatim from the handoffs.
    ========================================================================== */
 
-.od, .sd, .ed{
+/* 13b (Operations) ships the same token block again, values identical — added
+   to the selector rather than copied, which is the rule this file exists for.
+
+   `#ops-module-wrap .opsd` is not redundant: styles.css:205 is
+   `#ops-module-wrap, #ops-module-wrap *{…}`, and that `*` sets --card/--line/
+   --ok/etc on EVERY descendant at (1,0,0), which outranks a bare `.opsd`
+   (0,1,0) and even `.x-dark .opsd` (0,2,0). Without the id here, Operations'
+   own token namespace silently wins and 13b's semantic colours never apply.
+   Carrying one extra selector is still one copy of the values.
+   The `*` matters as much as the id: styles.css sets those tokens on every
+   DESCENDANT, so each card re-declares --card locally and a rule on the
+   `.opsd` parent alone never reaches it. Mirroring the descendant selector is
+   what actually wins. */
+.od, .sd, .ed, .opsd, #ops-module-wrap .opsd, #ops-module-wrap .opsd *{
   /* Brand — single accent, wine. No second brand colour. */
   --wine:#600131; --wine2:#7c1a4a; --wine3:#9c3d6c;
   --wine-tint:#f7eef3; --wine-line:#ecd9e3;
@@ -45,7 +58,10 @@
 
 [data-theme="dark"] .od, .x-dark .od,
 [data-theme="dark"] .sd, .x-dark .sd,
-[data-theme="dark"] .ed, .x-dark .ed{
+[data-theme="dark"] .ed, .x-dark .ed,
+[data-theme="dark"] .opsd, .x-dark .opsd,
+[data-theme="dark"] #ops-module-wrap .opsd, #ops-module-wrap.x-dark .opsd,
+[data-theme="dark"] #ops-module-wrap .opsd *, #ops-module-wrap.x-dark .opsd *{
   --wine:#a83c63; --wine2:#c2557c; --wine3:#d98aa8;
   --wine-tint:#2a1a22; --wine-line:#3d2530;
   --page:#141017; --card:#1d1821; --sunk:#241e28;

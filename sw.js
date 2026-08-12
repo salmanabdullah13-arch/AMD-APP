@@ -18,11 +18,11 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v36"; // v36: task_lists syncs to Supabase
+const CACHE_VERSION = "amd-app-v37"; // v37: Operations dashboard (handoff 13b)
 const CORE_ASSETS = [
-  "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./manifest.json", "./logo.jpeg",
+  "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./ops-dashboard.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
-  "./data.js", "./chart-widgets.js", "./planner-tasks.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
+  "./data.js", "./chart-widgets.js", "./planner-tasks.js", "./ops-dashboard.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
   "./operations.js", "./curtain.js",
   "./purchasing.js", "./storekeeper.js", "./sales-dashboard.js", "./sales.js", "./estimator-dashboard.js", "./estimator.js",
   "./approver.js", "./jobs.js", "./accounts.js", "./hr.js", "./exec-shell.js", "./owner-dashboard.js", "./owner.js", "./admin.js",

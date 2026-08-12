@@ -1,0 +1,355 @@
+/* ==========================================================================
+   AMD-APP · Operations dashboard (design handoff 13b)
+
+   Tokens live in dashboard-tokens.css (`.opsd` is on the shared selector) —
+   13b's block was byte-identical to the Owner/Sales/Estimator one, so it is
+   NOT copied here.
+
+   The handoff's prototype is inline-styled "by design (for streaming
+   previews)" and its README is explicit: do not carry those inline styles
+   into production, map the tokens onto the codebase's styling system. So this
+   is a real sheet, not a transcription.
+
+   Chrome the handoff draws that this app already owns app-wide is NOT drawn
+   here — sidebar, topbar, back button, Quick actions, floating chat all come
+   from exec-shell.js. Drawing a second set would stack two of each. Same call
+   the Sales 5a integration made.
+   ========================================================================== */
+
+.opsd{ font-family:var(--font); color:var(--tx); }
+.opsd *{ box-sizing:border-box; }
+.opsd button{ font-family:inherit; }
+
+/* ── layout ─────────────────────────────────────────────────────────────── */
+.opsd-cols{ display:flex; gap:16px; align-items:flex-start; }
+.opsd-l{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:16px; }
+.opsd-r{ flex:0 0 376px; width:376px; display:flex; flex-direction:column; gap:16px; }
+
+.opsd-card{
+  background:var(--card); border:1px solid var(--line); border-radius:16px;
+  box-shadow:var(--sh); padding:14px 16px 13px;
+}
+.opsd-ttl{ font-size:14px; font-weight:650; letter-spacing:-.01em; }
+.opsd-sub{ font-size:11px; color:var(--tx3); margin-top:2px; line-height:1.45; }
+.opsd-eyebrow{
+  font-size:11px; font-weight:700; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--tx3);
+}
+
+/* ── the day queue: step buttons ────────────────────────────────────────── */
+.opsd-steps{ display:flex; flex-wrap:wrap; gap:9px; margin-top:10px; }
+.opsd-step{
+  flex:1 1 226px; display:flex; align-items:center; gap:11px; text-align:left;
+  padding:11px 13px; border-radius:12px; cursor:pointer;
+  border:1px solid var(--line); background:var(--card); color:inherit;
+}
+.opsd-step:hover{ border-color:var(--wine-line); }
+.opsd-step.is-on{ border-color:var(--wine); background:var(--wine-tint); }
+.opsd-step-n{
+  flex:none; width:28px; height:28px; border-radius:9px; display:flex;
+  align-items:center; justify-content:center; font-size:12px; font-weight:700;
+  background:var(--wine-tint); color:var(--wine);
+}
+.opsd-step-n.t-bad{ background:var(--bad-bg); color:var(--bad); }
+.opsd-step-n.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.opsd-step-n.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.opsd-step > span:last-child{ display:block; min-width:0; }
+.opsd-step-t{ display:block; font-size:12.5px; font-weight:650; letter-spacing:-.01em; }
+.opsd-step-s{ display:block; font-size:10.5px; color:var(--tx3); margin-top:1px; line-height:1.4; }
+
+/* ── the widget slot: fixed geometry, content swaps ─────────────────────── */
+.opsd-w{
+  flex:none; min-height:436px; display:flex; flex-direction:column;
+  border:1px solid var(--wine-line); border-radius:16px; box-shadow:var(--sh2);
+  overflow:hidden; background:var(--card);
+}
+.opsd-wh{
+  flex:none; background:var(--wine-tint); border-bottom:1px solid var(--wine-line);
+  padding:15px 18px; display:flex; align-items:flex-start; gap:12px;
+}
+.opsd-wh-t{ font-size:15px; font-weight:650; color:var(--wine); letter-spacing:-.01em; }
+.opsd-wh-s{ font-size:11.5px; color:var(--tx2); margin-top:3px; line-height:1.45; }
+.opsd-wh-pill{
+  flex:none; background:var(--wine); color:#fff; font-size:11.5px; font-weight:700;
+  border-radius:999px; padding:4px 11px; white-space:nowrap;
+}
+.opsd-wh-exp{
+  flex:none; width:30px; height:30px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--wine-line); background:transparent; color:var(--wine);
+  font-size:14px; line-height:1;
+}
+.opsd-wb{ flex:1 1 auto; overflow:auto; padding:15px 18px; }
+.opsd-wf{
+  flex:none; background:var(--sunk); border-top:1px solid var(--line2);
+  padding:12px 14px; display:flex; align-items:center; gap:10px;
+}
+
+/* "Open where?" menu */
+.opsd-expwrap{ position:relative; }
+.opsd-expmenu{
+  position:absolute; right:0; top:36px; z-index:20; width:262px;
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  box-shadow:var(--sh2); overflow:hidden; animation:opsd-sheetup .18s ease-out;
+}
+.opsd-expmenu button{
+  display:block; width:100%; text-align:left; padding:11px 13px; border:0;
+  background:transparent; cursor:pointer; color:inherit;
+  border-bottom:1px solid var(--line2);
+}
+.opsd-expmenu button:last-child{ border-bottom:0; }
+.opsd-expmenu button:hover{ background:var(--sunk); }
+.opsd-expmenu b{ display:block; font-size:12.5px; font-weight:650; }
+.opsd-expmenu span{ display:block; font-size:10.5px; color:var(--tx3); margin-top:2px; }
+
+/* ── widget body pieces ─────────────────────────────────────────────────── */
+.opsd-job{ font-size:16px; font-weight:650; letter-spacing:-.02em; }
+.opsd-job-s{ font-size:11.5px; color:var(--tx2); margin-top:3px; }
+.opsd-job-x{ font-size:11px; color:var(--tx3); margin-top:2px; }
+
+.opsd-facts{ display:flex; flex-direction:column; gap:7px; margin-top:13px; }
+.opsd-fact{
+  display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:10px;
+  background:var(--sunk); font-size:12px;
+}
+.opsd-fact.t-bad{ background:var(--bad-bg); }
+.opsd-fact.t-warn{ background:var(--warn-bg); }
+.opsd-fact.t-ok{ background:var(--ok-bg); }
+.opsd-fact-l{ flex:1 1 auto; min-width:0; color:var(--tx2); font-weight:500; }
+.opsd-fact-v{ flex:none; font-size:12.5px; font-weight:700; text-align:right; color:var(--tx2); }
+.opsd-fact.t-bad .opsd-fact-v{ color:var(--bad); }
+.opsd-fact.t-warn .opsd-fact-v{ color:var(--warn); }
+.opsd-fact.t-ok .opsd-fact-v{ color:var(--ok); }
+
+/* roll-up table */
+.opsd-roll{ margin-top:13px; border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+.opsd-roll-h,
+.opsd-roll-r{ display:flex; align-items:center; gap:10px; padding:8px 11px; font-size:11.5px; }
+.opsd-roll-h{
+  background:var(--sunk); border-bottom:1px solid var(--line2);
+  font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--tx3);
+}
+.opsd-roll-r{ border-bottom:1px solid var(--line2); }
+.opsd-roll-r:last-child{ border-bottom:0; }
+.opsd-roll-r.is-tot{ font-weight:700; background:var(--sunk); }
+.opsd-roll-d{ flex:1 1 auto; min-width:0; }
+.opsd-roll-n{ flex:0 0 108px; text-align:right; font-variant-numeric:tabular-nums; }
+.opsd-roll-m{ flex:0 0 76px; text-align:right; }
+button.opsd-roll-r{ width:100%; border:0; border-bottom:1px solid var(--line2); cursor:pointer; font-family:inherit; color:inherit; text-align:left; }
+
+.opsd-pill{
+  display:inline-block; padding:3px 9px; border-radius:999px;
+  font-size:11px; font-weight:700; background:var(--sunk); color:var(--tx2);
+}
+.opsd-pill.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.opsd-pill.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.opsd-pill.t-bad{ background:var(--bad-bg); color:var(--bad); }
+
+.opsd-note{ font-size:11.5px; color:var(--tx2); line-height:1.5; margin-top:10px; }
+
+/* department filter chips */
+.opsd-chips{ display:flex; flex-wrap:wrap; gap:7px; margin-top:13px; }
+.opsd-chip{
+  display:flex; align-items:center; gap:7px; padding:6px 12px; min-height:32px;
+  border-radius:999px; font-size:11.5px; font-weight:650; cursor:pointer;
+  border:1px solid var(--line); background:transparent; color:var(--tx2);
+}
+.opsd-chip.is-on{ border-color:var(--wine); background:var(--wine-tint); color:var(--wine); }
+.opsd-chip i{ width:6px; height:6px; border-radius:999px; background:var(--bad); display:inline-block; }
+
+/* department groups + line rows */
+.opsd-grp{ margin-top:13px; border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+.opsd-grp-h{
+  display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+  padding:10px; border:0; border-bottom:1px solid var(--line2); cursor:pointer;
+  background:var(--sunk); color:inherit; font-size:12px;
+}
+.opsd-grp-h.is-flagged{ background:var(--bad-bg); }
+.opsd-line{
+  display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+  padding:9px 10px; border:0; border-bottom:1px solid var(--line2); cursor:pointer;
+  background:transparent; color:inherit; font-size:12px;
+}
+.opsd-line:last-child{ border-bottom:0; }
+.opsd-line.is-flagged{ background:var(--bad-bg); }
+.opsd-line-n{ flex:1 1 auto; min-width:0; }
+.opsd-line-t{ display:block; font-size:12px; font-weight:600; }
+.opsd-line-by{ display:block; font-size:10.5px; font-weight:600; color:var(--wine); margin-top:2px; }
+.opsd-line-why{ display:block; font-size:10.5px; color:var(--tx3); margin-top:2px; line-height:1.4; }
+
+/* a line's build-up */
+.opsd-bom{ padding:10px 11px; border-radius:10px; background:var(--sunk); margin:0 10px 10px; }
+.opsd-bom-r{ display:flex; gap:10px; font-size:11px; padding:4px 0; border-bottom:1px solid var(--line2); }
+.opsd-bom-r:last-of-type{ border-bottom:0; }
+.opsd-bom-c{ flex:1 1 auto; min-width:0; color:var(--tx2); }
+.opsd-bom-q{ flex:0 0 76px; text-align:right; color:var(--tx3); }
+.opsd-bom-a{ flex:0 0 96px; text-align:right; font-weight:650; font-variant-numeric:tabular-nums; }
+.opsd-bom-t{ display:flex; gap:10px; font-size:11.5px; font-weight:700; padding-top:7px; margin-top:4px; border-top:1px solid var(--line); }
+.opsd-est{ display:block; font-size:11px; font-weight:650; margin-top:6px; }
+.opsd-est.t-bad{ color:var(--bad); } .opsd-est.t-ok{ color:var(--ok); }
+
+/* banners + panels */
+.opsd-banner{
+  margin-top:13px; padding:11px 13px; border-radius:11px;
+  font-size:11.5px; line-height:1.5; font-weight:600;
+  background:var(--wine); color:#fff;
+}
+.opsd-banner.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.opsd-deleg{
+  margin-top:13px; padding:12px 13px; border-radius:12px;
+  border:1px dashed var(--wine-line); background:var(--wine-tint);
+}
+.opsd-deleg-t{ font-size:12.5px; font-weight:650; color:var(--wine); }
+.opsd-deleg-n{ font-size:11px; color:var(--tx2); margin-top:3px; line-height:1.5; }
+.opsd-reasons{ display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
+.opsd-reason{
+  padding:6px 12px; min-height:32px; border-radius:999px; font-size:11px;
+  font-weight:650; cursor:pointer; text-align:left;
+  border:1px solid var(--line); background:var(--card); color:var(--tx2);
+}
+.opsd-reason.is-on{ border-color:var(--wine); background:var(--wine-tint); color:var(--wine); }
+
+.opsd-var{ margin-top:13px; border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+.opsd-var-r{ display:flex; align-items:center; gap:10px; padding:8px 11px; border-bottom:1px solid var(--line2); font-size:11.5px; }
+.opsd-var-strip{
+  display:flex; align-items:center; gap:10px; padding:10px 11px;
+  background:var(--ok-bg); color:var(--ok); font-size:11.5px; font-weight:650;
+}
+
+/* routing chips (tap order IS the sequence) */
+.opsd-rline{ padding:11px 0; border-bottom:1px solid var(--line2); }
+.opsd-rline:last-child{ border-bottom:0; }
+.opsd-rchips{ display:flex; flex-wrap:wrap; gap:7px; margin-top:8px; }
+.opsd-rchip{
+  padding:5px 12px; border-radius:999px; font-size:12px; font-weight:600;
+  cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--tx2);
+}
+.opsd-rchip.is-on{ border-color:var(--wine); background:var(--wine); color:#fff; }
+.opsd-rseq{ font-size:11px; font-weight:650; color:var(--wine); margin-top:7px; }
+.opsd-rseq.is-none{ color:var(--bad); }
+
+.opsd-urgent{
+  display:flex; align-items:center; gap:7px; height:34px; padding:0 13px;
+  border-radius:9px; font-size:12.5px; font-weight:650; cursor:pointer;
+  border:1px solid var(--line); background:transparent; color:var(--tx2);
+}
+.opsd-urgent.is-on{ border-color:var(--bad); background:var(--bad-bg); color:var(--bad); animation:opsd-ring 1.6s ease-out 2; }
+.opsd-date{
+  height:34px; padding:0 10px; border-radius:9px; border:1px solid var(--line);
+  background:var(--card); color:inherit; font-family:inherit; font-size:12.5px;
+}
+
+.opsd-toast{
+  margin-top:11px; padding:10px 12px; border-radius:10px;
+  background:var(--ok-bg); color:var(--ok); font-size:11.5px; font-weight:650;
+}
+.opsd-empty{ text-align:center; padding:36px 18px; }
+.opsd-empty b{ display:block; font-size:14px; font-weight:650; color:var(--ok); }
+.opsd-empty span{ display:block; font-size:11.5px; color:var(--tx3); margin-top:5px; }
+
+/* buttons */
+.opsd-btn{
+  height:38px; padding:0 16px; border-radius:10px; cursor:pointer;
+  font-size:13px; font-weight:650; border:1px solid var(--wine);
+  background:var(--wine); color:#fff;
+}
+.opsd-btn.sec{ background:transparent; color:var(--wine); }
+.opsd-btn.flex{ flex:1 1 auto; }
+.opsd-btn[disabled]{ opacity:.45; cursor:not-allowed; }
+.opsd-more{ flex:none; margin-left:auto; font-size:11px; color:var(--tx3); }
+
+/* ── long KPI cards (items in production / subcontracted) ───────────────── */
+.opsd-long-h{ display:flex; align-items:baseline; gap:10px; }
+.opsd-long-h .opsd-eyebrow{ flex:1 1 auto; }
+.opsd-long-tot{ font-size:22px; font-weight:650; letter-spacing:-.02em; }
+.opsd-long-cols{
+  display:flex; margin-top:11px; padding-top:11px; border-top:1px solid var(--line2);
+}
+.opsd-long-c{ flex:1 1 0; min-width:0; padding:0 8px; border-left:1px solid var(--line2); }
+.opsd-long-c:first-child{ border-left:0; padding-left:0; }
+.opsd-long-c b{ display:block; font-size:10.5px; font-weight:650; color:var(--tx2); }
+.opsd-long-c u{ display:block; font-size:18px; font-weight:650; text-decoration:none; letter-spacing:-.02em; margin-top:2px; }
+.opsd-long-c i{ display:block; font-size:10px; font-weight:650; font-style:normal; margin-top:2px; color:var(--tx3); }
+.opsd-long-c i.t-bad{ color:var(--bad); } .opsd-long-c i.t-warn{ color:var(--warn); } .opsd-long-c i.t-ok{ color:var(--ok); }
+
+/* ── KPI stack ──────────────────────────────────────────────────────────── */
+.opsd-kpi{ padding:0; }
+.opsd-kpi-r{ display:flex; align-items:center; gap:12px; padding:10px 15px; border-top:1px solid var(--line2); }
+.opsd-kpi-r:first-child{ border-top:0; }
+.opsd-kpi-l{ flex:1 1 auto; min-width:0; }
+.opsd-kpi-l{ display:block; }
+.opsd-kpi-l b{ display:block; font-size:12px; font-weight:650; }
+.opsd-kpi-l span{ display:block; font-size:10.5px; color:var(--tx3); margin-top:2px; line-height:1.4; }
+.opsd-kpi-v{ flex:none; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
+.opsd-kpi-v.t-ok{ color:var(--ok); } .opsd-kpi-v.t-warn{ color:var(--warn); } .opsd-kpi-v.t-bad{ color:var(--bad); }
+
+/* ── capacity ───────────────────────────────────────────────────────────── */
+.opsd-caps{ display:flex; flex-direction:column; gap:11px; margin-top:12px; }
+.opsd-cap{
+  width:100%; text-align:left; border:0; background:transparent; cursor:pointer;
+  padding:0; color:inherit;
+}
+.opsd-cap-l{ display:flex; align-items:center; gap:10px; }
+.opsd-cap-n{ flex:1 1 auto; font-size:12.5px; font-weight:650; }
+.opsd-cap-p{ flex:none; font-size:11.5px; font-weight:700; }
+.opsd-cap-p.t-ok{ color:var(--ok); } .opsd-cap-p.t-warn{ color:var(--warn); } .opsd-cap-p.t-bad{ color:var(--bad); }
+/* Chart rule: the fill is a child of a full-width track and never contains a
+   label; the label sits above and the number in its own column. */
+/* display:block matters — these are <span>s inside a button, and an inline
+   box ignores height, which silently collapses the bar to nothing. */
+.opsd-track{ display:block; height:8px; border-radius:999px; background:var(--line2); overflow:hidden; margin-top:6px; }
+.opsd-track i{ display:block; height:100%; border-radius:999px; background:var(--ok); }
+.opsd-track i.t-warn{ background:var(--warn); } .opsd-track i.t-bad{ background:var(--bad); }
+.opsd-cap-m{ display:flex; gap:10px; margin-top:5px; font-size:10.5px; color:var(--tx3); }
+.opsd-cap-m span:last-child{ margin-left:auto; }
+.opsd-cap-open{ margin-top:9px; padding:10px 11px; border-radius:11px; background:var(--sunk); }
+.opsd-ci{ padding:8px 0; border-bottom:1px solid var(--line2); }
+.opsd-ci:last-child{ border-bottom:0; }
+.opsd-ci-t{ display:flex; align-items:center; gap:9px; }
+.opsd-ci-n{ flex:1 1 auto; min-width:0; font-size:11.5px; font-weight:650; }
+.opsd-ci-m{ font-size:10px; color:var(--tx3); margin-top:2px; }
+.opsd-ci-bar{ display:flex; align-items:center; gap:9px; margin-top:6px; }
+.opsd-ci-bar .opsd-track{ flex:1 1 auto; margin-top:0; height:6px; }
+.opsd-ci-pct{ flex:0 0 58px; text-align:right; font-size:10.5px; font-weight:650; color:var(--tx2); }
+
+/* ── needs you now / held ───────────────────────────────────────────────── */
+.opsd-row{
+  display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+  padding:10px 0; border-top:1px solid var(--line2); border-left:0; border-right:0; border-bottom:0;
+  background:transparent; cursor:pointer; color:inherit;
+}
+.opsd-row-n{ flex:1 1 auto; min-width:0; }
+.opsd-row-t{ display:block; font-size:13px; font-weight:650; letter-spacing:-.01em; }
+.opsd-row-s{ display:block; font-size:11px; color:var(--tx3); margin-top:2px; }
+.opsd-row-r{ display:block; font-size:11.5px; font-weight:600; color:var(--bad); margin-top:3px; }
+.opsd-flags{ display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+.opsd-chev{ flex:none; color:var(--tx3); font-size:14px; }
+
+@keyframes opsd-sheetup{ from{ transform:translateY(16px); opacity:0 } to{ transform:translateY(0); opacity:1 } }
+@keyframes opsd-ring{
+  0%{ box-shadow:0 0 0 0 rgba(180,35,24,.5) }
+  70%{ box-shadow:0 0 0 8px rgba(180,35,24,0) }
+  100%{ box-shadow:0 0 0 0 rgba(180,35,24,0) }
+}
+
+/* ── phone ──────────────────────────────────────────────────────────────── */
+@media (max-width: 880px){
+  .opsd-cols{ flex-direction:column; }
+  .opsd-r{ flex:1 1 auto; width:100%; }
+  .opsd-step{ flex:1 1 100%; min-height:56px; }
+  .opsd-w{ min-height:470px; border-radius:var(--r); }
+  /* At 390 the title, the count pill and ⤢ do not all fit on one line, and
+     the card clips (overflow:hidden). Shrink the pill rather than let it be
+     cut in half. */
+  .opsd-wh{ padding:12px 14px; gap:8px; }
+  .opsd-wh-pill{ font-size:10.5px; padding:3px 8px; }
+  .opsd-wb{ padding:13px 14px; }
+  .opsd-wh-exp{ width:34px; height:34px; border-radius:9px; }
+  /* Every tap target in the widget and the task/planner rows clears 44px. */
+  .opsd-btn{ min-height:44px; }
+  .opsd-wf{ flex-wrap:wrap; }
+  .opsd-more{ width:100%; margin-left:0; text-align:center; }
+  .opsd-roll-n{ flex:0 0 92px; }
+  .opsd-roll-m{ flex:0 0 64px; }
+  .opsd-chip, .opsd-reason, .opsd-rchip{ min-height:44px; }
+  .opsd-expmenu{ width:246px; }
+}

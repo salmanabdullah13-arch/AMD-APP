@@ -927,145 +927,30 @@ function opsOpenAccounts() {
   if (wrap && typeof hideModuleWrap === 'function') hideModuleWrap(wrap);
   setTimeout(() => { if (typeof openAccountsModule === 'function') openAccountsModule(); }, 150);
 }
+// Operations dashboard — design handoff 13b (12 Aug 2026).
+// The screen itself is ops-dashboard.js (window.OpsUI); this just mounts it.
+// The previous hand-built triage strip + KPI band + funnel/queue charts are
+// replaced wholesale: 13b makes the decision queue the dashboard, with the
+// same information carried by the step buttons, the KPI stack and the
+// capacity card instead.
 function renderOpsDashboard() {
   const el = document.getElementById('ops-dashboard-body');
   if (!el) return;
+  // This file calls renderOpsDashboard() eagerly at script-load time (see the
+  // init block at the bottom). Guarding rather than assuming load order is
+  // the lesson from the Phase 5 chart-widgets bug — a missing global here
+  // threw at startup and the whole dashboard went blank.
+  if (typeof OpsUI === 'undefined') return;
+  OpsUI.mount(el);
+}
 
-  const activeJobs = jobCards.filter(j => j.status === 'open' && j.routingConfirmed);
-  const pendingApprovals = getAllPendingBudgetApprovals().length;
-  const jobsWithFlags = jobCards.filter(j => j.status !== 'cancelled' && getJobAttentionFlags(j).length > 0);
-  const openTasksCount = tasks.filter(t => t.status === 'open').length;
-  const thisMonth = new Date().toISOString().slice(0, 7);
-  const invThisMonth = taxInvoices.filter(inv => inv.date.slice(0, 7) === thisMonth);
-  const invoicedThisMonth = invThisMonth.reduce((s, inv) => s + inv.totals.netTotal, 0);
-  const receivedThisMonth = invThisMonth.reduce((s, inv) => s + (inv.paidAmount || 0), 0);
-  const jobsOverBudget = activeJobs.filter(j => getJobAttentionFlags(j).some(f => f.tone === 'bad')).length;
-  const jobsOnBudget = activeJobs.length - jobsOverBudget;
-
-  // Comms strip + Messages card removed 7 Aug 2026 — the exec shell's
-  // floating chat bubble and reminders bell own messaging now; this was
-  // duplicating them above the actual work (Salman circled it).
-
-  // ── "Your day" triage strip (6 Aug 2026, Salman's ask: "imagine you're
-  // the operations manager — what would your daily tasks be?"). The
-  // manager's real morning, in priority order, each card a live count
-  // deep-linking to the page where the work happens. Zero-count cards
-  // render quiet ("clear") instead of disappearing, so the ORDER of the
-  // day stays visible even on a good morning.
-  const routeCount = getJobsPendingRouting().length;
-  const curtainApprCount = typeof curtainPendingApprovals === 'function' ? curtainPendingApprovals().length : 0;
-  const readyToSchedule = opsReadyToScheduleJobs().length;
-  const triage = [
-    { n: routeCount, label: 'Route new jobs', sub: 'the one human checkpoint', page: 'alerts' },
-    { n: pendingApprovals, label: 'Approve budgets', sub: 'maker-checker · >BD 5,000 goes to Owner', page: 'budgetapprovals' },
-    { n: jobsWithFlags.length, label: 'Chase exceptions', sub: 'rework · stalled · over budget', page: 'projects' },
-    { n: curtainApprCount, label: 'Curtain approvals', sub: "Silva's budgets", page: 'curtapp' },
-    { n: readyToSchedule, label: 'Schedule deliveries', sub: 'production done, not booked', page: 'delivery' }
-  ];
-  const urgentCount = activeJobs.filter(j => j.urgent).length;
-  const overdueCount = activeJobs.filter(j => j.promisedDate && j.promisedDate < todayStrGlobal() && !jobProductionComplete(j)).length;
-  const todayLine = `
-    <p style="font-size:12.5px;color:var(--ink2);margin:2px 2px 12px;">
-      ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} ·
-      <b style="color:var(--ink);">${activeJobs.length}</b> jobs in production${urgentCount ? ` · <b style="color:var(--bad);">${urgentCount} urgent</b>` : ''}${overdueCount ? ` · <b style="color:var(--bad);">${overdueCount} past promised date</b>` : ''}
-    </p>`;
-
-  // Action queue — the main event. Tall tappable rows in the order the day
-  // actually runs; steps with nothing waiting collapse to one muted line so
-  // the sequence stays visible without eating the screen (mobile-first).
-  const triageHtml = todayLine + `
-    <div style="margin-bottom:14px;">
-      ${triage.map((t, i) => t.n > 0 ? `
-        <div onclick="opsGoTo('${t.page}')" style="display:flex;align-items:center;gap:12px;cursor:pointer;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--maraya);border-radius:12px;padding:14px 14px;margin-bottom:8px;box-shadow:var(--biz-shadow,0 1px 2px rgba(16,24,40,.04));">
-          <span style="width:30px;height:30px;border-radius:50%;background:var(--maraya);color:#fff;font-size:14px;font-weight:800;display:grid;place-items:center;flex:none;">${t.n}</span>
-          <span style="min-width:0;flex:1;">
-            <span style="display:block;font-size:14.5px;font-weight:700;color:var(--ink);">${t.label}</span>
-            <span style="display:block;font-size:11.5px;color:var(--ink3);margin-top:1px;">${t.sub}</span>
-          </span>
-          <span style="color:var(--ink3);font-size:18px;flex:none;">›</span>
-        </div>` : `
-        <div onclick="opsGoTo('${t.page}')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:7px 14px;margin-bottom:4px;opacity:.5;">
-          <span style="width:18px;height:18px;border-radius:50%;border:1px solid var(--line2);color:var(--ink3);font-size:10px;font-weight:700;display:grid;place-items:center;flex:none;">${i + 1}</span>
-          <span style="font-size:12.5px;color:var(--ink2);">${t.label}</span>
-          <span style="font-size:11px;color:var(--ok);margin-left:auto;">clear ✓</span>
-        </div>`).join('')}
-    </div>`;
-
-  const kpisHtml = `
-    <p style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;margin:0 2px 6px;">The numbers</p>
-    <div class="kpis">
-      <div class="kpi" style="cursor:pointer;" onclick="opsGoTo('projects')"><p class="kl">Active Jobs</p><p class="kv">${activeJobs.length}</p><p class="ks">routed, in production</p></div>
-      <div class="kpi ok" style="cursor:pointer;" onclick="opsGoTo('budgetapprovals')"><p class="kl">Jobs On Budget</p><p class="kv" style="color:var(--ok)">${jobsOnBudget}</p><p class="ks">of ${activeJobs.length} active</p></div>
-      <div class="kpi" style="cursor:pointer;" onclick="opsOpenAccounts()"><p class="kl">Invoiced This Month</p><p class="kv">${money(invoicedThisMonth)}</p><p class="ks">${money(receivedThisMonth)} received</p></div>
-    </div>`;
-
-  const attentionRows = jobsWithFlags.length === 0
-    ? `<p style="font-size:12.5px;color:var(--ink2,#64748b);">Nothing needs attention right now.</p>`
-    : jobsWithFlags.map(j => {
-      const c = customers.find(x => x.id === j.customerId);
-      const flags = getJobAttentionFlags(j);
-      return `<div class="prow" onclick="openJob('${j.id}')">
-        <div><div class="pname">${opsEsc(j.projectName)}</div><div class="pmeta">${j.id} · ${opsEsc(c ? c.name : '—')} · ${money(j.amount)}</div>
-          <div class="ptags">${flags.map(f => `<span class="pill ${f.tone}">${opsEsc(f.label)}</span>`).join('')}</div></div>
-        <span class="badge ${flags.some(f => f.tone === 'bad') ? '' : 'warn'}">${flags.length}</span>
-      </div>`;
-    }).join('');
-
-  const clearJobs = activeJobs.filter(j => getJobAttentionFlags(j).length === 0);
-  const clearRows = clearJobs.length === 0
-    ? `<p style="font-size:12.5px;color:var(--ink2,#64748b);">No active jobs are fully clear yet.</p>`
-    : clearJobs.map(j => {
-      const c = customers.find(x => x.id === j.customerId);
-      return `<div class="prow"><div><div class="pname">${opsEsc(j.projectName)}</div><div class="pmeta">${j.id} · ${opsEsc(c ? c.name : '—')} · On budget</div></div><span class="badge zero">✓</span></div>`;
-    }).join('');
-
-  // Dashboard Analytics rollout (5 Aug 2026), Phase 5 — genuinely new
-  // information on this dashboard (unlike Owner's, which already
-  // surfaced these as plain number rows before its own chart upgrade):
-  // a cross-department pipeline funnel and a queue-depth bar per
-  // department. Painting has its own separate getPaintingQueue()
-  // (deliberately not the shared getDepartmentQueue(), see PAINT_DEPT_KEY
-  // design note) and Curtain tracks activity via getCurtainKPIs() on its
-  // own curtainJobs[] structure, not departmentStatuses — same
-  // per-department normalization already used on Owner's dashboard.
-  const funnel = getPipelineFunnel();
-  const funnelRows = funnel.stages.map((s, i) => ({
-    label: `${s} (${funnel.byStage[s].count})`, value: funnel.byStage[s].value, color: cwOrdinalColor(i)
-  }));
-  // operations.js's own "init" block (bottom of this file) calls
-  // renderOpsDashboard() eagerly at script-load time, before curtain.js
-  // has necessarily finished loading — getCurtainKPIs() transitively
-  // calls curtain.js's ensureItemCards(), which would throw at that
-  // specific early moment. Guard on a curtain.js-only global so the
-  // init-time render just shows 0 here (corrected the moment the user
-  // actually navigates into Operations, same "eager render can be
-  // slightly stale until you enter" pattern this dashboard's own
-  // existing e2e test already covers for its other tiles).
-  const curtainRunningJobs = typeof ensureItemCards === 'function' ? getCurtainKPIs().totalRunningJobs : 0;
-  const deptQueueBars = [
-    { label: dc('carp').n, value: getDepartmentQueue('carp').length, color: cwOrdinalColor(0) },
-    { label: dc('uph').n, value: getDepartmentQueue('uph').length, color: cwOrdinalColor(1) },
-    { label: dc('paint').n, value: getPaintingQueue().length, color: cwOrdinalColor(2) },
-    { label: 'Curtain', value: curtainRunningJobs, color: cwOrdinalColor(3) }
-  ];
-
-  el.innerHTML = triageHtml + kpisHtml + `
-    <div class="card">
-      <p class="card-title">Pipeline Funnel (company-wide)</p>
-      ${cwHorizontalBarList(funnelRows, { valueFormatter: v => money(v), emptyMessage: 'No quotations or jobs yet.' })}
-    </div>
-    <div class="card">
-      <p class="card-title">Department Queue Depth (active lines/jobs)</p>
-      ${cwMiniBars(deptQueueBars)}
-    </div>
-    <div class="card">
-      <p class="card-title">Needs your attention now</p>
-      ${attentionRows}
-    </div>
-    <div class="card">
-      <p class="card-title">All clear</p>
-      ${clearRows}
-    </div>`;
+// The sidebar's four decision entries (13b) land on the dashboard with that
+// step already open, rather than opening a separate page — the widget IS the
+// queue. Each step's detailed page is still one tap away behind the widget's
+// ⤢ menu.
+function opsStep(k) {
+  opsGoTo('dashboard');
+  if (typeof OpsUI !== 'undefined') OpsUI.setStep(k);
 }
 
 // Fix Plan Phase 2 (5 Aug 2026, Fable audit findings #1/#2) — Operations

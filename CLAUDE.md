@@ -6827,3 +6827,85 @@ library showed so few items.
   sweep and passed 13/13 standalone — a flake, not a regression.
 - `sw.js` CACHE_VERSION v35 → v36. PAT used only in ephemeral shell calls;
   repo grepped for `sbp_` before committing (clean).
+
+### 12 Aug 2026 — Operations dashboard rebuilt to design handoff 13b
+
+Salman: *"operations dashboard to be revised — do the necessary / keep the
+non negotiables like before / update layout exactly as per 13 b module"*.
+
+**This package is a different kind from 4a/5a/6a, and that changed the
+integration.** The Owner, Sales and Estimator handoffs shipped CSS/JS written
+for this environment, so the rule was "ship it verbatim, swap the DATA block".
+13b's README says the opposite in as many words: the prototype is inline-styled
+"by design (for streaming previews)", it is "**not** production code to copy",
+and the task is to **recreate** it in the codebase's own idiom. Its `support.js`
+is the design tool's own React runtime — nothing to reuse. So this is a real
+sheet (`ops-dashboard.css`) and a real component (`ops-dashboard.js`,
+`window.OpsUI`), not a transcription.
+
+- **The screen.** Five step buttons over ONE card of fixed geometry
+  (436px desktop / 470px phone) whose content swaps without the card moving —
+  the premise of the design. Six states: quote · route · budget · exc · curt ·
+  del. Then capacity rolling down to live items, Needs you now, Held jobs, and
+  a right column of Items in production / Items subcontracted / a KPI stack /
+  the shared planner + tasks.
+- **Five of the six states had a real source**: `getJobsPendingRouting()` +
+  `confirmJobRouting()`, `getAllPendingBudgetApprovals()` +
+  `approveDepartmentBudget()`, `curtainPendingApprovals()`,
+  `getJobAttentionFlags()`, `opsReadyToScheduleJobs()`.
+- **`quote` had none, and that is flagged rather than invented.** This app has
+  no Operations feasibility stage (Sales → Estimator → Approver → Sales
+  confirms). Rather than add a mandatory gate — a lifecycle change that would
+  break ~24 test seeds — it reads quotes already costed and sitting with the
+  Approver, and its actions use primitives that exist: send-back is a real
+  stage transfer, delegation is the real `delegateQuotation()` built for the
+  Estimator, and "recommend to the Owner" writes a real audit entry and
+  messages the Owner instead of faking a sign-off state nothing downstream
+  would honour. **A real Operations gate is a product decision for Salman.**
+- **Honest deviations, each commented in place:** the prototype's per-LINE
+  department BOM rows don't exist here — `submitDepartmentBudget()` takes
+  `categoryAmounts`, so the rows are the real categories, and the card says so;
+  "Items subcontracted" is derived from real BOM subcontract entries, with no
+  lateness shown because no delivery date exists on one; "Held jobs" maps to
+  lines in rework carrying the QC reject reason, since no "held" field exists;
+  13b's "Documents" nav item is omitted (no such page — a dead link is worse).
+  The handoff's own sidebar/topbar/back/Quick-actions/chat are NOT drawn — the
+  exec shell owns all six non-negotiables app-wide, same call as Sales 5a; its
+  nav ORDER is applied to `EXEC_NAV_CONFIGS.operations` instead, where the four
+  decision entries select the widget step and ⤢ keeps each step's full page one
+  tap away.
+- **A real CSS-cascade bug found by the dark-mode check, worth recording:**
+  `styles.css:205` is `#ops-module-wrap, #ops-module-wrap *{…}` — that `*` sets
+  `--card`/`--line`/`--ok` on **every descendant** at (1,0,0), so Operations'
+  own token namespace beat `.x-dark .opsd` (0,2,0) *and* would have beaten a
+  rule on the `.opsd` parent, because each card re-declares the token locally.
+  Fixed by mirroring the descendant selector in `dashboard-tokens.css`
+  (`#ops-module-wrap .opsd *`) — one extra selector, still one copy of the
+  values, which is what that file exists for.
+- **Three bugs of my own, all caught by the suite, not by review:**
+  `getAllPendingBudgetApprovals()` returns `{job, deptKey, entry}` and I read
+  `p.jobId` (undefined → the card showed its empty state); `ROUTABLE_DEPTS`
+  holds `{k,n,c}` objects, not keys, so `data-d` rendered `[object Object]`;
+  and "Items in production — across N job cards" counted every routed job
+  including completed ones, so a finished job never left the total.
+- **One wrong assumption in my own test**: a line arrives with a route already
+  auto-suggested by `suggestDepartmentSequence()`, so the tap-order assertion
+  was measuring the suggestion. The test now clears the line first, then taps
+  Painting → Joinery and asserts "1 · Painting", "2 · Carpentry", and that
+  untapping renumbers.
+- **Verification**: new `e2e-ops-13b.js` (39/39) — the step order and real
+  counts, the card's geometry proven unchanged across all five swaps, ⤢,
+  the real submitted budget approved through the real button, the full
+  tap-order/renumber/confirm cycle landing the right sequence in
+  `departmentStatuses`, the feasibility card on a real costed quote,
+  delegation refused without a reason, capacity roll-down, no bar fill
+  containing a label, all six non-negotiables, dark mode by **computed style**,
+  and the phone path including a header-clipping check (the card is
+  `overflow:hidden`, so a header that doesn't fit is silently cut rather than
+  causing page overflow). `e2e-dashboard-enhancements.js` repointed to 13b's
+  markers rather than deleted (19/19) — same treatment the Owner/Sales
+  redesigns got. Standing battery: `node --check` per file plus the 30-file
+  load-order concatenation, duplicate top-level declaration scan (none),
+  inline-handler cross-reference (550 handlers, none newly dangling). Full
+  sweep back to the two documented failures.
+- `sw.js` CACHE_VERSION v36 → v37.
