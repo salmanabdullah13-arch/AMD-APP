@@ -324,7 +324,17 @@ async function shot(page, label) { await page.screenshot({ path: path.join(SHOT_
   console.log('\n— phone —');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(400);
-  await page.evaluate(() => { if (typeof renderOpsDashboard === 'function') renderOpsDashboard(); });
+  // The earlier confirm emptied the routing queue — seed one more so the
+  // route state has real controls to measure, and land on it.
+  await page.evaluate(() => {
+    const c = createCustomer({ name: 'Phone Route Co', contactPerson: 'A', tel: String(Math.floor(Math.random() * 1e8)), address: 'M' });
+    const e = createEnquiry({ division: 'Joinery', customerId: c.id, contactPerson: 'A', tel: '1', source: 'walk inn', salesPerson: 'Salman Abdullah' });
+    const q = convertEnquiryToQuotation(e.id, { projectName: 'Phone Route project', taxPercent: 10, contactPerson: 'A' });
+    addQuotationItem(q.id, { product: 'Console table', qty: 1, unit: 'Nos' });
+    transferQuotationStage(q.id, 'approver', 'E'); approveQuotation(q.id, 'A');
+    confirmQuotationToJobCard(q.id, 'S');
+    OpsUI.setStep('route');
+  });
   await page.waitForTimeout(300);
   await shot(page, '02-phone-route');
   const phone = await page.evaluate(() => {
@@ -350,6 +360,41 @@ async function shot(page, label) { await page.screenshot({ path: path.join(SHOT_
   check('no horizontal overflow at 390px', phone.overflow === false, phone);
   check('every tap target in the widget clears 44px', phone.smallest >= 44, phone.smallest);
   check('the widget header (title · count pill · ⤢) is not clipped at 390px', phone.headerFits, phone);
+
+  // 14 Aug 2026, from Salman's iPhone screenshot — the prototype's own phone
+  // arrangement: route controls flow IN the body (no pinned footer with a
+  // hole above it), step rows carry a trailing ›, and the shell subtitle
+  // carries the production counts.
+  const phoneFidelity = await page.evaluate(() => {
+    const b = document.getElementById('ops-dashboard-body');
+    const w = b.querySelector('.opsd-w');
+    const isRoute = w.classList.contains('opsd-w-route');
+    const footer = w.querySelector('.opsd-wf');
+    const inline = w.querySelector('.opsd-route-inline');
+    const confirmBtn = inline && inline.querySelector('[data-a="confirm"]');
+    const chev = b.querySelector('.opsd-step-chev');
+    const sub = document.querySelector('#ops-module-wrap .xs-sub');
+    return {
+      isRoute,
+      footerHidden: !footer || getComputedStyle(footer).display === 'none',
+      inlineShown: !!inline && getComputedStyle(inline).display !== 'none',
+      confirmFullWidth: confirmBtn ? Math.round(confirmBtn.getBoundingClientRect().width) >= Math.round(inline.getBoundingClientRect().width) - 2 : false,
+      chevShown: !!chev && getComputedStyle(chev).display !== 'none',
+      subHasCounts: !!sub && / in production/.test(sub.textContent)
+    };
+  });
+  check('phone: route controls flow in the body, the footer bar is gone',
+    phoneFidelity.isRoute && phoneFidelity.footerHidden && phoneFidelity.inlineShown, phoneFidelity);
+  check('phone: the confirm button is full width, per the prototype', phoneFidelity.confirmFullWidth, phoneFidelity);
+  check('phone: step rows carry the trailing ›', phoneFidelity.chevShown, phoneFidelity);
+  check('the shell subtitle carries the production counts', phoneFidelity.subHasCounts, phoneFidelity);
+
+  // The safe-area floor: @media (display-mode: standalone) can't be forced in
+  // Chromium, and file:// blocks cssRules on linked sheets — so guard the
+  // SOURCE: the rule existing in styles.css is what a regression would delete.
+  const css = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf8');
+  const floorRule = /@media[^{]*display-mode:\s*standalone[^{]*\{[^]*?--safe-top:\s*max\(env\(safe-area-inset-top/.test(css);
+  check('the standalone safe-area floor rule exists (env()-lies-as-0 guard)', floorRule);
 
   check('zero console/page errors', errors.length === 0, errors.slice(0, 4));
 

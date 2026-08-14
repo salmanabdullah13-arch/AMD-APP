@@ -12,6 +12,13 @@
   --shell-ink:#16181d;--shell-ink-muted:#6b7280;--shell-ink-faint:#9ba1aa;
   --shell-border:#e7e9ed;
   --safe-top:env(safe-area-inset-top,0px);--safe-bot:env(safe-area-inset-bottom,0px);
+  /* iOS can report env(safe-area-inset-top) as 0 while still drawing the page
+     under the translucent status bar (seen live 14 Aug 2026 — Salman's iPhone
+     showed the shell topbar interleaved with the clock, with the correct
+     calc() rule in place). Floor the inset in installed-app mode: every iPhone
+     that runs standalone has a status bar of at least ~44px, so when env()
+     lies the floor clears it, and when env() works max() picks the larger.
+     Scoped to coarse pointers so an installed desktop app gains no gap. */
   --r:14px;--r2:10px;--r3:10px;
 
   /* ── SHARED BUSINESS-MODULE DESIGN SYSTEM ──
@@ -49,6 +56,12 @@
 
   --biz-r:14px; --biz-r-sm:8px; --biz-r-lg:16px;
   --biz-shadow: 0 1px 2px rgba(16,24,40,.04);
+}
+/* The safe-area floor described above — every var(--safe-top) consumer
+   (shell topbar, drawer brand, reminder/chat panels, Curtain's header)
+   inherits the fix at once, rather than patching each rule. */
+@media (display-mode: standalone) and (pointer: coarse){
+  :root{ --safe-top:max(env(safe-area-inset-top,0px), 47px); }
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;overflow:hidden;background:var(--shell-bg);}

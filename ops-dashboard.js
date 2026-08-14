@@ -151,7 +151,8 @@ window.OpsUI = (function () {
         return '<button class="opsd-step' + (S.step === t.k ? ' is-on' : '') + '" data-a="step" data-k="' + t.k + '">' +
           '<span class="opsd-step-n ' + (n === 0 ? 't-ok' : tone) + '">' + (n === 0 ? '✓' : n) + '</span>' +
           '<span><span class="opsd-step-t">' + esc(t.l) + '</span>' +
-          '<span class="opsd-step-s">' + esc(t.m) + '</span></span></button>';
+          '<span class="opsd-step-s">' + esc(t.m) + '</span></span>' +
+          '<span class="opsd-step-chev">›</span></button>';
       }).join('') +
       '</div></section>';
   }
@@ -249,16 +250,32 @@ window.OpsUI = (function () {
           '<div class="opsd-rseq' + (seq.length ? '' : ' is-none') + '">' +
           (seq.length ? esc(seq.map(deptName).join(' → ')) : 'Not routed yet') + '</div>' +
           '</div>';
-      }).join('') + '</div>' + strip;
+      }).join('') + '</div>' + strip +
+      // The prototype's PHONE frame puts these controls in the body flow,
+      // right after the lines — full-width urgent, a labelled date row, a
+      // 46px confirm, "N more" centred. The desktop frame keeps them in the
+      // footer bar. Both are rendered; CSS shows exactly one, so neither
+      // viewport gets a pinned footer with a hole above it (Salman's 14 Aug
+      // screenshot) nor a floating row on desktop.
+      '<div class="opsd-route-inline">' +
+      '<button class="opsd-urgent' + (S.urgent ? ' is-on' : '') + '" data-a="urgent">🔥 ' +
+      (S.urgent ? 'Urgent — jumps the department queue' : 'Mark urgent') + '</button>' +
+      '<label class="opsd-datelabel">Promised date' +
+      '<input type="date" class="opsd-date" data-a="date" value="' + esc(S.date) + '"></label>' +
+      '<button class="opsd-btn" data-a="confirm">Confirm routing &amp; dispatch →</button>' +
+      (qRoute().length > 1 ? '<span class="opsd-more">' + (qRoute().length - 1) + ' more after this</span>' : '') +
+      '</div>';
   }
   function routeFoot() {
     var jobs = qRoute();
     if (!jobs.length) return '';
-    return '<button class="opsd-urgent' + (S.urgent ? ' is-on' : '') + '" data-a="urgent">🔥 ' +
+    return '<span class="opsd-wf-route">' +
+      '<button class="opsd-urgent' + (S.urgent ? ' is-on' : '') + '" data-a="urgent">🔥 ' +
       (S.urgent ? 'Urgent — jumps the department queue' : 'Mark urgent') + '</button>' +
       '<input type="date" class="opsd-date" data-a="date" value="' + esc(S.date) + '" aria-label="Promised date">' +
       '<button class="opsd-btn flex" data-a="confirm">Confirm routing &amp; dispatch →</button>' +
-      (jobs.length > 1 ? '<span class="opsd-more">' + (jobs.length - 1) + ' more after this</span>' : '');
+      (jobs.length > 1 ? '<span class="opsd-more">' + (jobs.length - 1) + ' more after this</span>' : '') +
+      '</span>';
   }
 
   /* ── state: quote ────────────────────────────────────────────────────── */
@@ -528,7 +545,7 @@ window.OpsUI = (function () {
     var step = STEPS.filter(function (t) { return t.k === S.step; })[0] || STEPS[1];
     var n = step.q().length;
     var foot = (FOOT[S.step] || FOOT.route)();
-    return '<section class="opsd-w">' +
+    return '<section class="opsd-w opsd-w-' + S.step + '">' +
       '<div class="opsd-wh"><div style="flex:1 1 auto;min-width:0">' +
       '<div class="opsd-wh-t">' + esc(h[0]) + '</div>' +
       '<div class="opsd-wh-s">' + esc(h[1]) + '</div></div>' +
@@ -758,6 +775,27 @@ window.OpsUI = (function () {
   }
 
   /* ── render ──────────────────────────────────────────────────────────── */
+  /* 13b's topbar subtitle is "date · N in production · N urgent · N past
+     promised" — the numbers are this dashboard's own, so it writes them into
+     the shell's subtitle line rather than plumbing a callback through the
+     shell config. Scoped to the Operations wrap only. */
+  function refreshSubtitle() {
+    var el = document.querySelector('#ops-module-wrap .xs-sub');
+    if (!el) return;
+    var today = new Date().toISOString().slice(0, 10);
+    var open = safe(function () { return jobCards.filter(function (j) { return j.status === 'open' && j.routingConfirmed; }); }, []);
+    var urgent = open.filter(function (j) { return j.urgent; }).length;
+    var late = open.filter(function (j) {
+      return j.promisedDate && j.promisedDate < today && !safe(function () { return jobProductionComplete(j); }, false);
+    }).length;
+    var d = new Date();
+    var line = d.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) +
+      ' · ' + open.length + ' in production';
+    if (urgent) line += ' · ' + urgent + ' urgent';
+    if (late) line += ' · ' + late + ' past promised date';
+    el.textContent = line;
+  }
+
   function render() {
     // The weekly planner and My tasks are the shared collapsible widget
     // (planner-tasks.js) — the non-negotiables, one implementation, not a
@@ -768,7 +806,7 @@ window.OpsUI = (function () {
       '<div class="opsd-r">' + itemsInProductionHTML() + itemsSubcontractedHTML() + kpiHTML() + plannerTasks + '</div>' +
       '</div>';
   }
-  function paint() { if (root) { root.innerHTML = render(); } }
+  function paint() { if (root) { root.innerHTML = render(); refreshSubtitle(); } }
 
   /* ── actions ─────────────────────────────────────────────────────────── */
   function toast(msg) { S.toast = msg; paint(); }

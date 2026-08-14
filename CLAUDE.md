@@ -6909,3 +6909,46 @@ sheet (`ops-dashboard.css`) and a real component (`ops-dashboard.js`,
   inline-handler cross-reference (550 handlers, none newly dangling). Full
   sweep back to the two documented failures.
 - `sw.js` CACHE_VERSION v36 → v37.
+
+### 14 Aug 2026 — 13b phone fidelity pass, from Salman's own iPhone screenshot
+
+Salman, screenshot in hand: *"You changed the layout on the app? This is not
+how the design package looked like for operations module."* He was right on
+three counts and his screenshot exposed a fourth, worse one.
+
+- **The status bar overlap is an env() lie, not a missing rule.** His clock
+  sat interleaved with the shell topbar — yet `.xs-top` already carries
+  `calc(11px + var(--safe-top))`, `--safe-top` is `env(safe-area-inset-top)`
+  at `:root`, and `viewport-fit=cover` is set. iOS can report the inset as 0
+  while still drawing the page under the translucent status bar. Fix: floor
+  the inset in installed-app mode —
+  `@media (display-mode: standalone) and (pointer: coarse){ :root{
+  --safe-top:max(env(safe-area-inset-top,0px), 47px); } }` — one rule, and
+  every consumer (shell topbar, drawer, panels, Curtain's header) inherits it.
+  When env() works, max() picks the larger; when it lies, 47px clears the bar.
+  Chromium can't emulate display-mode:standalone AND file:// blocks cssRules
+  on linked sheets, so the e2e guard asserts the rule in the styles.css
+  SOURCE — a deleted rule fails a test, not a device test.
+- **The phone widget didn't match the prototype's own phone frame.** Went
+  back to the 13b canvas: on the phone, the routing controls flow IN the body
+  right after the lines — full-width urgent, a labelled "Promised date" row,
+  a 46px full-width confirm, "N more" centred — not pinned to a footer bar
+  with the empty-body hole above it that his screenshot showed. Now rendered
+  in both places with CSS showing exactly one per viewport (the desktop frame
+  keeps the footer bar). Other states' footers stack full-width on phone.
+- **Step rows carry the trailing ›** (the prototype's phone rows are list
+  rows with a chevron; its desktop step cards have none — shown ≤880 only).
+- **The topbar subtitle carries the production counts** ("Friday 14 August
+  2026 · N in production · N urgent · N past promised date") — 13b's own
+  spec line; the dashboard writes it into the shell's `.xs-sub` since the
+  numbers are its own.
+- **Not bugs, said plainly**: the full-width Quick actions pill IS the
+  prototype's own phone topbar (`flex:1`); and the noisy counts in his
+  screenshot (Curtain BOM 54, deliveries 49) are REAL rows in the live
+  database — e2e/demo residue jobs, not a rendering fault. Cleaning those up
+  is a live-data deletion and needs his say-so, flagged not done.
+- **Verification**: `e2e-ops-13b.js` 39 → 44/44 (route-controls-in-body with
+  the footer gone at 390px, full-width confirm, chevrons, subtitle counts,
+  the safe-area source guard — plus a fresh routing job seeded for the phone
+  section since the earlier confirm had emptied the queue). Full sweep back
+  to the two documented failures. `sw.js` v37 → v38.
