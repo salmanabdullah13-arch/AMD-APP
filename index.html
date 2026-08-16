@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="sales-dashboard.css">
 <link rel="stylesheet" href="estimator.css">
 <link rel="stylesheet" href="ops-dashboard.css">
+<link rel="stylesheet" href="purchase.css">
 
 <style>/* ── Gantt chart ─────────────────── */
     .gantt-wrap { width:100%; overflow-x:auto; }
@@ -694,8 +695,17 @@
 
     <div class="scroll" id="purch-scroll">
 
-      <!-- ══ DASHBOARD ══ -->
-      <div class="page active" id="p-purch-dashboard">
+      <!-- ══ 17a — the Purchase module proper (dashboard / pages / forms) ══
+           One container: PurUI switches its own three view modes inside it,
+           so the ten working pages and four create flows need no page div
+           each. The legacy screens below are still reachable from the
+           shell's "Accounts side" nav group. -->
+      <div class="page active" id="p-purch-17a">
+        <div id="pur-root"></div>
+      </div>
+
+      <!-- ══ DASHBOARD (legacy) ══ -->
+      <div class="page" id="p-purch-dashboard">
         <div id="purch-dashboard-body"></div>
       </div>
 
@@ -1115,6 +1125,7 @@
      createItemMasterEntry()'s own duplicate guard calls into it. -->
 <script src="purchase-item-gate.js"></script>
 <script src="purchase-data.js"></script>
+<script src="purchase-ui.js"></script>
 <script src="chart-widgets.js"></script>
   <script src="planner-tasks.js"></script>
 <!-- Before operations.js: that file calls renderOpsDashboard() eagerly at

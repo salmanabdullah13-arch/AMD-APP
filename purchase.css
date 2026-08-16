@@ -1,0 +1,339 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Purchase module — design handoff 17a.
+
+   Tokens are the handoff's, verbatim. Scoped to .pur rather than :root for
+   the same reason the Owner and Sales packages were: --ok/--warn/--bad/--r
+   already exist at :root in styles.css and are used by all seventeen other
+   modules, so a global block here would silently restyle the app.
+
+   Dark follows this codebase's real selector (.x-dark, set by the exec
+   shell) as well as [data-theme="dark"], which is what the handoff names.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pur {
+  --wine: #600131; --wine2: #7c1a4a; --wine3: #9c3d6c;
+  --wine-tint: #f7eef3; --wine-line: #ecd9e3;
+  --page: #f5f6f8; --card: #ffffff; --sunk: #fafbfc;
+  --line: #e6e8ee; --line2: #eff1f5;
+  --tx: #101828; --tx2: #475467; --tx3: #98a2b3;
+  --ok: #087443; --ok-bg: #e8f6ef;
+  --warn: #b54708; --warn-bg: #fef3e6;
+  --bad: #b42318; --bad-bg: #fdecea;
+  --sh: 0 1px 2px rgba(16, 24, 40, .04);
+  --sh2: 0 6px 24px rgba(16, 24, 40, .10);
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--tx);
+  background: var(--page);
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.x-dark .pur, [data-theme="dark"] .pur {
+  --wine: #a83c63; --wine-tint: #2a1a22; --wine-line: #3d2530;
+  --page: #141017; --card: #1d1821; --sunk: #241e28;
+  --line: #332b38; --line2: #2a2330;
+  --tx: #eee9f0; --tx2: #a99fb0; --tx3: #7d7386;
+  --ok: #4ade9b; --warn: #f2ae5d; --bad: #f58b83;
+  --ok-bg: #17281f; --warn-bg: #2c2116; --bad-bg: #2e1a18;
+  --sh: 0 1px 2px rgba(0, 0, 0, .4);
+  --sh2: 0 8px 30px rgba(0, 0, 0, .5);
+}
+
+/* No id-scoped token override here on purpose. Operations needs one because
+   styles.css really does carry `#ops-module-wrap, #ops-module-wrap *{...}`,
+   which redefines tokens on every descendant at (1,0,0). Purchasing has no
+   such rule — checked, not assumed — so `.pur` and `.x-dark .pur` are free
+   to win on their own. An earlier draft added the id-scoped guard anyway
+   and it beat the dark block on specificity, pinning every card white in
+   dark mode. */
+
+.pur * { box-sizing: border-box; }
+.pur button { font-family: inherit; cursor: pointer; }
+
+/* ── layout ───────────────────────────────────────────────────────────── */
+.pur-page { padding: 18px 22px 26px; display: flex; gap: 18px; align-items: flex-start; }
+.pur-left { flex: 1; min-width: 0; }
+.pur-right { width: 340px; flex: none; }
+.pur-col { display: flex; flex-direction: column; gap: 14px; }
+
+.pur-eyebrow {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .11em; color: var(--tx3); margin: 0 0 9px;
+}
+
+/* ── step buttons ─────────────────────────────────────────────────────── */
+.pur-steps { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.pur-step {
+  flex: 1 1 226px; display: flex; align-items: center; gap: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12;
+  border-radius: 12px; padding: 11px 13px; text-align: left; box-shadow: var(--sh);
+}
+.pur-step.on { border-color: var(--wine); background: var(--wine-tint); }
+.pur-step-c {
+  width: 26px; height: 26px; flex: none; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700; background: var(--wine); color: #fff;
+}
+.pur-step-c.clear { background: var(--ok-bg); color: var(--ok); }
+.pur-step-t { font-size: 12.5px; font-weight: 650; color: var(--tx); }
+.pur-step-s { font-size: 10.5px; color: var(--tx3); margin-top: 1px; }
+
+/* ── the fixed widget slot ────────────────────────────────────────────── */
+/* Fixed geometry, and it has to be a HEIGHT rather than a min-height:
+   the whole premise of this card is that its content switches while the
+   card itself never moves or resizes, so nothing below it shifts. With
+   min-height alone a long state (the quote comparison) grew the card by
+   ~136px and pushed the open-orders card down the page. The body below
+   is flex:1 with its own overflow, so a taller state scrolls inside. */
+.pur-widget {
+  flex: none; height: 452px; display: flex; flex-direction: column;
+  border: 1px solid var(--wine-line); border-radius: 16px;
+  box-shadow: var(--sh2); overflow: hidden; background: var(--card);
+  margin-bottom: 14px;
+}
+.pur-wh {
+  background: var(--wine-tint); border-bottom: 1px solid var(--wine-line);
+  padding: 15px 18px; display: flex; align-items: center; gap: 10px; flex: none;
+}
+.pur-wh-t { font-size: 15px; font-weight: 650; color: var(--wine); }
+.pur-wh-s { font-size: 11.5px; color: var(--tx2); margin-top: 2px; }
+.pur-wh-pill {
+  margin-left: auto; background: var(--wine); color: #fff; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; padding: 3px 10px; flex: none;
+}
+.pur-wb { flex: 1; overflow-y: auto; padding: 16px 18px; }
+.pur-wf {
+  flex: none; padding: 13px 18px; border-top: 1px solid var(--line2);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+
+.pur-jh-n { font-size: 15px; font-weight: 650; }
+.pur-jh-i { font-size: 11.5px; color: var(--tx2); margin-top: 2px; }
+.pur-jh-s { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+
+.pur-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 13px 0; }
+.pur-fact {
+  border-radius: 10px; padding: 9px 11px; display: flex;
+  align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--sunk); border: 1px solid var(--line2);
+}
+.pur-fact-l { font-size: 11.5px; font-weight: 600; color: var(--tx2); }
+.pur-fact-v { font-size: 12px; font-weight: 650; text-align: right; }
+.pur-fact.ok { background: var(--ok-bg); border-color: transparent; } .pur-fact.ok .pur-fact-v { color: var(--ok); }
+.pur-fact.warn { background: var(--warn-bg); border-color: transparent; } .pur-fact.warn .pur-fact-v { color: var(--warn); }
+.pur-fact.bad { background: var(--bad-bg); border-color: transparent; } .pur-fact.bad .pur-fact-v { color: var(--bad); }
+
+/* quote comparison rows */
+.pur-q {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 11px 13px; margin-bottom: 8px;
+}
+.pur-q.rec { border-color: var(--wine); background: var(--wine-tint); }
+.pur-q-mark {
+  width: 18px; height: 18px; flex: none; border-radius: 999px;
+  border: 1px solid var(--line); display: flex; align-items: center;
+  justify-content: center; font-size: 11px;
+}
+.pur-q.rec .pur-q-mark { background: var(--wine); color: #fff; border-color: var(--wine); }
+.pur-q-main { flex: 1; min-width: 0; }
+.pur-q-n { font-size: 13px; font-weight: 650; }
+.pur-q-r { font-size: 10.5px; color: var(--tx3); margin-top: 1px; }
+.pur-q-note { font-size: 11px; color: var(--tx2); margin-top: 3px; }
+.pur-q-price { width: 112px; flex: none; text-align: right; }
+.pur-q-price b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; display: block; }
+.pur-q-price span { font-size: 10.5px; color: var(--tx3); }
+.pur-q-lead { width: 76px; flex: none; text-align: right; font-size: 12px; font-weight: 600; }
+
+/* line table inside the widget */
+.pur-lt { border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
+.pur-lt-h {
+  display: flex; gap: 10px; background: var(--sunk); padding: 8px 13px;
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--tx3);
+}
+.pur-lt-r { display: flex; gap: 10px; padding: 9px 13px; border-top: 1px solid var(--line2); align-items: center; }
+.pur-lt-d { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; }
+.pur-lt-d small { display: block; font-size: 11px; font-weight: 400; color: var(--tx3); margin-top: 1px; }
+.pur-lt-q { width: 82px; flex: none; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pur-lt-v { width: 106px; flex: none; text-align: right; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.pur-note { font-size: 11.5px; color: var(--tx2); line-height: 1.5; margin: 11px 0 0; }
+.pur-banner {
+  margin-top: 12px; border-radius: 11px; padding: 10px 12px;
+  font-size: 11.5px; line-height: 1.45; background: var(--warn-bg); color: var(--warn);
+}
+.pur-banner.ok { background: var(--ok-bg); color: var(--ok); }
+.pur-banner.bad { background: var(--bad-bg); color: var(--bad); }
+.pur-banner.wine { background: var(--wine-tint); color: var(--wine); }
+
+/* ── buttons ──────────────────────────────────────────────────────────── */
+.pur-btn {
+  height: 38px; border-radius: 10px; border: 0; background: var(--wine);
+  color: #fff; font-size: 13px; font-weight: 650; padding: 0 16px;
+}
+.pur-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.pur-btn.sec { background: transparent; border: 1px solid var(--line); color: var(--tx); }
+.pur-btn.flex { flex: 1; }
+.pur-more { margin-left: auto; font-size: 11.5px; color: var(--tx3); }
+
+/* ── cards / tables ───────────────────────────────────────────────────── */
+.pur-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh); overflow: hidden; }
+.pur-card-h { padding: 14px 16px 11px; border-bottom: 1px solid var(--line2); display: flex; align-items: baseline; gap: 10px; }
+.pur-card-t { font-size: 13.5px; font-weight: 650; }
+.pur-card-s { margin-left: auto; font-size: 11px; color: var(--tx3); }
+.pur-row { padding: 11px 16px; border-top: 1px solid var(--line2); display: flex; align-items: center; gap: 12px; }
+.pur-row:first-of-type { border-top: 0; }
+.pur-row-d { flex: 1; min-width: 0; }
+.pur-row-t { font-size: 12.5px; font-weight: 650; }
+.pur-row-s { font-size: 11px; color: var(--tx3); margin-top: 1px; }
+.pur-row-v { width: 112px; flex: none; text-align: right; font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.pur-pill { padding: 4px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap; display: inline-block; }
+.pur-pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pur-pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pur-pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pur-pill.wine { background: var(--wine-tint); color: var(--wine); }
+.pur-pill.plain { background: var(--sunk); color: var(--tx2); }
+
+/* ── right column ─────────────────────────────────────────────────────── */
+.pur-spend { padding: 15px 16px; }
+.pur-spend-h { display: flex; align-items: baseline; gap: 10px; }
+.pur-spend-l { font-size: 12.5px; font-weight: 650; }
+.pur-spend-v { margin-left: auto; font-size: 22px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.pur-spend-s { font-size: 11px; color: var(--tx3); margin-top: 3px; }
+.pur-bars { border-top: 1px solid var(--line2); margin-top: 12px; padding-top: 12px; }
+.pur-bar { margin-bottom: 11px; }
+/* Label ABOVE the track, never inside the fill — the handoff's chart rule. */
+.pur-bar-l { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+.pur-bar-n { font-size: 11.5px; font-weight: 600; color: var(--tx2); }
+.pur-bar-v { margin-left: auto; font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.pur-bar-t { height: 7px; border-radius: 999px; background: var(--line2); overflow: hidden; }
+.pur-bar-t i { display: block; height: 100%; border-radius: 999px; background: var(--wine); }
+
+.pur-kpi { padding: 10px 15px; border-top: 1px solid var(--line2); display: flex; align-items: center; gap: 10px; }
+.pur-kpi:first-child { border-top: 0; }
+.pur-kpi-d { flex: 1; min-width: 0; }
+.pur-kpi-l { font-size: 12px; font-weight: 650; }
+.pur-kpi-r { font-size: 10.5px; color: var(--tx3); margin-top: 1px; }
+.pur-kpi-v { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pur-kpi-v.ok { color: var(--ok); } .pur-kpi-v.warn { color: var(--warn); } .pur-kpi-v.bad { color: var(--bad); }
+
+/* ── working pages ────────────────────────────────────────────────────── */
+.pur-sub { font-size: 12.5px; color: var(--tx2); max-width: 840px; line-height: 1.5; margin: 0 0 14px; }
+.pur-stats { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.pur-stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--sh); padding: 13px 15px; }
+.pur-stat-l { font-size: 11px; font-weight: 650; color: var(--tx3); }
+.pur-stat-v { font-size: 21px; font-weight: 650; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.pur-stat-v.ok { color: var(--ok); } .pur-stat-v.warn { color: var(--warn); } .pur-stat-v.bad { color: var(--bad); }
+
+.pur-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.pur-chip {
+  border-radius: 999px; padding: 6px 12px; font-size: 11.5px; font-weight: 650;
+  border: 1px solid var(--line); background: transparent; color: var(--tx3);
+}
+.pur-chip.on { background: var(--wine-tint); color: var(--wine); border-color: var(--wine); }
+.pur-tb-r { margin-left: auto; display: flex; gap: 8px; }
+
+.pur-table { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh); overflow: hidden; }
+.pur-th { display: flex; gap: 12px; background: var(--sunk); border-bottom: 1px solid var(--line2); padding: 10px 16px; }
+.pur-th span { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--tx3); }
+.pur-tr { display: flex; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line2); align-items: center; }
+.pur-tr:first-of-type { border-top: 0; }
+.pur-td { font-size: 12.5px; font-weight: 600; min-width: 0; }
+.pur-td.first { flex: 1 1 0%; font-weight: 650; }
+.pur-td small { display: block; font-size: 11px; font-weight: 400; color: var(--tx3); margin-top: 1px; }
+.pur-td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pur-empty { padding: 26px 16px; text-align: center; font-size: 12.5px; color: var(--tx3); }
+
+/* ── create flows ─────────────────────────────────────────────────────── */
+.pur-form { display: flex; gap: 14px; align-items: flex-start; }
+.pur-form-l { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.pur-form-r { width: 318px; flex: none; display: flex; flex-direction: column; gap: 12px; }
+.pur-fc { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh); padding: 16px 18px; }
+.pur-fc-t { font-size: 13px; font-weight: 650; margin: 0 0 12px; }
+.pur-fl { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--tx3); margin-bottom: 5px; }
+.pur-fi {
+  width: 100%; height: 38px; border-radius: 9px; border: 1px solid var(--line);
+  padding: 0 11px; font-size: 12.5px; font-family: inherit;
+  background: var(--card); color: var(--tx);
+}
+.pur-fi:focus { outline: 0; border-color: var(--wine); }
+textarea.pur-fi { height: auto; min-height: 74px; padding: 9px 11px; resize: vertical; }
+.pur-fg { margin-bottom: 12px; }
+.pur-fg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pur-seg { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.pur-seg button { flex: 1; border: 0; background: transparent; padding: 9px 10px; font-size: 12px; font-weight: 600; color: var(--tx2); }
+.pur-seg button.on { background: var(--wine); color: #fff; }
+.pur-actions { display: flex; align-items: center; gap: 10px; padding-top: 2px; }
+.pur-actions .sp { flex: 1; }
+.pur-lock { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; color: var(--tx2); background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; }
+
+.pur-sel { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; margin-bottom: 8px; background: var(--card); width: 100%; text-align: left; }
+.pur-sel.off { background: var(--sunk); }
+.pur-sel.off .pur-sel-n, .pur-sel.off .pur-sel-s { color: var(--tx3); }
+.pur-sel.on { border-color: var(--wine); background: var(--wine-tint); }
+.pur-cb { width: 18px; height: 18px; flex: none; border-radius: 5px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 11px; margin-top: 1px; }
+.pur-sel.on .pur-cb { background: var(--wine); color: #fff; border-color: var(--wine); }
+.pur-sel-n { font-size: 12.5px; font-weight: 650; }
+.pur-sel-s { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+
+/* The mandatory "Purchase never sees" card. */
+.pur-never { border: 1px solid var(--wine-line); background: var(--wine-tint); border-radius: 16px; padding: 14px 16px; }
+.pur-never-t { font-size: 12.5px; font-weight: 700; color: var(--wine); margin-bottom: 5px; }
+.pur-never-b { font-size: 11.5px; color: var(--tx2); line-height: 1.5; }
+
+/* ── the duplicate gate card ──────────────────────────────────────────── */
+.pur-gate { border-radius: 16px; padding: 14px 16px; }
+.pur-gate.exact { background: var(--bad-bg); }
+.pur-gate.near { background: var(--warn-bg); }
+.pur-gate.weak { background: var(--sunk); }
+.pur-gate.clear { background: var(--ok-bg); }
+.pur-gate-t { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; }
+.pur-gate.exact .pur-gate-t { color: var(--bad); }
+.pur-gate.near .pur-gate-t { color: var(--warn); }
+.pur-gate.weak .pur-gate-t { color: var(--tx2); }
+.pur-gate.clear .pur-gate-t { color: var(--ok); }
+.pur-gate-s { font-size: 11.5px; color: var(--tx2); line-height: 1.45; margin-bottom: 10px; }
+.pur-match { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 9px 11px; margin-bottom: 8px; }
+.pur-match-h { display: flex; align-items: center; gap: 8px; }
+.pur-match-n { font-size: 12px; font-weight: 650; flex: 1; min-width: 0; }
+.pur-match-p { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: var(--sunk); color: var(--tx2); }
+.pur-match-p.bad { background: var(--bad-bg); color: var(--bad); }
+.pur-match-p.warn { background: var(--warn-bg); color: var(--warn); }
+.pur-match-s { font-size: 10.5px; color: var(--tx3); margin-top: 3px; }
+.pur-use { margin-top: 7px; min-height: 28px; border-radius: 8px; border: 1px solid var(--wine); background: transparent; color: var(--wine); font-size: 11.5px; font-weight: 650; padding: 4px 10px; }
+.pur-diffs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* ── phone ────────────────────────────────────────────────────────────── */
+@media (max-width: 880px) {
+  .pur-page { flex-direction: column; padding: 8px 14px 96px; gap: 14px; }
+  .pur-right, .pur-left { width: 100%; }
+  .pur-steps { flex-direction: column; }
+  .pur-step { flex: none; min-height: 56px; }
+  .pur-widget { height: 470px; }
+  .pur-stats { grid-template-columns: 1fr 1fr; }
+  .pur-facts { grid-template-columns: 1fr; }
+  .pur-form { flex-direction: column; }
+  .pur-form-r, .pur-form-l { width: 100%; }
+  /* Tables become stacked rows. */
+  .pur-th { display: none; }
+  .pur-tr { flex-wrap: wrap; min-height: 44px; padding: 12px 14px; }
+  .pur-td { flex: none !important; width: auto !important; text-align: left !important; }
+  .pur-td.first { flex: 1 1 100% !important; }
+  .pur-td.meta { font-size: 11px; color: var(--tx3); font-weight: 400; }
+  .pur-td.hide-phone { display: none; }
+  .pur-q { flex-wrap: wrap; }
+  .pur-q-price, .pur-q-lead { width: auto; text-align: left; }
+  .pur-btn { min-height: 44px; }
+  .pur-fi { min-height: 44px; }
+  .pur-use { min-height: 40px; }
+  /* Create forms get the pinned bottom action bar. */
+  .pur-actions.pinned {
+    position: sticky; bottom: 0; margin: 0 -14px -96px;
+    padding: 12px 14px 20px; background: var(--card);
+    border-top: 1px solid var(--line);
+  }
+}

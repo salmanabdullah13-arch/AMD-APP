@@ -199,7 +199,9 @@ function openPurchasingModule() {
   mod.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   execEnsureShell(mod, { key: 'purchasing', title: 'Purchaser', role: 'Purchasing', navGroupsFn: EXEC_NAV_CONFIGS.purchasing, closeFn: 'closePurchasingModule' });
 
-  purchGoTo('purch-dashboard');
+  // 17a is the module's landing view. Sales is redirected by purchGoTo()'s
+  // own role gate, which is left exactly as it was.
+  purchGoTo('purch-17a');
 }
 
 function purchGoTo(pageId) {
@@ -207,7 +209,10 @@ function purchGoTo(pageId) {
   // purchase record. They reach Purchasing only to raise a job PR, so every
   // other page is redirected rather than rendered.
   if (typeof isSalesRole === 'function' && isSalesRole() && pageId !== 'purch-requests') {
-    if (pageId !== 'purch-dashboard') purchAlert('Purchase order pricing and supplier details are not available for the Sales role.');
+    // Landing views are redirected silently — Sales gets the explanation
+    // only when they actually aim at a restricted screen, not every time
+    // they open the module. 'purch-17a' is the landing view since 17a.
+    if (pageId !== 'purch-dashboard' && pageId !== 'purch-17a') purchAlert('Purchase order pricing and supplier details are not available for the Sales role.');
     pageId = 'purch-requests';
   }
   document.querySelectorAll('#purch-nav .ntab').forEach(t => {
@@ -218,6 +223,13 @@ function purchGoTo(pageId) {
   });
   purchCurrentPage = pageId;
 
+  // 17a — the module proper. One container holding its own three view
+  // modes, so it needs no page div per screen.
+  if (pageId === 'purch-17a') {
+    const el = document.getElementById('pur-root');
+    if (el && typeof PurUI !== 'undefined') PurUI.mount(el);
+    return;
+  }
   if (pageId === 'purch-dashboard') renderPurchDashboard();
   if (pageId === 'purch-requests')  renderPurchRequests();
   if (pageId === 'purch-approvals') renderPurchApprovals();

@@ -7122,3 +7122,70 @@ and is built (`poSigningRoute()`).
   dashboard steps (all five now have real queues), the ten working pages
   from one template, and the four create flows. Every queue and derivation
   the screens need now exists.
+
+### 16 Aug 2026 (later) — 17a Purchase: the interface, and the module is complete
+
+Salman: "finish building 17a?" — the UI on top of the data layer built
+earlier the same day. New `purchase-ui.js` (`window.PurUI`) and
+`purchase.css`. With this the whole 17a package is built.
+
+- **One app, three view modes** (`dash` / `page` / `form`) off a single
+  container. Recreated in this codebase's idiom rather than copied — the
+  handoff's README is explicit that its `.dc.html` is a design reference
+  "not production code to copy" and its `support.js` is the design tool's
+  own React runtime. Same call the 13b Operations build made.
+- **The six non-negotiables are NOT drawn again.** The exec shell already
+  owns the back control, quick actions, collapsible sidebar, planner, tasks
+  and floating chat app-wide; drawing a second set would stack two of each.
+  17a's nav ORDER, icons and count tones went into
+  `EXEC_NAV_CONFIGS.purchasing` instead, where they drive the real sidebar.
+  `EXEC_MODULE_NAV.purchasing` now delegates to `PurUI.back()`/`isRoot()`
+  so Back really steps form → page → dashboard and hides on the root.
+- **The five dashboard steps** all have real queues (built earlier today),
+  default `cmp`, in a **fixed-geometry** widget. **A real fidelity bug found
+  by its own check**: `min-height: 452px` is not enough — the quote
+  comparison state grew the card by ~136px and pushed everything below it
+  down the page, which is precisely what the design's fixed slot exists to
+  prevent. Changed to a real `height`; the body is `flex:1` with its own
+  overflow, so a taller state scrolls inside.
+- **Ten working pages from one template**, with the handoff's exact columns,
+  pinned widths, four stat cards, filter chips and a status pill as the last
+  column on every page. **Four create flows from one template**, each ending
+  with the mandatory "Purchase never sees" card.
+- **The duplicate gate is wired into the item flow** — the earlier data-layer
+  gate now has its screen: match cards with a percentage pill and a real
+  "Use this code" button, no override on an exact match, and a near match
+  needing both the declaration and one of the four stated differences.
+  Typing repaints only the gate card so the caret is never disturbed.
+- **The legacy Payment / Debit Note / PO Register / Bill O/s screens are
+  not in 17a's nav list but still hold real working flows** other modules
+  and tests depend on, so they keep an "Accounts side" group rather than
+  being made unreachable. `purch-17a` is the module's landing view; the
+  Sales role gate redirects it silently, like the old landing view, rather
+  than firing an alert every time Sales opens the module.
+- **A cascade trap avoided by checking rather than assuming**: an early
+  draft copied 13b's id-scoped token guard, which exists because styles.css
+  really does carry `#ops-module-wrap, #ops-module-wrap *{...}`. Purchasing
+  has no such rule — so the guard was pure harm, beating `.x-dark .pur` on
+  specificity and pinning every card white in dark mode. Removed.
+- **Verification**: new `e2e-purchase-17a.js` 49/49, driven through the real
+  interface — the shell's single chat/sidebar, 17a's ten nav entries in
+  order, the five steps with real counts, the widget's geometry proven
+  identical across all five states, a real award raising a real pending PO,
+  a real GRN claim, all ten pages' columns and pills, all four forms'
+  mandatory card, the full duplicate-gate cycle through real typing and
+  clicking, back stepping form → page → dashboard, BD/date formats, the
+  chart rule (no fill contains a label), dark mode by computed style, and
+  the phone path. **A sweep over every view asserts no selling price, margin
+  or profit renders anywhere in Purchase** — the handoff's hardest rule.
+  Three of the failures on the way were test bugs worth recording: an
+  unscoped `.pur-never-b` hit the PR form's own allowance note; and the
+  "near match" fixture picked `SPANNER 15''`, which is itself a real item in
+  the master (13'', 14'' and 15'' all exist), so the variant was an exact
+  match — then a global `\d+` replace also rewrote the code prefix
+  (TOO090 → TOO99), changing a word token and dropping it below the match
+  threshold entirely. Regression clean across 12 suites including the shell,
+  nav and back-button ones. `sw.js` v40 → v41.
+- **Still open on 17a**: the four new arrays are local-only until their
+  tables exist (needs a Management API token), and the handoff's
+  server-side duplicate check needs the same.

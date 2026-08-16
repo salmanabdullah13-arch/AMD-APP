@@ -1233,7 +1233,14 @@ const EXEC_MODULE_NAV = {
   fleet:       { label: 'Vehicle Fleet', home: () => fleetView === 'list', goHome: "fleetView='list';renderFleetBody()" },
   delivery:    { label: 'Delivery',     home: () => deliverySchedView === 'list', goHome: "deliverySchedView='list';renderDeliverySchedBody()" },
   storekeeper: { label: 'Storekeeper',  home: () => true, goHome: "skGoTo('dashboard')" },
-  purchasing:  { label: 'Purchaser',    home: () => true, goHome: "purchGoTo('purch-dashboard')" },
+  // 17a: back steps form -> page -> dashboard, and is hidden on the
+  // dashboard root. PurUI.back() does the stepping; home() reports whether
+  // we are already at the root so the shell knows to hide the control.
+  purchasing:  {
+    label: 'Purchaser',
+    home: () => (typeof PurUI !== 'undefined' ? PurUI.isRoot() : true),
+    goHome: "PurUI.back()"
+  },
   curtain:     { label: 'Curtain & Blinds', home: () => true, goHome: "curtGoTo('curt-dashboard')" },
   operations:  { label: 'Operations',   home: () => true, goHome: "opsGoTo('dashboard')" },
   owner:       { label: 'Owner',        home: () => true, goHome: "ownerNav('dashboard')" },
@@ -1547,14 +1554,28 @@ const EXEC_NAV_CONFIGS = {
       nv('dl-fb', '⭐', 'Feedback', "deliverySchedView='feedback';renderDeliverySchedBody()")
     ] }
   ],
+  // Design handoff 17a's own navigation list, in its order, with its
+  // icons and count tones. The legacy Payment / Debit Note / PO Register /
+  // Bill O/s screens are NOT in 17a's list but still hold real, working
+  // flows other modules and tests depend on, so they keep a group of their
+  // own below rather than being made unreachable.
   purchasing: () => [
-    { label: 'Workspace', items: [
-      nv('pu-dash', '▦', 'Dashboard', "purchGoTo('purch-dashboard')"),
-      nv('pu-req', '📝', 'Requests', "purchGoTo('purch-requests')", nvTag(() => purchaseRequests.filter(r => r.status === 'open').length)),
-      nv('pu-appr', '✔', 'Approvals', "purchGoTo('purch-approvals')", nvTag(() => typeof getPendingPOApprovals === 'function' ? getPendingPOApprovals().length : 0)),
-      nv('pu-ord', '📦', 'Orders', "purchGoTo('purch-orders')"),
+    { label: 'Purchase', items: [
+      nv('pur-dash', '▤', 'Dashboard', "PurUI.go('dash')"),
+      nv('pur-pr', '◇', 'Purchase requests', "PurUI.go('page','pr')", nvTag(() => purQueuePR().length)),
+      nv('pur-rfq', '⇄', 'RFQs & quotes', "PurUI.go('page','rfq')", nvTag(() => purQueueCMP().length)),
+      nv('pur-po', '▤', 'Purchase orders', "PurUI.go('page','po')", nvTag(() => purQueueREL().length)),
+      nv('pur-del', '⇢', 'Deliveries due', "PurUI.go('page','del')", nvTag(() => getDeliveriesDue().length)),
+      nv('pur-grn', '✓', 'GRN & returns', "PurUI.go('page','grn')", nvTag(() => getGRNMismatches().length)),
+      nv('pur-item', '◱', 'Item master', "PurUI.go('page','item')", nvTag(() => getReorderAlerts().length)),
+      nv('pur-sup', '◫', 'Suppliers', "PurUI.go('page','sup')"),
+      nv('pur-ctr', '▦', 'Rate contracts', "PurUI.go('page','ctr')", nvTag(() => getExpiringRateContracts().length)),
+      nv('pur-rem', '⏱', 'Reminders', "PurUI.go('page','rem')"),
+      nv('pur-doc', '▩', 'Documents', "PurUI.go('page','doc')", nvTag(() => getMissingSupplierInvoices().length))
+    ] },
+    { label: 'Accounts side', items: [
+      nv('pu-appr', '✔', 'PO approvals', "purchGoTo('purch-approvals')", nvTag(() => typeof getPendingPOApprovals === 'function' ? getPendingPOApprovals().length : 0)),
       nv('pu-reg', '𝄜', 'PO Register', "purchGoTo('purch-register')"),
-      nv('pu-sup', '🏭', 'Suppliers', "purchGoTo('purch-suppliers')"),
       nv('pu-pay', '💵', 'Payment', "purchGoTo('purch-payments')"),
       nv('pu-dn', '↩', 'Debit Note', "purchGoTo('purch-debitnotes')"),
       nv('pu-bos', '⏳', 'Bill O/s', "purchGoTo('purch-billos')")
