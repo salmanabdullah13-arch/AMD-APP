@@ -93,10 +93,15 @@ async function shot(page, label) { await page.screenshot({ path: path.join(SHOT_
       on: s.classList.contains('is-on')
     }));
   });
-  check('six step buttons, in 13b\'s order', steps.length === 6 &&
+  // Seven, not six: the canvas carries "Approve purchase orders" as its own
+  // chip. The README's step table in the delivered bundle lists only six,
+  // which is why it shipped missing on 12 Aug — corrected 15 Aug from the
+  // canvas Salman holds.
+  check('seven step buttons, in the canvas\'s order', steps.length === 7 &&
     steps[0].t === 'Approve quotes' && steps[1].t === 'Route new jobs' &&
-    steps[2].t === 'Verify department BOMs' && steps[3].t === 'Chase exceptions' &&
-    steps[4].t === 'Curtain BOM' && steps[5].t === 'Upcoming deliveries', steps.map(s => s.t));
+    steps[2].t === 'Verify department BOMs' && steps[3].t === 'Approve purchase orders' &&
+    steps[4].t === 'Chase exceptions' && steps[5].t === 'Curtain BOM' &&
+    steps[6].t === 'Upcoming deliveries', steps.map(s => s.t));
   check('counts are real, not sample data — routing shows the seeded job',
     Number(steps[1].n) >= 1 && Number(steps[2].n) >= 1, { route: steps[1].n, budget: steps[2].n });
   check('a step with nothing waiting shows ✓ rather than a zero',
@@ -114,7 +119,7 @@ async function shot(page, label) { await page.screenshot({ path: path.join(SHOT_
   // swap to every other state through REAL clicks and confirm the card does
   // not move or resize — the whole point of the fixed slot
   const geos = [];
-  for (const k of ['quote', 'budget', 'exc', 'curt', 'del']) {
+  for (const k of ['quote', 'budget', 'po', 'exc', 'curt', 'del']) {
     await page.click(`#ops-dashboard-body .opsd-step[data-k="${k}"]`);
     await page.waitForTimeout(160);
     geos.push(await page.evaluate((kk) => {
@@ -124,9 +129,24 @@ async function shot(page, label) { await page.screenshot({ path: path.join(SHOT_
     }, k));
   }
   check('every step swaps the widget content', geos.map(g => g.title).join('|') ===
-    'Quote approval|BOM verification|Exceptions|Curtain BOM|Upcoming deliveries', geos.map(g => g.title));
+    'Quote approval|BOM verification|Purchase order approval|Exceptions|Curtain BOM|Upcoming deliveries', geos.map(g => g.title));
   check('the card never moves or resizes as content swaps',
     geos.every(g => g.top === geo1.top && g.h === geo1.h), { first: geo1, rest: geos });
+
+  // The footer's controls sit on ONE row on desktop. routeFoot() wraps them in
+  // a span so the phone can hide them as a unit, and a plain span is not a
+  // flex container — the block-level urgent toggle then breaks the line and
+  // the whole footer stacks. Measured, because it renders "fine but wrong".
+  await page.click('#ops-dashboard-body .opsd-step[data-k="route"]');
+  await page.waitForTimeout(160);
+  const footRow = await page.evaluate(() => {
+    const f = document.querySelector('#ops-dashboard-body .opsd-wf');
+    if (!f) return { none: true };
+    const tops = [...f.querySelectorAll('.opsd-urgent,.opsd-date,[data-a="confirm"]')]
+      .map(e => Math.round(e.getBoundingClientRect().top));
+    return { tops, spread: tops.length ? Math.max(...tops) - Math.min(...tops) : 999 };
+  });
+  check('desktop: the route footer is one row, not stacked', footRow.spread <= 6, footRow);
 
   console.log('\n— ⤢ opens where —');
   await page.click('#ops-dashboard-body .opsd-step[data-k="budget"]');
@@ -164,6 +184,45 @@ async function shot(page, label) { await page.screenshot({ path: path.join(SHOT_
   }, seeded.budJob);
   check('approving through the real button actually approves the budget',
     approved === 'approved', approved);
+
+  console.log('\n— purchase order approval (the 7th step) —');
+  const poSeeded = await page.evaluate(() => {
+    const sup = createSupplier({ name: 'Ops13b Timber', contactPerson: 'A', telephone: '17009900', address: 'Sitra' });
+    const po = createPurchaseOrderDirect({
+      department: 'carp', destinationType: 'inventory',
+      supplierDetails: { supplierId: sup.id, supplierNameTel: sup.name, cashLedger: 'Cash' },
+      items: [{ name: 'Oak 40mm', qty: 6, unit: 'Sqm', fxRateBD: 380 }]
+    });
+    return { poId: po && po.id, err: po && po.error, pending: getPendingPOApprovals().length };
+  });
+  check('a real PO is waiting for approval', !poSeeded.err && poSeeded.pending >= 1, poSeeded);
+  await page.click('#ops-dashboard-body .opsd-step[data-k="po"]');
+  await page.waitForTimeout(200);
+  const poView = await page.evaluate(() => {
+    const b = document.getElementById('ops-dashboard-body');
+    return { body: b.querySelector('.opsd-wb').textContent.replace(/\s+/g, ' '), hasApprove: !!b.querySelector('[data-a="po-ok"]') };
+  });
+  check('the PO step shows the real order, its value and its supplier',
+    /Ops13b Timber/.test(poView.body) && /2,280\.000/.test(poView.body), poView.body.slice(0, 180));
+  check('it says whether the PO sits against a verified BOM',
+    /Against a verified BOM/.test(poView.body), poView.body.slice(0, 220));
+  const poApproved = await page.evaluate(async (poId) => {
+    document.querySelector('#ops-dashboard-body [data-a="po-ok"]').click();
+    await new Promise(r => setTimeout(r, 250));
+    const po = purchaseOrders.find(p => p.id === poId);
+    return { status: po.approvalStatus, by: po.approvedBy };
+  }, poSeeded.poId);
+  check('approving from the real button approves the PO', poApproved.status === 'approved', poApproved);
+  check('and records the signed-in identity, not a typed-in name',
+    !!poApproved.by && poApproved.by !== '', poApproved);
+
+  console.log('\n— the KPI stack carries the PO row the canvas shows —');
+  const poKpi = await page.evaluate(() => {
+    const b = document.getElementById('ops-dashboard-body');
+    return [...b.querySelectorAll('.opsd-kpi-r')].map(r => r.textContent.replace(/\s+/g, ' ').trim());
+  });
+  check('"POs waiting on you" is in the KPI stack',
+    poKpi.some(t => /POs waiting on you/.test(t)), poKpi);
 
   console.log('\n— the routing gate: tap order IS the sequence —');
   await page.click('#ops-dashboard-body .opsd-step[data-k="route"]');

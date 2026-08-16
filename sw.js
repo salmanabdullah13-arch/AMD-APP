@@ -18,11 +18,11 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v38"; // v38: 13b phone fidelity + safe-area floor
+const CACHE_VERSION = "amd-app-v39"; // v39: 17a item duplicate gate
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./ops-dashboard.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
-  "./data.js", "./chart-widgets.js", "./planner-tasks.js", "./ops-dashboard.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
+  "./data.js", "./purchase-item-gate.js", "./chart-widgets.js", "./planner-tasks.js", "./ops-dashboard.js", "./auth.js", "./approval-queue.js", "./print.js", "./teamcomms.js", "./shell.js",
   "./operations.js", "./curtain.js",
   "./purchasing.js", "./storekeeper.js", "./sales-dashboard.js", "./sales.js", "./estimator-dashboard.js", "./estimator.js",
   "./approver.js", "./jobs.js", "./accounts.js", "./hr.js", "./exec-shell.js", "./owner-dashboard.js", "./owner.js", "./admin.js",

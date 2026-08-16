@@ -1111,6 +1111,9 @@
      handler caches it after first load so offline sessions keep it too. -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="data.js"></script>
+<!-- Loads straight after data.js: the item master has to be in scope, and
+     createItemMasterEntry()'s own duplicate guard calls into it. -->
+<script src="purchase-item-gate.js"></script>
 <script src="chart-widgets.js"></script>
   <script src="planner-tasks.js"></script>
 <!-- Before operations.js: that file calls renderOpsDashboard() eagerly at

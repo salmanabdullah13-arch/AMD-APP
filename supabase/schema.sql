@@ -341,6 +341,22 @@ create table if not exists public.quotations (
   created_at timestamptz not null default now()
 );
 
+-- Shared approver hat (15 Aug 2026). Operations approves a quote up to
+-- QUOTE_APPROVAL_THRESHOLD; above it Operations RECOMMENDS and the Owner
+-- counter-signs. Added as alters, not columns in the create above, because
+-- `create table if not exists` is a no-op on the live table — a new column
+-- in that block would never reach a project that already has it.
+--
+-- These carry REAL approval state. Without them a recommendation persists
+-- with its state silently dropped, so a reload empties the Owner's
+-- sign-off inbox and the quote reads as a plain draft again. Same class of
+-- bug as the parent_job_id gap caught in Phase 2 slice 2.
+alter table public.quotations add column if not exists owner_review_status  text;
+alter table public.quotations add column if not exists recommended_by       text;
+alter table public.quotations add column if not exists recommended_date     date;
+alter table public.quotations add column if not exists counter_signed_by    text;
+alter table public.quotations add column if not exists counter_signed_date  date;
+
 alter table public.quotations enable row level security;
 
 drop policy if exists "quotations readable by any signed-in user" on public.quotations;

@@ -6952,3 +6952,97 @@ three counts and his screenshot exposed a fourth, worse one.
   the safe-area source guard — plus a fresh routing job seeded for the phone
   section since the earlier confirm had emptied the queue). Full sweep back
   to the two documented failures. `sw.js` v37 → v38.
+
+### 16 Aug 2026 — Shared approver hat committed; 17a Purchase handoff triaged, duplicate gate built
+
+Session opened on an uncommitted tree (the shared approver hat, written but
+never verified or committed). Verified it, fixed two real bugs in it, then
+Salman uploaded the **17a Purchase** design handoff.
+
+- **Shared approver hat** — Operations approves quotes up to
+  `QUOTE_APPROVAL_THRESHOLD` (BD 8,000); above it Operations *recommends*
+  and the Owner counter-signs, mirroring the department-budget two-step from
+  5 Aug so there is one escalation mechanism, not two. Maker-checker: the
+  Estimator who costed a quote cannot approve it. The Owner's **Sign-offs**
+  screen finally reaches `ownerOpenBudgetReviews()`, which had existed with
+  **no caller anywhere in the app**. Quotes and budgets share one inbox.
+  A 7th Operations step, **Approve purchase orders**, was added — the design
+  canvas carries it as its own chip while the bundle's step table listed only
+  six, which is why it was missed in the 13b build.
+- **Two real bugs fixed in that pending work.** (1) The PO KPI row summed
+  `amtBD` / `po.totals` — both **invoice** fields (`purchasing.js` builds
+  them at invoice creation, never on a PO), so every line summed to 0 and the
+  row read "BD 0.000 of spend unreleased" directly above a card showing the
+  true order value. (2) The five new approval fields were **absent from
+  `quotationObjToRow`/`RowToObj`**, so a recommendation persisted with its
+  state silently dropped — a reload emptied the Owner's inbox and the quote
+  read as an ordinary draft again. Same class as the `parent_job_id` gap
+  caught in Phase 2 slice 2.
+- **Live-project state re-verified** rather than assumed: only one copy of
+  the app exists on the PC; `main` matches `origin/main` exactly; all 18
+  registered cloud tables exist. Reads work with the publishable key. **DDL
+  does not** — the Management API returns 401 without a PAT, so the five new
+  `quotations` columns are written into `schema.sql` as idempotent alters but
+  are **not yet applied**. Until they are, counter-sign state works within a
+  session but does not survive a reload.
+
+**17a Purchase — triaged, not built wholesale.** The package is the largest
+yet: one shell, three view modes, ten working pages, four create flows. Its
+own README says to stop and ask when the data a screen needs does not exist.
+It does not, for a large part of it — confirmed by search, **four entirely
+new business entities** are required and have no array, no functions and no
+UI anywhere in the app today:
+
+| 17a needs | Status |
+|---|---|
+| RFQs + per-supplier quotes | **does not exist** — nav 2, page `rfq`, form `rfq`, and dashboard step `cmp`, which is the *default* selected step |
+| GRN / goods receipts + claims | **does not exist** — nav 5, page `grn`, step `grn` |
+| Rate contracts | **does not exist** — nav 8, page `ctr`, and the `pr` step's primary action |
+| Documents register | **does not exist** — nav 10, page `doc` |
+| Supplier on-time % / spend | **not tracked** — page `sup` columns |
+| PO promised-vs-actual delivery | **not tracked** — nav 4, page `del`, step `late` |
+
+Real data exists for the rest: `purchaseRequests[]`, `purchaseOrders[]`,
+`suppliers[]`, `itemMaster[]` (200 real Q-Pro items), `reminders[]`.
+
+**A direct conflict with CLAUDE.md, flagged not resolved silently.** 17a's
+`po` form specifies *"Under BD 1,000 the PO auto-releases."* CLAUDE.md §1's
+standing domain rule is that **every PO requires approval regardless of
+origin**, enforced via `approvalStatus` and by `convertPOtoInvoice()`
+refusing an unapproved PO. The handoff's own tiebreak (line 589) says
+CLAUDE.md wins, so auto-release was **not** built. Its *other* new
+threshold — Owner counter-signs a PO over BD 5,000 — does not conflict and
+is a straightforward addition once wanted. Separately, 17a moves **item-code
+ownership to Purchase**; the Item Master UI lives in Storekeeper today
+(Batch 2). Both need Salman's call.
+
+- **Built: the item duplicate gate** (`purchase-item-gate.js`), the one part
+  of 17a that is fully specified, needs no new entity, and runs against the
+  real 200-item master. It **blocks rather than warns**, per the handoff:
+  two codes for one item split the stock count, split the purchase history,
+  and put two different "last rates" in front of the Estimator.
+  Normalisation → abbreviation map (read off the real export's own
+  spellings, not invented) → Sørensen–Dice over token sets → the three
+  adjustments → thresholds 0.92 / 0.62 / 0.34. An **exact** match cannot be
+  created at all and has no override; a **near** match needs both a declared
+  override and a stated difference, which is persisted on the new code
+  (`distinctFrom`) so anyone searching either spelling sees why both exist.
+  Editing the description resets both. Enforced inside
+  `createItemMasterEntry()`, not only in a form — the explicit-`id` import
+  path stays open so the real Q-Pro export is never gated.
+- **Still owed on the gate**: the handoff requires the same normalisation
+  server-side on save ("a client-side gate is a courtesy, not a guarantee").
+  That needs a Postgres function + trigger, so it needs a PAT. Marked in the
+  file as `PURCHASE_ITEM_GATE_SERVER_SIDE = false` rather than quietly
+  skipped.
+- **Verification**: new `e2e-item-duplicate-gate.js` 27/27 (normalisation,
+  every scoring adjustment, all four gate states against a real master item,
+  exact-cannot-be-forced-even-with-an-override, near-needs-a-stated-reason,
+  the reset-on-edit rule, and the import path staying open); new
+  `e2e-shared-approver-hat.js` 23/23; `e2e-ops-13b.js` 51/51. The suites that
+  actually call `createItemMasterEntry()` re-run clean (rate-movement 19/19,
+  estimator-material-search 12/12, demo-data 12/12, cost-ledger 17/17,
+  audit-phase-e 7/7, material-requests 11/11) — tallies extracted by
+  `grep`, not by eyeballing a last line, per the 9 Aug sweep blind spot.
+- The 17a spec is filed at `docs/design-handoffs/17a-purchase.md`; the 1.4MB
+  prototype and its runtime were not committed. `sw.js` v38 → v39.

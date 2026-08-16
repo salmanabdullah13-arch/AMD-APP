@@ -86,6 +86,10 @@
   flex:none; background:var(--sunk); border-top:1px solid var(--line2);
   padding:12px 14px; display:flex; align-items:center; gap:10px;
 }
+/* routeFoot() wraps its controls in one span so the phone can hide them as a
+   unit — that span has to be a flex row itself, or the block-level urgent
+   toggle inside it breaks the line and the whole footer stacks. */
+.opsd-wf-route{ display:flex; align-items:center; gap:10px; flex:1 1 auto; min-width:0; }
 
 /* "Open where?" menu */
 .opsd-expwrap{ position:relative; }
@@ -255,6 +259,10 @@ button.opsd-roll-r{ width:100%; border:0; border-bottom:1px solid var(--line2); 
   background:var(--sunk); font-size:12.5px; color:var(--tx2); white-space:nowrap;
 }
 .opsd-datelabel .opsd-date{ border:0; background:transparent; height:auto; flex:1 1 auto; font-weight:650; color:var(--tx); }
+/* The card's height is fixed by design, so an empty state must FILL it —
+   a short message pinned to the top left a large blank slab (Salman circled
+   exactly that on 15 Aug). Centred in the space instead. */
+.opsd-wb:has(> .opsd-empty){ display:flex; align-items:center; justify-content:center; }
 .opsd-empty{ text-align:center; padding:36px 18px; }
 .opsd-empty b{ display:block; font-size:14px; font-weight:650; color:var(--ok); }
 .opsd-empty span{ display:block; font-size:11.5px; color:var(--tx3); margin-top:5px; }

@@ -1595,6 +1595,7 @@ const EXEC_NAV_CONFIGS = {
       nv('op-quote', '◇', 'Quote approval', "opsStep('quote')", nvTag(() => typeof quotations !== 'undefined' ? quotations.filter(q => q.stage === 'approver' && q.lifecycleStatus !== 'confirmed').length : 0)),
       nv('op-new', '⇄', 'New jobs', "opsStep('route')", nvTag(() => getJobsPendingRouting().length)),
       nv('op-bud', '✓', 'BOM verification', "opsStep('budget')", nvTag(() => typeof getAllPendingBudgetApprovals === 'function' ? getAllPendingBudgetApprovals().length : 0)),
+      nv('op-po', '⬡', 'Approve purchase orders', "opsStep('po')", nvTag(() => typeof getPendingPOApprovals === 'function' ? getPendingPOApprovals().length : 0)),
       nv('op-curt', '≋', 'Curtain BOM', "opsStep('curt')", nvTag(() => typeof curtainPendingApprovals === 'function' ? curtainPendingApprovals().length : 0)),
       nv('op-proj', '▣', 'Jobs in production', "opsGoTo('projects')"),
       nv('op-cap', '◴', 'Capacity', "opsGoTo('capacity')"),

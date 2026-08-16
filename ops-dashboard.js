@@ -124,11 +124,19 @@ window.OpsUI = (function () {
     }, []);
   }
   function qDel() { return safe(function () { return opsReadyToScheduleJobs(); }, []); }
+  // 7th step (15 Aug 2026). The canvas Salman holds shows "Approve purchase
+  // orders — supplier POs against the verified BOM" as its own chip; the
+  // README's step table in the bundle I was given lists only six, which is
+  // why it was missing. Real queue: POs already awaiting approval.
+  function qPo() { return safe(function () { return getPendingPOApprovals(); }, []); }
 
+  // Order is the canvas's own reading order: three per row on desktop —
+  // quote · route · budget / po · exc · curt / del.
   var STEPS = [
     { k: 'quote', l: 'Approve quotes', m: 'feasibility sign-off before Sales sends it', q: qQuote, tone: 'bad' },
     { k: 'route', l: 'Route new jobs', m: 'the one human checkpoint', q: qRoute, tone: 'bad' },
     { k: 'budget', l: 'Verify department BOMs', m: 'before production starts · over BD 5,000 goes to Owner', q: qBudget, tone: 'warn' },
+    { k: 'po', l: 'Approve purchase orders', m: 'supplier POs against the verified BOM', q: qPo, tone: 'bad' },
     { k: 'exc', l: 'Chase exceptions', m: 'rework · stalled · over budget', q: qExc, tone: 'bad' },
     { k: 'curt', l: 'Curtain BOM', m: "Silva's submission", q: qCurt, tone: 'warn' },
     { k: 'del', l: 'Upcoming deliveries', m: 'ready · the scheduler books the slot', q: qDel, tone: 'wine' }
@@ -138,7 +146,10 @@ window.OpsUI = (function () {
      BD 5,000 rule (BUDGET_APPROVAL_THRESHOLD) is about department budgets;
      this one is introduced by the design and is display-only — it recommends,
      it does not gate. Kept separate so the two are never confused. */
-  var QUOTE_ESCALATION = 8000;
+  // The real, enforced threshold now lives in data.js (15 Aug 2026) — this
+  // reads it rather than keeping its own copy, so the banner can never say
+  // one number while the gate applies another.
+  var QUOTE_ESCALATION = safe(function () { return QUOTE_APPROVAL_THRESHOLD; }, 8000);
 
   /* ── step buttons ────────────────────────────────────────────────────── */
   function stepsHTML() {
@@ -373,9 +384,11 @@ window.OpsUI = (function () {
                 : '<div class="opsd-bom"><div class="opsd-bom-r"><span class="opsd-bom-c">No BOM on this line yet — the Estimator hasn\'t costed it.</span></div></div>') : '');
           }).join('') : '') + '</div>';
       }).join('') +
-      (m.total.sell > QUOTE_ESCALATION
-        ? bannerHTML('Above ' + bd(QUOTE_ESCALATION) + ' — this quote needs your sign-off and the Owner\'s. You recommend, the Owner counter-signs.')
-        : bannerHTML('Under ' + bd(QUOTE_ESCALATION) + ' — you sign this one off, no Owner step.', 'ok')) +
+      (m.q.ownerReviewStatus === 'pending-owner-review'
+        ? bannerHTML('Recommended by ' + (m.q.recommendedBy || '—') + ' — waiting on the Owner\'s counter-signature.')
+        : m.total.sell > QUOTE_ESCALATION
+          ? bannerHTML('Above ' + bd(QUOTE_ESCALATION) + ' — this quote needs your sign-off and the Owner\'s. You recommend, the Owner counter-signs.')
+          : bannerHTML('Under ' + bd(QUOTE_ESCALATION) + ' — you sign this one off, no Owner step.', 'ok')) +
       '<div class="opsd-deleg"><div class="opsd-deleg-t">Cannot verify this one?</div>' +
       '<div class="opsd-deleg-n">The Director signs on your behalf. Your reason and the hand-off stay on the quote\'s audit trail.</div>' +
       '<div class="opsd-reasons">' +
@@ -388,7 +401,10 @@ window.OpsUI = (function () {
   function quoteFoot() {
     var m = quoteModel();
     if (!m) return '';
-    return '<button class="opsd-btn flex" data-a="recommend">Recommend to the Owner →</button>' +
+    var waiting = m.q.ownerReviewStatus === 'pending-owner-review';
+    var over = m.total.sell > QUOTE_ESCALATION;
+    return '<button class="opsd-btn flex" data-a="recommend"' + (waiting ? ' disabled' : '') + '>' +
+      (waiting ? 'Waiting on the Owner' : over ? 'Recommend to the Owner →' : 'Approve the quote') + '</button>' +
       '<button class="opsd-btn sec" data-a="sendback">Send back to Sales with conditions</button>' +
       (m.more > 0 ? '<span class="opsd-more">' + m.more + ' more after this</span>' : '');
   }
@@ -482,6 +498,60 @@ window.OpsUI = (function () {
       (list.length > 1 ? '<span class="opsd-more">' + (list.length - 1) + ' more after this</span>' : '');
   }
 
+  /* ── state: purchase orders ──────────────────────────────────────────── */
+  function poLineAmount(l) {
+    return Number(l.netAmountBD) || Number(l.amountBD) || ((Number(l.fxRateBD) || 0) * (Number(l.qty) || 0));
+  }
+  function poModel() {
+    var list = qPo();
+    if (!list.length) return null;
+    var po = list[0];
+    var job = po.linkedJobId ? safe(function () { return getJobCard(po.linkedJobId); }, null) : null;
+    // PO lines carry productService/fxRateBD/netAmountBD — NOT the invoice
+    // shape (itemName/rateBD/amtBD). netAmountBD is only filled once the PO
+    // form computes it, so fall back to rate × qty rather than showing 0.
+    var value = (po.items || []).reduce(function (s, l) { return s + poLineAmount(l); }, 0);
+    return { po: po, job: job, value: value, more: list.length - 1 };
+  }
+  function poBody() {
+    var m = poModel();
+    if (!m) return emptyHTML('No purchase orders waiting', 'Nothing is holding up a supplier.');
+    var po = m.po;
+    // The design's own sub-line: supplier POs are checked AGAINST the verified
+    // BOM, so say whether that BOM is actually approved yet.
+    var budgetOk = m.job ? safe(function () {
+      return (m.job.items || []).some(function (it) {
+        return (it.departmentSequence || []).some(function (d) { return isDepartmentBudgetApproved(m.job, d); });
+      });
+    }, false) : null;
+    return jobHeadHTML(po.id + (po.supplierNameTel ? ' — ' + String(po.supplierNameTel).split('/')[0].trim() : ''),
+      (m.job ? m.job.id + ' · ' + (m.job.projectName || '') + ' · ' : 'No job link · ') + bd(m.value),
+      'Raised ' + ddmmyyyy(po.date || po.dateCreated) + (po.preparedBy ? ' by ' + po.preparedBy : '')) +
+      factsHTML([
+        ['Order value', bd(m.value), m.value > 1000 ? 'warn' : 'plain'],
+        ['Supplier', po.supplierNameTel || '—', 'plain'],
+        ['Against a verified BOM', m.job ? (budgetOk ? 'Yes — the department budget is approved' : 'NO — no approved department budget on this job') : 'Not linked to a job', m.job ? (budgetOk ? 'ok' : 'bad') : 'warn'],
+        ['Destination', po.type || po.destinationType || '—', 'plain']
+      ]) +
+      '<div class="opsd-roll"><div class="opsd-roll-h"><span class="opsd-roll-d">Item</span>' +
+      '<span class="opsd-roll-n">Qty</span><span class="opsd-roll-n">Amount</span></div>' +
+      (po.items || []).map(function (l) {
+        return '<div class="opsd-roll-r"><span class="opsd-roll-d">' + esc(l.productService || '—') + '</span>' +
+          '<span class="opsd-roll-n">' + esc(String(l.qty == null ? '—' : l.qty) + ' ' + (l.unit || '')) + '</span>' +
+          '<span class="opsd-roll-n">' + esc(bd(poLineAmount(l))) + '</span></div>';
+      }).join('') +
+      '<div class="opsd-roll-r is-tot"><span class="opsd-roll-d">Order total</span>' +
+      '<span class="opsd-roll-n"></span><span class="opsd-roll-n">' + esc(bd(m.value)) + '</span></div></div>' +
+      '<div class="opsd-note">Approving releases the spend. Every PO needs approval here regardless of origin — that rule predates this screen.</div>';
+  }
+  function poFoot() {
+    var m = poModel();
+    if (!m) return '';
+    return '<button class="opsd-btn flex" data-a="po-ok">Approve the purchase order</button>' +
+      '<button class="opsd-btn sec" data-a="po-back">Reject with a reason</button>' +
+      (m.more > 0 ? '<span class="opsd-more">' + m.more + ' more after this</span>' : '');
+  }
+
   /* ── state: exceptions ───────────────────────────────────────────────── */
   function excBody() {
     var list = qExc();
@@ -535,10 +605,11 @@ window.OpsUI = (function () {
     budget: ['BOM verification', 'Department BOMs against the confirmed selling price — nothing starts on the floor until you verify.'],
     exc: ['Exceptions', 'Blocked, stalled, reworked or over budget — the reason stays on the row.'],
     curt: ['Curtain BOM', "Silva's BOM against the confirmed selling price."],
+    po: ['Purchase order approval', 'Supplier POs against the verified BOM — approving releases the spend.'],
     del: ['Upcoming deliveries', 'Ready and QC-passed. The delivery dashboard books the slot — you can nudge it.']
   };
-  var BODY = { route: routeBody, quote: quoteBody, budget: budgetBody, exc: excBody, curt: curtBody, del: delBody };
-  var FOOT = { route: routeFoot, quote: quoteFoot, budget: budgetFoot, exc: excFoot, curt: curtFoot, del: delFoot };
+  var BODY = { route: routeBody, quote: quoteBody, budget: budgetBody, po: poBody, exc: excBody, curt: curtBody, del: delBody };
+  var FOOT = { route: routeFoot, quote: quoteFoot, budget: budgetFoot, po: poFoot, exc: excFoot, curt: curtFoot, del: delFoot };
 
   function widgetHTML() {
     var h = HEAD[S.step] || HEAD.route;
@@ -714,9 +785,23 @@ window.OpsUI = (function () {
       return qDel().filter(function (j) { return booked.indexOf(j.id) === -1; }).length;
     }, del);
 
+    // "POs waiting on you — BD x of spend unreleased · N blocks the floor",
+    // per the canvas's own KPI stack.
+    // Values come from poLineAmount(), the same helper the PO card itself
+    // uses. An earlier draft read amtBD/po.totals here — both are INVOICE
+    // fields (purchasing.js builds them at invoice creation, not PO), so
+    // every line summed to 0 and this row read "BD 0.000 of spend
+    // unreleased" while the card above it showed the real order value.
+    var pos = qPo();
+    var poValue = pos.reduce(function (s, po) {
+      return s + (po.items || []).reduce(function (t, l) { return t + poLineAmount(l); }, 0);
+    }, 0);
+    var poBlocking = pos.filter(function (po) { return !!po.linkedJobId; }).length;
+
     var rows = [
       ['On the promised date', (withDate.length - slipping) + ' of ' + withDate.length + ' job cards · ' + slipping + ' slipping', onTime + '%', onTime >= 90 ? 'ok' : onTime >= 75 ? 'warn' : 'bad'],
       ['BOMs waiting on you', held > 0 ? bd(held) + ' of cost held — the floor cannot start' : 'nothing held', String(pend.length), pend.length ? 'bad' : 'ok'],
+      ['POs waiting on you', pos.length ? bd(poValue) + ' of spend unreleased' + (poBlocking ? ' · ' + poBlocking + ' blocks the floor' : '') : 'nothing waiting', String(pos.length), pos.length ? 'bad' : 'ok'],
       ['Margin at risk', 'lines costed above their selling price', (atRisk > 0 ? '−' : '') + bd(atRisk), atRisk > 0 ? 'bad' : 'ok'],
       ['In rework this week', 'QC failures absorbed, not charged', String(reworkN), reworkN ? 'warn' : 'ok'],
       ['Deliveries ready', unbooked + ' still unbooked', String(del), unbooked ? 'warn' : 'ok']
@@ -824,7 +909,13 @@ window.OpsUI = (function () {
     // not one fixed destination.
     if (a === 'exp-queue') {
       S.exp = false;
-      var page = { route: 'alerts', budget: 'budgetapprovals', curt: 'curtapp', exc: 'projects', del: 'delivery', quote: 'projects' }[S.step] || 'projects';
+      var page = { route: 'alerts', budget: 'budgetapprovals', curt: 'curtapp', exc: 'projects', del: 'delivery', quote: 'projects', po: 'projects' }[S.step] || 'projects';
+      // The PO queue's full page lives in Purchasing, not Operations.
+      if (S.step === 'po') {
+        if (typeof execPushCurrent === 'function') execPushCurrent();
+        if (typeof openPurchasingModule === 'function') { openPurchasingModule(); if (typeof purchGoTo === 'function') purchGoTo('approvals'); }
+        return;
+      }
       if (typeof opsGoTo === 'function') opsGoTo(page);
       return;
     }
@@ -905,21 +996,16 @@ window.OpsUI = (function () {
     }
     if (a === 'recommend') {
       var qm3 = quoteModel(); if (!qm3) return;
-      // No Owner quote sign-off state exists in this app — see note 3. This
-      // records the recommendation and tells the Owner, rather than faking a
-      // lifecycle transition that nothing downstream would honour.
-      safe(function () {
-        logQuotationAudit(qm3.q, { action: 'Operations recommends', user: me(), userType: 'OPERATIONS', status: qm3.q.lifecycleStatus });
-        persistQuotationUpdate(qm3.q);
-      }, null);
-      safe(function () {
-        Promise.resolve(sendMessage({
-          from: me(), to: 'Owner',
-          body: 'Operations recommends quotation ' + qm3.q.id + ' (' + bd(qm3.total.sell) + ') for your counter-signature.',
-          linkedType: 'quotation', linkedId: qm3.q.id
-        })).catch(function () { });
-      }, null);
-      alertMsg('Recommended — the Owner has been messaged and it is on the audit trail.');
+      // Real approval authority since 15 Aug 2026 — Salman shared the approver
+      // hat with Operations. Under the threshold this approves outright; over
+      // it, approveQuotation() records the recommendation and routes it to the
+      // Owner to counter-sign. One call either way; the data layer decides.
+      var r5 = safe(function () { return approveQuotation(qm3.q.id, me()); }, { error: 'Could not approve.' });
+      if (r5 && r5.error) { alertMsg(r5.error); return; }
+      alertMsg(r5.ownerReviewStatus === 'pending-owner-review'
+        ? 'Recommended — the Owner has been messaged to counter-sign.'
+        : 'Approved — the quote is Open and back with Sales.');
+      if (typeof execRefreshNavGroups === 'function') execRefreshNavGroups();
       paint(); return;
     }
 
@@ -958,6 +1044,26 @@ window.OpsUI = (function () {
         if (!j) return;
         j.budgetStatus = 'rejected'; j.bomStatus = 'bom_pending'; j.bomRejectionComment = n2.trim();
       }, null);
+      paint(); return;
+    }
+
+    /* purchase orders — real approval, and it records the signed-in identity
+       rather than purchasing.js's window.prompt("Your name") */
+    if (a === 'po-ok') {
+      var pm = poModel(); if (!pm) return;
+      var r6 = safe(function () { return approvePO(pm.po.id, me()); }, { error: 'Could not approve.' });
+      if (r6 && r6.error) { alertMsg(r6.error); return; }
+      if (typeof execRefreshNavGroups === 'function') execRefreshNavGroups();
+      paint(); return;
+    }
+    if (a === 'po-back') {
+      var pm2 = poModel(); if (!pm2) return;
+      var why = window.prompt('Why is this PO being rejected?');
+      if (why === null) return;
+      if (!why.trim()) { alertMsg('A reason is required — Purchasing needs to know what to change.'); return; }
+      var r7 = safe(function () { return rejectPO(pm2.po.id, me(), why.trim()); }, { error: 'Could not reject.' });
+      if (r7 && r7.error) { alertMsg(r7.error); return; }
+      if (typeof execRefreshNavGroups === 'function') execRefreshNavGroups();
       paint(); return;
     }
 

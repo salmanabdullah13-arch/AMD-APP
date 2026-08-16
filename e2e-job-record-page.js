@@ -144,7 +144,13 @@ const check = (name, ok, extra) => {
     // this job HAS delivery notes, so the card opens by default
     const openState = document.getElementById('jobs-body').textContent;
     const wasOpen = /Delivery notes/.test(openState);
-    // and a fresh job with nothing should be closed with the "Nothing yet" line
+    // and a fresh job with nothing should be closed with the "Nothing yet" line.
+    // This block is still inside the Sales-session section above, and since
+    // 15 Aug approveQuotation() checks authority — a Sales session genuinely
+    // can't approve a quote. This seed is testing the Documents card, not
+    // authority, so approve as the Owner and hand the Sales hat straight back.
+    const wasRole = window.cloudUserType;
+    window.cloudUserType = 'owner';
     const c = createCustomer({ name: 'Empty Co', contactPerson: 'B', tel: '39445566', address: 'M' });
     const e = createEnquiry({ division: 'Joinery', customerId: c.id, contactPerson: 'B', tel: c.tel, source: 'walk inn', salesPerson: 'Silva' });
     const q = convertEnquiryToQuotation(e.id, { projectName: 'Nothing Yet' });
@@ -152,6 +158,7 @@ const check = (name, ok, extra) => {
     transferQuotationStage(q.id, 'approver', 'Estimator');
     approveQuotation(q.id, 'Salman Abdullah');
     const j2 = confirmQuotationToJobCard(q.id, 'Silva');
+    window.cloudUserType = wasRole;
     jobsDocsOpen = null;
     openJobHub(j2.id);
     const emptyText = document.getElementById('jobs-body').textContent;

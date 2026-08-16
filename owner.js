@@ -44,6 +44,11 @@ document.body.appendChild(ownerModuleWrap);
 function ownerBuildShell() {
   const signups = (typeof approvalQueueRows !== 'undefined' && approvalQueueRows.length) || 0;
   const budgets = typeof getPendingBudgetApprovalsFor === 'function' ? getPendingBudgetApprovalsFor('owner').length : 0;
+  // 15 Aug 2026 — Salman shared the approver hat with Operations, so quotes
+  // over QUOTE_APPROVAL_THRESHOLD now come here to be counter-signed. They sit
+  // in the same inbox as budget reviews: both are "someone else committed the
+  // company to money and needs my signature".
+  const quoteSignoffs = typeof getQuotesAwaitingOwnerReview === 'function' ? getQuotesAwaitingOwnerReview().length : 0;
   ownerModuleWrap.innerHTML = execShellHTML({
     title: 'Owner Dashboard', sub: null, role: 'Owner · Full access',
     contentId: 'owner-body', closeFn: 'closeOwnerModule',
@@ -52,7 +57,10 @@ function ownerBuildShell() {
         label: 'Workspace', items: [
           { id: 'owner-overview', ico: '▦', label: 'Overview', onclick: "ownerNav('dashboard')" },
           { id: 'owner-planner', ico: '🗓', label: 'Week planner', onclick: 'execOpenPlanner()' },
-          { id: 'owner-tasks', ico: '✓', label: 'My tasks', onclick: "ownerNav('dashboard')" }
+          { id: 'owner-tasks', ico: '✓', label: 'My tasks', onclick: "ownerNav('dashboard')" },
+          /* Was unreachable before this — ownerOpenBudgetReviews() existed
+             with no caller anywhere in the app. */
+          { id: 'owner-budgets', ico: '✍', label: 'Sign-offs', onclick: 'ownerOpenBudgetReviews()', tag: (quoteSignoffs + budgets) || '' }
         ]
       },
       {
@@ -277,6 +285,21 @@ function ownerStatTiles(acctK, jobK) {
 // approver) and the over-threshold "pending-owner-review" ones — this
 // screen shows both, branching the action per row's own actual status.
 function ownerOpenBudgetReviews() { ownerView = 'budget-review'; renderOwnerBody(); }
+// Quote counter-signature — the Owner half of the shared approver hat.
+// 'Salman Abdullah' is passed as the actor for the same reason the budget
+// handlers do: the Owner dashboard has no per-user identity picker.
+function ownerQuoteSignOff(qtnId) {
+  const r = approveQuotationOwnerReview(qtnId, 'Salman Abdullah', 'owner');
+  if (r && r.error) { showAlert(r.error); return; }
+  ownerBuildShell(); ownerOpenBudgetReviews();
+}
+function ownerQuoteDecline(qtnId) {
+  const comment = window.prompt('Why is this going back to Operations?');
+  if (comment === null) return;
+  const r = rejectQuotationOwnerReview(qtnId, 'Salman Abdullah', comment, 'owner');
+  if (r && r.error) { showAlert(r.error); return; }
+  ownerBuildShell(); ownerOpenBudgetReviews();
+}
 function ownerBudgetReviewApprove(jobId, deptKey, status) {
   const result = status === 'pending-owner-review'
     ? approveDepartmentBudgetOwnerReview(jobId, deptKey, 'Salman Abdullah')
@@ -304,7 +327,27 @@ function renderOwnerBody() {
   }
   if (ownerView === 'budget-review') {
     const rows = getPendingBudgetApprovalsFor('owner');
-    body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span>` + (rows.length === 0
+    const quotes = typeof getQuotesAwaitingOwnerReview === 'function' ? getQuotesAwaitingOwnerReview() : [];
+    const quotesHtml = `
+      <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px;">Quotes to counter-sign</p>` +
+      (quotes.length === 0
+        ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No quotes waiting on your counter-signature.</p></div>`
+        : quotes.map(q => {
+            const c = customers.find(x => x.id === q.customerId);
+            const val = quoteSellingValue(q);
+            return `
+            <div class="sales-card">
+              <p style="font-weight:700;font-size:13px;margin:0 0 4px;">${ownerEsc(q.id)} — ${ownerEsc(q.projectName || '')}</p>
+              <p style="font-size:11px;color:#94a3b8;margin:0 0 6px;">${ownerEsc(c ? c.name : '—')} · ${ownerBHD(val)} · over BD ${QUOTE_APPROVAL_THRESHOLD} — recommended by ${ownerEsc(q.recommendedBy || '—')}${q.recommendedDate ? ` on ${ownerEsc(q.recommendedDate)}` : ''}</p>
+              <div style="display:flex;gap:8px;">
+                <button class="primary" style="flex:1;font-size:11.5px;" onclick="ownerQuoteSignOff('${ownerEsc(q.id)}')">Counter-sign</button>
+                <button class="secondary" style="flex:1;font-size:11.5px;color:#b91c1c;" onclick="ownerQuoteDecline('${ownerEsc(q.id)}')">Send back</button>
+              </div>
+            </div>`;
+          }).join('')) +
+      `<p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:14px 2px 8px;">Department budgets</p>`;
+
+    body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span>` + quotesHtml + (rows.length === 0
       ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No department budgets waiting on you right now.</p></div>`
       : rows.map(({ job, deptKey, entry }) => {
           const c = customers.find(x => x.id === job.customerId);

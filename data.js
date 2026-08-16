@@ -2535,6 +2535,12 @@ function quotationRowToObj(row) {
     lifecycleStatus: row.lifecycle_status, stage: row.stage,
     estimatorPickedBy: row.estimator_picked_by, approverPickedBy: row.approver_picked_by,
     headerComment: row.header_comment, date: row.date, confirmDate: row.confirm_date,
+    // Shared approver hat — real approval state, so it has to survive a
+    // reload. Dropping these here would empty the Owner's sign-off inbox
+    // and make a recommended quote read as an ordinary draft again.
+    ownerReviewStatus: row.owner_review_status || null,
+    recommendedBy: row.recommended_by || null, recommendedDate: row.recommended_date || null,
+    counterSignedBy: row.counter_signed_by || null, counterSignedDate: row.counter_signed_date || null,
     auditLog: row.audit_log || []
   };
 }
@@ -2548,6 +2554,9 @@ function quotationObjToRow(q) {
     lifecycle_status: q.lifecycleStatus, stage: q.stage,
     estimator_picked_by: q.estimatorPickedBy, approver_picked_by: q.approverPickedBy,
     header_comment: q.headerComment || "", date: q.date, confirm_date: q.confirmDate,
+    owner_review_status: q.ownerReviewStatus || null,
+    recommended_by: q.recommendedBy || null, recommended_date: q.recommendedDate || null,
+    counter_signed_by: q.counterSignedBy || null, counter_signed_date: q.counterSignedDate || null,
     audit_log: q.auditLog || []
   };
 }
@@ -3088,18 +3097,44 @@ function createItemMasterEntry({
   id = null, stockCategory, vendorId = null, catelogId = null, vatPercent = 10, name,
   rollWidth = null, packing = "", unit, cost = 0, sellingPrice = 0, reorderLevel = 0,
   description = "", purchaseAllowed = true, salesAllowed = true, rawMaterial = false,
-  openingStock = 0, lastPurchaseRate = 0
+  openingStock = 0, lastPurchaseRate = 0,
+  // Duplicate gate (design handoff 17a). The officer's declared "not a
+  // duplicate" plus the difference they stated. Only ever unlocks a NEAR
+  // match — an exact duplicate has no override, by design.
+  duplicateOverride = false, duplicateDifference = ""
 } = {}) {
   if (!stockCategory) return { error: "Stock Category is required." };
   if (!name || !name.trim()) return { error: "Stock Name is required." };
   if (!unit) return { error: "Units is required." };
+  // The gate runs here, not only in the form, because the form is a
+  // courtesy and this is the actual boundary. Skipped when an explicit id
+  // is supplied — that is the seeding/import path (the real 200-item
+  // Q-Pro export), which carries codes that already exist by definition.
+  if (!id && typeof itemGateState === "function") {
+    const gate = itemGateState(name, { override: duplicateOverride, difference: duplicateDifference });
+    if (!gate.canCreate) {
+      return {
+        error: gate.state === "exact"
+          ? `Cannot create — duplicate. ${gate.matches[0].id} is this item. Change the description, or use the existing code.`
+          : `Cannot create — too close to ${gate.matches[0].id} (${gate.matches[0].name}). State how this item differs first.`,
+        duplicateOf: gate.blockedBy, gateState: gate.state
+      };
+    }
+    // A near-match that was overridden carries its reason forever: anyone
+    // searching either spelling needs to see why both codes exist.
+    if (gate.state === "near" && duplicateOverride) {
+      var _gateNote = { of: gate.matches[0].id, difference: String(duplicateDifference).trim(), declaredOn: new Date().toISOString().slice(0, 10) };
+    }
+  }
   const item = {
     id: id || nextItemStockCode(), stockCategory, vendorId, catelogId, vatPercent: Number(vatPercent) || 0,
     name: name.trim(), rollWidth: rollWidth ? Number(rollWidth) : null, packing, unit,
     cost: Number(cost) || 0, avgCost: Number(cost) || 0, sellingPrice: Number(sellingPrice) || 0,
     reorderLevel: Number(reorderLevel) || 0, description,
     purchaseAllowed: !!purchaseAllowed, salesAllowed: !!salesAllowed, rawMaterial: !!rawMaterial,
-    openingStock: Number(openingStock) || 0, closingStock: Number(openingStock) || 0, lastPurchaseRate: Number(lastPurchaseRate) || 0
+    openingStock: Number(openingStock) || 0, closingStock: Number(openingStock) || 0, lastPurchaseRate: Number(lastPurchaseRate) || 0,
+    // Set only when a near-match was consciously declared distinct.
+    distinctFrom: typeof _gateNote !== "undefined" ? _gateNote : null
   };
   itemMaster.push(item);
   return item;
@@ -3640,9 +3675,58 @@ function logQuotationAudit(qtn, { action, user, userType, status }) {
 // Approve Quote — the only action that flips Draft -> Open. Sends the
 // quotation back to Sales' queue; "Confirm Quote" (Open -> Confirmed, the
 // bridge into Jobs/Invoicing) is explicitly out of scope for this rebuild.
-function approveQuotation(qtnId, approvedBy) {
+// ── QUOTE APPROVAL AUTHORITY (15 Aug 2026) ────────────────────────────────
+// Salman's call: "I'm the approver, Salman Abdullah. As the owner I wear the
+// approver hat — I want to pass the hat to Operations, or at least share the
+// hat." Shared, not passed: Operations approves up to the threshold, and
+// above it Operations recommends while the Owner counter-signs. That is
+// exactly the escalation design handoff 13b already specifies in its own
+// banner copy, and the same two-step shape department budgets have used
+// since 5 Aug — one mechanism to learn, not two.
+//
+// The value is the quote's own selling total, so this reads REVENUE, while
+// BUDGET_APPROVAL_THRESHOLD reads COST. Deliberately separate constants:
+// they are different money and will not always move together.
+const QUOTE_APPROVAL_THRESHOLD = 8000;
+// Roles that may approve a quotation at all. 'approver' stays for the
+// standalone module (Salman's own hat); operations_manager is the shared
+// hat; owner/admin keep their wildcard.
+const QUOTE_APPROVER_ROLES = ["approver", "operations_manager", "owner", "admin"];
+function canApproveQuotes(userType) {
+  return QUOTE_APPROVER_ROLES.includes(userType || (typeof currentUserType === "function" ? currentUserType() : ""));
+}
+// A quote's selling value — the same figure the Approver's own summary and
+// 13b's roll-up show, so the threshold is measured against what a person
+// actually sees on screen.
+function quoteSellingValue(qtn) {
+  return (qtn.items || []).reduce((s, it) => s + (it.netAmount || 0), 0);
+}
+function quoteRequiresOwnerCounterSign(qtn) {
+  return quoteSellingValue(qtn) > QUOTE_APPROVAL_THRESHOLD;
+}
+// Quotes an Owner/Admin still has to counter-sign. Mirrors
+// getAllPendingBudgetApprovals() so both feed one inbox.
+function getQuotesAwaitingOwnerReview() {
+  return quotations.filter(q => q.ownerReviewStatus === "pending-owner-review");
+}
+
+function approveQuotation(qtnId, approvedBy, approverUserType) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
+  // Authority. Defaults to the signed-in role, so every existing call site
+  // (and ~24 e2e seeds) keeps working — the offline bypass and the Owner
+  // both resolve to full authority.
+  const role = approverUserType || (typeof currentUserType === "function" ? currentUserType() : "owner");
+  if (!canApproveQuotes(role)) return { error: "Your role can't approve quotations." };
+  // Maker-checker, same rule budgets have had since 5 Aug: whoever costed it
+  // can't also wave it through. Only bites when an Estimator actually picked
+  // it up, so it can't fire on a quote nobody estimated.
+  if (qtn.estimatorPickedBy && approvedBy === qtn.estimatorPickedBy) {
+    return { error: "The Estimator who costed this quote can't also approve it." };
+  }
+  if (qtn.ownerReviewStatus === "pending-owner-review") {
+    return { error: "This quote is already recommended and awaiting the Owner's counter-signature." };
+  }
   // Lifecycle gate (6 Aug 2026 audit, Critical #1). This is the ONLY action
   // that flips Draft -> Open, and it must only ever run on a Draft: re-
   // approving a CONFIRMED quote used to silently revert it to Open, after
@@ -3659,10 +3743,76 @@ function approveQuotation(qtnId, approvedBy) {
   if (qtn.stage !== "approver") return { error: `Quotation must be with the Approver before it can be approved (currently at ${qtn.stage === "sales" ? "Sales" : "Estimator"}).` };
   if (qtn.lifecycleStatus === "confirmed") return { error: "This quotation is already confirmed into a Job Card — it can't be approved again." };
   if (qtn.lifecycleStatus === "open") return { error: "This quotation is already approved (Open)." };
+
+  // Over the line: this approval is real and recorded, but the quote does NOT
+  // go Open until the Owner counter-signs. lifecycleStatus deliberately stays
+  // "draft" and a separate field carries the review state — the same choice
+  // the budget side made with its own approvalStatus, so no existing reader of
+  // lifecycleStatus changes behaviour. An Owner approving directly skips
+  // straight through, since there is nobody above them to counter-sign.
+  const ownerLevel = role === "owner" || role === "admin";
+  if (!ownerLevel && quoteRequiresOwnerCounterSign(qtn)) {
+    qtn.ownerReviewStatus = "pending-owner-review";
+    qtn.recommendedBy = approvedBy;
+    qtn.recommendedDate = new Date().toISOString().slice(0, 10);
+    logQuotationAudit(qtn, { action: "Recommend", user: approvedBy, userType: "OPERATIONS", status: "Draft" });
+    logActivity({
+      type: "quotation-recommended", linkedType: "quotation", linkedId: qtn.id, user: approvedBy,
+      message: `${qtn.id} (BD ${quoteSellingValue(qtn).toFixed(3)}, over BD ${QUOTE_APPROVAL_THRESHOLD}) recommended — awaiting the Owner's counter-signature`
+    });
+    persistQuotationUpdate(qtn);
+    try {
+      Promise.resolve(sendMessage({
+        from: approvedBy, to: "Owner",
+        body: `${qtn.id} (BD ${quoteSellingValue(qtn).toFixed(3)}) is recommended and needs your counter-signature.`,
+        linkedType: "quotation", linkedId: qtn.id
+      })).catch(() => {});
+    } catch (e) { /* a notification must never block an approval */ }
+    return qtn;
+  }
+
   qtn.stage = "sales";
   qtn.lifecycleStatus = "open";
+  qtn.ownerReviewStatus = null;
   logQuotationAudit(qtn, { action: "Transfer", user: approvedBy, userType: "SALES", status: "Open" });
   logActivity({ type: "quotation-approved", linkedType: "quotation", linkedId: qtn.id, user: approvedBy, message: `${qtn.id} approved — Open` });
+  persistQuotationUpdate(qtn);
+  return qtn;
+}
+
+// The Owner/Admin-only second step. A separate function, not a flag on
+// approveQuotation(), so every under-threshold call site is untouched.
+function approveQuotationOwnerReview(qtnId, approvedBy, approverUserType) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const role = approverUserType || (typeof currentUserType === "function" ? currentUserType() : "owner");
+  if (role !== "owner" && role !== "admin") return { error: "Only the Owner can counter-sign this quote." };
+  if (qtn.ownerReviewStatus !== "pending-owner-review") return { error: "This quote isn't awaiting a counter-signature." };
+  if (approvedBy === qtn.recommendedBy) return { error: "The same person who recommended it can't also counter-sign it." };
+  qtn.stage = "sales";
+  qtn.lifecycleStatus = "open";
+  qtn.ownerReviewStatus = null;
+  qtn.counterSignedBy = approvedBy;
+  qtn.counterSignedDate = new Date().toISOString().slice(0, 10);
+  logQuotationAudit(qtn, { action: "Counter-sign", user: approvedBy, userType: "OWNER", status: "Open" });
+  logActivity({ type: "quotation-approved", linkedType: "quotation", linkedId: qtn.id, user: approvedBy, message: `${qtn.id} counter-signed by the Owner — Open` });
+  persistQuotationUpdate(qtn);
+  return qtn;
+}
+function rejectQuotationOwnerReview(qtnId, rejectedBy, comment, approverUserType) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const role = approverUserType || (typeof currentUserType === "function" ? currentUserType() : "owner");
+  if (role !== "owner" && role !== "admin") return { error: "Only the Owner can decline a counter-signature." };
+  if (qtn.ownerReviewStatus !== "pending-owner-review") return { error: "This quote isn't awaiting a counter-signature." };
+  if (!comment || !comment.trim()) return { error: "A reason is required — Operations needs to know what to change." };
+  qtn.ownerReviewStatus = null;
+  qtn.recommendedBy = null;
+  logQuotationAudit(qtn, { action: "Counter-sign declined", user: rejectedBy, userType: "OWNER", status: "Draft" });
+  logActivity({
+    type: "quotation-recommend-declined", linkedType: "quotation", linkedId: qtn.id, user: rejectedBy,
+    message: `${qtn.id} sent back by the Owner — ${comment.trim()}`, reason: comment.trim()
+  });
   persistQuotationUpdate(qtn);
   return qtn;
 }
