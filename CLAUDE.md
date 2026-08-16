@@ -7189,3 +7189,57 @@ earlier the same day. New `purchase-ui.js` (`window.PurUI`) and
 - **Still open on 17a**: the four new arrays are local-only until their
   tables exist (needs a Management API token), and the handoff's
   server-side duplicate check needs the same.
+
+### 16 Aug 2026 (later still) — 17a schema applied live: four tables, the item master, and a real server-side duplicate gate
+
+Salman answered the three open questions (migrate the item master properly ·
+scope the Purchase tables to Purchase/Operations/Accounts/Owner · here is a
+Management API token) and all of it was applied and verified against the
+live project. New `supabase/17a-purchase.sql`, also appended to
+`schema.sql` so a wholesale re-run stays complete.
+
+- **The five `quotations` columns are live** — counter-sign state now
+  survives a reload. Verified against `information_schema`, not a 201.
+- **The four Purchase tables** (`rfqs`, `goods_receipts`, `rate_contracts`,
+  `purchase_documents`) as whole-object jsonb, registered in
+  `CLOUD_JSON_COLLECTIONS` so the existing snapshot-diff scanner handles
+  them with no new persistence code.
+- **`is_purchase_side()`** scopes all four: `purchaser`, `storekeeper`,
+  `operations_manager`, `accounts`, `owner`, `admin`. **`storekeeper` is a
+  deliberate addition to Salman's four** — the store is who physically
+  books goods in ("the store books the goods in", the handoff's own words),
+  so excluding them would break the GRN workflow outright, and they already
+  see item cost throughout Storekeeper's own screens. Sales is excluded,
+  which was the point: a Sales login could previously have read every
+  supplier's quoted price through the raw API.
+- **The item master is finally persisted** — a real columnar
+  `public.item_master`, not a jsonb payload, because the duplicate trigger
+  has to scan sibling ROWS to find a match and a single blob makes that
+  impossible. Read by any approved user (the Estimator's BOM typeahead,
+  Curtain, the store count and Jobs' material issue all resolve against
+  it); written only by the purchase side, per the handoff's "Purchase owns
+  the item code". **This closes a gap that predates 17a**: nothing ever
+  persisted `itemMaster`, so an item created in the new Purchase form — and
+  Storekeeper's own reorder-level edits — vanished on reload.
+  206 real rows seeded with `legacy_import = true`.
+- **The server-side duplicate gate is real.** `item_abbrev()`,
+  `item_tokens()` and `item_dup_score()` mirror `inorm()`/`iScore()` in
+  `purchase-item-gate.js`, and a BEFORE INSERT trigger enforces the same
+  0.92 / 0.62 thresholds. **Proven live against the database, bypassing the
+  client entirely**: an exact duplicate is refused naming the existing code;
+  a near match with no stated reason is refused; the same insert succeeds
+  once `distinct_from` carries the reason; a genuinely new item inserts. The
+  SQL scorer returns exactly the JS values on the reference cases —
+  identical 1.0, abbreviation-spelled 1.0, variant 0.70, unrelated 0.
+  `legacy_import` exempts the seeded export, where variants (SPANNER
+  13"/14"/15" — all three genuinely exist) legitimately coexist; it mirrors
+  the client's own explicit-id import exemption.
+- This closes the handoff's own caveat that "a client-side gate is a
+  courtesy, not a guarantee."
+- **Verification**: offline regression clean (item-duplicate-gate 27/27,
+  purchase-cycle 50/50, purchase-17a 49/49, rate-movement 19/19, demo-data
+  12/12, cost-ledger 17/17); live checks confirmed every policy is in
+  place, `is_purchase_side()` includes purchaser and storekeeper but not
+  sales, and all five tables reject an unauthenticated reader. The seeding
+  script was a one-off and was deleted after use. Token used only in
+  ephemeral shell calls; repo grepped for `sbp_` before committing (clean).

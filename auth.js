@@ -519,6 +519,10 @@ function finishCloudLogin(displayName, isRealSession = true, userType = 'owner')
     // loaded first, so that alone waits on all four here.
     const businessDataReady = Promise.all([
       typeof initCloudCustomersCache === 'function' ? initCloudCustomersCache() : Promise.resolve(),
+      // The item master is referenced by the Estimator's BOM typeahead,
+      // Curtain, the store count and Jobs' material issue, so it loads in
+      // the same parallel batch rather than behind anything.
+      typeof initCloudItemMasterCache === 'function' ? initCloudItemMasterCache() : Promise.resolve(),
       typeof initCloudEnquiriesCache === 'function' ? initCloudEnquiriesCache() : Promise.resolve(),
       typeof initCloudQuotationsCache === 'function' ? initCloudQuotationsCache() : Promise.resolve(),
       typeof initCloudJobCardsCache === 'function' ? initCloudJobCardsCache() : Promise.resolve(),

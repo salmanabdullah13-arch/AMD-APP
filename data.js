@@ -3137,13 +3137,89 @@ function createItemMasterEntry({
     distinctFrom: typeof _gateNote !== "undefined" ? _gateNote : null
   };
   itemMaster.push(item);
+  persistNewItemMaster(item);
   return item;
 }
 function updateItemMasterEntry(itemId, patch) {
   const it = itemMaster.find(i => i.id === itemId);
   if (!it) return null;
   Object.assign(it, patch);
+  persistItemMasterUpdate(it);
   return it;
+}
+
+// ── Item master in the cloud (16 Aug 2026) ─────────────────────────────
+// Columnar rather than a jsonb payload, because the server-side duplicate
+// trigger has to scan sibling ROWS to find a match — a single blob makes
+// that impossible. The 206 items from the real Q-Pro export are seeded
+// once with legacy_import=true (variants like SPANNER 13"/14"/15"
+// legitimately coexist there, so the trigger exempts them, mirroring the
+// client's own explicit-id import exemption).
+function itemRowToObj(r) {
+  return {
+    id: r.id, name: r.name, stockCategory: r.stock_category, vendorId: r.vendor_id,
+    catelogId: r.catelog_id, vatPercent: r.vat_percent, rollWidth: r.roll_width,
+    packing: r.packing || "", unit: r.unit, cost: r.cost, avgCost: r.avg_cost,
+    sellingPrice: r.selling_price, reorderLevel: r.reorder_level,
+    description: r.description || "", purchaseAllowed: r.purchase_allowed,
+    salesAllowed: r.sales_allowed, rawMaterial: r.raw_material,
+    openingStock: r.opening_stock, closingStock: r.closing_stock,
+    lastPurchaseRate: r.last_purchase_rate, distinctFrom: r.distinct_from || null
+  };
+}
+function itemObjToRow(i) {
+  return {
+    id: i.id, name: i.name, stock_category: i.stockCategory || null, vendor_id: i.vendorId || null,
+    catelog_id: i.catelogId || null, vat_percent: i.vatPercent || 0, roll_width: i.rollWidth,
+    packing: i.packing || "", unit: i.unit, cost: i.cost || 0, avg_cost: i.avgCost || 0,
+    selling_price: i.sellingPrice || 0, reorder_level: i.reorderLevel || 0,
+    description: i.description || "", purchase_allowed: !!i.purchaseAllowed,
+    sales_allowed: !!i.salesAllowed, raw_material: !!i.rawMaterial,
+    opening_stock: i.openingStock || 0, closing_stock: i.closingStock || 0,
+    last_purchase_rate: i.lastPurchaseRate || 0,
+    distinct_from: i.distinctFrom || null
+  };
+}
+let cloudItemMasterCacheInitialized = false;
+async function initCloudItemMasterCache() {
+  if (!window.__realCloudSession || !sb || cloudItemMasterCacheInitialized) return;
+  cloudItemMasterCacheInitialized = true;
+  const { data, error } = await sb.from("item_master").select("*");
+  // Replace the in-code seed wholesale: the table is the source of truth
+  // once it exists, and it already holds those same 206 rows.
+  if (!error && data && data.length) {
+    itemMaster.length = 0;
+    data.forEach(r => itemMaster.push(itemRowToObj(r)));
+  }
+  sb.channel("item-master-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "item_master" }, (payload) => {
+      const row = payload.new || payload.old;
+      if (!row) return;
+      const i = itemMaster.findIndex(x => String(x.id) === String(row.id));
+      if (payload.eventType === "INSERT") { if (i < 0) itemMaster.push(itemRowToObj(row)); }
+      else if (payload.eventType === "UPDATE") { if (i >= 0) itemMaster[i] = itemRowToObj(row); }
+      else if (payload.eventType === "DELETE") { if (i >= 0) itemMaster.splice(i, 1); }
+      notifyLiveUpdateListeners();
+    })
+    .subscribe();
+}
+// Optimistic local write plus a background save, the same pattern
+// createCustomer() uses — every existing synchronous call site is
+// untouched. The server-side trigger is the real gate, so a rejection
+// here is surfaced rather than swallowed.
+function persistNewItemMaster(item) {
+  if (!window.__realCloudSession || !sb) return;
+  serializedPersist("item:" + item.id, async () => {
+    const { error } = await sb.from("item_master").insert(itemObjToRow(item));
+    if (error) commsToast("Couldn't save " + item.id + " — " + error.message);
+  });
+}
+function persistItemMasterUpdate(item) {
+  if (!window.__realCloudSession || !sb) return;
+  serializedPersist("item:" + item.id, async () => {
+    const { error } = await sb.from("item_master").update(itemObjToRow(item)).eq("id", item.id);
+    if (error) commsToast("Couldn't update " + item.id + " — " + error.message);
+  });
 }
 
 // Curtain rail/track items — now carrying their REAL legacy Q-Pro item
@@ -4164,6 +4240,13 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "app_events", arr: () => events, prefix: "evt:" },
   { table: "material_requests", arr: () => materialRequests, prefix: "mrq:" },
   { table: "task_lists", arr: () => taskLists, prefix: "tl:" },
+  // 17a Purchase (16 Aug 2026). Whole-object payloads: these are mutated
+  // inline all over purchase-data.js (a quotes array grows, a claim state
+  // changes), which is exactly what the snapshot-diff scanner is for.
+  { table: "rfqs", arr: () => rfqs, prefix: "rfq:" },
+  { table: "goods_receipts", arr: () => goodsReceipts, prefix: "grn:" },
+  { table: "rate_contracts", arr: () => rateContracts, prefix: "rc:" },
+  { table: "purchase_documents", arr: () => purchaseDocuments, prefix: "pdoc:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.
