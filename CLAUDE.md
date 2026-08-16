@@ -7046,3 +7046,79 @@ ownership to Purchase**; the Item Master UI lives in Storekeeper today
   `grep`, not by eyeballing a last line, per the 9 Aug sweep blind spot.
 - The 17a spec is filed at `docs/design-handoffs/17a-purchase.md`; the 1.4MB
   prototype and its runtime were not committed. `sw.js` v38 → v39.
+
+### 16 Aug 2026 (later same day) — 17a Purchase: the four missing entities built
+
+Salman: "build the rest?" — so the four entities the earlier triage flagged
+as blocking six of ten pages were built, in `purchase-data.js`. This entry
+covers the DATA LAYER only; the 17a UI (dashboard widget states, the ten
+working pages, the four create flows) is **not built yet**.
+
+- **RFQs (`rfqs[]`)** — sources one request across several suppliers.
+  Quotes arrive one at a time (`recordRFQQuote()`), a revised quote replaces
+  rather than duplicates, and a quote from a supplier who was never asked is
+  refused. `rfqMeetsQuoteRule()` holds the handoff's three-supplier rule so
+  the form and any check read one answer. **`rfqRecommended()` is our rule,
+  not the handoff's** — 17a shows a tick but never says how it is chosen:
+  cheapest wins, except that among quotes within 10% of the cheapest we take
+  the fastest, because a quote saving BD 60 at seventeen days is not the
+  cheaper option when the floor is waiting. Deliberately the fastest *within*
+  the price band — fastest overall would let a wildly expensive next-day
+  quote win every time.
+- **`awardRFQ()` raises a real PO** through the existing
+  `createPurchaseOrderDirect()`, stamps `promisedDate` from the quoted lead
+  time, and links both ways. It lands **pending approval like any other PO**.
+- **GRN (`goodsReceipts[]`)** — the store books goods in line by line.
+  `result` is **derived** from the quantities (full/short/over/wrong), never
+  typed: a receipt reading "full" while the numbers say short is exactly the
+  disagreement this replaces. A mismatch opens a claim automatically and
+  stays open until claimed — the handoff's own words. Claiming requires a
+  note (same rule as `rejectCustomer()`); the balance cannot be claimed
+  twice. Booking in against an **unapproved** PO is refused, matching what
+  `convertPOtoInvoice()` already enforces.
+- **Rate contracts (`rateContracts[]`)** — held rates until a date.
+  `rateContractState()` is derived so a contract can never read "active" the
+  day after it lapsed; 30-day expiring window, matching HR's convention.
+- **Documents (`purchaseDocuments[]`)** — the handoff is explicit that the
+  status which matters is an **absence**: `getMissingSupplierInvoices()`
+  finds fully-received POs with no supplier invoice filed, because that is a
+  payment Accounts cannot make. Derived from what is missing, not a field.
+- **Deliveries are derived, not an entity** — an approved PO with a promised
+  date that is not fully received. Deriving it means it can never disagree
+  with the PO or the GRN.
+- **Supplier performance derived**: `getSupplierOnTimePercent()` returns
+  **null, never 0**, when there is no delivery record — "no record" is not
+  "always late". Measured at the FIRST receipt against a PO.
+
+**Two rules deliberately NOT the handoff's**, both recorded in the file
+header: 17a says *"under BD 1,000 the PO auto-releases"*, contradicting
+CLAUDE.md section 1's standing rule that every PO requires approval; the
+handoff's own tiebreak says CLAUDE.md wins, so `PO_SOURCING_THRESHOLD`
+governs how many QUOTES are needed and never whether approval is skipped.
+Its other new rule — Owner counter-signs above BD 5,000 — does not conflict
+and is built (`poSigningRoute()`).
+
+- **A duplicate caught by the standing battery, not by testing**: this file
+  defined its own `addDaysISO()`, which already exists in data.js and is
+  what quotation validity dates are computed from. Since `purchase-data.js`
+  loads later it would have silently replaced it. Removed; data.js's is used.
+- **Persistence**: all four arrays are LOCAL-ONLY, the same starting point
+  `vehicles[]`/`deliverySchedule[]` had. Registering them in
+  `CLOUD_JSON_COLLECTIONS` needs four tables, which needs a Management API
+  token — listed in `PURCHASE_COLLECTIONS_PENDING_CLOUD`.
+- **Verification**: new `e2e-purchase-cycle.js` 50/50, walking the handoff's
+  own one-sentence description of the module start to finish — request ->
+  RFQ -> three quotes -> recommendation -> award -> PO pending -> approval
+  -> delivery due -> goes late -> booked in short -> claim -> settle, plus
+  over-delivery, rate contracts, the documents absence rule, supplier
+  performance and the signing route. One failure during the run was a
+  **test** bug worth recording: these functions return the live record, so
+  reading `claimState` after a later `settleGRNClaim()` reported 'settled'
+  and looked like the claim step had failed — snapshot at the point of call.
+  Regression clean: ops-13b 51/51, shared-approver-hat 23/23,
+  item-duplicate-gate 27/27, batch6-reports 8/8, session3-roles 9/9,
+  audit-phase-e 7/7, rate-movement 19/19, demo-data 12/12. `sw.js` v39 -> v40.
+- **Next on 17a**: the UI — one shell with three view modes, the five
+  dashboard steps (all five now have real queues), the ten working pages
+  from one template, and the four create flows. Every queue and derivation
+  the screens need now exists.
