@@ -586,8 +586,13 @@ then, this section is the only persistent record of what they said.
   rather than a real inline modal — a deliberate scope cut for time, not a bug.
 - `jobCards[]` vs `curtainJobs[]` unification remains an open, explicitly
   deferred architectural question.
-- Multi-location Inventory is deliberately not built — the live system is
-  single-location ("Location 1" only), matched intentionally.
+- ~~Multi-location Inventory is deliberately not built — the live system is
+  single-location ("Location 1" only), matched intentionally.~~ **Corrected
+  19 Aug 2026: Salman confirmed Al Maraya really does run separate store
+  locations.** The original call matched Q-Pro's own single-location model,
+  which turns out not to match the business. Multi-location is being built
+  for real as part of design handoff 18a (Store Keeper), where "location
+  leads every row" is the module's first design commitment.
 - ~~Upholstery, Joinery, Painting workshop modules, Owner Dashboard, HR &
   Payroll, and Tally Bridge remain fully unstarted~~ — Upholstery/Joinery/
   Painting (Batch 8) and HR & Payroll (3 Aug 2026) are all `built:true`
