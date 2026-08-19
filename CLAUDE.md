@@ -7248,3 +7248,57 @@ live project. New `supabase/17a-purchase.sql`, also appended to
   sales, and all five tables reject an unauthenticated reader. The seeding
   script was a one-off and was deleted after use. Token used only in
   ephemeral shell calls; repo grepped for `sbp_` before committing (clean).
+
+### 19 Aug 2026 — Multi-location is real; 18a Store Keeper data layer + server-side gates live
+
+Salman confirmed Al Maraya runs separate store locations, which settles the
+question left open when 18a was first triaged.
+
+- **A documented decision corrected, not quietly overtaken.** CLAUDE.md §5
+  recorded multi-location inventory as deliberately NOT built, matching
+  Q-Pro's single "Location 1". That call matched the old system rather than
+  the business. Struck through and corrected in place.
+- **New `store-data.js`** carries 18a's three stated design commitments in
+  the DATA layer rather than the UI, so nothing can render one story while
+  the data tells another: stock is held per item PER BIN with bins keyed by
+  store (A1 in Riffa is not A1 in Tubli, and `binLabel()` always qualifies);
+  only `onHand` is stored, with `held` and `free` derived, so an expired
+  hold returns stock to free with nothing having to run; and cover mode's
+  knowledge lives on the bin as real data, not as UI copy.
+- **The hard gate.** `issueMaterialToJob()` refuses with no job card,
+  refuses "general use"/"general"/"none" by name however typed, refuses a
+  job that doesn't exist and a cancelled one. No override anywhere. Every
+  line is validated before ANY stock moves — one bad line cannot leave a
+  half-issued request nobody can reconcile.
+- **Nine tables live** (`store_locations`, `store_bins`, `stock_lots`,
+  `stock_reservations`, `store_issues`, `store_transfers`, `store_returns`,
+  `tool_loans`, `stock_counts`), registered in `CLOUD_JSON_COLLECTIONS`.
+  **`stock_reservations`, not `reservations`** — too generic a name to own
+  in a shared schema. New `is_store_side()` (storekeeper, operations
+  manager, owner, admin) governs WRITES; reads are deliberately wider (any
+  approved user), because a production manager needs to see what is on the
+  shelf and what is short before their job starts, and stock levels are not
+  the sensitive class supplier pricing is. Same split `item_master` got.
+- **The gate also runs server-side**, per 18a's own "a client-side gate is
+  a courtesy, not a guarantee": triggers on `store_issues` and
+  `stock_reservations`. **Proven live, bypassing the client entirely** — no
+  job card refused, empty string refused, "general use" refused, a
+  non-existent job refused, a real job card accepted, and a hold with no job
+  refused. Only the real one landed.
+- Both `*_PENDING_CLOUD` markers removed now their tables exist.
+- **Verification**: new `e2e-store-cycle.js` 61/61 — bins per store, the
+  three numbers, stale-at-3/expired-at-7 with free recovering on its own,
+  every branch of the hard gate proving not one unit moved, a job drawing
+  on its own hold, an over-issue refusing the whole request, put-away from
+  a real goods receipt, transfers (held stock blocked, source emptied
+  immediately, destination bin required), scrap never returning to the
+  shelf, computed shorts, tool loans, and a stock count applying its
+  variances on close. Regression clean (purchase-cycle 50/50, purchase-17a
+  49/49, cloud-financial 11/11 live). Standing battery clean across 35
+  files. `sw.js` v42 → v43.
+- **One test bug worth recording**: `confirmJobRouting(jobId, lineOverrides,
+  confirmedBy, targetDate)` takes line overrides SECOND. Passing the user
+  there made `lineOverrides[lineId]` a string character, and `seq.map` blew
+  up inside the real function.
+- **Next on 18a**: the interface — twelve working pages and seven create
+  flows, sharing the shell and templates with 17a.

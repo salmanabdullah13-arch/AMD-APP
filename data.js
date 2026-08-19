@@ -4247,6 +4247,18 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "goods_receipts", arr: () => goodsReceipts, prefix: "grn:" },
   { table: "rate_contracts", arr: () => rateContracts, prefix: "rc:" },
   { table: "purchase_documents", arr: () => purchaseDocuments, prefix: "pdoc:" },
+  // 18a Store Keeper (19 Aug 2026). The array is called reservations but the
+  // table is stock_reservations — "reservations" alone is too generic a name
+  // to own in a shared schema.
+  { table: "store_locations", arr: () => storeLocations, prefix: "loc:" },
+  { table: "store_bins", arr: () => storeBins, prefix: "bin:" },
+  { table: "stock_lots", arr: () => stockLots, prefix: "lot:" },
+  { table: "stock_reservations", arr: () => reservations, prefix: "res:" },
+  { table: "store_issues", arr: () => storeIssues, prefix: "iss:" },
+  { table: "store_transfers", arr: () => storeTransfers, prefix: "trf:" },
+  { table: "store_returns", arr: () => storeReturns, prefix: "ret:" },
+  { table: "tool_loans", arr: () => toolLoans, prefix: "tl:" },
+  { table: "stock_counts", arr: () => stockCounts, prefix: "cnt:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.

@@ -549,10 +549,8 @@ function setCoverMode(on) {
   return !!on;
 }
 
-// Not yet cloud-backed — same position 17a's four arrays were in before
-// their tables existed. These need their own tables before they survive a
-// reload, which needs a Management API token.
-const STORE_COLLECTIONS_PENDING_CLOUD = [
-  "store_locations", "store_bins", "stock_lots", "reservations",
-  "store_issues", "store_transfers", "store_returns", "tool_loans", "stock_counts"
-];
+// Cloud-backed as of 19 Aug 2026 — all nine tables exist and are
+// registered in CLOUD_JSON_COLLECTIONS (data.js), so the snapshot-diff
+// scanner persists them with no per-mutation calls. The issue and hold
+// gates additionally run as database triggers: 18a is explicit that "a
+// client-side gate is a courtesy, not a guarantee".

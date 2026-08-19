@@ -468,4 +468,4 @@ function getPurchaseSpendByCategory(monthISO) {
 // per session. Registering them in CLOUD_JSON_COLLECTIONS needs their
 // four tables created, which needs a Management API token. Same starting
 // point vehicles[]/deliverySchedule[] had before their own slice.
-const PURCHASE_COLLECTIONS_PENDING_CLOUD = ["rfqs", "goods_receipts", "rate_contracts", "purchase_documents"];
+
