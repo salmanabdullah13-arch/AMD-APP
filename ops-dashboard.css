@@ -385,3 +385,25 @@ button.opsd-roll-r{ width:100%; border:0; border-bottom:1px solid var(--line2); 
   .opsd-chip, .opsd-reason, .opsd-rchip{ min-height:44px; }
   .opsd-expmenu{ width:246px; }
 }
+
+/* ── 13b fidelity pass (19 Aug 2026), from Salman's side-by-side ──────────
+   The dashboard page is exempt from Operations' old 980px centred cap
+   (#ops-module-wrap .page, from the pre-13b mobile era). At a wide window
+   that cap centred a narrow column: a dead gap after the sidebar, steps
+   falling to two per row, and the footer clipping — none of which the
+   1440 prototype shows. Other Operations pages keep the cap; they were
+   designed under it. */
+#ops-module-wrap #p-dashboard{ max-width:none; padding:18px 22px 26px; }
+
+/* Two footer rows, per the prototype: pill + labelled date + count, then
+   the confirm alone. */
+.opsd-wf-route{ display:flex; flex-direction:column; gap:10px; width:100%; }
+.opsd-wf-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.opsd-wf-row .opsd-more{ margin-left:auto; }
+.opsd-datelabel{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600; color:var(--tx2); }
+
+/* The header pill and title were clipping at the card edges under the
+   squeezed layout; with the cap gone they fit, but keep them shrinkable
+   so a narrow window degrades by wrapping, never by cutting. */
+.opsd-wh{ flex-wrap:wrap; }
+.opsd-wh .opsd-pill{ flex:none; }

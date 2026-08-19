@@ -133,20 +133,31 @@ async function shot(page, label) { await page.screenshot({ path: path.join(SHOT_
   check('the card never moves or resizes as content swaps',
     geos.every(g => g.top === geo1.top && g.h === geo1.h), { first: geo1, rest: geos });
 
-  // The footer's controls sit on ONE row on desktop. routeFoot() wraps them in
-  // a span so the phone can hide them as a unit, and a plain span is not a
-  // flex container — the block-level urgent toggle then breaks the line and
-  // the whole footer stacks. Measured, because it renders "fine but wrong".
+  // 19 Aug fidelity pass, from Salman's side-by-side with the prototype:
+  // the desktop footer is TWO rows — the urgent pill (full label at rest)
+  // and the labelled promised date share the first, and the confirm sits
+  // alone on the second. The earlier one-row assertion here encoded the
+  // cramped layout that clipped "Mark urgent" in his live screenshot.
   await page.click('#ops-dashboard-body .opsd-step[data-k="route"]');
   await page.waitForTimeout(160);
   const footRow = await page.evaluate(() => {
     const f = document.querySelector('#ops-dashboard-body .opsd-wf');
     if (!f) return { none: true };
-    const tops = [...f.querySelectorAll('.opsd-urgent,.opsd-date,[data-a="confirm"]')]
-      .map(e => Math.round(e.getBoundingClientRect().top));
-    return { tops, spread: tops.length ? Math.max(...tops) - Math.min(...tops) : 999 };
+    const top = (sel) => { const e = f.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().top) : null; };
+    return {
+      urgent: top('.opsd-urgent'), date: top('.opsd-date'), confirm: top('[data-a="confirm"]'),
+      urgentLabel: (f.querySelector('.opsd-urgent') || {}).textContent || '',
+      dateLabelled: /Promised date/.test((f.querySelector('.opsd-datelabel') || {}).textContent || '')
+    };
   });
-  check('desktop: the route footer is one row, not stacked', footRow.spread <= 6, footRow);
+  check('desktop: urgent pill and promised date share the first footer row',
+    footRow.urgent !== null && Math.abs(footRow.urgent - footRow.date) <= 8, footRow);
+  check('desktop: the confirm sits on its own row below them',
+    footRow.confirm !== null && footRow.confirm > footRow.urgent + 20, footRow);
+  check('the urgent pill carries its full label at rest, not "Mark urgent"',
+    /jumps the department queue/.test(footRow.urgentLabel), footRow.urgentLabel);
+  check('the promised date is labelled, not a bare input',
+    footRow.dateLabelled === true, footRow.dateLabelled);
 
   console.log('\n— ⤢ opens where —');
   await page.click('#ops-dashboard-body .opsd-step[data-k="budget"]');

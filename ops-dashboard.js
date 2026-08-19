@@ -270,7 +270,7 @@ window.OpsUI = (function () {
       // screenshot) nor a floating row on desktop.
       '<div class="opsd-route-inline">' +
       '<button class="opsd-urgent' + (S.urgent ? ' is-on' : '') + '" data-a="urgent">🔥 ' +
-      (S.urgent ? 'Urgent — jumps the department queue' : 'Mark urgent') + '</button>' +
+      'Urgent — jumps the department queue' + '</button>' +
       '<label class="opsd-datelabel">Promised date' +
       '<input type="date" class="opsd-date" data-a="date" value="' + esc(S.date) + '"></label>' +
       '<button class="opsd-btn" data-a="confirm">Confirm routing &amp; dispatch →</button>' +
@@ -279,14 +279,23 @@ window.OpsUI = (function () {
   }
   function routeFoot() {
     var jobs = qRoute();
-    if (!jobs.length) return '';
-    return '<span class="opsd-wf-route">' +
-      '<button class="opsd-urgent' + (S.urgent ? ' is-on' : '') + '" data-a="urgent">🔥 ' +
-      (S.urgent ? 'Urgent — jumps the department queue' : 'Mark urgent') + '</button>' +
-      '<input type="date" class="opsd-date" data-a="date" value="' + esc(S.date) + '" aria-label="Promised date">' +
-      '<button class="opsd-btn flex" data-a="confirm">Confirm routing &amp; dispatch →</button>' +
-      (jobs.length > 1 ? '<span class="opsd-more">' + (jobs.length - 1) + ' more after this</span>' : '') +
-      '</span>';
+    if (!jobs.length) return "";
+    // The prototype's desktop footer is two rows: the urgent pill (full
+    // label at rest — the label IS the explanation), a labelled date and
+    // the queue count on the first; the confirm button alone on the
+    // second. One cramped row is what produced the clipped "Mark urgent"
+    // in Salman's 19 Aug screenshot.
+    return "<span class=\"opsd-wf-route\">" +
+      "<span class=\"opsd-wf-row\">" +
+      "<button class=\"opsd-urgent" + (S.urgent ? " is-on" : "") + "\" data-a=\"urgent\">🔥 Urgent — jumps the department queue</button>" +
+      "<label class=\"opsd-datelabel\">Promised date " +
+      "<input type=\"date\" class=\"opsd-date\" data-a=\"date\" value=\"" + esc(S.date) + "\"></label>" +
+      (jobs.length > 1 ? "<span class=\"opsd-more\">" + (jobs.length - 1) + " more after this</span>" : "") +
+      "</span>" +
+      "<span class=\"opsd-wf-row\">" +
+      "<button class=\"opsd-btn\" data-a=\"confirm\">Confirm routing &amp; dispatch →</button>" +
+      "</span>" +
+      "</span>";
   }
 
   /* ── state: quote ────────────────────────────────────────────────────── */
