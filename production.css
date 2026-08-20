@@ -1,0 +1,170 @@
+/* ==========================================================================
+   AMD-APP · Production manager module (design handoff 19a)
+
+   Tokens live in dashboard-tokens.css — 19a's block is byte-identical to
+   13b/17a/18a's, so `.prd` joins that selector rather than carrying a copy.
+
+   The handoff's contract is explicit: layout, spacing, radii, type sizes and
+   weights are FROZEN. Every value here is transcribed from its Design Tokens
+   and Shell Geometry tables, not rounded onto a 4/8pt scale.
+
+   What is NOT drawn here: sidebar, topbar, back control, Quick actions,
+   planner, tasks, floating chat. The exec shell owns all six app-wide — the
+   same call 17a and 13b made. 19a's rail ORDER and badges go into
+   EXEC_NAV_CONFIGS.production instead.
+   ========================================================================== */
+
+.prd{ font-family:var(--font); color:var(--tx); }
+.prd *{ box-sizing:border-box; }
+.prd button{ font-family:inherit; }
+.prd .num{ font-variant-numeric:tabular-nums; }
+
+/* ── dashboard shell ─────────────────────────────────────────────────────
+   "Dashboard padding 18px 22px 26px, gap 18px. Right column 340px." */
+.prd-dash{ display:flex; gap:18px; align-items:flex-start; padding:18px 22px 26px; }
+.prd-l{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:18px; }
+.prd-r{ flex:0 0 340px; width:340px; display:flex; flex-direction:column; gap:18px; }
+
+.prd-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sh); overflow:hidden; }
+.prd-card-h{ padding:14px 18px; border-bottom:1px solid var(--line2); display:flex; align-items:flex-start; gap:12px; }
+.prd-t{ font-size:15px; font-weight:650; letter-spacing:-.01em; }
+.prd-sub{ font-size:11px; color:var(--tx3); margin-top:3px; line-height:1.45; }
+.prd-pill{ flex:none; padding:3px 9px; border-radius:999px; font-size:10.5px; font-weight:700; white-space:nowrap; background:var(--sunk); color:var(--tx2); }
+.prd-pill.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.prd-pill.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.prd-pill.t-bad{ background:var(--bad-bg); color:var(--bad); }
+.prd-pill.t-wine{ background:var(--wine-tint); color:var(--wine); }
+.prd-pill.t-wait{ background:var(--sunk); color:var(--tx3); }
+.prd-pill.solid{ background:var(--wine); color:#fff; }
+
+/* ── 1. Asked of you today ───────────────────────────────────────────── */
+.prd-asked{ border-color:var(--wine-line); }
+.prd-asked .prd-card-h{ background:var(--wine-tint); border-bottom:1px solid var(--wine-line); }
+.prd-asked-t{ font-size:14.5px; font-weight:650; color:var(--wine); }
+.prd-ask{ display:flex; align-items:center; gap:12px; padding:12px 18px; border:0; border-bottom:1px solid var(--line2); background:var(--card); width:100%; text-align:left; }
+.prd-ask:last-child{ border-bottom:0; }
+.prd-ask.t-bad{ background:var(--bad-bg); }
+.prd-kind{ flex:none; padding:3px 8px; border-radius:6px; font-size:9.5px; font-weight:700; letter-spacing:.06em; }
+.prd-kind.k-wine{ background:var(--wine-tint); color:var(--wine); }
+.prd-kind.k-bad{ background:var(--bad-bg); color:var(--bad); }
+.prd-kind.k-warn{ background:var(--warn-bg); color:var(--warn); }
+.prd-ask-n{ flex:1 1 auto; min-width:0; }
+.prd-ask-t{ display:block; font-size:12.5px; font-weight:650; line-height:1.35; }
+.prd-ask-f{ display:block; font-size:11px; color:var(--tx2); margin-top:3px; }
+.prd-need{ display:block; font-size:11px; font-weight:650; margin-top:4px; line-height:1.4; color:var(--tx3); }
+.prd-need.t-wine{ color:var(--wine); }
+.prd-need.t-bad{ color:var(--bad); }
+.prd-need.t-warn{ color:var(--warn); }
+.prd-due{ flex:0 0 104px; text-align:right; font-size:11.5px; font-weight:700; }
+.prd-due.t-bad{ color:var(--bad); }
+.prd-due.t-warn{ color:var(--warn); }
+.prd-due.t-ok{ color:var(--ok); }
+.prd-btn-sm{ flex:none; height:32px; padding:0 13px; border-radius:9px; border:0; background:var(--wine); color:#fff; font-size:11.5px; font-weight:650; cursor:pointer; }
+
+/* ── 2. The week board ───────────────────────────────────────────────── */
+.prd-board{ box-shadow:var(--sh2); }
+.prd-step{ display:flex; align-items:center; gap:6px; flex:none; }
+.prd-step button{ width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--card); color:var(--tx2); cursor:pointer; font-size:13px; }
+.prd-step .lbl{ font-size:11.5px; font-weight:650; color:var(--tx2); padding:0 4px; white-space:nowrap; }
+.prd-days{ display:flex; align-items:center; gap:6px; background:var(--sunk); padding:8px 18px; border-bottom:1px solid var(--line2); }
+.prd-days .spacer{ flex:0 0 152px; font-size:10px; font-weight:700; letter-spacing:.05em; color:var(--tx3); }
+.prd-days .d{ flex:1; min-width:0; font-size:10px; font-weight:700; letter-spacing:.05em; color:var(--tx3); }
+.prd-days .d.today{ color:var(--wine); }
+/* align-items:stretch and NO fixed cell height — an explicit cross size
+   defeats stretch, and the grid stops reading as a grid when the label
+   column grows. The handoff flags this specifically. */
+.prd-lane{ display:flex; align-items:stretch; gap:6px; padding:10px 18px; border-bottom:1px solid var(--line2); }
+.prd-lane-l{ flex:0 0 152px; min-width:0; padding-right:8px; }
+.prd-lane-n{ font-size:12px; font-weight:700; line-height:1.3; }
+.prd-lane-cap{ font-size:10.5px; color:var(--tx3); margin-top:2px; }
+.prd-load{ display:inline-block; margin-top:4px; padding:2px 7px; border-radius:999px; font-size:9.5px; font-weight:700; }
+.prd-tgt{ display:block; font-size:10px; font-weight:700; margin-top:5px; line-height:1.3; }
+.prd-ot{ display:inline-block; font-size:9.5px; font-weight:700; margin-top:4px; white-space:nowrap; padding:2px 6px; border-radius:6px; }
+.prd-cell{ flex:1; min-width:0; align-self:stretch; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; min-height:46px; padding:5px 7px; border-radius:9px; cursor:pointer; text-align:left; background:var(--card); border:1px dashed var(--line); }
+/* Real job ids (JB26AMD01000) are longer than the prototype's JC-0338, so
+   they must clip inside the cell rather than bleed over its border. The
+   full id is on the cell's title attribute. */
+.prd-cell .j{ font-size:10.5px; font-weight:700; line-height:1.2; color:var(--tx3);
+  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.prd-cell .s{ font-size:9px; font-weight:600; color:var(--tx3); line-height:1.2;
+  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.prd-cell.c-full{ border:1px solid var(--wine-line); background:var(--wine-tint); }
+.prd-cell.c-full .j{ color:var(--wine); }
+.prd-cell.c-half{ border:1px solid var(--line); background:var(--sunk); }
+.prd-cell.c-half .j{ color:var(--tx2); }
+.prd-cell.c-over{ border:1px solid var(--bad); background:var(--bad-bg); }
+.prd-cell.c-over .j{ color:var(--bad); }
+.prd-cell.c-blocked{ border:1px solid var(--warn); background:var(--warn-bg); }
+.prd-cell.c-blocked .j{ color:var(--warn); }
+.prd-cell.c-pull{ border:1px dashed var(--wine); background:var(--card); }
+.prd-cell.c-pull .j{ color:var(--wine); }
+.prd-cell.c-ot{ border:1px solid var(--ok); background:var(--ok-bg); }
+.prd-cell.c-ot .j{ color:var(--ok); }
+.prd-cell.c-wknd{ border:1px solid var(--line2); background:var(--sunk); opacity:.6; }
+
+.prd-wait{ background:var(--sunk); padding:12px 18px; }
+.prd-wait-h{ font-size:12px; font-weight:700; }
+.prd-wait-rule{ font-size:11px; font-weight:650; color:var(--bad); margin-top:3px; line-height:1.4; }
+.prd-wait-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+.prd-wait-c{ flex:1 1 250px; min-width:0; text-align:left; padding:10px 12px; border-radius:12px; cursor:pointer; background:var(--card); border:1px solid var(--line); }
+.prd-wait-c.t-bad{ border-color:var(--bad); }
+.prd-wait-c.t-warn{ border-color:var(--warn); }
+.prd-wait-id{ font-size:11.5px; font-weight:700; }
+.prd-wait-t{ display:block; font-size:11px; color:var(--tx2); margin-top:2px; line-height:1.35; }
+.prd-wait-why{ display:block; font-size:10.5px; font-weight:650; margin-top:5px; line-height:1.4; }
+.prd-wait-c.t-bad .prd-wait-why{ color:var(--bad); }
+.prd-wait-c.t-warn .prd-wait-why{ color:var(--warn); }
+
+/* ── 3. Paperwork the shop is waiting on ─────────────────────────────── */
+.prd-out{ display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid var(--line2); background:var(--card); }
+.prd-out:last-child{ border-bottom:0; }
+.prd-out.t-bad{ background:var(--bad-bg); }
+.prd-out-k{ flex:0 0 132px; font-size:11.5px; font-weight:700; color:var(--tx2); }
+.prd-out-n{ flex:1 1 auto; min-width:0; }
+.prd-out-t{ display:block; font-size:12.5px; font-weight:650; line-height:1.35; }
+.prd-out-s{ display:block; font-size:11px; margin-top:2px; line-height:1.4; color:var(--tx2); }
+.prd-out.t-bad .prd-out-s{ color:var(--bad); }
+.prd-btn-o{ flex:none; height:32px; padding:0 13px; border-radius:9px; border:1px solid var(--wine); background:transparent; color:var(--wine); font-size:11.5px; font-weight:650; cursor:pointer; }
+
+/* ── right column: teams today ───────────────────────────────────────── */
+.prd-team{ padding:12px 16px; border:0; border-bottom:1px solid var(--line2); width:100%; text-align:left; background:transparent; cursor:pointer; }
+.prd-team:last-child{ border-bottom:0; }
+.prd-team-h{ display:flex; align-items:center; gap:9px; }
+.prd-team-n{ flex:1 1 auto; min-width:0; font-size:11.5px; font-weight:700; }
+.prd-team-on{ display:block; font-size:10.5px; color:var(--tx2); margin-top:3px; line-height:1.4; }
+/* Chart rule: the fill never shares a line with text and never contains a
+   label. Label above, fill in a full-width track. */
+.prd-track{ display:block; height:7px; border-radius:999px; background:var(--line2); overflow:hidden; margin-top:7px; }
+.prd-track i{ display:block; height:100%; border-radius:999px; background:var(--tx3); }
+.prd-team-f{ display:flex; align-items:center; gap:8px; margin-top:5px; }
+.prd-team-cap{ flex:1 1 auto; font-size:10px; color:var(--tx3); }
+.prd-team-tgt{ flex:none; font-size:10px; font-weight:700; }
+
+/* ── right column: KPIs ──────────────────────────────────────────────── */
+.prd-kpi{ display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid var(--line2); }
+.prd-kpi:last-child{ border-bottom:0; }
+.prd-kpi-l{ flex:1 1 auto; min-width:0; }
+.prd-kpi-l b{ display:block; font-size:11.5px; font-weight:650; }
+.prd-kpi-l span{ display:block; font-size:10px; color:var(--tx3); margin-top:2px; }
+.prd-kpi-v{ flex:none; font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; }
+.prd-kpi-v.t-ok{ color:var(--ok); }
+.prd-kpi-v.t-warn{ color:var(--warn); }
+.prd-kpi-v.t-bad{ color:var(--bad); }
+.prd-kpi-v.t-plain{ color:var(--tx); }
+
+/* ── phone ───────────────────────────────────────────────────────────── */
+@media (max-width: 880px){
+  .prd-dash{ flex-direction:column; padding:14px 14px 96px; gap:14px; }
+  .prd-r{ flex:1 1 auto; width:100%; }
+  .prd-card{ border-radius:14px; }
+  /* The board scrolls sideways rather than crushing seven days into 390px —
+     the grid IS the artefact, and a squeezed grid is not readable. */
+  .prd-board-scroll{ overflow-x:auto; }
+  .prd-board-scroll .prd-days,
+  .prd-board-scroll .prd-lane{ min-width:640px; }
+  .prd-ask{ flex-wrap:wrap; padding:11px 13px; }
+  .prd-due{ flex:0 0 auto; text-align:left; }
+  .prd-btn-sm{ width:100%; height:38px; margin-top:9px; font-size:12.5px; }
+  .prd-out{ flex-wrap:wrap; }
+  .prd-out-k{ flex:0 0 auto; }
+}

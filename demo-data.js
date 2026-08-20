@@ -160,7 +160,12 @@ const DEMO_TRACKED_ARRAYS = {
   customers, enquiries, quotations, jobCards, curtainJobs, projects,
   suppliers, purchaseRequests, purchaseOrders, purchaseInvoices, stockEntries,
   taxInvoices, salesReceipts, vehicles, vehicleInspections, deliverySchedule,
-  customerFeedback, activityLog, purchaseInquiries
+  customerFeedback, activityLog, purchaseInquiries,
+  // 19a Production — tracked so Clear Demo Data reverses these as well.
+  laneSlots, bomRevisions, cuttingSheets, pressingBatches, overtimeShifts, inputRequests,
+  // 18a Store — the seeder puts real stock away and reserves it so the 19a
+  // lane gate can pass; Clear Demo Data has to reverse that too.
+  storeLocations, storeBins, stockLots, reservations
 };
 let demoDataStartCounts = null;
 
@@ -354,11 +359,103 @@ function loadDemoData() {
       recordCustomerFeedback(routedJob.id, { rating: 5, comments: 'Excellent finish, on time.' }, 'Demo Fleet Inspector');
     }
 
+    // ── 19a Production manager ──
+    // Built through the real functions, so the week board shows work that
+    // genuinely passed the lane gate (material reserved + a live BOM) and
+    // the 'waiting for a lane' strip shows jobs that genuinely did not.
+    demoSeedProduction();
+
     if (typeof notifyLiveUpdateListeners === 'function') notifyLiveUpdateListeners();
     if (typeof commsToast === 'function') commsToast('Demo data loaded — reload the page to clear it, or use Clear Demo Data.');
   } finally {
     window.__realCloudSession = wasReal;
   }
+}
+
+// 19a Production scenario. The handoff's dashboard is a story — a crew over
+// on Thursday recovering with a Friday shift, paint pulling its dates from
+// joinery, jobs refused a lane for material or a pending revision. This
+// reproduces that shape from real records so the module can be seen working,
+// rather than shipping the prototype's rows as hard-coded content.
+function demoSeedProduction() {
+  if (typeof allotLaneSlot !== 'function') return;   // data layer not loaded
+  const routed = jobCards.filter(j => j.routingConfirmed && j.status !== 'cancelled');
+  if (!routed.length) return;
+  // Day n of THIS week, Sunday-start — the board shows the current week, so
+  // the seed has to land in it. localISO, never toISOString (19 Aug sweep).
+  const mon = (n) => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay() + n);
+    return localISO(d);
+  };
+
+  // The lane gate refuses a job whose material is short — so put real stock
+  // in a real bin and reserve it to the job through 18a's own functions.
+  // That is the integration working, not a bypass: the board only shows work
+  // that genuinely cleared the gate.
+  let store = storeLocations[0];
+  if (!store) store = createStoreLocation({ name: 'Tubli Main Store', address: 'Tubli' });
+  let bin = storeBins[0];
+  if (!bin) bin = createStoreBin({ storeId: store.id, code: 'A1', whatLivesHere: 'Boards and sheet goods' });
+  routed.slice(0, 2).forEach(j => {
+    (typeof jobBOMItems === 'function' ? jobBOMItems(j.id) : (j.items || [])).forEach(it => {
+      ((it.bom && it.bom.materials) || []).forEach(m => {
+        if (!m.itemId) return;
+        const need = Number(m.qty) || 0;
+        if (need <= 0) return;
+        putAwayStock({ itemId: m.itemId, binId: bin.id, qty: need, source: 'demo', ref: j.id });
+        reserveStockForJob({ itemId: m.itemId, binId: bin.id, qty: need, jobCardId: j.id, heldBy: 'Demo Storekeeper' });
+      });
+    });
+  });
+
+  // A live BOM revision on the first two jobs — the lane gate needs one.
+  routed.slice(0, 2).forEach(j => { ensureBOMRevision(j.id); });
+
+  // Joinery Crew A: a full week on one job, then a second job on the same
+  // Thursday so the board shows the `over` state the design calls for.
+  const a = routed[0];
+  [0, 1, 2, 3].forEach(d => allotLaneSlot({ crewId: 'CREW-A', jobCardId: a.id, date: mon(d), portion: 'full', byWhom: 'Demo' }));
+  if (routed[1]) allotLaneSlot({ crewId: 'CREW-A', jobCardId: routed[1].id, date: mon(4), portion: 'full', byWhom: 'Demo' });
+  allotLaneSlot({ crewId: 'CREW-A', jobCardId: a.id, date: mon(4), portion: 'full', byWhom: 'Demo' });
+
+  // Overtime, booked against the target it recovers and a cause from the
+  // closed enum — a shift with no stated cause is refused by the data layer.
+  bookOvertimeShift({ crewId: 'CREW-A', date: mon(5), hours: 8, men: 4,
+    recoversTarget: a.id, cause: OVERTIME_CAUSES[0], byWhom: 'Demo' });
+
+  // Crew B: a lighter week on the second job.
+  if (routed[1]) [0, 1, 2].forEach(d => allotLaneSlot({ crewId: 'CREW-B', jobCardId: routed[1].id, date: mon(d), portion: 'full', byWhom: 'Demo' }));
+
+  // Paint pulls its dates from joinery: a DERIVED slot, so it renders dashed
+  // wine and moves when the joinery slot it hangs off moves.
+  const base = laneSlots.filter(s => s.crewId === 'CREW-A')[0];
+  if (base) {
+    allotDerivedSlot({ crewId: 'CREW-P', baseSlotId: base.id, offsetDays: 3, jobCardId: a.id, byWhom: 'Demo' });
+    allotDerivedSlot({ crewId: 'CREW-P', baseSlotId: base.id, offsetDays: 4, jobCardId: a.id, byWhom: 'Demo' });
+  }
+
+  // A cutting list on the saw, then a BOM revision that kills it — the sheet
+  // stays dead paper until it is confirmed off the saw, not when the new
+  // revision is issued.
+  const sheet = createCuttingSheet({ jobCardId: a.id, saw: 'saw 2',
+    lines: [{ part: 'Carcass side', material: '18mm oak MDF', qty: 12, l: 2100, w: 600, press: true }],
+    byWhom: 'Demo' });
+  if (sheet && sheet.id) {
+    markSheetOnSaw(sheet.id, 'saw 2');
+    startBOMRevision(a.id, 'Operations — Silva Fernandes', 'Client changed the counter detail');
+    issueBOMRevision(a.id, 'Operations — Silva Fernandes');
+  }
+
+  // A veneer press batch — batching is what saves sheets.
+  const batch = createPressingBatch({ veneer: 'Oak 0.6mm', byWhom: 'Demo' });
+  if (batch && batch.id) addJobToPressingBatch(batch.id, a.id, 8);
+
+  // Two typed asks, from the only two roles allowed to raise them.
+  raiseInputRequest({ type: 'pricing_input', raisedBy: 'Estimator — Arun Kumar A', raiserRole: 'estimator',
+    jobCardId: a.id, question: 'Man-hours and board counts for 9 wardrobes and 2 dressers', neededBy: mon(0) });
+  raiseInputRequest({ type: 'bom_budget_input', raisedBy: 'Operations — Silva Fernandes', raiserRole: 'operations_manager',
+    jobCardId: a.id, question: 'Consumption standard per wardrobe unit, and wastage by process', neededBy: mon(1) });
 }
 
 function clearDemoData() {

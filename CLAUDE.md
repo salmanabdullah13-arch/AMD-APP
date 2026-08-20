@@ -7467,3 +7467,73 @@ instance of a pattern used **164 times across 25 app files and 12 test files**:
   `e2e-chart-widgets.js`, whose one check had a documented "UTC-rollover
   artifact in its own date construction", now passes; its dates are local.
 - `sw.js` CACHE_VERSION v46 → v47.
+
+### 19 Aug 2026 (later) — 19a Production: the module's dashboard, and two real bugs it exposed
+
+Salman re-sent the 19a package and asked for the module built. Its README is
+byte-identical to the one archived yesterday, so the data layer already matched
+this spec exactly; this is the interface on top of it.
+
+**This package's contract is stricter than 4a/5a/6a/13b.** It opens with a
+"READ THIS FIRST — the design is fixed" section: layout, spacing, radii, type
+sizes, colour and *copy* are all frozen, component substitution needs
+permission, and "do not add anything, do not remove anything". So every title,
+subtitle, rule line and empty state in `production.css`/`production-ui.js` is
+transcribed rather than reworded, and the values are the spec's own (152px
+label column, 46px min cell, 340px right column, 18px/22px/26px padding) rather
+than rounded onto a 4/8pt scale.
+
+- **Built: the shell and the whole dashboard.** `production-ui.js`
+  (`window.PrdUI`) + `production.css`, new `prd-module-wrap`, a `production`
+  NODES entry, and the rail's fourteen pages in the handoff's own order with
+  live badge counts. "Asked of you today" (the module's premise — other
+  people's deadlines, before the board), the week board with its complete
+  seven-state cell vocabulary, the "waiting for a lane" strip carrying its rule
+  verbatim, the paperwork queue, Teams today and the KPI stack.
+- **The six non-negotiables are NOT drawn again** — the exec shell owns all six
+  app-wide, so 19a's sidebar/topbar/back/Quick-actions/planner/tasks/chat go
+  through it and only the rail ORDER is applied. Same call 17a and 13b made.
+- **A real bug in yesterday's data layer, found the first time the board was
+  fed real records.** `jobHasLiveBOM()` and `jobMaterialShortLines()` read
+  `job.items[].bom` — but `confirmQuotationToJobCard()` deliberately does not
+  copy the BOM onto a Job Card item; the build-up lives on the QUOTATION item,
+  and the rest of `data.js` reaches it via
+  `quotations.find(q => q.id === job.quotationId)` in six places. So
+  `jobHasLiveBOM()` was **false for every job that could ever exist**:
+  `allotLaneSlot()` and `createCuttingSheet()` could never succeed and every
+  routed job sat permanently in "Waiting for a lane · No BOM". New
+  `jobBOMItems()` resolves it.
+- **And a second bug in my own first fix**, caught by the existing
+  `e2e-production-cycle.js`: preferring the quotation's items wholesale
+  discarded a BOM attached directly to a job item (which that suite does).
+  Now resolved **per line** by `lineId`, so both shapes work.
+- **demo-data.js seeds the 19a scenario through the real functions** — putting
+  real stock away in a real bin and reserving it via 18a's own
+  `putAwayStock`/`reserveStockForJob` so the lane gate genuinely opens, rather
+  than writing lane slots straight into the array. The board then shows the
+  design's own story from real records: four full days, a crew carrying two
+  jobs on one day (`over`), a Friday overtime shift (`ot`, green), paint
+  pulling two days off joinery (`pull`, dashed wine), and jobs refused a lane
+  with the reason on them. Clearing demo data reverses all of it, including the
+  stock.
+- **Deliberately still to build, and flagged rather than faked**: the fifteen
+  working pages (the rail renders an honest "not built yet" panel naming the
+  page — a nav item that silently re-renders the dashboard is worse), the
+  twelve create flows and their gate table, the cutting-list builder, and the
+  A4 printable. The six 19a arrays also remain local-only; they need their own
+  tables, like every module before its cloud slice.
+- **Verification**: new `e2e-production-19a.js` (33/33) — all five design
+  commitments driven through the REAL data layer (material-short refusal and
+  the reason, a derived slot moving when its upstream slot moves, a
+  money-shaped answer refused, a revision killing a sheet and the gate staying
+  shut until it is confirmed off the saw, overtime refused without a cause),
+  plus the module opening through its real node, the rail order, the
+  seven-state cell vocabulary on screen, the chart rule, dark mode by computed
+  style and the phone path. `e2e-production-cycle.js` 31/31,
+  `e2e-store-cycle.js` 61/61. Standing battery: `node --check` on all 36 app
+  files, the full load-order concatenation, every script tag resolving, and a
+  duplicate top-level declaration scan (none). Full sweep back to the three
+  long-documented failures.
+- `production.css`/`production-ui.js` added to `sw.js` CORE_ASSETS;
+  CACHE_VERSION v47 → v48. `prd-module-wrap` added to all 16 other modules'
+  hide-lists and `shell.js`'s `goTo()`, the same day it was created.

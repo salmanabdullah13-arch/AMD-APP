@@ -71,11 +71,39 @@ function prdToday() { return todayISO(); }
 
 // ═══ Material + BOM truth for one job ═══════════════════════════════════
 // The lane gate's two questions, answered from the systems that own them.
+// A Job Card item does NOT carry its BOM. confirmQuotationToJobCard() copies
+// lineId/product/qty/rate and deliberately leaves the build-up behind — the
+// BOM lives on the QUOTATION item, and the rest of data.js reaches it through
+// quotations.find(q => q.id === job.quotationId) in six places.
+//
+// This layer originally read job.items[].bom directly, which is always
+// undefined — so jobHasLiveBOM() was false for every job that could ever
+// exist, allotLaneSlot() and createCuttingSheet() could never succeed, and
+// every routed job sat permanently in "Waiting for a lane · No BOM". Found
+// 19 Aug 2026 the first time the board was seeded with real records.
+function jobBOMItems(jobId) {
+  const job = typeof getJobCard === "function" ? getJobCard(jobId) : null;
+  if (!job) return [];
+  const qtn = (typeof quotations !== "undefined")
+    ? quotations.find(q => q.id === job.quotationId) : null;
+  const qItems = (qtn && qtn.items) || [];
+  // Resolved per LINE, not per source: a job item that carries its own BOM
+  // keeps it, and only one that doesn't reaches back to the quotation line of
+  // the same lineId (confirmQuotationToJobCard copies lineId across, so they
+  // line up). Preferring one whole source over the other would silently throw
+  // away a BOM attached directly to a job item.
+  return (job.items || []).map(it => {
+    if (it.bom) return it;
+    const src = qItems.find(x => x.lineId === it.lineId);
+    return (src && src.bom) ? Object.assign({}, it, { bom: src.bom }) : it;
+  });
+}
+
 function jobMaterialShortLines(jobId) {
   const job = typeof getJobCard === "function" ? getJobCard(jobId) : null;
   if (!job) return [];
   const shorts = [];
-  (job.items || []).forEach(it => {
+  jobBOMItems(jobId).forEach(it => {
     ((it.bom && it.bom.materials) || []).forEach(m => {
       if (!m.itemId) return;
       const need = Number(m.qty) || 0;
@@ -90,7 +118,7 @@ function jobMaterialShortLines(jobId) {
 function jobHasLiveBOM(jobId) {
   const job = typeof getJobCard === "function" ? getJobCard(jobId) : null;
   if (!job) return false;
-  return (job.items || []).some(it => it.bom && (it.bom.materials || []).length);
+  return jobBOMItems(jobId).some(it => it.bom && (it.bom.materials || []).length);
 }
 function jobBOMRevisionPending(jobId) {
   const rev = bomRevisions.find(r => r.jobCardId === jobId && r.status === "pending");

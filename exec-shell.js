@@ -1244,7 +1244,8 @@ const EXEC_MODULE_NAV = {
   curtain:     { label: 'Curtain & Blinds', home: () => true, goHome: "curtGoTo('curt-dashboard')" },
   operations:  { label: 'Operations',   home: () => true, goHome: "opsGoTo('dashboard')" },
   owner:       { label: 'Owner',        home: () => true, goHome: "ownerNav('dashboard')" },
-  admin:       { label: 'Admin',        home: () => true, goHome: "adminSetView('approvals')" }
+  admin:       { label: 'Admin',        home: () => true, goHome: "adminSetView('approvals')" },
+  production:  { label: 'Production',   home: () => PrdUI.state.view === 'dash', goHome: "PrdUI.go('dash','board')" }
 };
 
 const execNavStack = [];            // [{ label, restore }] — cross-module return tickets

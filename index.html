@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="sales-dashboard.css">
 <link rel="stylesheet" href="estimator.css">
 <link rel="stylesheet" href="ops-dashboard.css">
+<link rel="stylesheet" href="production.css">
 <link rel="stylesheet" href="purchase.css">
 
 <style>/* ── Gantt chart ─────────────────── */
@@ -1128,6 +1129,7 @@
 <script src="purchase-ui.js"></script>
 <script src="store-data.js"></script>
 <script src="production-data.js"></script>
+<script src="production-ui.js"></script>
 <script src="chart-widgets.js"></script>
   <script src="planner-tasks.js"></script>
 <!-- Before operations.js: that file calls renderOpsDashboard() eagerly at
@@ -1187,6 +1189,7 @@ const NODES = [
   // Developer Preview (jump into any built dashboard for QA), User &
   // Role Management. See admin.js.
   { id:'admin',        label:'Admin Dashboard',  built:true,  launch:()=>{ launchAdminModule(); } },
+  { id:'production',   label:'Production',       built:true,  launch:()=>{ launchProductionModule(); } },
   { id:'accounts',    label:'Accounts',         built:true,  launch:()=>{ launchAccountsModule(); } },
   { id:'delivery',     label:'Jobs',             built:true,  launch:()=>{ launchJobsModule(); } },
   { id:'hr',            label:'HR & Payroll',     built:true,  launch:()=>{ launchHRModule(); } },
