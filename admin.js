@@ -242,7 +242,7 @@ async function adminToggleUserActive(profileId) {
   const verb = goingTo === 'deactivated' ? 'Deactivate' : 'Reactivate';
   if (!window.confirm(`${verb} ${row.display_name}?`)) return;
   const patch = { approval_status: goingTo };
-  if (goingTo === 'approved') { patch.approved_by = window.cloudIdentity; patch.approved_date = new Date().toISOString().slice(0, 10); }
+  if (goingTo === 'approved') { patch.approved_by = window.cloudIdentity; patch.approved_date = todayISO(); }
   const { error } = await sb.from('profiles').update(patch).eq('id', profileId);
   if (error) { if (typeof commsToast === 'function') commsToast(`Couldn't ${verb.toLowerCase()}: ${error.message}`); return; }
   row.approval_status = goingTo;

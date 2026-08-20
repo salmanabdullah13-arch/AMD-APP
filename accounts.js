@@ -66,7 +66,7 @@ document.body.appendChild(accountsModuleWrap);
 
 let accountsView = 'dashboard'; // dashboard | invoices | purchases | coa | ledgers | ledger-new | receipts | receipt-new | payments | payment-new | journals | journal-new | daybook | ledger-report | trial-balance | pl | balance-sheet | proforma | salesreceipts | salesreceipt-new | creditnotes | creditnote-new | custupdate | custbanking | bill-os
 let acVisibleLineRows = 1; // shared row-count for whichever line-entry form (Receipt/Payment/Journal) is currently open
-const acToday = new Date().toISOString().slice(0, 10);
+const acToday = todayISO();
 let acReportFilters = { dbFrom: acToday, dbTo: acToday, voucherType: 'All', glFrom: '2023-01-01', glTo: acToday, ledgerName: '', ledgerWise: true };
 // Batch 7 — moved from sales.js: Sales Receipt/Credit Note/Customer Update
 // creation, and Sales Bill Outstanding, are Accounts-only now (Salman's

@@ -703,7 +703,7 @@ window.OpsUI = (function () {
     var cols = depts.map(function (d) {
       var items = liveItemsFor(d);
       items.forEach(function (i) { jobIds[i.job] = true; });
-      var late = items.filter(function (i) { return i.due && i.due < new Date().toISOString().slice(0, 10); }).length;
+      var late = items.filter(function (i) { return i.due && i.due < todayISO(); }).length;
       var rework = items.filter(function (i) { return i.tone === 'bad'; }).length;
       return {
         n: deptName(d), v: items.length,
@@ -717,7 +717,7 @@ window.OpsUI = (function () {
     // would keep it in the total forever.
     var jobsN = Object.keys(jobIds).length;
     var lateJobs = safe(function () {
-      var today = new Date().toISOString().slice(0, 10);
+      var today = todayISO();
       return jobCards.filter(function (j) {
         return j.status === 'open' && j.promisedDate && j.promisedDate < today;
       }).length;
@@ -762,7 +762,7 @@ window.OpsUI = (function () {
 
   /* ── KPI stack ───────────────────────────────────────────────────────── */
   function kpiHTML() {
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
     var open = safe(function () { return jobCards.filter(function (j) { return j.status === 'open'; }); }, []);
     var withDate = open.filter(function (j) { return j.promisedDate; });
     var slipping = withDate.filter(function (j) { return j.promisedDate < today; }).length;
@@ -876,7 +876,7 @@ window.OpsUI = (function () {
   function refreshSubtitle() {
     var el = document.querySelector('#ops-module-wrap .xs-sub');
     if (!el) return;
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
     var open = safe(function () { return jobCards.filter(function (j) { return j.status === 'open' && j.routingConfirmed; }); }, []);
     var urgent = open.filter(function (j) { return j.urgent; }).length;
     var late = open.filter(function (j) {

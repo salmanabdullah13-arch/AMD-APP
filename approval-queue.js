@@ -109,7 +109,7 @@ async function approvalQueueApprove(profileId, containerId) {
   const userType = select ? select.value : null;
   const { error } = await sb.from('profiles').update({
     approval_status: 'approved', user_type: userType,
-    approved_by: window.cloudIdentity, approved_date: new Date().toISOString().slice(0, 10)
+    approved_by: window.cloudIdentity, approved_date: todayISO()
   }).eq('id', profileId);
   if (error) { if (typeof commsToast === 'function') commsToast(`Couldn't approve: ${error.message}`); return; }
   approvalQueueRows = approvalQueueRows.filter(r => r.id !== profileId);
@@ -119,7 +119,7 @@ async function approvalQueueApprove(profileId, containerId) {
 async function approvalQueueReject(profileId, containerId) {
   const { error } = await sb.from('profiles').update({
     approval_status: 'rejected',
-    approved_by: window.cloudIdentity, approved_date: new Date().toISOString().slice(0, 10)
+    approved_by: window.cloudIdentity, approved_date: todayISO()
   }).eq('id', profileId);
   if (error) { if (typeof commsToast === 'function') commsToast(`Couldn't reject: ${error.message}`); return; }
   approvalQueueRows = approvalQueueRows.filter(r => r.id !== profileId);
@@ -128,7 +128,7 @@ async function approvalQueueReject(profileId, containerId) {
 
 async function resolvePasswordResetRequest(id, containerId) {
   const { error } = await sb.from('password_reset_requests').update({
-    resolved: true, resolved_by: window.cloudIdentity, resolved_date: new Date().toISOString().slice(0, 10)
+    resolved: true, resolved_by: window.cloudIdentity, resolved_date: todayISO()
   }).eq('id', id);
   if (error) { if (typeof commsToast === 'function') commsToast(`Couldn't mark resolved: ${error.message}`); return; }
   passwordResetRequests = passwordResetRequests.filter(r => r.id !== id);

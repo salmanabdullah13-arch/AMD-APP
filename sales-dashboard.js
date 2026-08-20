@@ -140,7 +140,7 @@ window.SalesDashboard = (function () {
     var qtns = myQuotations();
     var enqs = myEnquiries();
     var jobs = myJobs();
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
 
     DATA.productionStages = ['Cutting list','Machining','Assembly','Finishing','QC','Ready'];
 
@@ -318,7 +318,7 @@ window.SalesDashboard = (function () {
     { k:'site', n:'Site visits', c:'var(--d4)' }
   ];
   function loadTasks() {
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
     var mine = (typeof tasks !== 'undefined' ? tasks : []).filter(function (t) { return t.assignee === me(); });
     S.tasks = mine.map(function (t) {
       return {
@@ -338,7 +338,7 @@ window.SalesDashboard = (function () {
   var S = {
     stage:'all', job:null, qa:false, chat:false,
     tasksOpen:true, weekOpen:true, taskFilter:'all',
-    planScope:'Week', planOffset:0, selDate:new Date().toISOString().slice(0,10),
+    planScope:'Week', planOffset:0, selDate:todayISO(),
     nextTask:41, nextList:1,
     lists:[], tasks:[]
   };
@@ -360,14 +360,14 @@ window.SalesDashboard = (function () {
   function utc(y,m,d){ return new Date(Date.UTC(y,m,d)); }
   function addDays(d,n){ var x=new Date(d); x.setUTCDate(x.getUTCDate()+n); return x; }
   function monday(d){ return addDays(d, -(((d.getUTCDay()+6)%7))); }
-  function iso(d){ return d.toISOString().slice(0,10); }
+  function iso(d){ return localISO(d); }
   function parseIso(s){ return new Date(s+'T00:00:00Z'); }
   function fmtDate(d){
     return String(d.getUTCDate()).padStart(2,'0')+' '+MN[d.getUTCMonth()].slice(0,3)+' '+d.getUTCFullYear();
   }
   /* Keyed by ISO date now that this reads real dated events. */
   function agendaFor(d){ return DATA.week[iso(d)] || []; }
-  function todayIso(){ return new Date().toISOString().slice(0,10); }
+  function todayIso(){ return todayISO(); }
   function toneCls(t){ return t ? ' is-'+t : ''; }
 
   /* ------------------------------------------------------------- renderers -- */

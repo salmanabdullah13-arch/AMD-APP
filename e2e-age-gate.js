@@ -8,6 +8,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
+
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
 const SHOT_DIR = path.join(__dirname, 'e2e-shots-age-gate');
 if (!fs.existsSync(SHOT_DIR)) fs.mkdirSync(SHOT_DIR);
 for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
@@ -57,7 +64,7 @@ async function signInAs(page, displayName) {
   const fieldState = await page.evaluate(() => {
     const input = document.getElementById('auth-dob-input');
     const eighteenYearsAgo = new Date(); eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
-    const expectedMax = eighteenYearsAgo.toISOString().slice(0, 10);
+    const expectedMax = localISO(eighteenYearsAgo);
     const labelText = document.querySelector('#cloud-login-body label')?.textContent || '';
     return { max: input.max, expectedMax, hasLabelMentioningDob: labelText.includes('Date of Birth'), hasLabelMentioning18: labelText.includes('18') };
   });
@@ -79,7 +86,7 @@ async function signInAs(page, displayName) {
   const stamp = Date.now();
   const tooYoung = new Date(); tooYoung.setFullYear(tooYoung.getFullYear() - 5); // 5 years old
   await page.fill('#auth-fullname-input', `E2E Age Gate Throwaway ${stamp}`);
-  await page.fill('#auth-dob-input', tooYoung.toISOString().slice(0, 10));
+  await page.fill('#auth-dob-input', localISO(tooYoung));
   await page.fill('#auth-phone-input', '3992' + String(stamp).slice(-6));
   await page.fill('#auth-designation-input', 'Test Designation');
   await page.selectOption('#auth-usertype-select', 'storekeeper');
@@ -108,7 +115,7 @@ async function signInAs(page, displayName) {
   const guardResult = await page.evaluate((dob) => {
     if (typeof aqAgeBlockReason !== 'function') return { error: 'aqAgeBlockReason not found' };
     return { blockReason: aqAgeBlockReason(dob) };
-  }, tooYoung2.toISOString().slice(0, 10));
+  }, localISO(tooYoung2));
   record(
     'aqAgeBlockReason() correctly flags an under-18 DOB as unapprovable',
     guardResult.blockReason && guardResult.blockReason.includes('Under 18') ? 'PASS' : 'FAIL',
@@ -131,7 +138,7 @@ async function signInAs(page, displayName) {
   const adultResult = await page.evaluate((dob) => {
     if (typeof aqAgeBlockReason !== 'function') return { error: 'aqAgeBlockReason not found' };
     return { blockReason: aqAgeBlockReason(dob) };
-  }, adultDob.toISOString().slice(0, 10));
+  }, localISO(adultDob));
   record('aqAgeBlockReason() does not block a real adult DOB (30 years old)', adultResult.blockReason === null ? 'PASS' : 'FAIL', JSON.stringify(adultResult));
 
   currentStep = 'approve-button-hidden-for-blocked-row';
@@ -146,7 +153,7 @@ async function signInAs(page, displayName) {
     container.id = 'age-gate-test-container';
     document.body.appendChild(container);
     renderApprovalQueueInto('age-gate-test-container');
-  }, tooYoung2.toISOString().slice(0, 10));
+  }, localISO(tooYoung2));
   await page.waitForTimeout(200);
   const uiState = await page.evaluate(() => {
     const container = document.getElementById('age-gate-test-container');

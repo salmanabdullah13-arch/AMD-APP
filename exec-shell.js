@@ -885,7 +885,7 @@ function execRefreshSidePanels() {
 
 function execTasksPanelHTML() {
   const tasks = typeof getOpenTasksForAssignee === 'function' ? getOpenTasksForAssignee(execIdentity()) : [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const rows = tasks.map(t => `
     <div class="xs-sp-task">
       <span class="t-code">${execEsc(t.id)}</span>
@@ -923,7 +923,7 @@ function execCompleteTask(id) {
 }
 
 function execCalendarPanelHTML() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const monthKey = execCalMonth || today.slice(0, 7);
   const sel = execCalSelected || today;
   const [y, m] = monthKey.split('-').map(Number);
@@ -1028,7 +1028,7 @@ execPlannerEl.className = 'xshell xs-planner';   // opts into --x-* tokens + dar
 document.body.appendChild(execPlannerEl);
 
 function execCalNav(delta) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const [y, m] = (execCalMonth || today.slice(0, 7)).split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
   execCalMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');

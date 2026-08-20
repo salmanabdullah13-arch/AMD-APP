@@ -10,6 +10,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
+
 let pass = 0, fail = 0;
 const check = (name, ok, extra) => {
   if (ok) { pass++; console.log('  PASS  ' + name); }
@@ -37,7 +44,7 @@ const check = (name, ok, extra) => {
     // vendor (the real stock export had no vendor column), so purchase history
     // is the only place a vendor can honestly come from.
     const sup = createSupplier({ name: 'Gulf Timber & Boards', contactPerson: 'A. Rahman', telephone: '17001122', address: 'Sitra' });
-    const ago = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+    const ago = d => localISO(new Date(Date.now() - d * 86400000));
     const inv = (date, rate, status) => purchaseInvoices.push({
       id: 'TESTINV' + purchaseInvoices.length, dateReceived: date,
       status: status || 'received', approvalStatus: 'approved',
@@ -70,7 +77,7 @@ const check = (name, ok, extra) => {
   // Only real purchases count.
   const draftOnly = await page.evaluate(() => {
     const item = itemMaster[1];
-    const ago = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+    const ago = d => localISO(new Date(Date.now() - d * 86400000));
     purchaseInvoices.push({ id: 'TESTD1', dateReceived: ago(40), status: 'received', approvalStatus: 'approved',
       items: [{ itemId: item.id, itemName: item.name, qty: 1, rateBD: 5 }] });
     purchaseInvoices.push({ id: 'TESTD2', dateReceived: ago(2), status: 'draft', approvalStatus: 'pending',
@@ -81,7 +88,7 @@ const check = (name, ok, extra) => {
 
   const rejected = await page.evaluate(() => {
     const item = itemMaster[2];
-    const ago = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+    const ago = d => localISO(new Date(Date.now() - d * 86400000));
     purchaseInvoices.push({ id: 'TESTR1', dateReceived: ago(40), status: 'received', approvalStatus: 'approved',
       items: [{ itemId: item.id, itemName: item.name, qty: 1, rateBD: 5 }] });
     purchaseInvoices.push({ id: 'TESTR2', dateReceived: ago(2), status: 'received', approvalStatus: 'rejected',
@@ -92,7 +99,7 @@ const check = (name, ok, extra) => {
 
   const single = await page.evaluate(() => {
     const item = itemMaster[3];
-    purchaseInvoices.push({ id: 'TESTS1', dateReceived: new Date().toISOString().slice(0, 10),
+    purchaseInvoices.push({ id: 'TESTS1', dateReceived: todayISO(),
       status: 'received', approvalStatus: 'approved',
       items: [{ itemId: item.id, itemName: item.name, qty: 1, rateBD: 7 }] });
     return getItemRateMovement(itemMaster[3], 30);

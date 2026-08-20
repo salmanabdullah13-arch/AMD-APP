@@ -59,7 +59,7 @@ const PL_WD_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const PL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
                    'August', 'September', 'October', 'November', 'December'];
 
-const plIso = (d) => d.toISOString().slice(0, 10);
+const plIso = (d) => localISO(d);
 const plAddDays = (d, n) => { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; };
 const plMondayOf = (d) => plAddDays(d, -(((d.getUTCDay() + 6) % 7)));
 
@@ -68,7 +68,7 @@ const plFmtDate = (d) =>
   String(d.getUTCDate()).padStart(2, '0') + ' ' +
   PL_MONTHS[d.getUTCMonth()].slice(0, 3) + ' ' + d.getUTCFullYear();
 
-const plToday = () => new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+const plToday = () => new Date(todayISO() + 'T00:00:00Z');
 const plSelectedDay = () => plannerState.selDate
   ? new Date(plannerState.selDate + 'T00:00:00Z')
   : plToday();

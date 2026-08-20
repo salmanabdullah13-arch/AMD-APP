@@ -288,7 +288,7 @@ function hrAddAsset(id) {
   const name = document.getElementById('hr-asset-name').value;
   const code = document.getElementById('hr-asset-code').value;
   if (!name || !name.trim()) { hrAlert('Asset Name is required.'); return; }
-  addEmployeeAsset(id, { name: name.trim(), code, issueDate: new Date().toISOString().slice(0, 10) });
+  addEmployeeAsset(id, { name: name.trim(), code, issueDate: todayISO() });
   renderHRBody();
 }
 

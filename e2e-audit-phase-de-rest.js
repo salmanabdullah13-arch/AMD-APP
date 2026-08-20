@@ -12,6 +12,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
+
 const results = [];
 const consoleErrors = [];
 const pageErrors = [];
@@ -126,7 +133,7 @@ function printReport() {
     const { job, q } = window.__seedJob('Bucket Base Cabinet', ['carp'], 100);
     // age the job 2 months back
     const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 2);
-    job.date = d.toISOString().slice(0, 10);
+    job.date = localISO(d);
     const baseAmount = job.amount;
     // variation confirmed THIS month
     const v = createVariationForJob(job.id, { notes: 'later addition' });

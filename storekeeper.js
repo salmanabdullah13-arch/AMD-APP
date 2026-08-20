@@ -182,7 +182,7 @@ function renderMaterialRequests() {
   const open = getOpenMaterialRequests();
   const recent = materialRequests.filter(r => r.status !== 'open')
     .sort((a, b) => (b.closedDate || '').localeCompare(a.closedDate || '')).slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
 
   const openHtml = open.length === 0
     ? '<div class="sk-card"><p style="font-size:12.5px;color:#64748b;">Nothing waiting. Requests raised by the departments land here.</p></div>'

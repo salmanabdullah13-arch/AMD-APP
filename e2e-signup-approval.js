@@ -18,6 +18,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
+
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
 const SHOT_DIR = path.join(__dirname, 'e2e-shots-signup-approval');
 if (!fs.existsSync(SHOT_DIR)) fs.mkdirSync(SHOT_DIR);
 for (const f of fs.readdirSync(SHOT_DIR)) fs.unlinkSync(path.join(SHOT_DIR, f));
@@ -141,7 +148,7 @@ async function signUpFresh(page, stamp) {
     if (!row) return { error: 'row not found' };
     const { error } = await sb.from('profiles').update({
       approval_status: 'approved', user_type: 'storekeeper',
-      approved_by: window.cloudIdentity, approved_date: new Date().toISOString().slice(0, 10)
+      approved_by: window.cloudIdentity, approved_date: todayISO()
     }).eq('id', row.id);
     return { error: error ? error.message : null, id: row.id };
   }, throwawayName);
@@ -191,7 +198,7 @@ async function signUpFresh(page, stamp) {
     const row = approvalQueueRows.find(r => r.display_name === name);
     if (!row) return { error: 'row not found' };
     const { error } = await sb.from('profiles').update({
-      approval_status: 'rejected', approved_by: window.cloudIdentity, approved_date: new Date().toISOString().slice(0, 10)
+      approval_status: 'rejected', approved_by: window.cloudIdentity, approved_date: todayISO()
     }).eq('id', row.id);
     return { error: error ? error.message : null };
   }, rejectName);

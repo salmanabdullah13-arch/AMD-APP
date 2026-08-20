@@ -1697,7 +1697,7 @@ function openDebitNoteForm() {
   document.getElementById('dn-reveal').style.display = 'none';
   document.getElementById('dn-taxable-type').innerHTML = DEBIT_NOTE_TAXABLE_TYPES.map(t => `<option>${t}</option>`).join('');
   document.getElementById('dn-ledger').value = '';
-  document.getElementById('dn-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('dn-date').value = todayISO();
   document.getElementById('dn-amount').value = '';
   document.getElementById('dn-reason').value = '';
 

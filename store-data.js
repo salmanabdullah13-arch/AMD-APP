@@ -58,7 +58,7 @@ function nextStoreId(prefix, arr) {
   }, 0);
   return prefix + "-" + String(n + 1).padStart(4, "0");
 }
-function storeToday() { return new Date().toISOString().slice(0, 10); }
+function storeToday() { return todayISO(); }
 function storeDaysBetween(a, b) {
   return Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000);
 }

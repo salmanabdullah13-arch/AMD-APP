@@ -78,7 +78,7 @@ function createRFQ({ linkedPRId = null, items = [], supplierIds = [], raisedBy =
   const rfq = {
     id: nextSeqId("RFQ", rfqs),
     linkedPRId,
-    date: new Date().toISOString().slice(0, 10),
+    date: todayISO(),
     raisedBy, note,
     items: items.map(it => ({ name: it.name, qty: Number(it.qty) || 0, unit: it.unit || "", itemId: it.itemId || null })),
     supplierIds: supplierIds.slice(),
@@ -110,7 +110,7 @@ function recordRFQQuote(rfqId, { supplierId, price, leadDays, terms = "", note =
   const existing = rfq.quotes.find(q => q.supplierId === supplierId);
   const quote = {
     supplierId, price: Number(price), leadDays: Number(leadDays) || 0,
-    terms, note, receivedDate: new Date().toISOString().slice(0, 10)
+    terms, note, receivedDate: todayISO()
   };
   if (existing) Object.assign(existing, quote); else rfq.quotes.push(quote);
   if (rfq.status === "open") rfq.status = "quotes-in";
@@ -177,7 +177,7 @@ function awardRFQ(rfqId, supplierId, awardedBy = "Purchase") {
   rfq.awardedTo = supplierId;
   rfq.awardedPOId = po.id;
   // The promised date is what every late-delivery check reads later.
-  po.promisedDate = addDaysISO(new Date().toISOString().slice(0, 10), quote.leadDays);
+  po.promisedDate = addDaysISO(todayISO(), quote.leadDays);
   po.sourceRFQ = rfq.id;
   logActivity({
     type: "rfq-awarded", linkedType: "rfq", linkedId: rfq.id, user: awardedBy,
@@ -216,7 +216,7 @@ function getDeliveriesDue() {
     .sort((a, b) => String(a.promisedDate).localeCompare(String(b.promisedDate)));
 }
 function getLateDeliveries(today) {
-  const t = today || new Date().toISOString().slice(0, 10);
+  const t = today || todayISO();
   return getDeliveriesDue().filter(po => String(po.promisedDate) < t);
 }
 
@@ -260,7 +260,7 @@ function recordGoodsReceipt({ poId, lines = [], receivedBy = "Storekeeper", note
   const result = grnResult(mapped);
   const grn = {
     id: nextSeqId("GRN", goodsReceipts),
-    poId, date: new Date().toISOString().slice(0, 10),
+    poId, date: todayISO(),
     receivedBy, note, lines: mapped, result,
     // A mismatch stays open until somebody claims it — the handoff's own
     // words. A clean receipt has nothing to claim.
@@ -291,7 +291,7 @@ function claimGRNBalance(grnId, claimedBy, note) {
   g.claimState = "claimed";
   g.claimNote = note.trim();
   g.claimedBy = claimedBy;
-  g.claimedDate = new Date().toISOString().slice(0, 10);
+  g.claimedDate = todayISO();
   logActivity({
     type: "grn-claimed", linkedType: "po", linkedId: g.poId, user: claimedBy,
     message: `${g.id} — balance claimed from ${purSupplierName((purchaseOrders.find(p => p.id === g.poId) || {}).supplierId)}`,
@@ -320,7 +320,7 @@ function createRateContract({ supplierId, itemIds = [], rates = {}, rateHeldTo, 
     id: nextSeqId("RC", rateContracts),
     supplierId, itemIds: itemIds.slice(), rates: Object.assign({}, rates),
     rateHeldTo, note, raisedBy,
-    date: new Date().toISOString().slice(0, 10),
+    date: todayISO(),
     status: "active"   // active | expired | cancelled
   };
   rateContracts.push(rc);
@@ -330,14 +330,14 @@ function createRateContract({ supplierId, itemIds = [], rates = {}, rateHeldTo, 
 // lapsed. 30 days is the "expiring" window, matching the HR compliance
 // tiles' own convention.
 function rateContractState(rc, today) {
-  const t = today || new Date().toISOString().slice(0, 10);
+  const t = today || todayISO();
   if (rc.status === "cancelled") return "cancelled";
   if (String(rc.rateHeldTo) < t) return "expired";
   if (String(rc.rateHeldTo) <= addDaysISO(t, 30)) return "expiring";
   return "active";
 }
 function getRateContractFor(itemId, today) {
-  const t = today || new Date().toISOString().slice(0, 10);
+  const t = today || todayISO();
   return rateContracts.find(rc => rc.itemIds.includes(itemId) && rateContractState(rc, t) !== "expired" && rc.status !== "cancelled") || null;
 }
 function getExpiringRateContracts(today) {
@@ -353,7 +353,7 @@ function filePurchaseDocument({ type, againstType, againstId, date = null, expir
   const doc = {
     id: nextSeqId("DOC", purchaseDocuments),
     type, againstType, againstId, note, filedBy,
-    date: date || new Date().toISOString().slice(0, 10),
+    date: date || todayISO(),
     expiryDate
   };
   purchaseDocuments.push(doc);
@@ -373,7 +373,7 @@ function getMissingSupplierInvoices() {
     .map(po => ({ po, value: poValue(po), supplier: purSupplierName(po.supplierId) }));
 }
 function getExpiringDocuments(today) {
-  const t = today || new Date().toISOString().slice(0, 10);
+  const t = today || todayISO();
   const soon = addDaysISO(t, 30);
   return purchaseDocuments
     .filter(d => d.expiryDate && String(d.expiryDate) <= soon)

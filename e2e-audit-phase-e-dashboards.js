@@ -7,6 +7,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
+
 const results = [];
 const consoleErrors = [];
 const pageErrors = [];
@@ -56,9 +63,9 @@ function printReport() {
   // ── Quote aging (data layer) ──
   currentStep = 'aging-data';
   const ag = await page.evaluate(() => {
-    const fresh = { date: new Date().toISOString().slice(0, 10) };
+    const fresh = { date: todayISO() };
     const d10 = new Date(); d10.setDate(d10.getDate() - 10);
-    const old = { date: d10.toISOString().slice(0, 10) };
+    const old = { date: localISO(d10) };
     return {
       freshDays: quoteAgeDays(fresh), oldDays: quoteAgeDays(old),
       freshBadge: quoteAgeBadge(fresh), oldBadge: quoteAgeBadge(old)
@@ -78,7 +85,7 @@ function printReport() {
     addBOMMaterial(q.id, row.lineId, { name: 'm', qty: 1, unit: 'Nos', rate: 100 });
     submitItemBOM(q.id, row.lineId, 'E');
     // age it 12 days and leave it in the Estimator's Pending-to-Pick queue
-    const d = new Date(); d.setDate(d.getDate() - 12); q.date = d.toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(d.getDate() - 12); q.date = localISO(d);
     transferQuotationStage(q.id, 'estimator', 'S');
     return { qId: q.id };
   });

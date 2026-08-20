@@ -826,7 +826,7 @@ function renderOpsDeliveryPage() {
   const el = document.getElementById('ops-delivery-body');
   if (!el) return;
   const ready = opsReadyToScheduleJobs();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const planned = (typeof deliverySchedule !== 'undefined' ? deliverySchedule : [])
     .filter(d => d.status === 'planned').slice().sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
   el.innerHTML = `
@@ -873,7 +873,7 @@ function renderOpsCapacity() {
   if (!el) return;
   const now = new Date();
   const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  const weekStart = monday.toISOString().slice(0, 10);
+  const weekStart = localISO(monday);
   const logs = (typeof labourDayLogs !== 'undefined' ? labourDayLogs : []).filter(l => l.date >= weekStart);
   const depts = [['carp', 'Joinery'], ['uph', 'Upholstery'], ['paint', 'Painting'], ['curt', 'Curtain']];
   const rows = depts.map(([k, label]) => {

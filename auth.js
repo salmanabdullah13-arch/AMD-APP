@@ -177,7 +177,7 @@ function renderAuthForms(mode, message) {
       // date segments unless explicitly blocked.
       const maxDob = new Date();
       maxDob.setFullYear(maxDob.getFullYear() - 18);
-      const maxDobStr = maxDob.toISOString().slice(0, 10);
+      const maxDobStr = localISO(maxDob);
       body.innerHTML = tabsHtml + `
         ${messageHtml}
         <input id="auth-fullname-input" type="text" placeholder="Full Name" style="${authFieldStyle}">

@@ -16,6 +16,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
+
 const results = [];
 const consoleErrors = [];
 const pageErrors = [];
@@ -262,7 +269,7 @@ const MONEY = /BD\s?[\d,]|\d+\.\d{3}\b|BHD|\bcost\b|\bprice\b|receivable|payable
   const tasks = await page.evaluate(async () => {
     const me = execIdentity();
     const lists = getTaskListsFor(me, 'sales').map(l => l.name);
-    const t = createTask({ title: 'E2E sales task', assignee: me, dueDate: new Date().toISOString().slice(0, 10) });
+    const t = createTask({ title: 'E2E sales task', assignee: me, dueDate: todayISO() });
     rerenderDashboard();
     await new Promise(r => setTimeout(r, 300));
     const shown = document.getElementById('sales-body').textContent.includes('E2E sales task');

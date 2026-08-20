@@ -75,7 +75,7 @@ window.OwnerDashboard = (function () {
 
     var jobs = (typeof jobCards !== 'undefined' ? jobCards : []).filter(function (j) { return j.status === 'open'; });
     var urgent = jobs.filter(function (j) { return j.urgent; });
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
     var overdue = jobs.filter(function (j) { return j.promisedDate && j.promisedDate < today; });
 
     var recvRows = (typeof taxInvoices !== 'undefined' ? taxInvoices : [])
@@ -117,7 +117,7 @@ window.OwnerDashboard = (function () {
   /* --- by department: every tile in that role's own vocabulary ------------ */
   function buildDept() {
     var salesK = DATA._salesK || {}, acctK = DATA._acctK || {};
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
     var qtns = typeof quotations !== 'undefined' ? quotations : [];
     var jobs = typeof jobCards !== 'undefined' ? jobCards : [];
     var openJobs = jobs.filter(function (j) { return j.status === 'open'; });
@@ -447,7 +447,7 @@ window.OwnerDashboard = (function () {
 
     var pis = (typeof purchaseInvoices !== 'undefined' ? purchaseInvoices : [])
       .slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
-    var weekAgo = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+    var weekAgo = localISO(new Date(Date.now() - 7 * 864e5));
     var weekTotal = pis.filter(function (p) { return (p.date || '') >= weekAgo; })
       .reduce(function (s, p) { return s + ((p.totals && p.totals.netAmount) || 0); }, 0);
     DATA.expenses = {
@@ -546,7 +546,7 @@ window.OwnerDashboard = (function () {
             : /approve|paid|pass|complete|fulfil/i.test(a.type || '') ? 'var(--ok)' : 'var(--wine)';
       return { t: a.message, d: ddmmm(a.date) + (a.by ? ' · ' + a.by : ''), c: c };
     });
-    if (!DATA.activity.length) DATA.activity = [{ t: 'Nothing has happened yet today', d: ddmmm(new Date().toISOString().slice(0, 10)), c: 'var(--tx3)' }];
+    if (!DATA.activity.length) DATA.activity = [{ t: 'Nothing has happened yet today', d: ddmmm(todayISO()), c: 'var(--tx3)' }];
 
     /* Calendar commitments, keyed by ISO date (the handoff keyed by weekday
        and said to replace this with getCalendarEvents(), which is dated). */
@@ -577,7 +577,7 @@ window.OwnerDashboard = (function () {
   ];
 
   function loadTasks() {
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
     var mine = (typeof tasks !== 'undefined' ? tasks : []).filter(function (t) { return t.assignee === me(); });
     S.tasks = mine.map(function (t) {
       return {
@@ -607,7 +607,7 @@ window.OwnerDashboard = (function () {
     nextTask:128, nextList:1,
     pnlMode:'Quarterly',
     planScope:'Week', planOffset:0,
-    selDate:new Date().toISOString().slice(0,10),   // real today, per the README
+    selDate:todayISO(),   // real today, per the README
     lists:LISTS.slice(),
     tasks:[]
   };
@@ -629,7 +629,7 @@ window.OwnerDashboard = (function () {
   function utc(y,m,d){ return new Date(Date.UTC(y,m,d)); }
   function addDays(d,n){ var x=new Date(d); x.setUTCDate(x.getUTCDate()+n); return x; }
   function monday(d){ return addDays(d, -(((d.getUTCDay()+6)%7)) ); }
-  function iso(d){ return d.toISOString().slice(0,10); }
+  function iso(d){ return localISO(d); }
   function parseIso(s){ return new Date(s+'T00:00:00Z'); }
   function wdKey(d){ return WD[(d.getUTCDay()+6)%7]; }
   function fmtDate(d){
@@ -638,7 +638,7 @@ window.OwnerDashboard = (function () {
   }
   /* Keyed by ISO date now that this reads real dated events. */
   function agendaFor(d){ return DATA.week[iso(d)] || []; }
-  function todayIso(){ return new Date().toISOString().slice(0,10); }
+  function todayIso(){ return todayISO(); }
   function tone(t){ return t === 'bad' ? 'is-bad' : t === 'warn' ? 'is-warn' : t === 'ok' ? 'is-ok' : ''; }
 
   /* ------------------------------------------------------------- renderers -- */

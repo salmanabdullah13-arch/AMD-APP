@@ -207,7 +207,7 @@ window.EstimatorUI = (function () {
 
   function weekCard() {
     var evs = safe(function () { return getCalendarEvents(me(), 'estimator'); }, []);
-    var today = new Date().toISOString().slice(0, 10);
+    var today = todayISO();
     var soon = evs.filter(function (e) { return e.date >= today; }).slice(0, 5);
     return '<section class="ed-card"><div class="ed-card-h"><span class="ed-title">This week</span>' +
       '<button class="ed-link" data-act="planner">Open planner ›</button></div>' +

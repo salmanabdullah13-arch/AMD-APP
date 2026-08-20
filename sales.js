@@ -607,7 +607,7 @@ function renderEnquiryDetail() {
       ${historyHtml}
       <div class="sales-card" style="padding:12px;">
         <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Follow-up</p>
-        <div class="sales-field"><label>Date of Appointment</label><input type="date" id="fu-date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="sales-field"><label>Date of Appointment</label><input type="date" id="fu-date" value="${todayISO()}"></div>
         <div class="sales-field"><label>Meeting Type</label><select id="fu-type">${MEETING_TYPES.map(x => `<option value="${x}">${x}</option>`).join('')}</select></div>
         <div class="sales-field"><label>Outcome</label><select id="fu-outcome">${FOLLOWUP_OUTCOMES.map(x => `<option value="${x}">${x}</option>`).join('')}</select></div>
         <div class="sales-field"><label>Notes (min 10 characters)</label><textarea id="fu-notes"></textarea></div>
@@ -1213,7 +1213,7 @@ function qhLogFollowUp(id) {
   if (!outcome) return;
   const notes = window.prompt('Notes (at least 10 characters)');
   if (!notes) return;
-  const res = addFollowUp(q.enquiryId, { date: new Date().toISOString().slice(0, 10), meetingType, outcome, notes });
+  const res = addFollowUp(q.enquiryId, { date: todayISO(), meetingType, outcome, notes });
   if (res && res.error) { salesAlert(res.error); return; }
   renderSalesBody();
 }

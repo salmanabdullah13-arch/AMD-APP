@@ -53,7 +53,7 @@ window.PurUI = (function () {
     if (p.length !== 3) return String(iso);
     return p[2] + ' ' + MONTHS[(+p[1]) - 1] + ' ' + p[0];
   }
-  function today() { return new Date().toISOString().slice(0, 10); }
+  function today() { return todayISO(); }
   function supName(id) { return safe(function () { return purSupplierName(id); }, '—'); }
 
   /* ── the five dashboard steps ───────────────────────────────────────── */

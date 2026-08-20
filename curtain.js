@@ -187,7 +187,7 @@ function addDays(dateStr, days) {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localISO(d);
 }
 
 function daysBetween(a, b) {
@@ -196,7 +196,7 @@ function daysBetween(a, b) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return todayISO();
 }
 
 function fmtDate(d) {
@@ -547,7 +547,7 @@ function getWindowsToQCPerDay(days = 7) {
   const counts = {}, order = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0,10);
+    const key = localISO(d);
     counts[key] = 0; order.push(key);
   }
   curtainJobs.forEach(job => {
@@ -4766,7 +4766,7 @@ function tlMonday(d) {
   date.setHours(0,0,0,0);
   return date;
 }
-function tlISO(d) { return d.toISOString().slice(0,10); }
+function tlISO(d) { return localISO(d); }
 
 function getTimeLogWeekDates() {
   if (!timeLogWeekStart) timeLogWeekStart = tlISO(tlMonday(new Date()));

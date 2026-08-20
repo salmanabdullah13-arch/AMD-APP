@@ -37,7 +37,7 @@ function demoDateMonthsAgo(n, dayOfMonth) {
   d.setDate(1); // avoid month-length overflow (e.g. Jan 31 - 1 month)
   d.setMonth(d.getMonth() - n);
   d.setDate(dayOfMonth || Math.min(1 + ((n * 7) % 24), 28));
-  return d.toISOString().slice(0, 10);
+  return localISO(d);
 }
 
 function demoSeedCustomerAndEnquiry({ name, division, salesPerson, monthsAgo }) {

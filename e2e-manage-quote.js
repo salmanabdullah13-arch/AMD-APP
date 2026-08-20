@@ -5,6 +5,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
+
 let pass = 0, fail = 0;
 const check = (name, ok, extra) => {
   if (ok) { pass++; console.log('  PASS  ' + name); }
@@ -133,7 +140,7 @@ const check = (name, ok, extra) => {
     const derived = quoteValidUntil(q);
     // clause 4 promises 5 days from the quote date
     const expected = addDaysISO(q.date, 5);
-    q.validUntil = addDaysISO(new Date().toISOString().slice(0, 10), -1);   // yesterday
+    q.validUntil = addDaysISO(todayISO(), -1);   // yesterday
     const expiredNow = quoteIsExpired(q);
     const closedIds = expireDueQuotations();
     const after = quotations.find(x => x.id === id);
@@ -152,7 +159,7 @@ const check = (name, ok, extra) => {
     const reinstated = reinstateQuotation(id, 'Silva');
     const okNow = !reinstated.error && q.lifecycleStatus === 'open';
     // a quote closed long ago must NOT come back at old prices
-    q.lifecycleStatus = 'closed'; q.closedDate = addDaysISO(new Date().toISOString().slice(0, 10), -60);
+    q.lifecycleStatus = 'closed'; q.closedDate = addDaysISO(todayISO(), -60);
     const refused = reinstateQuotation(id, 'Silva');
     q.lifecycleStatus = 'open'; q.closedDate = null;
     return { okNow, refused: !!(refused && refused.error), msg: refused && refused.error };
@@ -205,7 +212,7 @@ const check = (name, ok, extra) => {
   console.log('\n— §8 follow-ups belong to the enquiry —');
   const fu = await page.evaluate(ids => {
     const before = (enquiries.find(e => e.id === ids.enqId).followUps || []).length;
-    const res = addFollowUp(ids.enqId, { date: new Date().toISOString().slice(0, 10),
+    const res = addFollowUp(ids.enqId, { date: todayISO(),
       meetingType: 'Call', outcome: 'Interested', notes: 'Client asked for a revised layout.' });
     const after = (enquiries.find(e => e.id === ids.enqId).followUps || []).length;
     const short = addFollowUp(ids.enqId, { date: '2026-08-09', meetingType: 'Call', outcome: 'x', notes: 'too short' });

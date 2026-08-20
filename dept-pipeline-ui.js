@@ -95,7 +95,7 @@ function deptWorkLogRow(r, modPrefix, deptKey) {
       <label style="font-size:10.5px;color:#64748b;">Who worked on this<br>
         <select id="wl-emps-${r.item.lineId}" multiple size="4" style="min-width:170px;font-size:11px;">${getDeptRoster(deptKey).map(n => `<option value="${deptEsc(n)}">${deptEsc(n)}</option>`).join('')}</select></label>
       <label style="font-size:10.5px;color:#64748b;">Hours each<br><input id="wl-hours-${r.item.lineId}" type="number" step="0.5" min="0.5" max="12" value="8" style="width:70px;"></label>
-      <label style="font-size:10.5px;color:#64748b;">Date<br><input id="wl-date-${r.item.lineId}" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:130px;"></label>
+      <label style="font-size:10.5px;color:#64748b;">Date<br><input id="wl-date-${r.item.lineId}" type="date" value="${todayISO()}" style="width:130px;"></label>
       <button class="primary" style="font-size:11px;padding:6px 10px;" onclick="deptSaveWorkLog('${modPrefix}','${r.job.id}',${r.item.lineId},'${deptKey}')">Save day log</button>
     </div>
     ${logged.length ? `<p style="font-size:10px;color:#94a3b8;">Logged so far: ${logged.length} day-entries · BD ${logged.reduce((s, l) => s + l.cost, 0).toFixed(3)}</p>` : ''}

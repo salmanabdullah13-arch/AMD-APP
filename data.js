@@ -5,6 +5,31 @@
 // ═══════════════════════════════════════
 
 // DEPARTMENTS & STAFF
+// ══════════════════════════════════════════
+// CALENDAR DATES — always LOCAL, never UTC
+// ══════════════════════════════════════════
+// Date.toISOString() converts to UTC before formatting. Al Maraya runs at
+// UTC+3, so slicing the first 10 characters off an ISO string gives the
+// WRONG CALENDAR DAY in two different ways:
+//
+//   • a local Date built for midnight (new Date("2026-08-24T00:00:00")) is
+//     21:00 the PREVIOUS day in UTC — so it is wrong on every call, all day.
+//     That was addDaysISO(): 31 Dec + 1 day returned 31 Dec, a date that
+//     never advanced. Fixed 19 Aug 2026.
+//   • new Date() is only wrong between local midnight and 03:00 — but in
+//     that window every record stamped "today" is dated YESTERDAY, which is
+//     worse than a visible error because it looks fine. 01:30 on 20 Aug in
+//     Bahrain formats as "2026-08-19".
+//
+// One helper, used everywhere. Sweep of all 164 call sites: 19 Aug 2026.
+// If a UTC date is ever genuinely wanted, say so explicitly at the call
+// site — do not reach back for .toISOString().slice(0, 10).
+function localISO(d) {
+  const p = (x) => String(x).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+function todayISO() { return localISO(new Date()); }
+
 const DEPTS=[{k:"carp",n:"Carpentry",c:"#0f9d58"},{k:"paint",n:"Painting",c:"#c47d00"},{k:"uph",n:"Upholstery",c:"#d6336c"},{k:"curt",n:"Curtain",c:"#7c3aed"},{k:"metal",n:"Metal Works",c:"#475569"}];
 function dc(k){return DEPTS.find(d=>d.k===k)||{n:k,c:"#888"};}
 // Departments a job line can actually be ROUTED to — i.e. that have a real
@@ -231,7 +256,7 @@ function raiseInquiry({ jobId, windowIds, vendor, vendorRegion, source, fabricCo
 // own todayStr() already, kept separate so this file has no cross-file
 // dependency on load order.
 function todayStrGlobal() {
-  return new Date().toISOString().slice(0, 10);
+  return todayISO();
 }
 
 // Quote aging (6 Aug 2026 audit, Phase E) — how long a quotation has been
@@ -808,7 +833,7 @@ function raisePurchaseRequest({ department, raisedBy, linkedJobId = null, destin
     division,              // Q-Pro's own "Division" field on Purchase Request (Job) — optional, display-only here
     department,            // one of DEPTS keys: carp, paint, uph, curt, metal
     raisedBy,
-    dateRaised: new Date().toISOString().slice(0, 10),
+    dateRaised: todayISO(),
     linkedJobId,           // AMD-XXXXX or null
     destinationType,       // "inventory" | "job-direct"
     items,                 // [{ name, qty, unit, itemRef, remarks }] — itemRef is optional: { id, label } for a
@@ -855,7 +880,7 @@ function createSupplier({
     isCredit: !!isCredit, creditLimit: Number(creditLimit) || 0, creditDays: Number(creditDays) || 0,
     bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch,
     address: address.trim(), crNo, country, openingBalance: Number(openingBalance) || 0,
-    dateCreated: new Date().toISOString().slice(0, 10)
+    dateCreated: todayISO()
   };
   suppliers.push(supplier);
   return supplier;
@@ -884,7 +909,7 @@ function convertPRtoPO(prId, supplierDetails = {}) {
     id: nextPOId(),
     sourcePR: pr.id,
     department: pr.department,   // stamped directly so approvals/KPIs never need a sourcePR lookup
-    date: new Date().toISOString().slice(0, 10),
+    date: todayISO(),
     company: "Al Maraya Decor",
     paymentMode: supplierDetails.paymentMode || "Cash",
     supplierId: supplierDetails.supplierId || null,
@@ -934,7 +959,7 @@ function createPurchaseOrderDirect({ department, linkedJobId = null, destination
     id: nextPOId(),
     sourcePR: null,
     department,
-    date: new Date().toISOString().slice(0, 10),
+    date: todayISO(),
     company: "Al Maraya Decor",
     paymentMode: supplierDetails.paymentMode || "Cash",
     supplierId: supplierDetails.supplierId || null,
@@ -983,7 +1008,7 @@ function approvePO(poId, approvedBy) {
   if (!po) return null;
   po.approvalStatus = "approved";
   po.approvedBy = approvedBy;
-  po.approvalDate = new Date().toISOString().slice(0, 10);
+  po.approvalDate = todayISO();
   po.status = "issued";
   logActivity({ type: "po-approved", linkedType: po.linkedJobId ? "job" : "po", linkedId: po.linkedJobId || po.id, user: approvedBy, message: `PO ${po.id} approved and issued` });
   return po;
@@ -993,7 +1018,7 @@ function rejectPO(poId, rejectedBy, comment) {
   if (!po) return null;
   po.approvalStatus = "rejected";
   po.approvedBy = rejectedBy;
-  po.approvalDate = new Date().toISOString().slice(0, 10);
+  po.approvalDate = todayISO();
   po.rejectionComment = comment;
   logActivity({ type: "po-rejected", linkedType: po.linkedJobId ? "job" : "po", linkedId: po.linkedJobId || po.id, user: rejectedBy, message: `PO ${po.id} rejected — ${comment || "no comment"}` });
   return po;
@@ -1022,7 +1047,7 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
     sourcePO: po.id,
     department: po.department,
     type: po.type,
-    dateReceived: new Date().toISOString().slice(0, 10),
+    dateReceived: todayISO(),
     supplierId: po.supplierId || null,
     supplierNameTel: po.supplierNameTel,
     supplierRef: receiptDetails.supplierRef || "",   // vendor's own invoice number
@@ -1047,7 +1072,7 @@ function convertPOtoInvoice(poId, receiptDetails = {}) {
     // up in the Approvals tab a second time.
     approvalStatus: "approved",
     approvedBy: po.approvedBy,
-    approvalDate: new Date().toISOString().slice(0, 10),
+    approvalDate: todayISO(),
     rejectionComment: null,
     status: "received"
   };
@@ -1102,7 +1127,7 @@ function createPurchaseInvoiceDirect({ department, linkedJobId = null, destinati
     sourcePOSearch,               // PO id entered via "Search PO Number" + Locate, informational only
     department,
     type: destinationTypeToType(destinationType),
-    dateReceived: new Date().toISOString().slice(0, 10),
+    dateReceived: todayISO(),
     supplierId: supplierDetails.supplierId || null,
     supplierNameTel: supplierDetails.supplierNameTel || "",
     supplierRef: supplierDetails.supplierRef || "",
@@ -1155,7 +1180,7 @@ function approveInvoice(invId, approvedBy) {
   if (!inv) return null;
   inv.approvalStatus = "approved";
   inv.approvedBy = approvedBy;
-  inv.approvalDate = new Date().toISOString().slice(0, 10);
+  inv.approvalDate = todayISO();
   inv.status = "received";
   if (inv.type === "Stock") {
     inv.items.forEach(it => {
@@ -1185,7 +1210,7 @@ function rejectInvoice(invId, rejectedBy, comment) {
   if (!inv) return null;
   inv.approvalStatus = "rejected";
   inv.approvedBy = rejectedBy;
-  inv.approvalDate = new Date().toISOString().slice(0, 10);
+  inv.approvalDate = todayISO();
   inv.rejectionComment = comment;
   return inv;
 }
@@ -1243,7 +1268,7 @@ function createPayment({
     id: nextPaymentId(),
     supplierId,
     division,
-    paymentDate: paymentDate || new Date().toISOString().slice(0, 10),
+    paymentDate: paymentDate || todayISO(),
     methods,        // { cash:{enabled,amount}, cCard:{enabled,amount,type,authorized}, wallet:{enabled,amount,type,authorized}, cheque:{enabled,amount,number,bank} }
     amount: Number(amount),
     referenceNumber,
@@ -1286,7 +1311,7 @@ function createDebitNote({
     supplierId,
     division,
     ledger: ledger.trim(),
-    debitNoteDate: debitNoteDate || new Date().toISOString().slice(0, 10),
+    debitNoteDate: debitNoteDate || todayISO(),
     taxableType,
     amount: Number(amount),
     reason,
@@ -1324,7 +1349,7 @@ function issueItemCard(jobId, { description, qty, department, sourcePO = null, s
     sourcePO,
     sourceStockEntry,
     itemRef,   // optional { id, label } window/item allocation tag, or free text — same shape as PR/PO/Invoice itemRef
-    dateIssued: new Date().toISOString().slice(0, 10)
+    dateIssued: todayISO()
   };
   itemCards.push(card);
   return card;
@@ -1349,7 +1374,7 @@ function releaseStockEntry(entryId, { department, jobId, qty, issuedBy, itemRef 
   if (releaseQty > entry.qty) return { error: `Only ${entry.qty} ${entry.unit || ""} available in this entry.` };
 
   let releasedEntry;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   if (releaseQty === entry.qty) {
     entry.status = "released";
     entry.releasedTo = department;
@@ -1396,7 +1421,7 @@ function releaseStockEntry(entryId, { department, jobId, qty, issuedBy, itemRef 
 // ── STOREKEEPER DASHBOARD SUMMARY ──
 function getStockPoolSummary() {
   const inPool = stockEntries.filter(s => s.status === "in-pool");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const releasedToday = stockEntries.filter(s => s.status === "released" && s.dateReleased === today);
   const releasedTotal = stockEntries.filter(s => s.status === "released");
   return {
@@ -1429,7 +1454,7 @@ function createStockAdjustment({ date = null, reason = "Not Applicable", items =
   if (!items.length) return { error: "Add at least one item." };
   const sa = {
     id: nextSANumber(),
-    date: date || new Date().toISOString().slice(0, 10),
+    date: date || todayISO(),
     type: "Stock Adjustment",
     location: "Location 1",
     reason,
@@ -1614,7 +1639,7 @@ function getItemRateMovement(item, days = 30, hist = null) {
   const H = hist || getItemRateHistory();
   const entries = H[item.id] || H["name:" + String(item.name || "").trim().toLowerCase()];
   if (!entries || entries.length < 2) return null;      // no prior price to compare against
-  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const cutoff = localISO(new Date(Date.now() - days * 86400000));
   const latest = entries[entries.length - 1];
   if (latest.date < cutoff) return null;                // the change is older than the window
   // The most recent PRIOR purchase at a different price — repeat buys at the
@@ -2103,7 +2128,7 @@ function expiryStatus(dateStr, todayStr) {
   if (days <= HR_EXPIRY_WINDOW_DAYS) return "expiring";
   return null;
 }
-function getHRKPIs(todayStr = new Date().toISOString().slice(0, 10)) {
+function getHRKPIs(todayStr = todayISO()) {
   const tiles = {
     cpr: { expiring: [], expired: [] },
     passport: { expiring: [], expired: [] },
@@ -2351,7 +2376,7 @@ function getBankingDetailsForCustomer(customerId) {
 // the caller, same as every other audit-style field in this app.
 function saveBankingDetailsForCustomer(customerId, { bankAccountNumber = "", bankAccountHolderName = "", ibanNumber = "", bankSwift = "", bankName = "", bankBranch = "" }, updatedBy) {
   if (!customers.find(c => c.id === customerId)) return { error: "Customer not found." };
-  const obj = { customerId, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, updatedBy, updatedDate: new Date().toISOString().slice(0, 10) };
+  const obj = { customerId, bankAccountNumber, bankAccountHolderName, ibanNumber, bankSwift, bankName, bankBranch, updatedBy, updatedDate: todayISO() };
   const i = customerBankingDetails.findIndex(b => b.customerId === customerId);
   if (i >= 0) customerBankingDetails[i] = obj; else customerBankingDetails.push(obj);
   if (window.__realCloudSession && sb) {
@@ -2397,7 +2422,7 @@ function approveCustomer(customerId, approvedBy) {
   if (!c) return { error: "Customer not found." };
   c.status = "approved";
   c.approvedBy = approvedBy;
-  c.approvalDate = new Date().toISOString().slice(0, 10);
+  c.approvalDate = todayISO();
   c.rejectionComment = null;
   logActivity({ type: "customer-approved", linkedType: "customer", linkedId: c.id, user: approvedBy, message: `Customer ${c.name} (${c.id}) approved` });
   persistCustomerUpdate(c);
@@ -2409,7 +2434,7 @@ function rejectCustomer(customerId, rejectedBy, comment) {
   if (!comment || !comment.trim()) return { error: "A rejection comment is required." };
   c.status = "rejected";
   c.approvedBy = rejectedBy;
-  c.approvalDate = new Date().toISOString().slice(0, 10);
+  c.approvalDate = todayISO();
   c.rejectionComment = comment.trim();
   logActivity({ type: "customer-rejected", linkedType: "customer", linkedId: c.id, user: rejectedBy, message: `Customer ${c.name} (${c.id}) rejected — ${comment.trim()}` });
   persistCustomerUpdate(c);
@@ -2487,7 +2512,7 @@ function createEnquiry({ division, customerId = null, prospectName = "", contact
   const e = {
     id: nextEnquiryNo(), division, customerId, prospectName: customerId ? "" : prospectName,
     contactPerson, tel, email, requirements, source, salesPerson,
-    dateCreated: dateCreated || new Date().toISOString().slice(0, 10),
+    dateCreated: dateCreated || todayISO(),
     followUps: [], linkedQuotationId: null
   };
   enquiries.push(e);
@@ -2500,7 +2525,7 @@ function addFollowUp(enquiryId, { date, meetingType, outcome, notes }) {
   const e = enquiries.find(x => x.id === enquiryId);
   if (!e) return { error: "Enquiry not found." };
   if (!notes || notes.trim().length < 10) return { error: "Notes must be at least 10 characters." };
-  e.followUps.push({ date: date || new Date().toISOString().slice(0, 10), meetingType, outcome, notes: notes.trim() });
+  e.followUps.push({ date: date || todayISO(), meetingType, outcome, notes: notes.trim() });
   persistEnquiryUpdate(e);
   return e;
 }
@@ -2627,16 +2652,9 @@ function nextRevSuffix(baseId) {
 // against a written promise. Validity is real now.
 const QUOTE_VALID_DAYS = 5;
 function addDaysISO(iso, n) {
-  // Local all the way through. The old version formatted via toISOString(),
-  // which converts to UTC — in Bahrain (UTC+3) local midnight is 21:00 the
-  // previous day, so EVERY date addition came back one day short: holds
-  // expired a day early, quote validity ran a day short, RFQ promised
-  // dates landed a day early. Caught by the 19a derived-slot test doing
-  // the arithmetic by hand (24 + 3 read back as the 26th).
   const d = new Date(iso + "T00:00:00");
   d.setDate(d.getDate() + n);
-  const p = (x) => String(x).padStart(2, "0");
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  return localISO(d);
 }
 // validUntil is stored once set (extending re-dates it); otherwise derived from
 // the quote's own date so existing rows behave without a migration.
@@ -2646,7 +2664,7 @@ function quoteValidUntil(qtn) {
 }
 function quoteIsExpired(qtn) {
   if (!qtn || qtn.lifecycleStatus === "confirmed" || qtn.lifecycleStatus === "closed") return false;
-  return quoteValidUntil(qtn) < new Date().toISOString().slice(0, 10);
+  return quoteValidUntil(qtn) < todayISO();
 }
 function quoteDaysLeft(qtn) {
   const until = quoteValidUntil(qtn);
@@ -2664,7 +2682,7 @@ function expireDueQuotations() {
     if (!quoteIsExpired(q)) return;
     q.lifecycleStatus = "closed";
     q.closedReason = "expired";
-    q.closedDate = new Date().toISOString().slice(0, 10);
+    q.closedDate = todayISO();
     logQuotationAudit(q, { action: "Auto-close on expiry", user: "system", userType: "SYSTEM", status: "Closed" });
     logActivity({ type: "quotation-expired", linkedType: "quotation", linkedId: q.id,
       message: `${q.id} closed automatically — the ${QUOTE_VALID_DAYS}-day validity in clause 4 ran out` });
@@ -2691,8 +2709,8 @@ function extendQuotationValidity(qtnId, days, byName) {
   const q = quotations.find(x => x.id === qtnId);
   if (!q) return { error: "Quotation not found." };
   if (q.lifecycleStatus === "confirmed") return { error: "This quote is already confirmed." };
-  const from = quoteValidUntil(q) < new Date().toISOString().slice(0, 10)
-    ? new Date().toISOString().slice(0, 10) : quoteValidUntil(q);
+  const from = quoteValidUntil(q) < todayISO()
+    ? todayISO() : quoteValidUntil(q);
   q.validUntil = addDaysISO(from, Number(days) || 7);
   if (q.lifecycleStatus === "closed" && q.closedReason === "expired") { q.lifecycleStatus = "open"; q.closedReason = null; }
   logQuotationAudit(q, { action: `Validity extended to ${q.validUntil}`, user: byName, userType: "SALES", status: "Open" });
@@ -2717,7 +2735,7 @@ function reinstateQuotation(qtnId, byName) {
   }
   q.lifecycleStatus = "open";
   q.closedReason = null;
-  q.validUntil = addDaysISO(new Date().toISOString().slice(0, 10), QUOTE_VALID_DAYS);
+  q.validUntil = addDaysISO(todayISO(), QUOTE_VALID_DAYS);
   logQuotationAudit(q, { action: "Reinstated as it stands — same lines, same rates", user: byName, userType: "SALES", status: "Open" });
   persistQuotationUpdate(q);
   return q;
@@ -2728,7 +2746,7 @@ function closeQuotationForGood(qtnId, reason, byName) {
   if (!reason || !reason.trim()) return { error: "A reason is required to close this quote." };
   q.lifecycleStatus = "closed";
   q.closedReason = reason.trim();
-  q.closedDate = new Date().toISOString().slice(0, 10);
+  q.closedDate = todayISO();
   logQuotationAudit(q, { action: `Closed — ${reason.trim()}`, user: byName, userType: "SALES", status: "Closed" });
   persistQuotationUpdate(q);
   return q;
@@ -2745,7 +2763,7 @@ function raiseQuotationRevision(copyFromId, byName) {
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = base + "-" + rev;
   copy.rev = rev;
-  copy.date = new Date().toISOString().slice(0, 10);
+  copy.date = todayISO();
   copy.validUntil = null;
   copy.lifecycleStatus = "draft";
   copy.stage = "sales";
@@ -2800,7 +2818,7 @@ function convertEnquiryToQuotation(enquiryId, { projectName, taxPercent, contact
     lifecycleStatus: "draft", stage: "sales",
     estimatorPickedBy: null, approverPickedBy: null,
     headerComment: "", auditLog: [],
-    date: new Date().toISOString().slice(0, 10), confirmDate: null
+    date: todayISO(), confirmDate: null
   };
   quotations.push(qtn);
   enq.linkedQuotationId = qtn.id;
@@ -3130,7 +3148,7 @@ function createItemMasterEntry({
     // A near-match that was overridden carries its reason forever: anyone
     // searching either spelling needs to see why both codes exist.
     if (gate.state === "near" && duplicateOverride) {
-      var _gateNote = { of: gate.matches[0].id, difference: String(duplicateDifference).trim(), declaredOn: new Date().toISOString().slice(0, 10) };
+      var _gateNote = { of: gate.matches[0].id, difference: String(duplicateDifference).trim(), declaredOn: todayISO() };
     }
   }
   const item = {
@@ -3750,7 +3768,7 @@ function logQuotationAudit(qtn, { action, user, userType, status }) {
   const displayStatus = status || (qtn.lifecycleStatus.charAt(0).toUpperCase() + qtn.lifecycleStatus.slice(1));
   qtn.auditLog.push({
     seq: qtn.auditLog.length + 1,
-    action, user, date: new Date().toISOString().slice(0, 10),
+    action, user, date: todayISO(),
     userType, status: displayStatus
   });
 }
@@ -3837,7 +3855,7 @@ function approveQuotation(qtnId, approvedBy, approverUserType) {
   if (!ownerLevel && quoteRequiresOwnerCounterSign(qtn)) {
     qtn.ownerReviewStatus = "pending-owner-review";
     qtn.recommendedBy = approvedBy;
-    qtn.recommendedDate = new Date().toISOString().slice(0, 10);
+    qtn.recommendedDate = todayISO();
     logQuotationAudit(qtn, { action: "Recommend", user: approvedBy, userType: "OPERATIONS", status: "Draft" });
     logActivity({
       type: "quotation-recommended", linkedType: "quotation", linkedId: qtn.id, user: approvedBy,
@@ -3876,7 +3894,7 @@ function approveQuotationOwnerReview(qtnId, approvedBy, approverUserType) {
   qtn.lifecycleStatus = "open";
   qtn.ownerReviewStatus = null;
   qtn.counterSignedBy = approvedBy;
-  qtn.counterSignedDate = new Date().toISOString().slice(0, 10);
+  qtn.counterSignedDate = todayISO();
   logQuotationAudit(qtn, { action: "Counter-sign", user: approvedBy, userType: "OWNER", status: "Open" });
   logActivity({ type: "quotation-approved", linkedType: "quotation", linkedId: qtn.id, user: approvedBy, message: `${qtn.id} counter-signed by the Owner — Open` });
   persistQuotationUpdate(qtn);
@@ -3949,7 +3967,7 @@ function approverCorrectItem(qtnId, lineId, patch, reason, approverName) {
   }
   if (Object.keys(changes).length === 0) return { error: "No changes to save." };
   if (!item.corrections) item.corrections = [];
-  item.corrections.push({ by: approverName, date: new Date().toISOString().slice(0, 10), reason: reason.trim(), changes });
+  item.corrections.push({ by: approverName, date: todayISO(), reason: reason.trim(), changes });
   const qtn = quotations.find(q => q.id === qtnId);
   const fieldList = Object.keys(changes).join(", ");
   logQuotationAudit(qtn, { action: "Correct Item", user: approverName, userType: "APPROVER", status: `${item.product} — ${fieldList} corrected (${reason.trim()})` });
@@ -4484,9 +4502,9 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
   const totals = computeQuotationTotals(qtn);
   const job = {
     id: nextJobCardNo(), quotationId: qtn.id, customerId: qtn.customerId, projectName: qtn.projectName,
-    date: new Date().toISOString().slice(0, 10), amount: totals.netTotal,
+    date: todayISO(), amount: totals.netTotal,
     status: "open", // open | completed | cancelled — the whole-job status shown on the Job Card List legend
-    confirmDate: new Date().toISOString().slice(0, 10),
+    confirmDate: todayISO(),
     items: qtn.items.map(it => ({
       lineId: it.lineId, product: it.product, qty: it.qty, unit: it.unit, rate: it.rate,
       discPercent: it.discPercent, amount: it.amount, vatPercent: it.vatPercent, netAmount: it.netAmount,
@@ -4549,7 +4567,7 @@ function confirmJobRouting(jobId, lineOverrides = {}, confirmedBy, targetDate = 
   });
   job.routingConfirmed = true;
   job.routingConfirmedBy = confirmedBy;
-  job.routingConfirmedDate = new Date().toISOString().slice(0, 10);
+  job.routingConfirmedDate = todayISO();
   ensureDepartmentBudgets(job); // Phase 4 — a budget slot per routed department, ready for that department to submit against
   const deptNames = [...new Set(job.items.flatMap(it => it.departmentSequence))].map(k => dc(k).n);
   logActivity({
@@ -5127,7 +5145,7 @@ function submitDepartmentBudget(jobId, deptKey, categoryAmounts, submittedBy) {
   });
   entry.approvalStatus = "pending";
   entry.submittedBy = submittedBy;
-  entry.submittedDate = new Date().toISOString().slice(0, 10);
+  entry.submittedDate = todayISO();
   entry.rejectionComment = null;
   recomputeJobBudgetRollup(job);
   logActivity({ type: "budget-submitted", linkedType: "job", linkedId: job.id, user: submittedBy, message: `${dc(deptKey).n} budget submitted for approval` });
@@ -5166,14 +5184,14 @@ function approveDepartmentBudget(jobId, deptKey, approvedBy) {
     // second step below.
     entry.approvalStatus = "pending-owner-review";
     entry.managerApprovedBy = approvedBy;
-    entry.managerApprovedDate = new Date().toISOString().slice(0, 10);
+    entry.managerApprovedDate = todayISO();
     logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget (BD ${totals.totalCostInclOH.toFixed(3)}, over BD ${BUDGET_APPROVAL_THRESHOLD}) approved by manager — awaiting Owner review before production can start` });
     persistJobCardUpdate(job);
     return entry;
   }
   entry.approvalStatus = "approved";
   entry.approvedBy = approvedBy;
-  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  entry.approvedDate = todayISO();
   logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget approved — production can start` });
   persistJobCardUpdate(job);
   return entry;
@@ -5190,7 +5208,7 @@ function approveDepartmentBudgetOwnerReview(jobId, deptKey, approvedBy) {
   if (entry.approvalStatus !== "pending-owner-review") return { error: "This budget isn't awaiting Owner review." };
   entry.approvalStatus = "approved";
   entry.approvedBy = approvedBy;
-  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  entry.approvedDate = todayISO();
   logActivity({ type: "budget-approved", linkedType: "job", linkedId: job.id, user: approvedBy, message: `${dc(deptKey).n} budget received final Owner approval (over BD ${BUDGET_APPROVAL_THRESHOLD}) — production can start` });
   persistJobCardUpdate(job);
   return entry;
@@ -5202,7 +5220,7 @@ function rejectDepartmentBudgetOwnerReview(jobId, deptKey, rejectedBy, comment) 
   if (entry.approvalStatus !== "pending-owner-review") return { error: "This budget isn't awaiting Owner review." };
   entry.approvalStatus = "rejected";
   entry.approvedBy = rejectedBy;
-  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  entry.approvedDate = todayISO();
   entry.rejectionComment = comment;
   logActivity({ type: "budget-rejected", linkedType: "job", linkedId: job.id, user: rejectedBy, message: `${dc(deptKey).n} budget rejected at Owner review — ${comment || "no comment"}` });
   persistJobCardUpdate(job);
@@ -5215,7 +5233,7 @@ function rejectDepartmentBudget(jobId, deptKey, rejectedBy, comment) {
   if (entry.approvalStatus !== "pending") return { error: "Budget must be submitted before it can be rejected." };
   entry.approvalStatus = "rejected";
   entry.approvedBy = rejectedBy;
-  entry.approvedDate = new Date().toISOString().slice(0, 10);
+  entry.approvedDate = todayISO();
   entry.rejectionComment = comment;
   logActivity({ type: "budget-rejected", linkedType: "job", linkedId: job.id, user: rejectedBy, message: `${dc(deptKey).n} budget rejected — ${comment || "no comment"}` });
   persistJobCardUpdate(job);
@@ -5334,7 +5352,7 @@ function recordDepartmentActual(jobId, deptKey, categoryAmounts, recordedBy) {
   if (entry.approvalStatus !== "approved") return { error: "Budget must be approved before recording actuals." };
   ["material", "labour", "subcontract", "hiring", "others"].forEach(cat => { entry.actual[cat] = Number(categoryAmounts[cat]) || 0; });
   entry.actual.recordedBy = recordedBy;
-  entry.actual.recordedDate = new Date().toISOString().slice(0, 10);
+  entry.actual.recordedDate = todayISO();
   recomputeJobBudgetRollup(job);
   const overBudget = isDepartmentOverBudget(jobId, deptKey);
   logActivity({ type: "actual-recorded", linkedType: "job", linkedId: job.id, user: recordedBy, message: `${dc(deptKey).n} actual cost recorded${overBudget ? " — OVER BUDGET" : ""}` });
@@ -5400,7 +5418,7 @@ function createVariationForJob(jobId, { notes = "" } = {}) {
     lifecycleStatus: "draft", stage: "sales",
     estimatorPickedBy: null, approverPickedBy: null,
     headerComment: "", auditLog: [],
-    date: new Date().toISOString().slice(0, 10), confirmDate: null
+    date: todayISO(), confirmDate: null
   };
   quotations.push(qtn);
   logActivity({ type: "variation-created", linkedType: "job", linkedId: jobId, user: "Sales", message: `Variation ${qtn.id} created` });
@@ -5455,7 +5473,7 @@ function confirmVariationToJobCard(qtnId, confirmedBy) {
   if (!job.variationIds) job.variationIds = [];
   job.variationIds.push(qtn.id);
   qtn.lifecycleStatus = "confirmed";
-  qtn.confirmDate = new Date().toISOString().slice(0, 10);
+  qtn.confirmDate = todayISO();
   persistQuotationUpdate(qtn);
   persistJobCardUpdate(job);
   bridgeJobToOperationsAndCurtain(job);
@@ -5648,7 +5666,7 @@ function addDeliveryNote(jobId, entries) {
     item.deliveredQty += requiredQty;
     return { lineId: e.lineId, requiredQty };
   }).filter(Boolean);
-  const note = { id: nextDeliveryNoteId(job), date: new Date().toISOString().slice(0, 10), lines };
+  const note = { id: nextDeliveryNoteId(job), date: todayISO(), lines };
   const lastDelivered = lines.length
     ? (job.items.find(it => it.lineId === lines[lines.length - 1].lineId) || {}).product : null;
   job.deliveryNotes.push(note);
@@ -5694,7 +5712,7 @@ function addMaterialsIssue(jobId, { location, items }) {
   if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
   if (job.status === "cancelled") return { error: "This job is cancelled." };
   if (!location) return { error: "Location is required." };
-  const move = { id: nextMaterialsMoveId(job, "MI"), date: new Date().toISOString().slice(0, 10), location, items: items.map(normalizeMoveItem), status: "confirmed" };
+  const move = { id: nextMaterialsMoveId(job, "MI"), date: todayISO(), location, items: items.map(normalizeMoveItem), status: "confirmed" };
   job.materialsIssues.push(move);
   items.forEach(it => {
     if (!it.itemId) return;
@@ -5711,7 +5729,7 @@ function addMaterialsReturn(jobId, { location, items }) {
   if (!job.routingConfirmed) return { error: "This job hasn't been routed by Operations yet." };
   if (job.status === "cancelled") return { error: "This job is cancelled." };
   if (!location) return { error: "Location is required." };
-  const move = { id: nextMaterialsMoveId(job, "MR"), date: new Date().toISOString().slice(0, 10), location, items: items.map(normalizeMoveItem), status: "confirmed" };
+  const move = { id: nextMaterialsMoveId(job, "MR"), date: todayISO(), location, items: items.map(normalizeMoveItem), status: "confirmed" };
   job.materialsReturns.push(move);
   items.forEach(it => {
     if (!it.itemId) return;
@@ -5782,7 +5800,7 @@ function addLabourCostEntry(jobId, { employee, jobItemLineId, normalHrs = 0, otH
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   const amount = normalHrs * normalRate + otHrs * otRate * 1.5;
-  const entry = { id: job.labourCostEntries.length + 1, employee, jobItemLineId, normalHrs, otHrs, normalRate, otRate, amount, date: new Date().toISOString().slice(0, 10) };
+  const entry = { id: job.labourCostEntries.length + 1, employee, jobItemLineId, normalHrs, otHrs, normalRate, otRate, amount, date: todayISO() };
   job.labourCostEntries.push(entry);
   persistJobCardUpdate(job);
   return entry;
@@ -5887,7 +5905,7 @@ function recordVehicleInspection(vehicleId, checklist, inspectedBy) {
   if (!v) return { error: "Vehicle not found." };
   if (!Array.isArray(checklist) || checklist.length === 0) return { error: "Checklist is required." };
   const overallStatus = checklist.every(c => c.pass) ? "pass" : "fail";
-  const inspection = { id: nextInspectionId(), vehicleId, date: new Date().toISOString().slice(0, 10), inspectedBy, checklist, overallStatus };
+  const inspection = { id: nextInspectionId(), vehicleId, date: todayISO(), inspectedBy, checklist, overallStatus };
   vehicleInspections.push(inspection);
   return inspection;
 }
@@ -5977,7 +5995,7 @@ function recordCustomerFeedback(jobId, { rating, comments }, recordedBy) {
   if (!job) return { error: "Job Card not found." };
   const r = Number(rating);
   if (!Number.isInteger(r) || r < 1 || r > 5) return { error: "Rating must be a whole number from 1 to 5." };
-  const entry = { id: nextFeedbackId(), jobId, rating: r, comments: (comments || "").trim(), recordedBy, recordedDate: new Date().toISOString().slice(0, 10) };
+  const entry = { id: nextFeedbackId(), jobId, rating: r, comments: (comments || "").trim(), recordedBy, recordedDate: todayISO() };
   customerFeedback.push(entry);
   logActivity({ type: "customer-feedback", linkedType: "job", linkedId: job.id, user: recordedBy, message: `Customer feedback recorded for ${job.id}: ${r}/5${entry.comments ? " — " + entry.comments : ""}` });
   return entry;
@@ -6050,7 +6068,7 @@ function generateInvoiceFromJob(jobId, { lpoNo = null, invoicedPercent = 100 } =
   const netTotal = invoicedTotal + vat;
   const inv = {
     id: nextInvoiceNo(), jobId, quotationId: job.quotationId, customerId: job.customerId,
-    date: new Date().toISOString().slice(0, 10), lpoNo,
+    date: todayISO(), lpoNo,
     items: job.items.map(it => ({ description: it.product, qty: it.qty, unit: it.unit, rate: it.rate, amount: it.amount })),
     totals: { total, invoicedPercent, vat, netTotal },
     paidAmount: 0, creditedAmount: 0
@@ -6089,7 +6107,7 @@ function createProformaFromJob(jobId) {
   const vat = job.items.reduce((s, it) => s + (it.amount * (it.vatPercent || 0) / 100), 0);
   const p = {
     id: nextProformaId(), jobId, quotationId: job.quotationId, customerId: job.customerId,
-    date: new Date().toISOString().slice(0, 10),
+    date: todayISO(),
     items: job.items.map(it => ({ description: it.product, qty: it.qty, unit: it.unit, rate: it.rate, amount: it.amount })),
     totals: { total, vat, netTotal: total + vat }
   };
@@ -6130,7 +6148,7 @@ function createSalesReceipt({
   if (!amount || Number(amount) <= 0) return { error: "Amount is required." };
   const receipt = {
     id: nextReceiptId(), customerId, division,
-    receiptDate: receiptDate || new Date().toISOString().slice(0, 10),
+    receiptDate: receiptDate || todayISO(),
     methods,       // same shape as Payment: { cash:{enabled,amount}, bank:{enabled,amount,bank}, cCard:{...}, wallet:{...}, cheque:{...} }
     amount: Number(amount), referenceNumber,
     allocations,   // [{ invoiceId, payingAmount, discountAmount }]
@@ -6161,7 +6179,7 @@ function createSalesCreditNote({ customerId, division = null, creditNoteDate = n
   if (!amount || Number(amount) <= 0) return { error: "Amount is required." };
   const cn = {
     id: nextCreditNoteId(), customerId, division,
-    creditNoteDate: creditNoteDate || new Date().toISOString().slice(0, 10),
+    creditNoteDate: creditNoteDate || todayISO(),
     amount: Number(amount), allocations, reason, status: "confirmed"
   };
   salesCreditNotes.push(cn);
@@ -6392,7 +6410,7 @@ function createGeneralReceipt({ date = null, methods = {}, amount, lines = [], r
     return { error: "Please check entered Amount." };
   }
   const receipt = {
-    id: nextGeneralReceiptId(), date: date || new Date().toISOString().slice(0, 10),
+    id: nextGeneralReceiptId(), date: date || todayISO(),
     methods, amount: finalAmount,
     lines: lines.map(l => ({ ledgerId: l.ledgerId, amount: Number(l.amount) || 0, narration: l.narration || "" })),
     remarks, status: "confirmed"
@@ -6420,7 +6438,7 @@ function createGeneralPayment({ date = null, methods = {}, amount, lines = [], r
     return { error: "Please check entered Amount." };
   }
   const payment = {
-    id: nextGeneralPaymentId(), date: date || new Date().toISOString().slice(0, 10),
+    id: nextGeneralPaymentId(), date: date || todayISO(),
     methods, amount: finalAmount,
     lines: lines.map(l => ({
       ledgerId: l.ledgerId, amount: Number(l.amount) || 0, narration: l.narration || "",
@@ -6456,7 +6474,7 @@ function createJournal({ date = null, lines = [], remarks = "" } = {}) {
     return { error: "Debit total must equal Credit total." };
   }
   const journal = {
-    id: nextJournalId(), date: date || new Date().toISOString().slice(0, 10),
+    id: nextJournalId(), date: date || todayISO(),
     lines: lines.map(l => ({
       ledgerId: l.ledgerId, dr: Number(l.dr) || 0, cr: Number(l.cr) || 0,
       revLedgerId: l.revLedgerId || null, narration: l.narration || "",
@@ -6718,10 +6736,10 @@ function salesInvoiceDueDate(inv) {
   const days = c ? (c.creditDays || 0) : 0;
   const d = new Date(inv.date);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localISO(d);
 }
 // "By party" — one row per Tax Invoice still carrying a balance.
-function getSalesBillOutstandingByParty({ ageBasis = "bill", asOf = new Date().toISOString().slice(0, 10) } = {}) {
+function getSalesBillOutstandingByParty({ ageBasis = "bill", asOf = todayISO() } = {}) {
   return taxInvoices.map(inv => {
     const paidAmt = (inv.paidAmount || 0) + (inv.creditedAmount || 0);
     const balAmt = invoiceBalance(inv);
@@ -6773,9 +6791,9 @@ function purchInvoiceDueDate(inv) {
   const days = s ? (s.creditDays || 0) : 0;
   const d = new Date(inv.dateReceived);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localISO(d);
 }
-function getPurchaseBillOutstandingByParty({ ageBasis = "bill", asOf = new Date().toISOString().slice(0, 10) } = {}) {
+function getPurchaseBillOutstandingByParty({ ageBasis = "bill", asOf = todayISO() } = {}) {
   return purchaseInvoices.filter(inv => inv.status === "received").map(inv => {
     const billAmt = (inv.totals && inv.totals.netAmount) || 0;
     const paidAmt = inv.paidAmount || 0;
@@ -6979,7 +6997,7 @@ function logLabourDay({ jobId, lineId = null, date = null, employeeName, hours, 
   const entry = {
     id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     jobId, lineId: (lineId === "" || lineId === undefined) ? null : lineId,
-    date: date || new Date().toISOString().slice(0, 10),
+    date: date || todayISO(),
     employeeName, hours: h, activity: activity || "production", loggedBy,
     cost: Math.round(h * emp.rate * 1000) / 1000   // real fully-loaded hourly rate
   };
@@ -7134,7 +7152,7 @@ function saveBOMTemplate(name, qtnId, lineId, savedBy) {
   if (!item || !item.bom) return { error: "This item has no BOM to save." };
   const t = {
     id: nextBOMTemplateId(), name: name.trim(), savedBy: savedBy || null,
-    savedDate: new Date().toISOString().slice(0, 10),
+    savedDate: todayISO(),
     sourceQtnId: qtnId, product: item.product,
     bom: JSON.parse(JSON.stringify(item.bom))
   };
@@ -7212,7 +7230,7 @@ function createPayrollRun(year, month, createdBy) {
     row.net = Math.round((row.basic + row.ot + row.allow + row.hra + row.other - row.deductions - row.advance) * 1000) / 1000;
     return row;
   });
-  const run = { id, year: y, month: m, status: "draft", rows, createdBy: createdBy || null, createdDate: new Date().toISOString().slice(0, 10), finalizedBy: null, finalizedDate: null };
+  const run = { id, year: y, month: m, status: "draft", rows, createdBy: createdBy || null, createdDate: todayISO(), finalizedBy: null, finalizedDate: null };
   payrollRuns.push(run);
   logActivity({ type: "payroll-run-created", linkedType: "payroll", linkedId: id, user: createdBy || "HR", message: "Payroll run " + id + " created (" + rows.length + " active staff)" });
   return run;
@@ -7235,7 +7253,7 @@ function finalizePayrollRun(runId, by) {
   if (run.status !== "draft") return { error: "Already finalized." };
   run.status = "finalized";
   run.finalizedBy = by || null;
-  run.finalizedDate = new Date().toISOString().slice(0, 10);
+  run.finalizedDate = todayISO();
   logActivity({ type: "payroll-run-finalized", linkedType: "payroll", linkedId: runId, user: by || "HR", message: "Payroll run " + runId + " finalized — BD " + run.rows.reduce((s, r) => s + r.net, 0).toFixed(3) + " total net" });
   return run;
 }
@@ -7283,7 +7301,7 @@ function createMaterialRequest({ jobId, itemId = null, itemName, qty, unit = "",
     neededBy: neededBy || null, note: (note || "").trim(),
     requestedBy, department,
     status: "open",               // open | fulfilled | declined
-    date: new Date().toISOString().slice(0, 10),
+    date: todayISO(),
     closedBy: null, closedDate: null, closeNote: ""
   };
   materialRequests.push(req);
@@ -7321,7 +7339,7 @@ function closeMaterialRequest(id, status, by, note = "") {
   if (status === "declined" && !note.trim()) return { error: "Say why it's declined so they know what to do next." };
   req.status = status;
   req.closedBy = by;
-  req.closedDate = new Date().toISOString().slice(0, 10);
+  req.closedDate = todayISO();
   req.closeNote = note.trim();
   if (typeof logActivity === "function") {
     logActivity({ type: "material-request-" + status, message: `${by} ${status} material request ${req.id} (${req.itemName})`, by, linkedType: "job", linkedId: req.jobId });
@@ -7345,7 +7363,7 @@ function duplicateQuotation(qtnId, { projectName = null, copyBom = true, copyDes
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = nextQtnNo();
   copy.rev = 0;
-  copy.date = new Date().toISOString().slice(0, 10);
+  copy.date = todayISO();
   copy.stage = "estimator";
   copy.lifecycleStatus = "draft";
   copy.confirmDate = null;
@@ -7399,7 +7417,7 @@ function createEvent({ title, date, time = null, kind = 'meeting', owner, withWh
   const ev = {
     id: nextEventId(), title: title.trim(), date, time: time || null, kind,
     owner, withWhom: (withWhom || '').trim(), linkedJobId, notes: (notes || '').trim(),
-    createdDate: new Date().toISOString().slice(0, 10)
+    createdDate: todayISO()
   };
   events.push(ev);
   if (typeof logActivity === 'function') {
@@ -7455,7 +7473,7 @@ const PLANNER_TYPES = {
 };
 
 function plannerMonday(dateIso) {
-  const d = new Date((dateIso || new Date().toISOString().slice(0, 10)) + "T00:00:00");
+  const d = new Date((dateIso || todayISO()) + "T00:00:00");
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
@@ -7524,7 +7542,7 @@ function getPlannerWeek(identity, moduleKey, weekStartIso) {
   jobs.filter(j => j.promisedDate).forEach(j => {
     const stuck = j.items.some(it => (it.departmentStatuses || [])
       .some(d => d.status === "qc" || d.status === "rework"));
-    const late = j.promisedDate < new Date().toISOString().slice(0, 10);
+    const late = j.promisedDate < todayISO();
     push(j.promisedDate, {
       type: stuck ? "qc" : "promised", time: "", ref: j.id,
       title: (stuck ? "QC deadline · " : "Promised · ") + j.projectName,
@@ -7712,7 +7730,7 @@ function createTask({ title, assignee, dueDate = null, linkedType = null, linked
     id: nextTaskId(), title: title.trim(), assignee, dueDate, notes, list,
     linkedType, linkedId, // e.g. linkedType:"job", linkedId:"JB26AMD01000"
     status: "open", // open | done
-    createdDate: new Date().toISOString().slice(0, 10), completedDate: null
+    createdDate: todayISO(), completedDate: null
   };
   tasks.push(task);
   return task;
@@ -7721,7 +7739,7 @@ function completeTask(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return { error: "Task not found." };
   t.status = "done";
-  t.completedDate = new Date().toISOString().slice(0, 10);
+  t.completedDate = todayISO();
   return t;
 }
 function getTasksFor(linkedType, linkedId) {
@@ -7821,7 +7839,7 @@ function getPlannerEventsByDate(identity, moduleKey) {
     task:     { tag: "Task",     tone: "plain" },
     event:    { tag: "Diary",    tone: "plain" }
   };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const byDate = {};
   (typeof getCalendarEvents === "function" ? getCalendarEvents(identity, moduleKey) : []).forEach(e => {
     const meta = TONE[e.type] || { tag: e.type, tone: "plain" };
@@ -7848,7 +7866,7 @@ function logActivity({ type, linkedType = null, linkedId = null, user, message, 
     // Unique string id (not length+1): with the log cloud-synced, two
     // devices appending simultaneously must never mint the same id.
     id: "A" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    date: new Date().toISOString().slice(0, 10), time: new Date().toISOString(),
+    date: todayISO(), time: new Date().toISOString(),
     type, linkedType, linkedId, user, message, dept, reason
   };
   activityLog.push(entry);
@@ -8160,7 +8178,7 @@ async function sendMessage({ from, to, body, linkedType = null, linkedId = null 
   }
   const msg = {
     id: nextMessageId(), from, to, body: body.trim(),
-    linkedType, linkedId, date: new Date().toISOString().slice(0, 10),
+    linkedType, linkedId, date: todayISO(),
     time: new Date().toISOString(), read: false
   };
   messages.push(msg);

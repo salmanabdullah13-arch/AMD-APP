@@ -7418,3 +7418,52 @@ reason, which was the right risk read and the wrong conclusion.)
   above (`hop()` in the 4a component never left a return ticket; `admin.js`'s
   Developer Preview had the same gap).
 - `production-data.js` added to `sw.js` CORE_ASSETS; CACHE_VERSION v45 → v46.
+
+### 19 Aug 2026 (later) — every calendar date in the app is local now, not UTC
+
+The follow-up flagged in the entry above, done properly. `addDaysISO()` was one
+instance of a pattern used **164 times across 25 app files and 12 test files**:
+`Date.toISOString().slice(0, 10)`, which converts to UTC before formatting.
+
+- **Two failure modes, one root cause.** A local-midnight `Date` is 21:00 the
+  previous day in UTC+3, so it is wrong on every call, all day — that was
+  `addDaysISO()`. A plain `new Date()` is wrong only between local midnight and
+  03:00, but in that window every record stamped "today" is dated **yesterday**,
+  which is worse than a visible error because nothing looks wrong.
+- **One helper, `localISO(d)` / `todayISO()`** (data.js, defined at the very
+  top since it is the first script and everything after depends on it).
+  `addDaysISO()` was refactored onto `localISO()` so there is a single
+  implementation rather than two that can drift.
+- **Classified before replacing, not blind find-and-replace.** Three real
+  shapes, all wanting the local calendar date and none genuinely wanting UTC:
+  `new Date()` (127 sites, mechanical), `<ident>.toISOString()` and
+  `new Date(<expr>).toISOString()` (the rest, two precise regexes). Every one
+  now goes through the helper; a repo-wide grep afterwards leaves only the doc
+  comment in `data.js` that warns against reaching for the old pattern.
+- **Test files got a Node-side copy** of the same two functions. A test that
+  computes an expected date through `toISOString()` disagrees with the app
+  between midnight and 03:00 — a flake that only appears at night. Inside
+  `page.evaluate()` the app's own global resolves instead; both implementations
+  are identical, so either scope is correct.
+- **Proved with a frozen clock at a real 01:30**, not asserted. `Date` was
+  stubbed to the instant `2026-08-19T22:30:00Z` — 01:30 on the 20th in Bahrain,
+  22:30 on the 19th in UTC — and the old and new code run against it:
+
+  | | true local date | before | after |
+  |---|---|---|---|
+  | `TZ=Asia/Bahrain` | 2026-08-20 | 2026-08-19 ✗ | 2026-08-20 ✓ |
+  | `TZ=UTC` | 2026-08-19 | 2026-08-19 | 2026-08-19 ✓ |
+
+  The point of the second row: the fix does not "shift dates by one" — it
+  returns the correct local date in both zones. The old code only ever agreed
+  with UTC, which is exactly why this survived so long. `addDaysISO`'s
+  31 Dec + 1 day → 31 Dec case is in the same harness.
+- **Verification**: `node --check` on all 35 app files and all 83 test files,
+  the full load-order concatenation, and a duplicate top-level declaration scan
+  (none — `localISO`/`todayISO` are new names, checked against the repo first).
+  Full sweep unchanged at three long-documented failures
+  (`e2e-batch8-phase2-4.js`, `e2e-lighter-touch-charts.js` 10/11,
+  `e2e-quote-confirmed-lock.js` 22/23) — no regression from a 38-file change.
+  `e2e-chart-widgets.js`, whose one check had a documented "UTC-rollover
+  artifact in its own date construction", now passes; its dates are local.
+- `sw.js` CACHE_VERSION v46 → v47.

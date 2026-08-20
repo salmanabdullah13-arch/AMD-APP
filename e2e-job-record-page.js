@@ -5,6 +5,13 @@
 const { chromium } = require('@playwright/test');
 const path = require('path');
 
+// Local calendar dates, matching the app (data.js localISO/todayISO). A test
+// that computes an expected date through toISOString() disagrees with the app
+// between local midnight and 03:00 in UTC+3 — a flake that only appears at
+// night. Node-side copy: inside page.evaluate() the app's own global resolves.
+const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const todayISO = () => localISO(new Date());
+
 let pass = 0, fail = 0;
 const check = (name, ok, extra) => {
   if (ok) { pass++; console.log('  PASS  ' + name); }
@@ -38,7 +45,7 @@ const check = (name, ok, extra) => {
     transferQuotationStage(q.id, 'approver', 'Estimator');
     approveQuotation(q.id, 'Salman Abdullah');
     const job = confirmQuotationToJobCard(q.id, 'Silva');
-    const target = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+    const target = localISO(new Date(Date.now() + 3 * 864e5));
     confirmJobRouting(job.id, {}, 'Operations Manager', target);
     job.notes = 'Client wants soft-close hinges throughout.';
     return { jobId: job.id, qtnId: q.id, target, lineIds: job.items.map(i => i.lineId) };

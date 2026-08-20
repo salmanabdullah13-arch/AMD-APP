@@ -969,7 +969,7 @@ function renderPurchaseRequestJob() {
     <span class="sales-back" onclick="openJobHub('${job.id}');">‹ Back to Job Card</span>
     <div class="sales-card prjob-header" style="padding:14px;">
       <h2 style="font-size:15px;margin-bottom:2px;">Purchase Request (Job)</h2>
-      <small style="font-size:11.5px;">PR Date: ${new Date().toISOString().slice(0, 10)} · PR No: ${nextPRId()}</small>
+      <small style="font-size:11.5px;">PR Date: ${todayISO()} · PR No: ${nextPRId()}</small>
     </div>
     <div class="sales-card">
       <div class="sales-field"><label>Division</label>

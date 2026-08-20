@@ -67,7 +67,7 @@ function nextPrdId(prefix, arr) {
   }, 0);
   return prefix + "-" + String(n + 1).padStart(4, "0");
 }
-function prdToday() { return new Date().toISOString().slice(0, 10); }
+function prdToday() { return todayISO(); }
 
 // ═══ Material + BOM truth for one job ═══════════════════════════════════
 // The lane gate's two questions, answered from the systems that own them.
