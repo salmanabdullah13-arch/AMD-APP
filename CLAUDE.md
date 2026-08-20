@@ -7537,3 +7537,54 @@ than rounded onto a 4/8pt scale.
 - `production.css`/`production-ui.js` added to `sw.js` CORE_ASSETS;
   CACHE_VERSION v47 → v48. `prd-module-wrap` added to all 16 other modules'
   hide-lists and `shell.js`'s `goTo()`, the same day it was created.
+
+### 19 Aug 2026 (later still) — 19a Production tables, and a prefix collision found on the way
+
+Salman: "Tables and then flow." Tables first, so the flows are built on state
+that survives a reload.
+
+- **Six tables live** (`supabase/19a-production.sql`, also appended to
+  `schema.sql` so a wholesale re-run stays complete): `lane_slots`,
+  `bom_revisions`, `cutting_sheets`, `pressing_batches`, `overtime_shifts`,
+  `production_input_requests`. That last name is deliberate —
+  `input_requests` is too generic to own in a shared schema, the same call 18a
+  made for `stock_reservations`. Applied with the Management API and verified
+  against `information_schema`/`pg_policy`/`pg_trigger` rather than trusting
+  the 200.
+- **`is_production_side()`** — joinery_production_manager, operations_manager,
+  owner, admin may WRITE; any approved user may READ. The board, the cutting
+  lists and the press batches carry no selling price, and a crew lead, the
+  store and the estimator all need to see them. Same read/write split 18a's
+  stock tables use. Upholstery's and Painting's managers are deliberately not
+  writers: their lanes appear on the board, but the slots are allotted BY the
+  production manager — noted in the SQL so it can be revisited if that stops
+  being true.
+- **Two of the five commitments now hold server-side, not just in the client.**
+  Commitment 5 (overtime needs a cause from the closed enum AND a target it
+  recovers) and commitment 3 (an answer carrying anything money-shaped is
+  refused) are real triggers. Proven by inserting straight into the database,
+  bypassing the client — and again through raw `supabase-js` calls in the live
+  suite. **Commitments 1 and 4 stay client-side and the SQL says why**: both
+  need to read across job cards, quotations and stock, which live here as
+  whole-object jsonb, so a trigger would parse three blobs and break the first
+  time any shape changed. Stated rather than left as a silent gap.
+- **A real bug found while registering the collections: `task_lists` and
+  `tool_loans` both used the snapshot prefix `"tl:"`.** Keys are `prefix + id`,
+  so each collection's scan saw the other's keys as orphans, issued a DELETE
+  for them, and the other re-upserted on its next pass — needless writes every
+  three seconds for as long as the app was open. Neither table lost data (the
+  ids never overlapped) but the churn was real. `tool_loans` is `"loan:"` now,
+  and the live suite asserts no two of the 37 collections share a prefix, so
+  it cannot come back.
+- **Verification**: new `e2e-cloud-production.js` (16/16) against the real
+  project as the `E2E Joinery Account` fixture — the Sales account every other
+  cloud suite uses is deliberately outside `is_production_side()`, which is
+  itself one of the checks. Covers the six collections going live, records
+  persisting by the scanner alone, a second session hydrating the same board,
+  both server-side gates refusing a raw client write, and the RLS scope
+  (Sales reads, Sales cannot write). `e2e-cloud-financial.js` 11/11,
+  `e2e-cloud-events.js` 7/7. Full offline sweep back to the three
+  long-documented failures. `e2e-cloud-curtain.js` crashes on a
+  `windowGroups` read — confirmed identical on committed code, pre-existing
+  stateful-live-data breakage, not from this change.
+- `sw.js` CACHE_VERSION v48 → v49.

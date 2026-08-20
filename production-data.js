@@ -457,7 +457,10 @@ function getProductionKPIs() {
   };
 }
 
-// Not yet cloud-backed — same starting point every module has had before
-// its own tables slice: laneSlots, bomRevisions, cuttingSheets,
-// pressingBatches, overtimeShifts, inputRequests run in memory per
-// session until their tables exist (needs a Management API token).
+// Cloud-backed since 19 Aug 2026 — all six arrays are registered in
+// CLOUD_JSON_COLLECTIONS (data.js) and ride the same snapshot-diff autosave
+// every other collection uses. Two of the five commitments are enforced
+// server-side as well (overtime needs a cause from the closed enum; an
+// answer carrying anything money-shaped is refused). The other two need to
+// read across job cards, quotations and stock, which live as jsonb here —
+// see supabase/19a-production.sql for why they stay client-side.

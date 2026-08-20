@@ -4282,8 +4282,17 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "store_issues", arr: () => storeIssues, prefix: "iss:" },
   { table: "store_transfers", arr: () => storeTransfers, prefix: "trf:" },
   { table: "store_returns", arr: () => storeReturns, prefix: "ret:" },
-  { table: "tool_loans", arr: () => toolLoans, prefix: "tl:" },
+  { table: "tool_loans", arr: () => toolLoans, prefix: "loan:" },   // NOT "tl:" — task_lists owns that
   { table: "stock_counts", arr: () => stockCounts, prefix: "cnt:" },
+  // 19a Production (tables applied 19 Aug 2026). production_input_requests,
+  // not input_requests — too generic a name to own in a shared schema, the
+  // same call 18a made for stock_reservations.
+  { table: "lane_slots", arr: () => laneSlots, prefix: "ls:" },
+  { table: "bom_revisions", arr: () => bomRevisions, prefix: "brev:" },
+  { table: "cutting_sheets", arr: () => cuttingSheets, prefix: "cut:" },
+  { table: "pressing_batches", arr: () => pressingBatches, prefix: "press:" },
+  { table: "overtime_shifts", arr: () => overtimeShifts, prefix: "otsh:" },
+  { table: "production_input_requests", arr: () => inputRequests, prefix: "ireq:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.
