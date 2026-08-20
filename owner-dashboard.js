@@ -1135,6 +1135,14 @@ window.OwnerDashboard = (function () {
   /* Cross-module hop. hideModuleWrap, never close*Module(): a close would
      offer to sign a single-dashboard role out mid-hop. */
   function hop(launchFn, after){
+    /* Leave a return ticket FIRST, or the module we land on has no way back
+       — execRenderNav() only shows the back arrow when the stack has one.
+       owner.js's own ownerGoTo()/ownerGoToOperations() were fixed for this on
+       8 Aug; this component arrived as a design package carrying its OWN hop()
+       and was missed by that sweep, so every jump from the dashboard's own
+       cards (Open Operations ›, Recent expenses All ›, Top purchases) landed
+       with nothing to go back to. */
+    if (typeof execPushCurrent === 'function') execPushCurrent();
     var wrap = document.getElementById('owner-module-wrap');
     if (wrap && typeof hideModuleWrap === 'function') hideModuleWrap(wrap);
     setTimeout(function(){

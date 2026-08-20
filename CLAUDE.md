@@ -7302,3 +7302,46 @@ question left open when 18a was first triaged.
   up inside the real function.
 - **Next on 18a**: the interface — twelve working pages and seven create
   flows, sharing the shell and templates with 17a.
+
+### 16 Aug 2026 — A way back out of the Owner dashboard's own cards
+
+Salman: *"need a back button for the owners dashboard — once he enters
+operations module, he needs a back button to owner dashboard, right now
+nothing exists."*
+
+- **The mechanism was already there; two call sites bypassed it.**
+  `execRenderNav()` shows the back arrow whenever the nav stack holds a return
+  ticket, and `owner.js`'s own `ownerGoTo()`/`ownerGoToOperations()` (the
+  sidebar entries) push one — fixed 8 Aug, and confirmed still working by a
+  probe before changing anything. But the Owner dashboard COMPONENT
+  (`owner-dashboard.js`, the 4a design package, 7 Aug) arrived carrying its
+  **own** `hop()` helper that only hid the wrap and launched. That sweep only
+  covered `owner.js`, so it was missed. Every jump from the cards a person
+  actually taps — "Open Operations ›" on the By-department card, "All ›" on
+  Recent expenses, Top purchases — landed with nothing to go back to.
+  `hop()` now pushes first, like its `owner.js` siblings.
+- **`admin.js`'s `adminDevPreviewLaunch()` had the identical gap** and was
+  fixed in the same pass rather than left to be rediscovered.
+- This is the third instance of one class of bug (Phase 3's `hideModuleWrap`
+  fix, 8 Aug's `ownerGoTo` fix, this) — **a module-hop helper that tidies up
+  the wrap but forgets the return ticket.** Worth checking any new hop helper
+  against it.
+- **Verification**: `e2e-owner-dashboard.js` 37 → 40/40 — taps the real
+  By-department card through to Operations and asserts the back control is on
+  AND visible, the breadcrumb reads "Owner › Operations", and clicking Back
+  genuinely re-opens Owner with Operations hidden. `e2e-admin-dashboard.js`
+  12/12. Two of my own errors caught on the way: a heredoc ate a backslash so
+  the test's own `/\s+/g` became `/s+/g`, silently stripping every literal "s"
+  ("Operations" → "Operation") and failing a correct product; and the block
+  inherited whatever viewport the preceding responsive loop ended on, so it is
+  pinned now.
+- **Left alone deliberately**: the working tree carries an in-progress 19a
+  Production build (`production-data.js`, `_h19/`, `e2e-production-cycle.js`,
+  plus `index.html`'s script tag and a real `addDaysISO()` timezone fix in
+  `data.js`). Committing `index.html` without the untracked file would ship a
+  404, so none of it is in this commit.
+- **Pre-existing, not from this change**: `e2e-lighter-touch-charts.js` 10/11
+  — its Purchaser mini-bar assertion fails identically on committed code
+  (stale since the 17a Purchasing rebuild replaced that dashboard). Needs its
+  own repoint, like the other 17a fallout.
+- `sw.js` CACHE_VERSION v44 → v45.

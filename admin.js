@@ -150,6 +150,9 @@ function adminDevPreviewLaunch(nodeId) {
   const allNodes = (window.__eco3d && window.__eco3d.NODES) || [];
   const node = allNodes.find(n => n.id === nodeId);
   if (!node || typeof node.launch !== 'function') return;
+  // Same return-ticket rule as the Owner dashboard's hops — without this the
+  // previewed module opens with no way back to Admin.
+  if (typeof execPushCurrent === 'function') execPushCurrent();
   hideModuleWrap(adminModuleWrap);
   setTimeout(() => node.launch(), 150);
 }

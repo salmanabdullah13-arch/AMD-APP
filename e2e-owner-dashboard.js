@@ -361,6 +361,48 @@ function printReport() {
   record('On a phone the four KPI tiles pair up 2×2 and the full cards still span the width',
     phone.kpiRows === 2 && phone.cardWidths === 1 ? 'PASS' : 'FAIL', JSON.stringify(phone));
 
+  // ── a way back out (15 Aug 2026) ──
+  // Salman: "once he enters operations module, he needs a back button to owner
+  // dashboard — right now nothing exists." owner.js's own ownerGoTo()/
+  // ownerGoToOperations() push a return ticket (fixed 8 Aug), but the dashboard
+  // COMPONENT arrived as a design package with its own hop() that never did —
+  // so the cards a person actually taps landed with no way home.
+  currentStep = 'back-out-of-a-hop';
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => {
+    const t = [...document.querySelectorAll('#owner-body [data-act="dept"]')]
+      .find(x => x.getAttribute('data-v') === 'operations');
+    if (t) t.click();
+  });
+  await page.waitForTimeout(250);
+  await page.evaluate(() => {
+    const l = document.querySelector('#owner-body [data-act="opendept"]');
+    if (l) l.click();
+  });
+  await page.waitForTimeout(800);
+  const hopped = await page.evaluate(() => {
+    const wrap = document.getElementById('ops-module-wrap');
+    const back = wrap ? wrap.querySelector('.xs-back') : null;
+    const crumbs = wrap ? wrap.querySelector('.xs-crumbs') : null;
+    return {
+      opsOpen: wrap ? getComputedStyle(wrap).display !== 'none' : false,
+      backOn: !!back && back.classList.contains('on'),
+      backVisible: back ? getComputedStyle(back).display !== 'none' : false,
+      crumbs: crumbs ? crumbs.textContent.replace(/[\s]+/g, ' ').trim() : ''
+    };
+  });
+  record('Tapping a dashboard card into Operations shows a back control', hopped.opsOpen && hopped.backOn && hopped.backVisible ? 'PASS' : 'FAIL', JSON.stringify(hopped));
+  record('and a breadcrumb naming where it came from', /Owner/.test(hopped.crumbs) && /Operations/.test(hopped.crumbs) ? 'PASS' : 'FAIL', hopped.crumbs);
+
+  await page.evaluate(() => document.querySelector('#ops-module-wrap .xs-back').click());
+  await page.waitForTimeout(800);
+  const backHome = await page.evaluate(() => ({
+    ownerOpen: getComputedStyle(document.getElementById('owner-module-wrap')).display !== 'none',
+    opsClosed: getComputedStyle(document.getElementById('ops-module-wrap')).display === 'none'
+  }));
+  record('and Back actually returns to the Owner dashboard', backHome.ownerOpen && backHome.opsClosed ? 'PASS' : 'FAIL', JSON.stringify(backHome));
+
   // ── mutual exclusivity and a clean close, as for every module ──
   currentStep = 'module-hygiene';
   await page.setViewportSize({ width: 1280, height: 900 });
