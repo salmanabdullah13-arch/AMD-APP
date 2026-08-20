@@ -127,7 +127,15 @@ function printReport() {
   // ── the planner opens from the sidebar and shows the real week ──
   currentStep = 'planner-open';
   await page.evaluate(() => launchOwnerModule());
-  await page.waitForTimeout(400);
+  // The reminders auto-open is on a 450ms timer (exec-shell.js), so waiting
+  // less than that dismisses nothing and the panel opens right afterwards.
+  await page.waitForTimeout(700);
+  // This suite seeds due-dated tasks, which correctly fire reminders — so the
+  // reminders panel auto-opens (by design, when something is waiting) and its
+  // full-screen scrim swallows every click below. Dismiss it exactly as a
+  // person would before working the screen. Same fix e2e-ops-13b needed.
+  await page.evaluate(() => { if (typeof execToggleReminders === 'function') execToggleReminders(false); });
+  await page.waitForTimeout(200);
   await page.click('#owner-module-wrap .xs-qa');
   await page.waitForTimeout(200);
   await page.click('#owner-module-wrap .xs-qa-pop .xs-qa-item');

@@ -7345,3 +7345,76 @@ nothing exists."*
   (stale since the 17a Purchasing rebuild replaced that dashboard). Needs its
   own repoint, like the other 17a fallout.
 - `sw.js` CACHE_VERSION v44 → v45.
+
+### 19 Aug 2026 — 19a Production data layer lands, and a date bug that was wrong every day
+
+Committed as ONE unit, which is the point: `index.html`'s script tag and
+`production-data.js` had to land in the same commit — separately is what would
+have shipped a 404. (An earlier pass held all of it back for exactly that
+reason, which was the right risk read and the wrong conclusion.)
+
+- **`production-data.js` (435 lines)** — the joinery production manager's data
+  layer, traced from `docs/design-handoffs/19a-production.md` (the handoff's
+  README, archived alongside 17a and 18a; the 1.4MB canvas and its runtime were
+  not committed). All five of the handoff's design commitments are enforced in
+  the DATA layer, not the UI, so no screen can tell a different story:
+  1. **No lane slot without material and a live BOM** — `allotLaneSlot()`
+     refuses, and refused jobs surface in `getWaitingForLane()` carrying the
+     reason. A crew that starts and stops costs more than the day it waited.
+  2. **Paint and install pull their dates from joinery** — a derived slot
+     stores a base slot + offset and COMPUTES its date, so moving the upstream
+     slot moves it too. A date promised before the booth is booked is a date
+     that gets broken.
+  3. **He returns hours and quantities, never a price** —
+     `answerInputRequest()` takes a whitelisted field set
+     (`INPUT_ANSWER_FIELDS`) and refuses anything money-shaped. The estimator
+     turns hours into money; this module never does.
+  4. **A BOM change kills the cutting list** — and the gate clears on
+     confirming the old sheet is off the saw, not on issuing the new revision.
+     Sheets cut from a stale revision are dead paper.
+  5. **Overtime buys hours, not material** — every shift books against the
+     target it recovers AND a cause from a closed enum (`OVERTIME_CAUSES`), so
+     the pattern stays visible; a shift with nothing to work on is refused as a
+     paid idle day.
+  Reuses rather than duplicates: material truth is 18a's `stockFree()`/
+  reservations, supplier quotes are 17a's `rfqs`, jobs are `jobCards[]`.
+- **`addDaysISO()` (data.js) was wrong on every single call in Bahrain.** It
+  built a LOCAL midnight `Date`, then formatted it through `toISOString()`,
+  which converts to UTC — and in UTC+3 local midnight is 21:00 the previous
+  day, so every result came back a day short. Proved directly rather than
+  assumed: at `TZ=Asia/Bahrain` the old code returned 26 Aug for 24 Aug + 3d,
+  25 Aug for 19 Aug + 7d, and — worst — **31 Dec for 31 Dec + 1d, a date that
+  never advanced at all**. Every one of those is correct under `TZ=UTC`, which
+  is exactly why it hid. This machine is natively UTC+3, so it was live.
+  Consequences it was causing: holds expiring a day early, quote validity
+  running a day short, RFQ promised dates landing early. Now formatted from
+  local `getFullYear()/getMonth()/getDate()` — local all the way through.
+- **Flagged, deliberately NOT fixed here**: `new Date().toISOString().slice(0,10)`
+  as "today" has the same shape of bug in the 00:00–03:00 local window (it
+  returns yesterday) — verified: 01:30 on 20 Aug Bahrain yields "2026-08-19".
+  It appears in `prdToday()` and **79 other places in data.js**. That is the
+  app-wide convention, so correcting it is its own sweep with its own
+  regression pass, not a rider on this commit.
+- **A genuinely intermittent suite made deterministic.**
+  `e2e-session4-planner.js` had been failing in sweeps and passing standalone
+  for days, which reads as a flake. It was not: the suite seeds due-dated
+  tasks, those correctly fire reminders, and the reminders panel auto-opens on
+  a **450ms timer** (`execAutoAlerted`, exec-shell.js) with a full-screen scrim
+  that swallows every click after it. Whether it fired at all depended on the
+  date, which is why it looked random. Dismissed after waiting past the timer —
+  a first attempt at 400ms dismissed nothing, because the panel had not opened
+  yet. 13/13, and stable now.
+- **Verification**: the date-sensitive suites re-run green — production-cycle
+  31/31, store-cycle 61/61, manage-quote 29/29, purchase-cycle 50/50, ops-13b
+  54/54 (225 checks). Standing battery: `node --check` per file plus the full
+  35-file load-order concatenation, a check that **every script tag resolves to
+  a real file** (the thing that makes this unit safe), and a duplicate
+  top-level declaration scan across all 35 — none, which matters for a new
+  globals file (the same scan caught `purchase-data.js` redefining
+  `addDaysISO` when 17a landed). Full sweep back to three long-documented
+  failures: `e2e-batch8-phase2-4.js` (stale since Session 3),
+  `e2e-lighter-touch-charts.js` 10/11 and `e2e-quote-confirmed-lock.js` 22/23.
+- Today's **Owner-dashboard back-button fix** is logged in the entry directly
+  above (`hop()` in the 4a component never left a return ticket; `admin.js`'s
+  Developer Preview had the same gap).
+- `production-data.js` added to `sw.js` CORE_ASSETS; CACHE_VERSION v45 → v46.

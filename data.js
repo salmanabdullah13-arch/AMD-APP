@@ -2627,9 +2627,16 @@ function nextRevSuffix(baseId) {
 // against a written promise. Validity is real now.
 const QUOTE_VALID_DAYS = 5;
 function addDaysISO(iso, n) {
+  // Local all the way through. The old version formatted via toISOString(),
+  // which converts to UTC — in Bahrain (UTC+3) local midnight is 21:00 the
+  // previous day, so EVERY date addition came back one day short: holds
+  // expired a day early, quote validity ran a day short, RFQ promised
+  // dates landed a day early. Caught by the 19a derived-slot test doing
+  // the arithmetic by hand (24 + 3 read back as the 26th).
   const d = new Date(iso + "T00:00:00");
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  const p = (x) => String(x).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
 // validUntil is stored once set (extending re-dates it); otherwise derived from
 // the quote's own date so existing rows behave without a migration.
