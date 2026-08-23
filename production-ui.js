@@ -255,7 +255,7 @@ window.PrdUI = (function () {
         }, 0);
         return '<div class="prd-lane"><div class="prd-lane-l">' +
           '<div class="prd-lane-n">' + esc(c.name) + '</div>' +
-          '<div class="prd-lane-cap">' + esc((c.men ? c.men + ' · ' : '') + (c.station || dc(c.dept).n)) + '</div>' +
+          '<div class="prd-lane-cap">' + esc(safe(function () { return crewCapacityLine(c); }, c.station || '')) + '</div>' +
           '<span class="prd-load prd-pill t-' + lt + '">' + booked + ' of 5 days</span>' +
           (otH ? '<span class="prd-ot prd-pill t-ok">OT ' + otH + ' h</span>' : '') +
           '</div>' +

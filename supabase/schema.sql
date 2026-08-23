@@ -511,8 +511,11 @@ insert into public.user_types (key, label, dashboard_node_id, department) values
   -- Site/Floor Supervisor and Team Leader deliberately share ONE node
   -- (joinery-floor) — same design note, no real basis to differentiate
   -- these three today.
-  ('joinery_production_manager', 'Joinery Production Manager', 'joinery', 'joinery'),
-  ('joinery_assistant_production_manager', 'Assistant Production Manager', 'joinery', 'joinery'),
+  -- 23 Aug 2026: both point at 'production' (the 19a module), not the old
+  -- 'joinery' pipeline wrapper. The line 545 on-conflict clause updates
+  -- dashboard_node_id, so a re-run keeps this rather than reverting it.
+  ('joinery_production_manager', 'Joinery Production Manager', 'production', 'joinery'),
+  ('joinery_assistant_production_manager', 'Assistant Production Manager', 'production', 'joinery'),
   ('joinery_site_supervisor', 'Site Supervisor', 'joinery-floor', 'joinery'),
   ('joinery_floor_supervisor', 'Floor Supervisor', 'joinery-floor', 'joinery'),
   ('joinery_draftsman', 'Draftsman', 'joinery-drafting', 'joinery'),
@@ -1613,7 +1616,8 @@ begin
   -- own in a shared schema. Same call as 18a's stock_reservations.
   foreach t in array array[
     'lane_slots','bom_revisions','cutting_sheets',
-    'pressing_batches','overtime_shifts','production_input_requests'
+    'pressing_batches','overtime_shifts','production_input_requests',
+    'crew_members'
   ] loop
     execute format('create table if not exists public.%I (
       id text primary key,

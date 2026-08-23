@@ -33,7 +33,8 @@ begin
   -- own in a shared schema. Same call as 18a's stock_reservations.
   foreach t in array array[
     'lane_slots','bom_revisions','cutting_sheets',
-    'pressing_batches','overtime_shifts','production_input_requests'
+    'pressing_batches','overtime_shifts','production_input_requests',
+    'crew_members'
   ] loop
     execute format('create table if not exists public.%I (
       id text primary key,

@@ -4293,6 +4293,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "pressing_batches", arr: () => pressingBatches, prefix: "press:" },
   { table: "overtime_shifts", arr: () => overtimeShifts, prefix: "otsh:" },
   { table: "production_input_requests", arr: () => inputRequests, prefix: "ireq:" },
+  { table: "crew_members", arr: () => crewMembers, prefix: "man:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.

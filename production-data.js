@@ -40,13 +40,22 @@
 // The five real crews, from the module's own definition — a lane on the
 // week board is a crew, never a named man. Men counts are set by the
 // manager, not invented here.
+// Names, stations and head counts are the handoff's own (its lane table), and
+// the "·" in the joinery names is part of the frozen label. `men` is the
+// establishment — how many the crew is meant to be — while the actual bodies
+// come from crewMembers[] below, so the two can honestly disagree and the
+// board can say so.
 const crews = [
-  { id: "CREW-A", name: "Joinery Crew A", dept: "carp", station: "saw 2", men: null },
-  { id: "CREW-B", name: "Joinery Crew B", dept: "carp", station: "bench 1–3", men: null },
-  { id: "CREW-U", name: "Sofa & Upholstery", dept: "uph", station: "", men: null },
-  { id: "CREW-P", name: "Paint & Polish", dept: "paint", station: "spray booth", men: null },
-  { id: "CREW-I", name: "Site Installation", dept: "carp", station: "on site", men: null }
+  { id: "CREW-A", name: "Joinery · Crew A", dept: "carp", station: "saw 2", men: 6, unit: "fitters" },
+  { id: "CREW-B", name: "Joinery · Crew B", dept: "carp", station: "bench 1–3", men: 5, unit: "fitters" },
+  { id: "CREW-U", name: "Sofa & upholstery", dept: "uph", station: "upholstery bay", men: 4, unit: "" },
+  { id: "CREW-P", name: "Paint & polish", dept: "paint", station: "spray booth", men: 3, unit: "" },
+  { id: "CREW-I", name: "Site installation", dept: "carp", station: "two vans", men: 4, unit: "" }
 ];
+// The spec's capacity line: "6 fitters · saw 2", "4 · upholstery bay".
+function crewCapacityLine(c) {
+  return (c.men ? c.men + (c.unit ? " " + c.unit : "") + " · " : "") + (c.station || "");
+}
 
 const laneSlots = [];        // week-board allotments, work + derived
 const bomRevisions = [];     // one stream per job card
@@ -455,6 +464,133 @@ function getProductionKPIs() {
     otHoursThisMonth: getOvertimeByCause(28).reduce((s, c) => s + c.hours, 0),
     openBatches: pressingBatches.filter(b => b.status === "open").length
   };
+}
+
+// ═══ THE ROSTER — real Al Maraya staff, standing in real crews ═════════
+// The handoff wants 22 named men across the five crews, each with a trade, a
+// leader flag and a state, plus a "not in a crew" pool and the rule that a
+// crewless man cannot be given work (everything on the board is allotted to a
+// crew, never to a person).
+//
+// Rather than invent 22 names, this draws on the REAL production staff already
+// in the app — EMPLOYEE_RATES carries 70 real people with real departments
+// (24 Carpentry, 10 Upholstery, 15 Curtain & Blinds), and EMPLOYEE_SALARIES
+// carries their real trade in `designation` (Carpenter, Painter, Upholsterer,
+// Tailor, Technician, Helper).
+//
+// NO PAY FIGURE ENTERS THIS MODULE. `designation` is read; basic/ot/net/rate
+// are not, and must not be. The handoff bars this role from money and the
+// server-side trigger already refuses it inside an answer — reading a rate
+// here would be the same leak through a different door. Attendance, leave and
+// overtime PAY stay with the labour dashboard; this module hands it hours.
+const crewMembers = [];   // { id, name, crewId, trade, leader }
+
+// Which trades belong in which crew. This is what gives the `lab` create
+// flow's gate a real basis for "Paint & polish — not his trade" rather than a
+// hardcoded answer.
+const CREW_TRADES = {
+  "CREW-A": ["Carpenter", "Carpenter / Driver", "Technician", "Helper"],
+  "CREW-B": ["Carpenter", "Carpenter / Driver", "Technician", "Helper"],
+  "CREW-U": ["Upholsterer", "Tailor", "Helper"],
+  "CREW-P": ["Painter", "Helper"],
+  "CREW-I": ["Carpenter", "Carpenter / Driver", "Technician", "Driver", "Helper"]
+};
+function crewTradeFits(trade, crewId) {
+  const allowed = CREW_TRADES[crewId];
+  return !allowed || !trade ? true : allowed.indexOf(trade) !== -1;
+}
+
+// A person's trade, from the real payroll designation. Falls back to the
+// department when nobody recorded one — honest "unknown", never a guess.
+function personTrade(name) {
+  const sal = (typeof EMPLOYEE_SALARIES !== "undefined") ? EMPLOYEE_SALARIES[name] : null;
+  if (sal && sal.designation) return sal.designation;
+  const emp = (typeof EMPLOYEE_RATES !== "undefined") ? EMPLOYEE_RATES[name] : null;
+  return emp ? emp.department : "";
+}
+
+// Seeds the five crews from real staff, once. Idempotent: if anyone is
+// already assigned it leaves the roster alone.
+// Paint draws from Carpentry on purpose — there is no separate paint payroll
+// bucket and LEDGER_DEPT_ROSTER already maps paint -> Carpentry.
+function buildCrewRoster() {
+  if (crewMembers.length) return crewMembers;
+  if (typeof EMPLOYEE_RATES === "undefined") return crewMembers;
+  const pool = Object.keys(EMPLOYEE_RATES)
+    .filter(n => EMPLOYEE_RATES[n].category === "Production")
+    .map(n => ({ name: n, dept: EMPLOYEE_RATES[n].department, trade: personTrade(n) }));
+
+  const take = (crewId, dept, n) => {
+    // Prefer someone whose real trade fits the crew, then anyone from the
+    // right department — so a Painter lands in paint if one exists.
+    const fits = pool.filter(p => !p.taken && p.dept === dept && crewTradeFits(p.trade, crewId));
+    const rest = pool.filter(p => !p.taken && p.dept === dept);
+    const picked = fits.concat(rest.filter(p => fits.indexOf(p) === -1)).slice(0, n);
+    picked.forEach((p, i) => {
+      p.taken = true;
+      crewMembers.push({
+        id: "MAN-" + String(crewMembers.length + 1).padStart(3, "0"),
+        name: p.name, crewId, trade: p.trade, leader: i === 0
+      });
+    });
+  };
+  take("CREW-A", "Carpentry", 6);
+  take("CREW-B", "Carpentry", 5);
+  take("CREW-U", "Upholstery", 4);
+  take("CREW-P", "Carpentry", 3);
+  take("CREW-I", "Carpentry", 4);
+
+  // Everyone else is real staff genuinely not in a crew — a paid day
+  // producing nothing, which is the point of the spec's warning card.
+  pool.filter(p => !p.taken).forEach(p => crewMembers.push({
+    id: "MAN-" + String(crewMembers.length + 1).padStart(3, "0"),
+    name: p.name, crewId: null, trade: p.trade, leader: false
+  }));
+  return crewMembers;
+}
+
+function getCrewMembers(crewId) { return crewMembers.filter(m => m.crewId === crewId); }
+function getCrewlessMen() { return crewMembers.filter(m => !m.crewId); }
+function crewLeader(crewId) { return crewMembers.filter(m => m.crewId === crewId && m.leader)[0] || null; }
+
+// Moving a man between crews. Refuses on trade, which is the `lab` gate's
+// blocked option — "Trade does not match the crew."
+function assignToCrew(personId, crewId, byWhom = "Production Manager", override = false) {
+  const man = crewMembers.find(m => m.id === personId);
+  if (!man) return { error: "Who?" };
+  if (crewId && !crews.some(c => c.id === crewId)) return { error: "Which crew?" };
+  if (crewId && !crewTradeFits(man.trade, crewId) && !override) {
+    return { error: "Trade does not match the crew. " + (man.trade || "No trade recorded") + " does not belong in " + (crews.find(c => c.id === crewId) || {}).name + "." };
+  }
+  const from = man.crewId;
+  man.crewId = crewId || null;
+  if (!crewId) man.leader = false;
+  if (typeof logActivity === "function") {
+    logActivity({
+      type: "crew-assigned", linkedType: "crew", linkedId: crewId || from || "none", user: byWhom,
+      message: man.name + (crewId ? " assigned to " + (crews.find(c => c.id === crewId) || {}).name : " taken out of a crew")
+    });
+  }
+  return man;
+}
+const moveToCrew = assignToCrew;
+
+// A man's state, DERIVED from what his crew is actually doing this week —
+// there is no attendance field in this module and inventing one would put it
+// in two places. wine = on a job today · plain = his crew works this week but
+// not today · bad = his crew is blocked with nothing to work on · ok = free.
+function manState(man, weekDates) {
+  if (!man.crewId) return { tone: "bad", label: "No crew" };
+  const days = weekDates || [];
+  const today = todayISO();
+  const mine = laneSlots.filter(s => s.crewId === man.crewId);
+  if (mine.some(s => slotDate(s) === today)) return { tone: "wine", label: "On a job" };
+  const thisWeek = mine.filter(s => days.indexOf(slotDate(s)) !== -1);
+  if (thisWeek.length) return { tone: "plain", label: "Other work" };
+  const blocked = getWaitingForLane().some(w =>
+    (w.job.items || []).some(it => (it.departmentSequence || []).indexOf((crews.find(c => c.id === man.crewId) || {}).dept) !== -1));
+  if (blocked) return { tone: "bad", label: "Idle" };
+  return { tone: "ok", label: "Free" };
 }
 
 // Cloud-backed since 19 Aug 2026 — all six arrays are registered in
