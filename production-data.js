@@ -152,6 +152,43 @@ function jobLaneBlockReason(jobId) {
   return null;
 }
 
+// ═══ Taking a lane slot CLAIMS the boards ══════════════════════════════
+// Found 23 Aug 2026 by walking the story: the gate asked "is there enough
+// unreserved stock anywhere" and nothing ever reserved, so TWO jobs could
+// both clear it on the same boards. Whoever issued first took them and the
+// second crew started and stopped — precisely the day commitment 1 exists to
+// prevent ("a crew that starts and stops because half the boards are missing
+// costs more than the day it waited").
+//
+// The design's own allot gate says the clear answer is "Material reserved ·
+// BOM current", so booking the lane is what reserves. After this, the second
+// job is honestly short and the board says so.
+function reserveJobMaterial(jobId, byWhom) {
+  if (typeof reserveStockForJob !== "function") return [];
+  const held = [];
+  jobBOMItems(jobId).forEach(it => {
+    ((it.bom && it.bom.materials) || []).forEach(m => {
+      if (!m.itemId) return;
+      const need = Number(m.qty) || 0;
+      const already = typeof reservedToThisJob === "function" ? reservedToThisJob(m.itemId, null, jobId) : 0;
+      let outstanding = need - already;
+      if (outstanding <= 0) return;
+      // Greedy across bins — the boards may be split between stores, and a
+      // reservation is per bin because that is where someone walks to.
+      (typeof storeBins !== "undefined" ? storeBins : []).forEach(b => {
+        if (outstanding <= 0) return;
+        const free = stockFree(m.itemId, b.id);
+        if (free <= 0) return;
+        const take = Math.min(free, outstanding);
+        const r = reserveStockForJob({ itemId: m.itemId, binId: b.id, qty: take, jobCardId: jobId,
+          heldBy: byWhom || "Production Manager", note: "Held by the week board" });
+        if (r && !r.error) { held.push(r); outstanding -= take; }
+      });
+    });
+  });
+  return held;
+}
+
 // ═══ 1. The week board — lane slots ═════════════════════════════════════
 function allotLaneSlot({ crewId, jobCardId, date, portion = "full", byWhom = "Production Manager" } = {}) {
   if (!crews.some(c => c.id === crewId)) return { error: "Which crew?" };
@@ -170,6 +207,8 @@ function allotLaneSlot({ crewId, jobCardId, date, portion = "full", byWhom = "Pr
   // it "over" and the caller gets the warning to show.
   const clash = laneSlots.filter(s => s.kind === "work" && s.crewId === crewId && slotDate(s) === date);
   laneSlots.push(slot);
+  // Claim the boards for this job — see reserveJobMaterial() above.
+  if (slot.kind === "work") reserveJobMaterial(jobCardId, byWhom);
   return clash.length ? { slot, warning: "Crew overloaded — " + (clash.length + 1) + " jobs on one lane that day." } : { slot };
 }
 // Commitment 2 — a derived slot has no date of its own, only an upstream

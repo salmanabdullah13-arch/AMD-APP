@@ -84,6 +84,37 @@ function check(name, ok, detail) {
   check('once the material is really there, the lane takes it',
     !!gate.acceptedId && gate.nowClear === null, gate);
 
+  // Taking a lane slot CLAIMS the boards (23 Aug 2026). Before this the gate
+  // asked only whether enough unreserved stock existed anywhere, and nothing
+  // ever reserved — so two jobs could both clear it on the same boards and
+  // the second crew would start and stop. The design's own gate says the
+  // clear answer is "Material reserved · BOM current".
+  const claim = await page.evaluate(() => {
+    const mk = (name) => {
+      const c = createCustomer({ name, contactPerson: 'A', tel: String(Math.floor(Math.random() * 1e8)), address: 'M' });
+      const e = createEnquiry({ division: 'Joinery', customerId: c.id, contactPerson: 'A', tel: '1', source: 'walk inn', salesPerson: 'S' });
+      const q = convertEnquiryToQuotation(e.id, { projectName: name, taxPercent: 10, contactPerson: 'A' });
+      addQuotationItem(q.id, { product: 'Carcass', qty: 1, unit: 'Nos' });
+      const it = quotations.find(x => x.id === q.id).items[0];
+      addBOMMaterial(q.id, it.lineId, { name: itemMaster[1].name, qty: 10, rate: 5, unit: itemMaster[1].unit });
+      submitItemBOM(q.id, it.lineId, 'Est');
+      setItemDepartmentSequence(q.id, it.lineId, ['carp']);
+      transferQuotationStage(q.id, 'approver', 'E'); approveQuotation(q.id, 'S', 'owner');
+      const j = confirmQuotationToJobCard(q.id, 'S'); confirmJobRouting(j.id, {}, 'Ops', null); return j;
+    };
+    const st = createStoreLocation({ name: 'Claim Store' });
+    const bn = createStoreBin({ storeId: st.id, code: 'CL1' });
+    putAwayStock({ itemId: itemMaster[1].id, binId: bn.id, qty: 10, source: 'test' });   // enough for ONE
+    const jA = mk('Claim A'), jB = mk('Claim B');
+    const a = allotLaneSlot({ crewId: 'CREW-A', jobCardId: jA.id, date: todayISO(), portion: 'full', byWhom: 'PM' });
+    const held = stockHeld(itemMaster[1].id, bn.id), free = stockFree(itemMaster[1].id, bn.id);
+    const b2 = allotLaneSlot({ crewId: 'CREW-B', jobCardId: jB.id, date: todayISO(), portion: 'full', byWhom: 'PM' });
+    return { firstOk: !a.error, held, free, second: b2.error || 'ACCEPTED' };
+  });
+  check('taking a lane slot reserves the boards for that job', claim.firstOk && claim.held === 10 && claim.free === 0, claim);
+  check('so a second job on the same boards is honestly short',
+    /short/i.test(claim.second), claim.second);
+
   console.log('\n— commitment 2: paint and install pull their dates from joinery —');
   const derived = await page.evaluate(() => {
     const base = laneSlots[laneSlots.length - 1];

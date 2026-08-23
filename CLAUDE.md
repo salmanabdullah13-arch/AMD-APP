@@ -7588,3 +7588,84 @@ that survives a reload.
   `windowGroups` read — confirmed identical on committed code, pre-existing
   stateful-live-data breakage, not from this change.
 - `sw.js` CACHE_VERSION v48 → v49.
+
+### 23 Aug 2026 — 19a Phase 0: the module is reachable, the crews are real people, and the story is real records
+
+Salman's plan answers: seed the story **as real records** ("this will give idea
+where the faults lie in the system — take it through all scenarios; use real
+stock materials, use real people"), everything in spec order, phone tab bar
+deferred pending a screenshot. Plan file: `hold-snoopy-kitten.md`.
+
+- **The module could not be opened by the person it was built for.**
+  `user_types` mapped `joinery_production_manager → dashboard_node_id
+  'joinery'` — the old pipeline wrapper — so `nodeAccessible('production')`
+  returned false and direct-landing sent them to the old dashboard. Only
+  owner/admin could reach what was built. Both PM roles now point at
+  `production`; the granular joinery roles keep their own nodes. Applied live,
+  verified against the live table, and folded into `schema.sql` (its
+  on-conflict clause updates `dashboard_node_id`, so a re-run keeps it).
+- **The crews are real people, not 22 invented names.** `buildCrewRoster()`
+  draws on the real production-category staff already in the app
+  (`EMPLOYEE_RATES`, 70 people — 24 Carpentry, 10 Upholstery) and their real
+  trade from `EMPLOYEE_SALARIES[].designation`, filling the handoff's own
+  6/5/4/3/4 split and leaving 28 genuinely crewless for the "not in a crew"
+  card. Ajay Paswan leads Crew A; Jai Prakash — a real Painter — leads Paint &
+  polish, because the seeding prefers a trade that fits the crew. **No pay
+  figure enters this module**: `designation` is read, `rate`/`basic`/`net` are
+  not. The handoff bars this role from money and the server-side trigger
+  already refuses it inside an answer — reading a rate here would be the same
+  leak by another door. `crews[]` carries the handoff's frozen names, stations
+  and head counts, and `crewCapacityLine()` produces its exact capacity line
+  ("6 fitters · saw 2", "4 · upholstery bay"). `crew_members` joins the cloud
+  collections with the same scoped RLS.
+- **A real fault the story surfaced on its first run, which is the whole point
+  of seeding it.** The lane gate asked "is there enough *unreserved* stock
+  anywhere", and **nothing in the flow ever reserved** — yet the handoff's own
+  allot gate says the clear answer is "Material reserved · BOM current". So
+  two jobs could both clear the gate on the same boards; whoever issued first
+  took them and the second crew started and stopped — precisely the day
+  commitment 1 exists to prevent. Fixed by making the lane slot **claim** the
+  boards: `allotLaneSlot()` now calls `reserveJobMaterial()`, which reserves
+  the outstanding need greedily across bins through 18a's own
+  `reserveStockForJob()`. Proven: job A takes the lane, 10 boards held, 0
+  free; job B is then honestly "Material short — 1 line" and refused.
+- **`seed-production-story.js`** (committed) builds Al Maraya's week as real
+  records through the app's own functions — real customers, real quotations
+  priced through the real BOM chain, real Item Master materials (MFC 2800×2070,
+  beech-veneer MDF, concealed hinges) put away and reserved through 18a, real
+  routing, lane slots, a derived paint slot, overtime, a cutting sheet killed
+  by a real revision, a press batch, and typed asks from the estimator and
+  operations. It walks fourteen scenarios and **reports** what each did rather
+  than working around a refusal. **14/14 behave as the design says.** Two of
+  the three failures along the way were the seed's own fault, not the system's
+  — a "short" material that was merely tight, and a half-day asked of the very
+  job that was deliberately short — and both are noted in the script so the
+  next reader does not mistake them for bugs.
+- **`clear-production-story.js`** (committed) — Salman asked whether Supabase
+  data can be erased before going live. It reads the manifest the seeder
+  writes and deletes **only those ids**, FK-safe (jsonb tables, then job
+  cards, quotations, enquiries, customers), then verifies nothing is left and
+  archives the manifest. Nothing is matched by name or guessed at, so real
+  work created alongside the story is never touched. Takes the PAT from
+  `SUPABASE_PAT`, never the repo. `--dry-run` first. Used three times this
+  session to iterate cleanly; each run removed exactly 33–34 rows and verified
+  clean.
+- **Found and reported, NOT acted on — it is live-data deletion and needs
+  Salman's say-so**: the live project holds **164 job cards, 325 customers,
+  248 quotations**, of which **115 customers are obviously test-named** (E2E,
+  DEMO, Probe, Claim). The Production dashboard therefore reads "Waiting for a
+  lane 82" and "Jobs on the factory floor 157", almost entirely accumulated
+  e2e residue. Same class as the sign-in roster pollution from 5 Aug. Worth a
+  purge before the module is judged on how it looks.
+- **Verification**: `e2e-production-19a.js` 33 → 35/35, the two new checks
+  proving a lane slot claims the boards and that a second job on the same
+  boards is honestly short. `e2e-production-cycle.js` 31/31,
+  `e2e-store-cycle.js` 61/61, `e2e-cost-ledger.js` 17/17,
+  `e2e-batch8-routing.js` 12/12 — the reservation change touches the store, so
+  those mattered. Standing battery clean across 36 files. Full sweep back to
+  the three long-documented failures.
+- **Still to build, in spec order**: dashboard fidelity (Phase 1 — the three
+  dead CSS classes, the unreachable `blocked` state, the OT precedence bug,
+  the four paperwork kinds, the frozen KPI six, and every cell/row/button
+  opening its create flow), then the fourteen working pages, the twelve create
+  flows and their gate table, the cutting-list builder, and the A4 printable.
