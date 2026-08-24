@@ -8,3 +8,7 @@ test-results/
 playwright-report/
 e2e-shots*/
 amd-app-systems-audit-*.md
+
+# Story manifests: working files, not source. The live one is kept so the
+# teardown can find it; the archived ones are just receipts.
+production-story-manifest.cleared-*.json
