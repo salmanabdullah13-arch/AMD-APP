@@ -206,6 +206,35 @@ function check(name, ok, detail) {
     const day = (n) => { const d = new Date(sun); d.setDate(sun.getDate() + n); return localISO(d); };
     const a = allotLaneSlot({ crewId: 'CREW-B', jobCardId: t.jobId, date: day(1), portion: 'full', byWhom: 'Test' });
     if (a && a.slot) allotDerivedSlot({ crewId: 'CREW-P', baseSlotId: a.slot.id, offsetDays: 2, jobCardId: t.jobId, byWhom: 'Test' });
+    // A shift on a day with NO work — the prototype's Friday. Booked on the
+    // same crew as the Monday slot so both OT cases sit on one lane.
+    bookOvertimeShift({ crewId: 'CREW-B', date: day(5), hours: 6, men: 4,
+      recoversTarget: t.jobId, cause: OVERTIME_CAUSES[0], byWhom: 'Test' });
+    // And one on the day that already has work — the prototype's Wednesday.
+    bookOvertimeShift({ crewId: 'CREW-B', date: day(1), hours: 3, men: 3,
+      recoversTarget: t.jobId, cause: OVERTIME_CAUSES[0], byWhom: 'Test' });
+    // Paperwork and the inbox both render off real records. Seed one of each
+    // kind so the four-kind rule and the need line are actually exercised,
+    // rather than passing on an empty state.
+    const sh = createCuttingSheet({ jobCardId: t.jobId, saw: '', lines: [], byWhom: 'Test' });
+    // createCuttingSheet already lands 'released'; put it on a saw so the
+    // row reads the way the shop sees it.
+    if (sh && sh.id) markSheetOnSaw(sh.id, 'saw 2');
+    const batch = createPressingBatch({ veneer: 'Oak crown 0.6mm', byWhom: 'Test' });
+    if (batch && batch.id) addJobToPressingBatch(batch.id, t.jobId, 4);
+    // A pull on the installation crew — the fourth paperwork kind. Paint is
+    // already covered by the derived slot above.
+    const b2 = allotLaneSlot({ crewId: 'CREW-A', jobCardId: t.jobId, date: day(2), portion: 'full', byWhom: 'Test' });
+    if (b2 && b2.slot) allotDerivedSlot({ crewId: 'CREW-I', baseSlotId: b2.slot.id, offsetDays: 2, jobCardId: t.jobId, byWhom: 'Test' });
+    // The sofa lane's story: a job routed to upholstery that cannot get a
+    // lane, so that crew stands there with nothing it can start. Shaped on
+    // the fixture rather than built as a second job through the whole chain.
+    const stuck = getWaitingForLane()[0];
+    if (stuck) (stuck.job.items || []).forEach(it => {
+      it.departmentSequence = (it.departmentSequence || []).concat(['uph']);
+    });
+    raiseInputRequest({ type: 'pricing_input', raisedBy: 'Arun Kumar A', raiserRole: 'estimator',
+      jobCardId: t.jobId, question: 'Man-hours to build and finish the run of wardrobes?', neededBy: day(3) });
     renderProductionBody();
   }, bomTrace);
   await page.waitForTimeout(250);
@@ -219,7 +248,15 @@ function check(name, ok, detail) {
       cells: cells.length, states,
       headerDays: [...body.querySelectorAll('.prd-days .d')].map(d => d.textContent.trim().split(' ')[0]),
       hasWaitRule: /A lane will not take a job with no material or a pending revision/.test(body.textContent),
-      labelInFill: [...body.querySelectorAll('.prd-track i')].some(i => i.textContent.trim().length > 0)
+      labelInFill: [...body.querySelectorAll('.prd-track i')].some(i => i.textContent.trim().length > 0),
+      laneB: (() => {
+        const lane = [...body.querySelectorAll('.prd-lane')].find(l => /Crew B/i.test(l.textContent));
+        return lane ? [...lane.querySelectorAll('.prd-cell')].map(c => ({
+          st: [...c.classList].find(x => x.startsWith('c-')),
+          j: (c.querySelector('.j') || {}).textContent,
+          s: (c.querySelector('.s') || {}).textContent
+        })) : null;
+      })()
     };
   });
   check('five lanes, seven days each', board.lanes === 5 && board.cells === 35, board);
@@ -227,17 +264,95 @@ function check(name, ok, detail) {
   check('a booked day renders as an allotted cell', (board.states['c-full'] || 0) > 0, board.states);
   check('a derived slot renders in the pull state, not as a date of its own',
     (board.states['c-pull'] || 0) > 0, board.states);
-  check('overtime turns a weekend cell green', (board.states['c-ot'] || 0) > 0, board.states);
+  check('a day whose only reason to exist is the shift is an OT cell',
+    (board.states['c-ot'] || 0) > 0, board.states);
+  check('overtime on a day that already has work keeps the state of the job,',
+    !!board.laneB && board.laneB[1] && board.laneB[1].st === 'c-full' && String(board.laneB[1].s || '').indexOf('+3 h OT') !== -1,
+    board.laneB && board.laneB.slice(0, 6));
   check('Friday and Saturday are weekend cells otherwise', (board.states['c-wknd'] || 0) > 0, board.states);
   check('the waiting strip carries the rule verbatim', board.hasWaitRule, board);
   check('no bar fill contains a label (handoff chart rule)', board.labelInFill === false, board);
 
   const stepped = await page.evaluate(() => {
-    const before = document.querySelector('#prd-body .prd-step .lbl').textContent.trim();
+    const dates = () => [...document.querySelectorAll('#prd-body .prd-days .d')].map(d => d.textContent.trim()).join(',');
+    const before = dates();
     document.querySelector('#prd-body [data-a="wk"][data-v="1"]').click();
-    return { before, after: document.querySelector('#prd-body .prd-step .lbl').textContent.trim() };
+    const after = dates();
+    // "This week" is a reset control, not a period label — it takes you back.
+    document.querySelector('#prd-body .prd-step .lbl').click();
+    return { before, after, reset: dates() };
   });
-  check('stepping the week changes the period', stepped.before !== stepped.after, stepped);
+  check('stepping the week moves the days', stepped.before !== stepped.after, stepped);
+  check('"This week" resets to the current week', stepped.reset === stepped.before, stepped);
+  // It is a <button> in the same row as two 30px arrows; without an explicit
+  // width it inherits theirs and reads "This w".
+  const lblFit = await page.evaluate(() => {
+    const el = document.querySelector('#prd-body .prd-step .lbl');
+    return { text: el.textContent.trim(), clipped: el.scrollWidth > el.clientWidth + 1 };
+  });
+  check('the week label is not clipped by the arrow width', !lblFit.clipped, lblFit);
+
+
+  console.log('\n— the dashboard against the package —');
+  // Every class below had a rule in production.css and no renderer emitting
+  // it. A rule nothing produces is a deviation that reads as done.
+  const spec = await page.evaluate(() => {
+    const body = document.getElementById('prd-body');
+    const txt = body.textContent;
+    const kpis = [...body.querySelectorAll('.prd-kpi .prd-kpi-l b')].map(b => b.textContent.trim());
+    const kinds = [...body.querySelectorAll('.prd-out-k')].map(k => k.textContent.trim());
+    return {
+      tgt: body.querySelectorAll('.prd-tgt').length,
+      need: body.querySelectorAll('.prd-need').length,
+      teamTgt: body.querySelectorAll('.prd-team-tgt').length,
+      blocked: body.querySelectorAll('.prd-cell.c-blocked').length,
+      kpis, kinds,
+      opensFlow: body.querySelectorAll('[data-a="flow"]').length,
+      sheetsSaved: /Veneer sheets saved/.test(txt),
+      otThisWeek: /Overtime booked this week/.test(txt),
+      otSub: (() => {
+        const row = [...body.querySelectorAll('.prd-kpi')].find(r => /Overtime booked this week/.test(r.textContent));
+        return row ? (row.querySelector('.prd-kpi-l span') || {}).textContent : null;
+      })()
+    };
+  });
+  check('lane target lines render', spec.tgt >= 5, spec.tgt);
+  check('the inbox need line renders', spec.need > 0, spec.need);
+  check('teams today carries a target', spec.teamTgt > 0, spec.teamTgt);
+  check('a crew with work waiting and none allotted reads as blocked, not free',
+    spec.blocked > 0, spec.blocked);
+  check('paperwork produces all four kinds',
+    ['Cutting list', 'Veneer press', 'Paint queue', 'Installation'].every(k => spec.kinds.some(x => x.indexOf(k) === 0)),
+    spec.kinds);
+  check('the KPI list is the frozen six', spec.kpis.length === 6, spec.kpis);
+  check('KPI six is Veneer sheets saved, not press batches open', spec.sheetsSaved, spec.kpis);
+  check('overtime is scoped to the week, not the month',
+    spec.otThisWeek && !/month/i.test(spec.otSub || ''), spec.otSub);
+
+  // Nothing on this screen was clickable before Phase 1 — the handler read a
+  // data key the elements never set.
+  const flows = await page.evaluate(() => {
+    const body = () => document.getElementById('prd-body');
+    const open = (sel) => {
+      const el = body().querySelector(sel);
+      if (!el) return null;
+      el.click();
+      const r = { v: PrdUI.state.view, k: PrdUI.state.form, g: PrdUI.state.gate };
+      PrdUI.go('dash');
+      return r;
+    };
+    return {
+      cell: open('.prd-cell[data-a="cell"]'),
+      paperwork: open('.prd-out [data-a="flow"]'),
+      ask: open('.prd-ask [data-a="flow"]')
+    };
+  });
+  check('a board cell opens the allot flow', flows.cell && flows.cell.v === 'form' && flows.cell.k === 'allot', flows.cell);
+  check('a paperwork button opens its own flow', flows.paperwork && flows.paperwork.v === 'form', flows.paperwork);
+  check('an inbox action opens its own flow', flows.ask && flows.ask.v === 'form', flows.ask);
+  check('every flow opens with the gate reset — a stale answer must not carry over',
+    [flows.cell, flows.paperwork, flows.ask].every(f => f && f.g === null),
+    [flows.cell, flows.paperwork, flows.ask].map(f => f && f.g));
 
   console.log('\n— dark mode and the phone —');
   const dark = await page.evaluate(async () => {
@@ -256,11 +371,19 @@ function check(name, ok, detail) {
   const phone = await page.evaluate(() => ({
     cols: getComputedStyle(document.querySelector('#prd-body .prd-dash')).flexDirection,
     overflow: document.documentElement.scrollWidth > 391,
-    boardScrolls: getComputedStyle(document.querySelector('#prd-body .prd-board-scroll')).overflowX
+    boardScrolls: getComputedStyle(document.querySelector('#prd-body .prd-board-scroll')).overflowX,
+    // Declaring overflow-x:auto is not enough — in a column flex the CARD
+    // grew to the 640px board instead, so the scroller never had anything to
+    // scroll and the copy ran off the right edge. Measure it.
+    cardW: Math.round(document.querySelector('#prd-body .prd-board').getBoundingClientRect().width),
+    reallyScrolls: (() => { const el = document.querySelector('#prd-body .prd-board-scroll'); return el.scrollWidth > el.clientWidth; })()
   }));
   check('single column on a phone', phone.cols === 'column', phone);
   check('no horizontal page overflow at 390px', phone.overflow === false, phone);
   check('the board scrolls sideways rather than crushing seven days', phone.boardScrolls === 'auto', phone);
+  check('the card is pinned to the viewport, so the copy is not cut off',
+    phone.cardW <= 390, phone);
+  check('and the board inside it really does scroll', phone.reallyScrolls === true, phone);
 
   check('zero console/page errors', errors.length === 0, errors.slice(0, 4));
 

@@ -632,6 +632,61 @@ function manState(man, weekDates) {
   return { tone: "ok", label: "Free" };
 }
 
+// ═══ Dashboard readers the handoff's cards need ════════════════════════
+// A crew's target out date: the earliest promised/target date across the jobs
+// it is actually working. Derived, never typed — a target the board invented
+// would be a date somebody promises a client.
+function crewTarget(crewId) {
+  const ids = [...new Set(laneSlots.filter(s => s.crewId === crewId).map(s => s.jobCardId))];
+  const dates = ids.map(id => {
+    const j = typeof getJobCard === "function" ? getJobCard(id) : null;
+    return j ? (j.promisedDate || j.targetDate) : null;
+  }).filter(Boolean).sort();
+  if (!dates.length) return { date: null, tone: "wine", label: "No target date yet" };
+  const soonest = dates[0];
+  const today = todayISO();
+  // Late is bad; inside a week with the lane already over its five days is
+  // also bad, because the days left cannot hold the work.
+  const booked = laneSlots.filter(s => s.crewId === crewId && s.kind === "work").length;
+  if (soonest < today) return { date: soonest, tone: "bad", label: "past its date" };
+  if (booked > 5) return { date: soonest, tone: "bad", label: "misses on day work" };
+  return { date: soonest, tone: "ok", label: "on track" };
+}
+
+// Is a crew standing there with nothing it can start? That is the board's
+// `blocked` cell — "crew there, nothing to work on" — and it is true when work
+// routed to that crew's department is sitting in the waiting strip.
+function crewBlockedReason(crewId) {
+  const crew = crews.find(c => c.id === crewId);
+  if (!crew) return null;
+  const waiting = getWaitingForLane().filter(w =>
+    (w.job.items || []).some(it => (it.departmentSequence || []).indexOf(crew.dept) !== -1));
+  if (!waiting.length) return null;
+  return waiting[0].reason;
+}
+
+// Sheets saved by batching. Pressed alone, each job rounds up to whole sheets;
+// batched, the run shares them. A real saving only shows once part-sheets are
+// recorded — with whole numbers this is honestly 0 rather than a flattering
+// guess, which is the same call getStockReport() makes about move costs.
+function veneerSheetsSaved() {
+  return pressingBatches.reduce((total, b) => {
+    const jobs = b.jobs || [];
+    if (jobs.length < 2) return total;
+    const alone = jobs.reduce((s, j) => s + Math.ceil(Number(j.sheets) || 0), 0);
+    const together = Math.ceil(jobs.reduce((s, j) => s + (Number(j.sheets) || 0), 0));
+    return total + Math.max(0, alone - together);
+  }, 0);
+}
+
+// Overtime hours inside the displayed week, not a rolling month — the card
+// the handoff scopes to the week.
+function overtimeHoursInWeek(weekDates) {
+  return overtimeShifts
+    .filter(o => (weekDates || []).indexOf(o.date) !== -1)
+    .reduce((s, o) => s + (Number(o.hours) || 0), 0);
+}
+
 // Cloud-backed since 19 Aug 2026 — all six arrays are registered in
 // CLOUD_JSON_COLLECTIONS (data.js) and ride the same snapshot-diff autosave
 // every other collection uses. Two of the five commitments are enforced

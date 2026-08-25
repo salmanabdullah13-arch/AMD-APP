@@ -130,6 +130,12 @@ window.PrdUI = (function () {
     if (isNaN(d)) return String(iso);
     return String(d.getDate()).padStart(2, '0') + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear();
   }
+  // "14 Aug" — the handoff's short date, no year.
+  function ddmmmShort(iso) {
+    if (!iso) return '—';
+    var d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+    return isNaN(d) ? String(iso) : String(d.getDate()).padStart(2, '0') + ' ' + MON[d.getMonth()];
+  }
   function shortDay(iso) {
     var d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
     return isNaN(d) ? '' : String(d.getDate());
@@ -160,11 +166,30 @@ window.PrdUI = (function () {
     if (/bom|budget/.test(k)) return ['BOM', 'k-bad'];
     return ['MATERIAL', 'k-warn'];
   }
+  // Which create flow a row opens, and the action word on its button — both
+  // from the handoff's own table.
+  function askAction(kind) {
+    var k = String(kind || '').toLowerCase();
+    if (/pricing/.test(k)) return { label: 'Return input', form: 'price' };
+    if (/budget/.test(k)) return { label: 'Return input', form: 'bomb' };
+    if (/bom/.test(k)) return { label: 'Accept and reissue', form: 'bom' };
+    if (/quote/.test(k)) return { label: 'Compare quotes', form: 'quote' };
+    return { label: 'Reserve or quote', form: 'res' };
+  }
+  // The need line — the tone-coded sentence saying what the asker actually
+  // needs back. It is the row's whole point and it carries the rule.
+  function needLine(r) {
+    var k = String(r.kind || '').toLowerCase();
+    if (/pricing/.test(k)) return { text: 'Hours and board counts. Not a price.', tone: 'wine' };
+    if (/budget/.test(k)) return { text: 'A standard per unit, not this one job\'s numbers.', tone: 'wine' };
+    if (/bom/.test(k)) return { text: 'Any sheet cut from the old revision is dead paper.', tone: 'bad' };
+    if (/quote/.test(k)) return { text: 'Pick one, or the work cannot be finished.', tone: 'plain' };
+    return { text: 'Reserve it or take supplier quotes before the crew stops.', tone: 'bad' };
+  }
   function dueTone(due) {
-    if (!due) return 'ok';
+    if (!due) return 'warn';
     var t = todayLocal();
-    if (due < t) return 'bad';
-    if (due === t) return 'bad';
+    if (due <= t) return 'bad';
     return 'warn';
   }
   function dueLabel(due) {
@@ -172,55 +197,80 @@ window.PrdUI = (function () {
     var t = todayLocal();
     if (due === t) return 'Today';
     if (due < t) return 'Now';
-    return ddmmm(due);
+    var tm = safe(function () { return addDaysISO(t, 1); }, null);
+    if (due === tm) return 'Tomorrow';
+    // "14 Aug" — the handoff's own short form, no year.
+    var d = new Date(due + 'T00:00:00');
+    return isNaN(d) ? String(due) : String(d.getDate()).padStart(2, '0') + ' ' + MON[d.getMonth()];
   }
   function askedHTML() {
     var rows = safe(function () { return getAskedOfYouToday(); }, []);
+    var shown = rows.slice(0, 5);
     var dueToday = rows.filter(function (r) { return r.due && r.due <= todayLocal(); }).length;
     return '<section class="prd-card prd-asked">' +
       '<div class="prd-card-h"><div style="flex:1 1 auto;min-width:0">' +
       '<div class="prd-asked-t">Asked of you today</div>' +
-      '<div class="prd-sub">Other people\'s deadlines. These come before the board, because somebody is waiting on the other end.</div>' +
-      '</div><span class="prd-pill solid">' + rows.length + ' open · ' + dueToday + ' due today</span></div>' +
-      (rows.length ? rows.slice(0, 5).map(function (r) {
-        var kc = kindChip(r.kind), tone = dueTone(r.due);
-        return '<button class="prd-ask' + (tone === 'bad' ? ' t-bad' : '') + '" data-a="ask" data-k="' + esc(r.ref || '') + '">' +
+      '<div class="prd-sub prd-sub-lg">Other people\'s deadlines. These come before the board, because somebody is waiting on the other end.</div>' +
+      '</div><span class="prd-pill solid prd-count">' + rows.length + ' open · ' + dueToday + ' due today</span></div>' +
+      (shown.length ? shown.map(function (r) {
+        var kc = kindChip(r.kind), tone = dueTone(r.due), act = askAction(r.kind), need = needLine(r);
+        return '<div class="prd-ask' + (tone === 'bad' ? ' t-bad' : '') + '">' +
           '<span class="prd-kind ' + kc[1] + '">' + kc[0] + '</span>' +
           '<span class="prd-ask-n"><span class="prd-ask-t">' + esc(r.detail || r.kind) + '</span>' +
-          '<span class="prd-ask-f">' + esc(r.from || '—') + (r.ref ? ' · ' + esc(r.ref) : '') + '</span></span>' +
+          '<span class="prd-ask-f">' + esc(r.from || '—') + (r.ref ? ' · ' + esc(r.ref) : '') + '</span>' +
+          '<span class="prd-need t-' + need.tone + '">' + esc(need.text) + '</span></span>' +
           '<span class="prd-due t-' + tone + '">' + esc(dueLabel(r.due)) + '</span>' +
-          '<span class="prd-btn-sm">Open</span></button>';
+          '<button class="prd-btn-sm" data-a="flow" data-f="' + act.form + '">' + esc(act.label) + '</button></div>';
       }).join('')
-        : '<div style="padding:22px 18px;font-size:11.5px;color:var(--tx3)">Nobody is waiting on you right now.</div>') +
+        : '<div class="prd-empty">Nobody is waiting on you right now.</div>') +
       '</section>';
   }
 
   /* ── 2. The week board — the module's central artefact ──────────────── */
   function crewList() { return safe(function () { return crews; }, []); }
 
-  // Cell state from real slots. The vocabulary is the handoff's, exactly.
-  function cellFor(crew, day, dayIdx) {
+  // The cell vocabulary, exactly as the handoff defines it:
+  // full · half · over · blocked · pull · ot · wknd.
+  function crewIdleThisWeek(crew, days) {
+    var busy = safe(function () {
+      return laneSlots.some(function (s) { return s.crewId === crew.id && (days || []).indexOf(slotDate(s)) !== -1; });
+    }, false);
+    if (busy) return null;
+    return safe(function () { return crewBlockedReason(crew.id); }, null);
+  }
+  function cellFor(crew, day, dayIdx, idleReason) {
     var slots = safe(function () { return laneSlots.filter(function (s) { return s.crewId === crew.id && slotDate(s) === day; }); }, []);
     var ot = safe(function () { return overtimeShifts.filter(function (o) { return o.crewId === crew.id && o.date === day; }); }, []);
+    var otH = ot.reduce(function (a, o) { return a + (o.hours || 0); }, 0);
     var weekend = dayIdx === 5 || dayIdx === 6;
-    if (ot.length) {
-      return { st: 'ot', j: 'OT', s: '+' + ot.reduce(function (a, o) { return a + (o.hours || 0); }, 0) + ' h OT' };
-    }
-    if (weekend && !slots.length) return { st: 'wknd', j: '—', s: '' };
-    if (!slots.length) return { st: 'free', j: 'free', s: 'free' };
+
     if (slots.length > 1) {
-      return { st: 'over', j: slots.map(function (s) { return String(s.jobCardId).slice(-4); }).join(' + '), s: 'two jobs' };
+      return { st: 'over', j: slots.map(function (s) { return String(s.jobCardId); }).join(' + '), s: 'two jobs' };
     }
-    var sl = slots[0];
-    var st = sl.baseSlotId ? 'pull' : (sl.portion === 'half' ? 'half' : 'full');
-    var sub = sl.baseSlotId ? 'after joinery' : (sl.portion === 'half' ? 'half day' : 'full day');
-    return { st: st, j: sl.jobCardId, s: sub };
+    if (slots.length === 1) {
+      var sl = slots[0];
+      var st = sl.baseSlotId ? 'pull' : (sl.portion === 'half' ? 'half' : 'full');
+      // Overtime on a day that already has work does NOT turn the cell green —
+      // it stays the job's own state and says so in the sub-line. Only a day
+      // whose ONLY reason to exist is the shift is an `ot` cell.
+      var sub = otH ? '+' + otH + ' h OT'
+        : sl.baseSlotId ? 'after joinery'
+          : sl.portion === 'half' ? 'half day' : 'full day';
+      return { st: st, j: sl.jobCardId, s: sub };
+    }
+    if (otH) return { st: 'ot', j: 'OT', s: 'OT ' + otH + ' h shift' };
+    if (weekend) return { st: 'wknd', j: '—', s: '' };
+    // Nothing allotted, and work routed to this crew is stuck in the waiting
+    // strip: the crew is there with nothing it can start.
+    if (idleReason) return { st: 'blocked', j: 'stopped', s: idleReason.length > 22 ? idleReason.slice(0, 20) + '…' : idleReason, title: idleReason };
+    return { st: 'free', j: 'free', s: 'free' };
   }
 
   function laneLoad(crew, days) {
     var booked = 0;
-    days.slice(0, 5).forEach(function (d) {
-      var c = cellFor(crew, d, days.indexOf(d));
+    var idle = crewIdleThisWeek(crew, days);
+    days.slice(0, 5).forEach(function (d, i) {
+      var c = cellFor(crew, d, i, idle);
       if (c.st === 'full' || c.st === 'pull' || c.st === 'over') booked += 1;
       else if (c.st === 'half') booked += 0.5;
     });
@@ -233,11 +283,11 @@ window.PrdUI = (function () {
     var waiting = safe(function () { return getWaitingForLane(); }, []);
 
     return '<section class="prd-card prd-board">' +
-      '<div class="prd-card-h"><div style="flex:1 1 auto;min-width:0">' +
+      '<div class="prd-card-h prd-card-h-lg"><div style="flex:1 1 auto;min-width:0">' +
       '<div class="prd-t">The week board</div>' +
-      '<div class="prd-sub">Four lanes, one clock. <b>Paint and install pull their dates from joinery</b> — move a joinery slot and the ones after it move with it. Green Friday cells are <b>overtime</b>, booked against the target they recover.</div>' +
+      '<div class="prd-sub prd-sub-lg">Four lanes, one clock. <b>Paint and install pull their dates from joinery</b> — move a joinery slot and the ones after it move with it. Green Friday cells are <b>overtime</b>, booked against the target they recover.</div>' +
       '</div><span class="prd-step"><button data-a="wk" data-v="-1" aria-label="Previous week">‹</button>' +
-      '<span class="lbl">' + (S.off === 0 ? 'This week' : ddmmm(days[0])) + '</span>' +
+      '<button class="lbl" data-a="wk-today">This week</button>' +
       '<button data-a="wk" data-v="1" aria-label="Next week">›</button></span></div>' +
 
       '<div class="prd-board-scroll">' +
@@ -249,104 +299,161 @@ window.PrdUI = (function () {
       crewList().map(function (c) {
         var booked = laneLoad(c, days);
         var lt = booked > 5 ? 'bad' : booked >= 3 ? 'ok' : 'warn';
+        var tgt = safe(function () { return crewTarget(c.id); }, { date: null, tone: 'wine', label: 'No target date yet' });
         var otH = safe(function () {
           return overtimeShifts.filter(function (o) { return o.crewId === c.id && days.indexOf(o.date) !== -1; })
             .reduce(function (a, o) { return a + (o.hours || 0); }, 0);
         }, 0);
+        var idleReason = crewIdleThisWeek(c, days);
+        var idle = !!idleReason;
         return '<div class="prd-lane"><div class="prd-lane-l">' +
           '<div class="prd-lane-n">' + esc(c.name) + '</div>' +
           '<div class="prd-lane-cap">' + esc(safe(function () { return crewCapacityLine(c); }, c.station || '')) + '</div>' +
           '<span class="prd-load prd-pill t-' + lt + '">' + booked + ' of 5 days</span>' +
-          (otH ? '<span class="prd-ot prd-pill t-ok">OT ' + otH + ' h</span>' : '') +
+          '<span class="prd-tgt t-' + tgt.tone + '">' + (tgt.date ? 'Target ' + esc(ddmmmShort(tgt.date)) + ' · ' + esc(tgt.label) : esc(tgt.label)) + '</span>' +
+          // An idle crew's overtime badge is the warning, not a total.
+          (otH ? '<span class="prd-ot prd-pill t-ok">OT ' + otH + ' h</span>'
+            : idle ? '<span class="prd-ot prd-pill t-bad">OT would be idle</span>' : '') +
           '</div>' +
           days.map(function (d, i) {
-            var cell = cellFor(c, d, i);
+            var cell = cellFor(c, d, i, idleReason);
             return '<button class="prd-cell c-' + cell.st + '" data-a="cell" data-c="' + esc(c.id) + '" data-d="' + esc(d) + '" ' +
-              'title="' + esc(DL[i] + ' — ' + (cell.j === 'free' ? 'no work allotted' : cell.j)) + '">' +
+              'title="' + esc(DL[i] + ' — ' + (cell.title || (cell.st === 'wknd' ? 'weekend' : cell.st === 'free' ? 'no work allotted' : cell.j + ' · ' + cell.s))) + '">' +
               '<span class="j">' + esc(cell.j) + '</span>' +
               (cell.s ? '<span class="s">' + esc(cell.s) + '</span>' : '') + '</button>';
           }).join('') + '</div>';
       }).join('') +
       '</div>' +
 
-      '<div class="prd-wait"><div class="prd-wait-h">Waiting for a lane</div>' +
-      '<div class="prd-wait-rule">A lane will not take a job with no material or a pending revision</div>' +
-      (waiting.length ? '<div class="prd-wait-row">' + waiting.slice(0, 6).map(function (w) {
+      '<div class="prd-wait"><div class="prd-wait-h-row">' +
+      '<span class="prd-wait-h">Waiting for a lane</span>' +
+      '<span class="prd-wait-rule">A lane will not take a job with no material or a pending revision</span></div>' +
+      (waiting.length ? '<div class="prd-wait-row">' + waiting.slice(0, 3).map(function (w) {
         var tone = /short|No BOM/i.test(w.reason) ? 'bad' : 'warn';
-        return '<button class="prd-wait-c t-' + tone + '" data-a="wait" data-k="' + esc(w.job.id) + '">' +
+        var form = /short/i.test(w.reason) ? 'res' : 'bom';
+        return '<button class="prd-wait-c t-' + tone + '" data-a="flow" data-f="' + form + '" data-k="' + esc(w.job.id) + '">' +
           '<span class="prd-wait-id">' + esc(w.job.id) + '</span>' +
           '<span class="prd-wait-t">' + esc(w.job.projectName || '') + '</span>' +
           '<span class="prd-wait-why">' + esc(w.reason) + '</span></button>';
       }).join('') + '</div>'
-        : '<div style="font-size:11px;color:var(--tx3);margin-top:8px">Every routed job has a lane.</div>') +
+        : '<div class="prd-empty prd-empty-sm">Every routed job has a lane.</div>') +
       '</div></section>';
   }
 
   /* ── 3. Paperwork the shop is waiting on ────────────────────────────── */
-  function paperworkHTML() {
+  // Four kinds, as the handoff's 132px kind column names them: Cutting list ·
+  // Veneer press · Paint queue · Installation.
+  function paperworkRows() {
     var rows = [];
     safe(function () { return cuttingSheets; }, []).forEach(function (sh) {
       if (sh.status === 'dead' && !sh.confirmedOffSaw) {
-        rows.push({ k: 'Cutting list', t: sh.id + ' — cut from a superseded revision', s: 'Dead paper. It clears when the sheet is confirmed off the saw, not when the new revision is issued.', st: 'bad', state: 'Reissue now', action: 'Release' });
+        rows.push({ k: 'Cutting list', t: sh.id + ' — cut from a superseded revision',
+          s: 'Dead paper. It clears when the sheet is confirmed off the saw, not when the new revision is issued.',
+          st: 'bad', state: 'Reissue now', action: 'Release', form: 'cut', blocked: true });
       } else if (sh.status === 'released' || sh.status === 'on-saw') {
-        rows.push({ k: 'Cutting list', t: sh.id + ' — ' + (sh.jobCardId || ''), s: sh.saw ? 'On ' + sh.saw : 'Released, not yet on a saw', st: 'plain', state: sh.status === 'on-saw' ? 'On saw' : 'Released', action: 'Open' });
+        rows.push({ k: 'Cutting list', t: sh.id + ' — ' + (sh.jobCardId || ''),
+          s: sh.saw ? 'On ' + sh.saw : 'Released, not yet on a saw',
+          st: sh.status === 'on-saw' ? 'plain' : 'ok', state: sh.status === 'on-saw' ? 'On saw' : 'Released',
+          action: 'Open', form: 'cut' });
       }
     });
     safe(function () { return pressingBatches; }, []).forEach(function (b) {
-      if (b.status === 'open') rows.push({ k: 'Veneer press', t: b.id + ' — ' + (b.veneer || ''), s: (b.jobs || []).length + ' job(s) batched', st: 'ok', state: 'Batched', action: 'Schedule' });
+      if (b.status !== 'open') return;
+      var saved = safe(function () { return veneerSheetsSaved(); }, 0);
+      rows.push({ k: 'Veneer press', t: b.id + ' — ' + (b.veneer || '') + ', ' + (b.jobs || []).length + ' jobs in one run',
+        s: (b.jobs || []).map(function (j) { return j.jobCardId; }).join(' · ') + (saved ? ' · saves ' + saved + ' sheets' : ''),
+        st: 'ok', state: 'Batched', action: 'Schedule', form: 'press' });
     });
+    // Paint queue and Installation: the pulled dates, which are the two kinds
+    // the board's `pull` cells correspond to.
+    safe(function () { return laneSlots.filter(function (s) { return s.kind === 'pull'; }); }, []).forEach(function (s) {
+      var crew = crews.find(function (c) { return c.id === s.crewId; }) || {};
+      var when = safe(function () { return ddmmmShort(slotDate(s)); }, '');
+      if (crew.dept === 'paint') {
+        rows.push({ k: 'Paint queue', t: s.jobCardId + ' — booth time',
+          s: 'Booth booked ' + when + ', pulled off the joinery slot before it.',
+          st: 'warn', state: 'Book ' + when, action: 'Book', form: 'allot' });
+      } else {
+        rows.push({ k: 'Installation', t: s.jobCardId + ' — site fit',
+          s: 'Provisional ' + when + '. It moves when paint moves.',
+          st: 'warn', state: 'Provisional', action: 'Confirm', form: 'inst' });
+      }
+    });
+    return rows;
+  }
+  function paperworkHTML() {
+    var rows = paperworkRows();
+    var blocked = rows.filter(function (r) { return r.st === 'bad'; }).length;
     return '<section class="prd-card">' +
-      '<div class="prd-card-h"><div style="flex:1 1 auto;min-width:0">' +
-      '<div class="prd-t">Paperwork the shop is waiting on</div></div></div>' +
+      '<div class="prd-card-h prd-card-h-sm"><div style="flex:1 1 auto;min-width:0">' +
+      '<div class="prd-t-sm">Paperwork the shop is waiting on</div></div>' +
+      (blocked ? '<span class="prd-note">' + blocked + ' blocked on somebody else</span>' : '') + '</div>' +
       (rows.length ? rows.slice(0, 5).map(function (o) {
         return '<div class="prd-out' + (o.st === 'bad' ? ' t-bad' : '') + '">' +
           '<span class="prd-out-k">' + esc(o.k) + '</span>' +
           '<span class="prd-out-n"><span class="prd-out-t">' + esc(o.t) + '</span>' +
           '<span class="prd-out-s">' + esc(o.s) + '</span></span>' +
           '<span class="prd-pill t-' + o.st + '">' + esc(o.state) + '</span>' +
-          '<button class="prd-btn-o" data-a="paper">' + esc(o.action) + '</button></div>';
+          '<button class="prd-btn-o" data-a="flow" data-f="' + o.form + '">' + esc(o.action) + '</button></div>';
       }).join('')
-        : '<div style="padding:22px 16px;font-size:11.5px;color:var(--tx3)">Nothing is waiting on paperwork.</div>') +
+        : '<div class="prd-empty">Nothing is waiting on paperwork.</div>') +
       '</section>';
   }
 
   /* ── right column ───────────────────────────────────────────────────── */
   function teamsHTML() {
     var days = weekDates(S.off);
-    return '<section class="prd-card">' +
-      '<div class="prd-card-h"><div style="flex:1 1 auto;min-width:0">' +
-      '<div class="prd-t">Teams today</div>' +
-      '<div class="prd-sub">Crews and where they physically are. Who stands in each crew is the labour dashboard\'s business.</div>' +
-      '</div></div>' +
+    var now = new Date(todayLocal() + 'T00:00:00');
+    return '<section class="prd-card prd-teams">' +
+      '<div class="prd-teams-h"><span class="prd-t-sm">Teams today</span>' +
+      '<span class="prd-note">' + esc(DL[now.getDay()] + ' ' + ddmmmShort(todayLocal())) + '</span></div>' +
+      '<div class="prd-teams-note">Crews and where they physically are. Who stands in each crew is the labour dashboard\'s business.</div>' +
+      '<div class="prd-teams-list">' +
       crewList().map(function (c) {
         var booked = laneLoad(c, days);
         var pct = Math.round(Math.min(100, booked / 5 * 100));
-        var tone = booked > 5 ? 'bad' : booked >= 3 ? 'ok' : 'warn';
-        var todayCell = cellFor(c, todayLocal(), new Date(todayLocal() + 'T00:00:00').getDay());
+        var idle = !!crewIdleThisWeek(c, days);
+        var tone = booked > 5 ? 'bad' : idle ? 'warn' : booked >= 3 ? 'ok' : 'warn';
+        var state = booked > 5 ? 'Over' : idle ? 'Idle' : booked >= 3 ? 'On track' : 'Light';
+        var todayCell = cellFor(c, todayLocal(), now.getDay(), crewIdleThisWeek(c, days));
         var on = todayCell.st === 'free' ? 'Nothing allotted today'
           : todayCell.st === 'wknd' ? 'Weekend'
-            : todayCell.j + ' — ' + todayCell.s;
-        return '<button class="prd-team" data-a="team" data-k="' + esc(c.id) + '">' +
-          '<span class="prd-team-h"><span class="prd-team-n">' + esc(c.name) + '</span>' +
-          '<span class="prd-pill t-' + tone + '">' + (booked > 5 ? 'Over' : booked >= 3 ? 'On track' : 'Light') + '</span></span>' +
+            : todayCell.st === 'blocked' ? (todayCell.title || 'Stopped — nothing to work on')
+              : todayCell.j + ' — ' + todayCell.s;
+        var tgt = safe(function () { return crewTarget(c.id); }, { date: null, tone: 'wine' });
+        var members = safe(function () { return getCrewMembers(c.id).length; }, 0);
+        return '<button class="prd-team" data-a="page" data-p="team" data-k="' + esc(c.id) + '">' +
+          '<span class="prd-team-h"><span class="prd-team-n">' + esc(c.name) + (members ? ' (' + members + ')' : '') + '</span>' +
+          '<span class="prd-pill t-' + tone + '">' + state + '</span></span>' +
           '<span class="prd-team-on">' + esc(on) + '</span>' +
           '<span class="prd-track"><i style="width:' + pct + '%;background:var(--' + (tone === 'bad' ? 'bad' : tone === 'ok' ? 'ok' : 'warn') + ')"></i></span>' +
-          '<span class="prd-team-f"><span class="prd-team-cap">' + booked + ' of 5 days booked</span></span>' +
+          '<span class="prd-team-f"><span class="prd-team-cap">' + booked + ' of 5 days' + (booked > 5 ? ' booked' : '') + '</span>' +
+          '<span class="prd-team-tgt t-' + tgt.tone + '">' + (tgt.date ? 'Target ' + esc(ddmmmShort(tgt.date)) : 'No target') + '</span></span>' +
           '</button>';
-      }).join('') + '</section>';
+      }).join('') + '</div></section>';
   }
 
   function kpiHTML() {
     var k = safe(function () { return getProductionKPIs(); }, {});
+    var days = weekDates(S.off);
+    var otWeek = safe(function () { return overtimeHoursInWeek(days); }, 0);
+    var saved = safe(function () { return veneerSheetsSaved(); }, 0);
+    var dueToday = safe(function () {
+      return getAskedOfYouToday().filter(function (r) { return r.due && r.due <= todayLocal(); }).length;
+    }, 0);
+    var onFloor = safe(function () {
+      return jobCards.filter(function (j) { return j.status !== 'cancelled' && j.routingConfirmed; }).length;
+    }, 0);
+    // The handoff's own six, in its order. Sub-lines that state a fact about
+    // the data are derived in the same shape rather than copied literally —
+    // "one due 16:00 today" is a statement about the prototype's rows.
     var rows = [
-      ['Jobs on the factory floor', 'across four teams', String(safe(function () {
-        return jobCards.filter(function (j) { return j.status !== 'cancelled' && j.routingConfirmed; }).length;
-      }, 0)), 'plain'],
-      ['Waiting for a lane', 'material or BOM', String(k.waitingForLane || 0), (k.waitingForLane ? 'bad' : 'ok')],
-      ['Pricing input owed', 'asked of you', String(k.askedOfYou || 0), (k.askedOfYou ? 'warn' : 'ok')],
-      ['Cutting lists live', (k.deadPaperOut ? k.deadPaperOut + ' to reissue' : 'none to reissue'), String(k.liveSheets || 0), 'plain'],
-      ['Overtime booked this month', 'all against a target', (k.otHoursThisMonth || 0) + ' h', 'ok'],
-      ['Press batches open', 'batching saves sheets', String(k.openBatches || 0), 'ok']
+      ['Jobs on the factory floor', 'across four teams', String(onFloor), 'plain'],
+      ['Waiting for a lane', 'material or BOM', String(k.waitingForLane || 0), 'bad'],
+      ['Pricing input owed', dueToday ? dueToday + ' due today' : 'none due today', String(k.askedOfYou || 0), 'warn'],
+      ['Cutting lists live', k.deadPaperOut ? k.deadPaperOut + ' to reissue' : 'none to reissue', String(k.liveSheets || 0), 'plain'],
+      ['Overtime booked this week', otWeek + ' h · all against a target', otWeek + ' h', 'ok'],
+      ['Veneer sheets saved', 'by batching, this month', String(saved), 'ok']
     ];
     return '<section class="prd-card">' + rows.map(function (r) {
       return '<div class="prd-kpi"><span class="prd-kpi-l"><b>' + esc(r[0]) + '</b><span>' + esc(r[1]) + '</span></span>' +
@@ -354,6 +461,31 @@ window.PrdUI = (function () {
     }).join('') + '</section>';
   }
 
+
+  var FLOW_TITLES = {
+    price: ['Pricing input', 'What are you sending back?'],
+    bomb: ['BOM input for budgeting', 'Is this a standard, or the numbers for one job?'],
+    bom: ['BOM change', 'Where is the old cutting list right now?'],
+    res: ['Reserve material', 'Is the BOM revision current?'],
+    purch: ['Purchase', 'Are you committing, or asking?'],
+    quote: ['Supplier quotes', 'Why is this not coming from stock?'],
+    cut: ['Create a cutting list', 'Which BOM revision is this cut from?'],
+    press: ['Veneer pressing', 'Batch it, or press alone?'],
+    allot: ['Allot a lane slot', 'Is the job clear to take a slot?'],
+    ot: ['Overtime', 'What is this overtime actually recovering?'],
+    lab: ['Assign labour', 'Which crew is he going into?'],
+    inst: ['Site installation', 'Where has paint got to?']
+  };
+  function formHTML() {
+    var t = FLOW_TITLES[S.form] || [S.form, ''];
+    return '<div class="prd-dash"><div class="prd-l"><section class="prd-card">' +
+      '<div class="prd-card-h"><div style="flex:1 1 auto;min-width:0">' +
+      '<div class="prd-t">' + esc(t[0]) + '</div>' +
+      '<div class="prd-sub">This create flow is not built yet. Its gate — <b>' + esc(t[1]) + '</b> — and the rule behind it are already enforced in the data layer.</div>' +
+      '</div></div>' +
+      '<div class="prd-empty">Use the week board on the dashboard for now.</div>' +
+      '</section></div></div>';
+  }
   /* ── render ─────────────────────────────────────────────────────────── */
   function dashHTML() {
     // Planner and My tasks are the shared collapsible widget — the
@@ -385,7 +517,11 @@ window.PrdUI = (function () {
       '<div style="padding:22px 18px;font-size:11.5px;color:var(--tx3)">Use the week board on the dashboard for now.</div>' +
       '</section></div></div>';
   }
-  function render() { return S.view === 'page' && S.page !== 'board' ? pageHTML() : dashHTML(); }
+  function render() {
+    if (S.view === 'form') return formHTML();
+    if (S.view === 'page' && S.page !== 'board') return pageHTML();
+    return dashHTML();
+  }
   function paint() { if (root) { root.innerHTML = render(); } }
 
   function onClick(e) {
@@ -393,16 +529,14 @@ window.PrdUI = (function () {
     if (!el || !root.contains(el)) return;
     var a = el.getAttribute('data-a');
     if (a === 'wk') { S.off += Number(el.getAttribute('data-v')) || 0; paint(); return; }
-    if (a === 'team') { S.view = 'page'; S.page = 'team'; paint(); return; }
-    if (a === 'wait' || a === 'ask' || a === 'cell' || a === 'paper') {
-      // The create flows are the next build increment; until then these land
-      // on the job they refer to rather than a dead view.
-      var jobId = el.getAttribute('data-k');
-      if (jobId && typeof execGoJob === 'function' && /^JB/.test(jobId)) { execGoJob(jobId); return; }
-      return;
-    }
+    if (a === 'wk-today') { S.off = 0; paint(); return; }
+    if (a === 'page') { S.view = 'page'; S.page = el.getAttribute('data-p') || 'board'; paint(); return; }
+    // Entering ANY create flow resets the gate to null. A gate that arrives
+    // pre-answered in the job's favour defeats the entire mechanism.
+    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; paint(); return; }
+    // Every board cell opens the allotment flow — the handoff's own rule.
+    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
   }
-
   function mount(el) {
     root = el;
     root.classList.add('prd');

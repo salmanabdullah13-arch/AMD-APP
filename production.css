@@ -159,6 +159,16 @@
   .prd-card{ border-radius:14px; }
   /* The board scrolls sideways rather than crushing seven days into 390px —
      the grid IS the artefact, and a squeezed grid is not readable. */
+  /* A flex item defaults to min-width:auto, so the column refused to shrink
+     below the 640px board and the CARD grew instead of the board scrolling —
+     the copy then ran off the right edge. Same trap as the Owner grid. */
+  /* In a column flex the cross axis is width, and align-items:stretch does
+     not stop content wider than the container from pushing the card out —
+     so the card grew to the board and the copy ran off the right edge.
+     max-width pins the card; the scroller inside it does the scrolling. */
+  .prd-l, .prd-r{ min-width:0; max-width:100%; }
+  .prd-card{ min-width:0; max-width:100%; }
+  .prd-board-scroll{ max-width:100%; }
   .prd-board-scroll{ overflow-x:auto; }
   .prd-board-scroll .prd-days,
   .prd-board-scroll .prd-lane{ min-width:640px; }
@@ -168,3 +178,69 @@
   .prd-out{ flex-wrap:wrap; }
   .prd-out-k{ flex:0 0 auto; }
 }
+
+/* ── Phase 1: the handoff's own geometry, where it differs from the first
+   pass. Values transcribed from its prototype frame, not rounded. ────── */
+
+/* Card headers: the board and the inbox use 15px 18px; the smaller section
+   cards use 14px 16px 11px on a baseline row. */
+.prd-card-h-lg{ padding:15px 18px; }
+.prd-card-h-sm{ padding:14px 16px 11px; align-items:baseline; }
+.prd-t-sm{ font-size:13.5px; font-weight:650; letter-spacing:-.01em; }
+.prd-note{ flex:none; font-size:11px; color:var(--tx3); }
+/* Subtitles inside the two big cards are 11.5px on --tx2, not 11px on --tx3. */
+.prd-sub-lg{ font-size:11.5px; color:var(--tx2); margin-top:2px; }
+/* The count pill is bigger than a status pill: 4px 11px, 11.5px/700. */
+.prd-count{ padding:4px 11px; font-size:11.5px; }
+
+/* Empty states */
+.prd-empty{ padding:22px 18px; font-size:11.5px; color:var(--tx3); }
+.prd-empty-sm{ padding:8px 0 0; }
+
+/* An inbox row is no longer a button — the action button inside it is, so it
+   can be reached on its own. */
+.prd-ask{ cursor:default; }
+.prd-btn-sm{ cursor:pointer; }
+
+/* The waiting strip's title and rule share one baseline row. */
+.prd-wait-h-row{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:9px; }
+.prd-wait-rule{ margin-top:0; }
+.prd-wait-row{ gap:8px; margin-top:0; }
+.prd-wait-id{ font-size:12px; }
+
+/* "This week" is a control, not a label — it resets to the current week. */
+/* The label is a <button> now, so the 30px arrow width above would clip it. */
+.prd-step .lbl{ border:0; background:transparent; cursor:pointer; width:auto; height:auto; padding:0 6px; }
+.prd-step .lbl:hover{ color:var(--wine); }
+.prd-step button{ font-size:12px; }
+
+/* Paperwork's action button is a neutral outline; wine is for the primary
+   action in a flow, not for a row-level "open". */
+.prd-btn-o{ border:1px solid var(--line); color:var(--tx2); padding:0 12px; }
+.prd-btn-o:hover{ border-color:var(--wine); color:var(--wine); }
+.prd-out-t{ line-height:1.3; }
+
+/* Teams today is one padded card with no dividers, not a header plus rows. */
+.prd-teams{ padding:15px 16px; }
+.prd-teams-h{ display:flex; align-items:baseline; gap:9px; }
+.prd-teams-note{ font-size:10.5px; color:var(--tx3); line-height:1.45; margin-bottom:12px; }
+.prd-teams-list{ display:flex; flex-direction:column; gap:12px; }
+.prd-teams .prd-team{ padding:0; border-bottom:0; }
+.prd-team-on{ margin-top:0; margin-bottom:5px; }
+.prd-teams .prd-track{ margin-top:0; }
+.prd-team-f{ margin-top:4px; align-items:baseline; }
+.prd-team-tgt.t-ok{ color:var(--ok); }
+.prd-team-tgt.t-warn{ color:var(--warn); }
+.prd-team-tgt.t-bad{ color:var(--bad); }
+.prd-team-tgt.t-wine{ color:var(--wine); }
+
+/* Lane target line, by tone. Dead CSS until now. */
+.prd-tgt.t-ok{ color:var(--ok); }
+.prd-tgt.t-warn{ color:var(--warn); }
+.prd-tgt.t-bad{ color:var(--bad); }
+.prd-tgt.t-wine{ color:var(--wine); }
+
+/* KPI rows: 10px 15px, label 12px, sub 10.5px. */
+.prd-kpi{ padding:10px 15px; }
+.prd-kpi-l b{ font-size:12px; }
+.prd-kpi-l span{ font-size:10.5px; margin-top:1px; }

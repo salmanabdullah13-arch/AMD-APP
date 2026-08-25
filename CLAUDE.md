@@ -7669,3 +7669,71 @@ deferred pending a screenshot. Plan file: `hold-snoopy-kitten.md`.
   the four paperwork kinds, the frozen KPI six, and every cell/row/button
   opening its create flow), then the fourteen working pages, the twelve create
   flows and their gate table, the cutting-list builder, and the A4 printable.
+
+### 25 Aug 2026 — 19a Production, Phase 1: the dashboard to spec
+
+Salman: *"Purge the old ones for now… moving forward retain the information
+until I purge in the future / Then do phase 1."* The purge ran first (1,018
+rows of e2e fixture residue, `purge-test-residue.js`, rule `name ~
+'[0-9]{10,}'`), so the board now reads 4 jobs / 1 waiting instead of 157 / 82.
+This entry is Phase 1 of the approved plan.
+
+**The gap this closed.** Three CSS classes had rules in `production.css` and
+no renderer emitting them — `.prd-tgt` (the five frozen lane target lines),
+`.prd-need` (the inbox's tone-coded consequence sentence, the whole point of
+a row) and `.prd-team-tgt`. A rule nothing produces reads as done. The
+`blocked` cell state was likewise unreachable, and it carries the sofa lane's
+entire story. All four now render, and the suite asserts each one rather than
+trusting the stylesheet.
+
+- **Overtime precedence corrected.** Any weekday with a shift became a green
+  `ot` cell, losing the job code and the `full` styling. The prototype keeps
+  Wednesday `full` with a `+3 h OT` sub-line; only Friday — the day whose
+  *only* reason to exist is the shift — is green. `cellFor()` now says so in
+  a comment, and the test seeds both cases on one lane so they can be told
+  apart.
+- **`blocked` tightened after its first cut was too broad.** Marking a crew
+  blocked whenever its department had waiting work lit 13 of 35 cells: a
+  waiting `carp` job blocked both joinery crews *and* site installation, none
+  of which were idle. The rule is now what the words mean — new
+  `crewIdleThisWeek()` returns a reason only when the crew has no work at all
+  that week. Five cells, one lane, which is the story.
+- **The frozen KPI six**, with row 5 scoped to the week (it summed 28 days
+  and said "this month") and row 6 restored to *Veneer sheets saved* rather
+  than the different KPI that had replaced it.
+- **All four paperwork kinds** — Cutting list and Veneer press joined by
+  Paint queue and Installation, split on the pulled slot's own crew
+  department rather than a flag.
+- **Nothing on this screen was clickable.** The handler read a data key the
+  elements never set, so 35 board cells, every inbox row and every paperwork
+  button were dead. Each now opens its create flow with `S.gate = null` — a
+  stale answer must never carry into the next flow.
+
+**Two real layout bugs found by reading screenshots back, neither of which a
+tally would ever show:**
+1. *"This week" rendered as "This w".* Making the label a `<button>` put it in
+   scope of `.prd-step button{width:30px}`, the arrows' width. It is also a
+   control now, not a label — it resets to the current week, so the suite
+   checks the reset as well as the fit.
+2. *The phone card grew to the 640px board and the copy ran off the right
+   edge.* `.prd-board-scroll{overflow-x:auto}` was declared and the class was
+   emitted, but in a column flex `align-items:stretch` does not stop content
+   wider than the container from pushing the card out, so the scroller never
+   had anything to scroll. Fixed with `max-width:100%` on the card and its
+   columns. **The old check asserted the computed `overflow-x` value, which is
+   exactly why this shipped** — it now measures the card's real width and that
+   the scroller genuinely scrolls.
+
+- **Verification**: `e2e-production-19a.js` 37 → 52, every new check driven
+  through the real DOM. Standing battery: `node --check` per file plus the
+  37-file load-order concatenation, duplicate top-level declaration scan
+  (none), inline-handler cross-reference (production-ui.js has none by design
+  — it uses delegated `data-a` listeners). Full offline sweep: the three
+  long-documented pre-existing failures and nothing else
+  (`e2e-batch8-phase2-4.js` crashed, `e2e-lighter-touch-charts.js` 10/11,
+  `e2e-quote-confirmed-lock.js` 22/23). Screenshots at 1440 and 390 read back
+  against the prototype frame; dark mode by computed style.
+- `sw.js` CACHE_VERSION v49 → v50.
+- **Next**: Phase 2, the fourteen working pages (one template plus the two
+  custom layouts, `mat` and `team`). Still owed: the phone bottom tab bar
+  screenshot comparison at 390px for Salman to decide.
