@@ -1801,6 +1801,18 @@ window.PrdUI = (function () {
     root.removeEventListener('click', onClick);
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
+    // This module is the production manager’s LANDING screen, so it draws
+    // before the cloud caches hydrate. Repaint when they land — but only
+    // while it is actually on screen, and never over an open form, which
+    // would throw away what is being typed.
+    if (typeof registerLiveUpdate === 'function') {
+      registerLiveUpdate(function () {
+        var w = document.getElementById('prd-module-wrap');
+        if (!w || getComputedStyle(w).display === 'none') return;
+        if (S.view === 'form') return;
+        paint();
+      });
+    }
     paint();
   }
 

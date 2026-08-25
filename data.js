@@ -4333,6 +4333,9 @@ async function initCloudJsonCollections() {
   });
   ch.subscribe();
   startCollectionsAutosave();
+  // Hydration finished. Anything already on screen was drawn against empty
+  // arrays and has to be told, or it stays empty until the user clicks.
+  notifyLiveUpdateListeners();
 }
 
 function applyRemoteCollectionChange(col, payload) {
@@ -8245,6 +8248,22 @@ function initPresence() {
 // rerender function name every time it's drawn; live events just
 // replay whichever one was drawn most recently.
 window.__lastInboxRerenderFn = null;
+/**
+ * Screens that need to know the cloud caches have moved under them.
+ *
+ * The single named hook below was built for the Messages inbox. It is not
+ * enough for a module that is somebody's LANDING screen: it renders at
+ * login, before the caches have hydrated, and nothing tells it to try
+ * again — so a production manager saw an empty week board on every single
+ * login while the real slots sat in memory. Register here instead of
+ * adding a second bespoke hook.
+ */
+const liveUpdateListeners = [];
+function registerLiveUpdate(fn) {
+  if (typeof fn === "function" && liveUpdateListeners.indexOf(fn) === -1) liveUpdateListeners.push(fn);
+}
 function notifyLiveUpdateListeners() {
   if (window.__lastInboxRerenderFn && typeof window[window.__lastInboxRerenderFn] === "function") window[window.__lastInboxRerenderFn]();
+  // A listener that throws must not stop the rest from being told.
+  liveUpdateListeners.forEach(fn => { try { fn(); } catch (e) { /* one screen failing is not the others' problem */ } });
 }

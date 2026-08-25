@@ -173,6 +173,53 @@ async function signIn(page, fileUrl, identity) {
       !!salesSide.writeErr, salesSide);
   }
 
+  console.log('\n— the landing screen catches up when the caches hydrate —');
+  // This module is the production manager's LANDING screen: it is drawn at
+  // login, BEFORE the cloud caches have loaded. Nothing used to tell it to
+  // try again, so a real manager saw an empty week board on every login
+  // while the real slots sat in memory a second later.
+  const hydrate = await page.evaluate(async () => {
+    const board = () => {
+      const body = document.getElementById('prd-body');
+      if (!body) return null;
+      return [...body.querySelectorAll('.prd-cell')]
+        .filter(c => c.classList.contains('c-full') || c.classList.contains('c-half') ||
+          c.classList.contains('c-over') || c.classList.contains('c-pull')).length;
+    };
+    const before = board();
+    // Drain the arrays and redraw, then hydrate again — the same sequence a
+    // real login goes through, with the render landing first.
+    const keep = laneSlots.slice();
+    laneSlots.length = 0;
+    renderProductionBody();
+    const emptied = board();
+    keep.forEach(s => laneSlots.push(s));
+    // No render call here on purpose: the notify has to be what redraws it.
+    notifyLiveUpdateListeners();
+    await new Promise(r => setTimeout(r, 200));
+    return { before, emptied, after: board(), listener: typeof registerLiveUpdate === 'function' };
+  });
+  check('a general live-update hook exists to register against', hydrate.listener, hydrate);
+  check('the board really was empty before the caches landed', hydrate.emptied === 0, hydrate);
+  check('and it redraws itself when told, with no click',
+    hydrate.after > 0 && hydrate.after === hydrate.before, hydrate);
+
+  const notOverForm = await page.evaluate(async () => {
+    PrdUI.go('form', 'allot');
+    await new Promise(r => setTimeout(r, 150));
+    const el = document.getElementById('prd-crew');
+    el.value = 'CREW-A';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 120));
+    notifyLiveUpdateListeners();
+    await new Promise(r => setTimeout(r, 200));
+    const still = document.getElementById('prd-crew');
+    return { view: PrdUI.state.view, crew: still ? still.value : null };
+  });
+  // A repaint over an open form would throw away what is being typed — the
+  // trap this module hit three times in Phases 3 and 4.
+  check('but it never repaints over an open form', notOverForm.crew === 'CREW-A', notOverForm);
+
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 3));
 
   console.log('\n' + pass + '/' + (pass + fail) + ' checks passed');

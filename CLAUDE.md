@@ -8002,3 +8002,57 @@ the earlier suites because they asserted presence rather than values:
 - **Next**: Phase 6 is the teardown, which was already built early
   (`clear-production-story.js`), so what remains of the plan is the story seed
   itself against the live project, and Salman's call on the phone tab bar.
+
+### 25 Aug 2026 — A landing screen showed an empty board on every login
+
+Found by signing in as the real production manager against the live project
+rather than by reading code — the module opened, the KPI read *"0 jobs on the
+factory floor"*, and every cell on the week board said `free`, while
+`laneSlots` held 15 real slots and `jobCards` held 3.
+
+**Why.** Since the nav overhaul, a role lands directly on its own dashboard at
+login. That render happens *before* `initCloudJsonCollections()` has finished
+hydrating, and nothing told the screen to try again — so it drew against empty
+arrays and stayed that way until the user clicked something. `data.js` had a
+`notifyLiveUpdateListeners()` hook, but it only ever called one named function
+(`window.__lastInboxRerenderFn`), built for the Messages inbox, and
+`initCloudJsonCollections()` never called it at all.
+
+- **`registerLiveUpdate(fn)`** (data.js) — a real listener list alongside the
+  existing named hook, so a screen can ask to be told rather than needing a
+  second bespoke conduit. A listener that throws does not stop the others
+  being told.
+- **`initCloudJsonCollections()` now notifies when hydration completes.**
+- **Production registers one**, guarded twice: it repaints only while its wrap
+  is actually visible, and **never over an open form** — repainting over one
+  would throw away what is being typed, which is the exact trap Phases 3 and 4
+  hit three times.
+
+This is a general fix. Any module that is somebody's landing screen had the
+same problem; Production is simply where it was caught, because its whole
+screen is live data.
+
+- **Verification**: `e2e-cloud-production.js` 16 → 20, against the live
+  project — it drains the array, redraws to prove the board really does go
+  empty, restores it, and then calls **only** the notify (no render), so the
+  hook is what has to redraw it. Plus a check that a repaint never lands over
+  an open form. Confirmed visually too: signed in as the real
+  `joinery_production_manager`, landed straight on the module, and the week
+  board came up with the seeded story on it — 6 booked days, 3 overloaded
+  cells, a Friday overtime shift, two pulled paint dates, a real
+  waiting-for-a-lane card (*"No BOM — the estimator hasn't costed the
+  lines"*), and the KPI six reading real numbers.
+  `e2e-cloud-financial.js` 11/11 and `e2e-cloud-customers.js` 9/9 re-run clean
+  after the `data.js` change. `e2e-cloud-curtain.js` crashes on `windowGroups`
+  — **confirmed pre-existing** by running it against stashed-clean HEAD, where
+  it fails identically. Full offline sweep: the same three long-documented
+  failures.
+- `sw.js` CACHE_VERSION v54 → v55.
+
+**With this, the 19a plan is built end to end**: the module is reachable and
+lands correctly for its own role, the dashboard matches the package, the
+fourteen working pages and twelve create flows are real, the cutting-list
+builder and its A4 sheet are real, and the teardown
+(`clear-production-story.js`) is in place. Still open: Salman's call on the
+phone tab bar (built both ways, screenshots sent), and the three
+long-documented pre-existing suite failures, which are not this work.
