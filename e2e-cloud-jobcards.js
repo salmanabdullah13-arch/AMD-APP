@@ -97,7 +97,7 @@ async function signInOrUp(page, fileUrl) {
   const qtnResult = await page.evaluate((enqId) => {
     const qtn = convertEnquiryToQuotation(enqId, { projectName: 'E2E Job Card Project', taxPercent: 10, contactPerson: 'Tester' });
     addQuotationItem(qtn.id, { product: 'E2E Test Joinery Cabinet', qty: 1, unit: 'Nos' });
-    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'E2E Test Account');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'E2E Test Account', 'owner');
     return qtn.id;
   }, enqResult.id);
   await page.waitForTimeout(1000);
@@ -143,8 +143,17 @@ async function signInOrUp(page, fileUrl) {
   }, { id: jobResult.job.id, lineId });
   await page.waitForTimeout(800);
   const deliveryResult = await page.evaluate((args) => addDeliveryNote(args.id, [{ lineId: args.lineId, requiredQty: 1 }]), { id: jobResult.job.id, lineId });
-  await page.waitForTimeout(1500);
+  // persistJobCardUpdate() goes through serializedPersist(), which chains
+  // every write to a record behind the one before it — and the QC/hand-off
+  // walk above queues about eight of them. A fixed wait was landing before
+  // the delivery note’s turn came round, so poll for it instead of guessing
+  // a number that will drift with the chain length.
   const deliveryPersisted = await page.evaluate(async (id) => {
+    for (let i = 0; i < 24; i++) {
+      const { data } = await sb.from('job_cards').select('delivery_notes, items').eq('id', id).maybeSingle();
+      if (data && (data.delivery_notes || []).length) return data;
+      await new Promise(r => setTimeout(r, 500));
+    }
     const { data } = await sb.from('job_cards').select('delivery_notes, items').eq('id', id).maybeSingle();
     return data;
   }, jobResult.job.id);

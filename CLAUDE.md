@@ -8132,3 +8132,46 @@ rather than the "surface an existing scope param" it was filed as.
   same person through the same resolver, and the dead section being gone
   rather than merely unreachable. Full offline sweep: **all green**.
 - `sw.js` CACHE_VERSION v56 → v57.
+
+### 25 Aug 2026 — Every live-cloud suite green too; two of the three "flakes" were real
+
+With the offline sweep clean, the live set was worth a proper look — it is
+excluded from `_sweep.sh` by design, so its failures had been carried as
+documented flakes rather than investigated.
+
+**Three of the seventeen were failing, and only one was genuinely timing.**
+
+1. **`e2e-cloud-curtain.js` crashed** on `windowGroups` of undefined — carried
+   as a pre-existing failure since 19 Aug. Root cause: its seed calls
+   `approveQuotation(id, name)` with no approver user type. The shared
+   approver hat (16 Aug) defaults the role to the signed-in one, which offline
+   resolves to `owner` — but this suite signs in **live as the Sales E2E
+   account**, so approval was correctly refused, no job was ever created, and
+   the crash came fifteen lines later on the missing record. Passing `'owner'`
+   explicitly, the way the other live suites do, fixes it. Also added the
+   bail-out it lacked: a failed seed now reports a failure instead of crashing
+   with no tally at all — the same blind spot `_sweep.sh` itself was fixed for.
+   11/11.
+2. **`e2e-cloud-jobcards.js` had quietly dropped to 1/4** on the same
+   `approveQuotation` cause, and `e2e-jobcards-dept-scope-rls.js` to 7/12.
+   Both fixed the same way. One further check then failed for a real reason:
+   `persistJobCardUpdate()` goes through `serializedPersist()`, which chains
+   every write to a record behind the one before it — and the QC/hand-off walk
+   above the delivery note queues about eight. A fixed 1.5s wait was landing
+   before the delivery note's turn came round, so it now **polls** rather than
+   guessing a number that drifts with the chain length. 8/8 and 12/12.
+3. **`e2e-cloud-messages-presence.js`'s `markMessageRead` failure was never a
+   flake** — it was a test bug, and the same one `e2e-purchase-cycle.js` hit
+   with a live GRN record. `getInboxFor()` hands back the **live cache
+   object**, and `markMessageRead()` mutates it in place, so
+   `wasUnread: !before.read` in the return statement was evaluating **after**
+   the mutation and reporting the message as always-read. Snapshotting the
+   primitive at the point of call fixes it. 8/8.
+
+**All seventeen live suites now pass, alongside the offline sweep's `all
+green`.** Worth recording as a lesson: a failure carried as "a documented
+flake" is a failure nobody has finished reading. Two of these three had a real
+cause sitting behind that label, one of them masking a genuine regression in
+job-card coverage since 16 Aug.
+
+- `sw.js` CACHE_VERSION v57 → v58.

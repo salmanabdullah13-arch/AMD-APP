@@ -136,9 +136,19 @@ async function signInOrUp(page, fileUrl) {
   const markReadResult = await page.evaluate(async (body) => {
     const before = getInboxFor(window.cloudIdentity).find(m => m.body === body);
     if (!before) return { error: 'not found before mark-read' };
+    // getInboxFor() hands back the LIVE cache object, and markMessageRead()
+    // mutates it in place — so reading before.read afterwards reports the
+    // state AFTER the call, and the check reads as if the message had always
+    // been read. Snapshot the primitive at the point of call. Same trap
+    // e2e-purchase-cycle.js hit with a live GRN record.
+    const wasUnread = !before.read;
     await markMessageRead(before.id);
     const after = getInboxFor(window.cloudIdentity).find(m => m.id === before.id);
-    return { wasUnread: !before.read, isNowRead: after && after.read === true };
+    const { data: dbRow } = await sb.from('messages').select('id, read, created_at').eq('id', before.id).maybeSingle();
+    return { wasUnread: wasUnread, isNowRead: after && after.read === true,
+      beforeId: before.id, beforeRead: before.read, dbRead: dbRow && dbRow.read,
+      cacheSize: getInboxFor(window.cloudIdentity).length,
+      dupes: getInboxFor(window.cloudIdentity).filter(m => m.body === body).length };
   }, testBody);
   record('markMessageRead() updates the live row and the local cache reflects it immediately', markReadResult.wasUnread && markReadResult.isNowRead ? 'PASS' : 'FAIL', JSON.stringify(markReadResult));
 

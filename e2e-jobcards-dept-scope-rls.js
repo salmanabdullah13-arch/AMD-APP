@@ -127,7 +127,7 @@ async function signIn(page, fileUrl, identity) {
     await new Promise(r => setTimeout(r, 500));
     addQuotationItem(qtn.id, { product: 'Wardrobe Cabinet', qty: 1, unit: 'Nos' });
     await new Promise(r => setTimeout(r, 800));
-    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah', 'owner');
     await new Promise(r => setTimeout(r, 800));
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     await new Promise(r => setTimeout(r, 800));
@@ -147,7 +147,7 @@ async function signIn(page, fileUrl, identity) {
     await new Promise(r => setTimeout(r, 500));
     addQuotationItem(qtn.id, { product: 'Living Room Curtains', qty: 2, unit: 'Nos' });
     await new Promise(r => setTimeout(r, 800));
-    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah');
+    transferQuotationStage(qtn.id, 'approver', 'Estimator'); approveQuotation(qtn.id, 'Salman Abdullah', 'owner');
     await new Promise(r => setTimeout(r, 800));
     const job = confirmQuotationToJobCard(qtn.id, 'Salman Abdullah');
     await new Promise(r => setTimeout(r, 800));

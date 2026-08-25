@@ -90,7 +90,8 @@ async function signIn(page, fileUrl) {
     addQuotationItem(q.id, { product: 'Wave Curtain with Sheer', qty: 2, unit: 'Nos', rate: 0 });
     await pause(800);
     transferQuotationStage(q.id, 'approver', 'Estimator');
-    approveQuotation(q.id, 'Salman Abdullah');
+    const appr = approveQuotation(q.id, 'Salman Abdullah', 'owner');
+    if (appr && appr.error) return { error: 'approve: ' + appr.error };
     await pause(800);
     const job = confirmQuotationToJobCard(q.id, 'Salman Abdullah');
     if (job.error) return { error: job.error };
@@ -98,6 +99,10 @@ async function signIn(page, fileUrl) {
     return { jobId: job.id, bridged: !!cj, hasWindows: !!(cj && Array.isArray(cj.windows)) };
   });
   record('Curtain-routed quote confirms and bridges into curtainJobs[]', seeded.bridged && seeded.hasWindows ? 'PASS' : 'FAIL', JSON.stringify(seeded));
+  // Everything below needs that job. Without this the suite crashed on an
+  // undefined record fifteen lines later and reported no tally at all, which
+  // the sweep then could not grade — the same blind spot _sweep.sh fixed.
+  if (!seeded.jobId || !seeded.bridged) { printReport(); await browser.close(); process.exit(1); }
 
   currentStep = 'autosave-insert';
   await page.waitForTimeout(7000); // > 2 scanner ticks
