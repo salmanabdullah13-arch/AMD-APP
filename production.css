@@ -244,3 +244,233 @@
 .prd-kpi{ padding:10px 15px; }
 .prd-kpi-l b{ font-size:12px; }
 .prd-kpi-l span{ font-size:10.5px; margin-top:1px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Working pages (19a Phase 2). One template — page head, stats strip, chip
+   row, content card — with a 300px rail carrying the page's rule.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.prd-page .prd-r{ flex:0 0 300px; }
+.prd-page-h{ margin-bottom:14px; }
+.prd-page-t{ font-size:20px; font-weight:650; letter-spacing:-.015em; line-height:1.2; }
+.prd-page-s{ font-size:11.5px; color:var(--tx2); line-height:1.5; margin-top:5px; max-width:760px; }
+
+/* Stats strip: four cells, hairline dividers, 21px values. */
+.prd-stats{
+  display:flex; background:var(--card); border:1px solid var(--line);
+  border-radius:var(--r); box-shadow:var(--sh2); overflow:hidden; margin-bottom:12px;
+}
+.prd-stat{ flex:1; min-width:0; padding:13px 16px; border-left:1px solid var(--line2); }
+.prd-stat:first-child{ border-left:0; }
+.prd-stat-v{ font-size:21px; font-weight:700; line-height:1.1; letter-spacing:-.02em; }
+.prd-stat-v.t-ok{ color:var(--ok); } .prd-stat-v.t-warn{ color:var(--warn); }
+.prd-stat-v.t-bad{ color:var(--bad); } .prd-stat-v.t-wine{ color:var(--wine); }
+.prd-stat-l{ font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); margin-top:4px; }
+
+/* Chip row. The spacer pushes the actions right without a second wrapper. */
+.prd-chips{ display:flex; align-items:center; gap:7px; margin-bottom:12px; flex-wrap:wrap; }
+.prd-chips-sp{ flex:1 1 auto; }
+.prd-chip{
+  height:30px; padding:0 12px; border-radius:999px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.prd-chip i{ font-style:normal; color:var(--tx3); font-weight:700; margin-left:3px; }
+.prd-chip.on{ background:var(--wine); border-color:var(--wine); color:#fff; }
+.prd-chip.on i{ color:rgba(255,255,255,.75); }
+
+/* The wine primary. It had no rule at all, so every page primary rendered
+   as a bare browser button. */
+.prd-btn{
+  flex:none; height:32px; padding:0 15px; border-radius:9px; border:0;
+  background:var(--wine); color:#fff; font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.prd-btn:hover{ background:var(--wine2); }
+/* Phase 1 made .prd-btn-o neutral for the paperwork rows, which is right
+   there — but the material page needs the wine outline back, because its
+   two purchase routes differ in whether they commit, and two identical
+   neutral outlines say they do not. */
+.prd-btn-w{
+  flex:none; height:32px; padding:0 13px; border-radius:9px;
+  border:1px solid var(--wine); background:transparent; color:var(--wine);
+  font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.prd-btn-w:hover{ background:var(--wine-tint); }
+.prd-btn-w.sm{ height:30px; font-size:11px; }
+
+.prd-page-c{ padding:0; overflow:hidden; }
+
+/* The standard table. It scrolls inside its own card rather than widening
+   the page — the same rule the week board follows. */
+.prd-tbl-scroll{ overflow-x:auto; }
+.prd-tbl{ width:100%; border-collapse:collapse; font-size:12px; }
+.prd-tbl th{
+  text-align:left; padding:9px 16px; font-size:10px; font-weight:700; letter-spacing:.05em;
+  color:var(--tx3); background:var(--sunk); border-bottom:1px solid var(--line2); white-space:nowrap;
+}
+.prd-tbl th.r, .prd-tbl td.r{ text-align:right; }
+.prd-tbl td{ padding:11px 16px; border-bottom:1px solid var(--line2); vertical-align:middle; }
+.prd-tbl tr:last-child td{ border-bottom:0; }
+.prd-tbl tr.t-bad td{ background:var(--bad-bg); }
+.prd-tbl td b{ display:block; font-size:12.5px; font-weight:700; line-height:1.3; }
+.prd-td-s{ display:block; font-size:10.5px; color:var(--tx3); margin-top:2px; line-height:1.4; }
+.prd-ref{ font-size:11px; font-weight:650; color:var(--tx2); }
+.prd-dim{ color:var(--tx3); }
+.prd-cause{ font-size:11px; font-weight:650; }
+.prd-cause.t-bad{ color:var(--bad); } .prd-cause.t-warn{ color:var(--warn); }
+
+/* Rail: the wine rule card, then one context card. */
+.prd-rail{ display:flex; flex-direction:column; gap:12px; }
+.prd-rule{
+  background:var(--wine); color:#fff; border-radius:var(--r);
+  padding:14px 16px; box-shadow:var(--sh2);
+}
+.prd-rule-h{ font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; opacity:.72; }
+.prd-rule-b{ font-size:12px; line-height:1.55; margin-top:6px; }
+.prd-ctx-r{ display:flex; align-items:baseline; gap:10px; padding:9px 16px; border-top:1px solid var(--line2); }
+.prd-ctx-l{ flex:1 1 auto; min-width:0; font-size:11.5px; color:var(--tx2); }
+.prd-ctx-v{ flex:none; font-size:11.5px; font-weight:700; }
+.prd-ctx-v.t-ok{ color:var(--ok); } .prd-ctx-v.t-warn{ color:var(--warn); }
+.prd-ctx-v.t-bad{ color:var(--bad); }
+.prd-ctx-n{ padding:10px 16px; background:var(--sunk); font-size:10.5px; color:var(--tx3); line-height:1.45; }
+
+/* ── mat: one row per material ─────────────────────────────────────────
+   A table cannot carry the consequence line or a tri-state button, and
+   both are the reason this page is not a table. */
+.prd-mat{ display:flex; align-items:flex-start; gap:14px; padding:13px 16px; border-bottom:1px solid var(--line2); }
+.prd-mat.t-bad{ background:var(--bad-bg); }
+.prd-mat-n{ flex:1 1 auto; min-width:0; }
+.prd-mat-t{ font-size:12.5px; font-weight:700; line-height:1.3; }
+.prd-mat-j{
+  display:inline-block; margin-left:7px; padding:1px 7px; border-radius:999px;
+  background:var(--sunk); font-size:10px; font-weight:650; color:var(--tx2); vertical-align:1px;
+}
+.prd-mat-d{ font-size:10.5px; color:var(--tx3); margin-top:3px; }
+.prd-mat-c{ font-size:10.5px; font-weight:650; margin-top:4px; line-height:1.4; }
+.prd-mat-c.t-ok{ color:var(--ok); } .prd-mat-c.t-warn{ color:var(--warn); }
+.prd-mat-c.t-bad{ color:var(--bad); }
+.prd-mat-f{ flex:0 0 104px; text-align:right; }
+.prd-mat-fv{ font-size:14px; font-weight:700; line-height:1.2; }
+.prd-mat-fv.t-ok{ color:var(--ok); } .prd-mat-fv.t-warn{ color:var(--warn); }
+.prd-mat-fv.t-bad{ color:var(--bad); }
+.prd-mat-fl{ font-size:9px; font-weight:700; letter-spacing:.06em; color:var(--tx3); margin-top:3px; }
+.prd-mat-a{ flex:0 0 192px; display:flex; flex-direction:column; gap:6px; }
+.prd-mat-res{
+  display:flex; align-items:center; justify-content:center;
+  height:32px; border-radius:9px; font-size:11.5px; font-weight:650; border:1px solid transparent;
+}
+.prd-mat-res.can{ background:var(--wine); color:#fff; cursor:pointer; }
+.prd-mat-res.done{ background:var(--ok-bg); color:var(--ok); cursor:default; }
+.prd-mat-res.none{ background:transparent; border-color:var(--line2); color:var(--tx3); cursor:not-allowed; }
+.prd-btn-o.sm, .prd-btn-g.sm{ height:30px; font-size:11px; }
+.prd-btn-g{
+  height:32px; border-radius:9px; border:1px solid var(--line); background:var(--card);
+  color:var(--tx2); font-size:11.5px; font-weight:650; cursor:pointer; padding:0 12px;
+}
+.prd-btn-g:hover{ border-color:var(--tx3); }
+.prd-mat-note{ padding:12px 16px; background:var(--sunk); font-size:10.5px; color:var(--tx3); line-height:1.55; }
+.prd-mat-note b{ color:var(--tx); font-weight:700; }
+
+/* ── team: expandable crew cards ───────────────────────────────────── */
+.prd-crew{ border:1px solid var(--line); border-radius:var(--r); background:var(--card); margin-bottom:10px; overflow:hidden; }
+.prd-crew.open{ border-color:var(--wine); }
+.prd-crew-h{
+  display:flex; align-items:center; gap:11px; width:100%; padding:13px 16px;
+  border:0; background:transparent; cursor:pointer; text-align:left;
+}
+.prd-mono{
+  flex:0 0 34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  background:var(--wine-tint); color:var(--wine); font-size:12px; font-weight:700; letter-spacing:.02em;
+}
+.prd-crew-n{ flex:1 1 auto; min-width:0; display:block; }
+.prd-crew-n b{ display:block; font-size:13px; font-weight:700; line-height:1.3; }
+.prd-crew-n i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx3); margin-top:1px; }
+.prd-crew-n em{ display:block; font-style:normal; font-size:10.5px; font-weight:700; margin-top:2px; }
+.prd-crew-n em.t-ok{ color:var(--ok); } .prd-crew-n em.t-warn{ color:var(--warn); }
+.prd-chev{ flex:none; color:var(--tx3); font-size:11px; }
+.prd-crew-b{ padding:0 16px 14px; }
+.prd-crew-hd{
+  display:flex; align-items:center; gap:10px; padding:7px 10px; background:var(--sunk);
+  border-radius:8px; font-size:9px; font-weight:700; letter-spacing:.06em; color:var(--tx3);
+}
+.prd-crew-hd span:first-child{ flex:1 1 auto; }
+.prd-crew-hd .on{ flex:0 0 150px; }
+.prd-crew-hd .sp{ flex:0 0 62px; }
+.prd-man{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-bottom:1px solid var(--line2); }
+.prd-man:last-of-type{ border-bottom:0; }
+.prd-man-m{
+  flex:0 0 28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; background:var(--sunk); color:var(--tx2);
+}
+.prd-man-m.t-wine{ background:var(--wine-tint); color:var(--wine); }
+.prd-man-m.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.prd-man-m.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.prd-man-m.t-bad{ background:var(--bad-bg); color:var(--bad); }
+.prd-man-n{ flex:1 1 auto; min-width:0; font-size:12px; font-weight:650; }
+.prd-man-n i{ display:block; font-style:normal; font-size:10.5px; font-weight:400; color:var(--tx3); margin-top:1px; }
+.prd-lead{
+  display:inline-block; margin-left:6px; padding:1px 6px; border-radius:999px;
+  background:var(--wine); color:#fff; font-size:9px; font-weight:700; letter-spacing:.04em; vertical-align:1px;
+}
+.prd-man-on{ flex:0 0 150px; font-size:11px; font-weight:650; }
+.prd-man-on.t-wine{ color:var(--wine); } .prd-man-on.t-ok{ color:var(--ok); }
+.prd-man-on.t-warn{ color:var(--warn); } .prd-man-on.t-bad{ color:var(--bad); }
+.prd-man-on.t-plain{ color:var(--tx2); }
+.prd-man-mv{
+  flex:0 0 62px; height:28px; border-radius:8px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:11px; font-weight:650; cursor:pointer;
+}
+.prd-crew-add{
+  width:100%; margin-top:10px; height:34px; border-radius:9px;
+  border:1px dashed var(--wine); background:transparent; color:var(--wine);
+  font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.prd-loose{ border:1px dashed var(--warn); background:var(--warn-bg); border-radius:var(--r); padding:13px 16px; }
+.prd-loose-h{ font-size:13px; font-weight:700; }
+.prd-loose-n{ font-size:10.5px; color:var(--warn); font-weight:650; margin:3px 0 9px; }
+.prd-loose-r{ display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid rgba(0,0,0,.06); }
+.prd-loose-r b{ flex:0 0 auto; font-size:12px; font-weight:700; }
+.prd-loose-r i{ flex:1 1 auto; font-style:normal; font-size:10.5px; color:var(--tx3); }
+
+@media (max-width: 880px){
+  .prd-page .prd-r{ flex:1 1 auto; width:100%; }
+  .prd-stats{ flex-wrap:wrap; }
+  .prd-stat{ flex:1 1 50%; border-left:0; border-top:1px solid var(--line2); }
+  .prd-stat:nth-child(-n+2){ border-top:0; }
+  .prd-stat:nth-child(even){ border-left:1px solid var(--line2); }
+  /* Same trap as the week board: without this the card grows to the table
+     and the copy runs off the right edge instead of the table scrolling. */
+  .prd-tbl-scroll{ max-width:100%; }
+  .prd-mat{ flex-wrap:wrap; }
+  .prd-mat-f{ flex:0 0 auto; text-align:left; }
+  .prd-mat-a{ flex:1 1 100%; flex-direction:row; }
+  .prd-mat-a > *{ flex:1; }
+  .prd-crew-hd .on, .prd-man-on{ flex:0 0 96px; }
+}
+
+/* ── Phone tab bar (the package's 66px four-tab bar) ────────────────────
+   Built so it can be seen side by side against the version without it at
+   390px. It is hidden on desktop entirely, and it is a real decision for
+   Salman: the app-wide bottom bar was removed on 7 Aug as dev-era chrome,
+   so keeping this makes Production the one module of eighteen that
+   navigates differently on a phone. */
+.prd-tabbar{ display:none; }
+@media (max-width: 880px){
+  .prd-tabbar{
+    display:flex; position:fixed; left:0; right:0; bottom:0; height:66px;
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    background:var(--card); border-top:1px solid var(--line);
+    box-shadow:0 -2px 14px rgba(16,24,40,.06); z-index:40;
+  }
+  .prd-tab{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; border:0; background:transparent; cursor:pointer; color:var(--tx3);
+    font-size:10.5px; font-weight:650; letter-spacing:.01em; padding:0;
+  }
+  .prd-tab.on{ color:var(--wine); }
+  .prd-tab-i{ position:relative; font-size:17px; line-height:1; }
+  .prd-tab-d{
+    position:absolute; top:-1px; right:-6px; width:6px; height:6px;
+    border-radius:50%; background:var(--bad);
+  }
+}

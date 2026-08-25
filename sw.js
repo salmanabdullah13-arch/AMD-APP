@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v50"; // v50: 19a Production dashboard to spec (Phase 1)
+const CACHE_VERSION = "amd-app-v51"; // v51: 19a Production working pages (Phase 2)
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./ops-dashboard.css", "./purchase.css", "./production.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

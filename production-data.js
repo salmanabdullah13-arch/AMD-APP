@@ -68,6 +68,9 @@ const inputRequests = [];    // typed asks: pricing_input / bom_budget_input
 // material late 13h, client change 8h). Closed and required — a free-text
 // cause is how the same slip hides under four spellings.
 const OVERTIME_CAUSES = ["BOM revision late", "Material late", "Client change"];
+// A refused shift is recorded so the pattern is countable, but it was never
+// worked — nothing that sums hours may include one.
+const otWorked = (o) => (o.status || "booked") !== "refused";
 
 function nextPrdId(prefix, arr) {
   const n = arr.reduce((mx, r) => {
@@ -396,12 +399,21 @@ function bookOvertimeShift({ crewId, date, hours, men, recoversTarget, cause, by
   const hasWork = laneSlots.some(s => s.jobCardId === recoversTarget);
   const shorts = jobMaterialShortLines(recoversTarget);
   if (!hasWork && shorts.length) {
-    return { error: "Refused — nothing to work on. The material is short and no lane is booked; overtime cannot cut boards that are not there." };
+    const reason = "nothing to work on. The material is short and no lane is booked; overtime cannot cut boards that are not there.";
+    // Persisted as a refusal rather than thrown away: "nothing recoverable"
+    // is a real pattern, and it only shows if the refusals are countable.
+    overtimeShifts.push({
+      id: nextPrdId("OT", overtimeShifts),
+      crewId, date, hours: Number(hours), men: Number(men),
+      recoversTarget, cause, byWhom, bookedOn: prdToday(),
+      status: "refused", refusedReason: reason
+    });
+    return { error: "Refused — " + reason };
   }
   const shift = {
     id: nextPrdId("OT", overtimeShifts),
     crewId, date, hours: Number(hours), men: Number(men),
-    recoversTarget, cause, byWhom, bookedOn: prdToday()
+    recoversTarget, cause, byWhom, bookedOn: prdToday(), status: "booked"
   };
   overtimeShifts.push(shift);
   logActivity({
@@ -419,7 +431,8 @@ function crewName(crewId) {
 function getOvertimeByCause(daysBack) {
   const since = addDaysISO(prdToday(), -(daysBack || 28));
   const by = {};
-  overtimeShifts.filter(o => o.date >= since).forEach(o => {
+  // A refused shift was never worked, so it is not hours by cause.
+  overtimeShifts.filter(o => o.date >= since && otWorked(o)).forEach(o => {
     by[o.cause] = (by[o.cause] || 0) + o.hours;
   });
   return Object.keys(by).map(k => ({ cause: k, hours: by[k] })).sort((a, b) => b.hours - a.hours);
@@ -683,13 +696,226 @@ function veneerSheetsSaved() {
 // the handoff scopes to the week.
 function overtimeHoursInWeek(weekDates) {
   return overtimeShifts
-    .filter(o => (weekDates || []).indexOf(o.date) !== -1)
+    // Refusals are recorded but never worked — counting them would report
+    // paid hours that nobody was paid for.
+    .filter(o => (weekDates || []).indexOf(o.date) !== -1 && otWorked(o))
     .reduce((s, o) => s + (Number(o.hours) || 0), 0);
 }
 
 // Cloud-backed since 19 Aug 2026 — all six arrays are registered in
 // CLOUD_JSON_COLLECTIONS (data.js) and ride the same snapshot-diff autosave
 // every other collection uses. Two of the five commitments are enforced
+/* ═══════════════════════════════════════════════════════════════════════
+   Page readers (19a Phase 2). Every one derives from records that already
+   exist — no page introduces state of its own.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+
+/** Week board page: one row per lane, then one per job refused a lane. */
+function getBoardPageRows(weekDates) {
+  const rows = [];
+  crews.forEach(c => {
+    const week = getCrewWeek(c.id, weekDates) || [];
+    const booked = week.filter(d => d.slots && d.slots.length).length;
+    rows.push({
+      kind: "lane", id: c.id, name: c.name, sub: crewCapacityLine(c),
+      booked, of: 5, targetOut: crewTarget(c.id),
+      st: booked === 0 ? "bad" : booked >= 4 ? "ok" : "warn",
+      state: booked + " of 5 days"
+    });
+  });
+  getWaitingForLane().forEach(w => rows.push({
+    kind: "refused", id: w.job.id, name: w.job.id + " — refused a lane",
+    sub: w.reason, targetOut: w.job.targetDate || null, st: "bad", state: "No lane"
+  }));
+  return rows;
+}
+
+/** Requests, split by who may raise them. The page never mixes the two. */
+function getInputRequestsOfType(type) {
+  return inputRequests.filter(r => r.type === type)
+    .sort((a, b) => String(a.neededBy || "9999").localeCompare(String(b.neededBy || "9999")));
+}
+
+/** BOM changes: each revision and the cutting lists it killed. */
+function getBOMChangeRows() {
+  return bomRevisions.slice().reverse().map(r => {
+    const killed = cuttingSheets.filter(sh => sh.status === "dead" && sh.jobCardId === r.jobCardId
+      && Number(sh.revisionNo) < Number(r.rev));
+    const outstanding = killed.filter(sh => !sh.confirmedOffSaw);
+    return {
+      id: r.id, jobCardId: r.jobCardId, rev: r.rev, status: r.status,
+      killed: killed.length, outstanding: outstanding.length,
+      sheets: killed.map(sh => sh.id),
+      st: outstanding.length ? "bad" : r.status === "draft" ? "warn" : "ok",
+      state: outstanding.length ? outstanding.length + " still on a saw"
+        : r.status === "draft" ? "Draft" : "Issued"
+    };
+  });
+}
+
+function prdDayName(iso) {
+  if (!iso) return "on the day booked";
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long" });
+}
+
+/**
+ * Material and reservations. One row per material across every routed,
+ * unfinished job, with free-of-need read live off 18a stock. The
+ * consequence line is the point of the row: a number nobody can act on is
+ * not a reason to walk to the store.
+ */
+function getMaterialRows() {
+  const rows = [];
+  const jobs = (typeof jobCards !== "undefined" ? jobCards : [])
+    .filter(j => j.routingConfirmed && j.status !== "cancelled");
+  jobs.forEach(job => {
+    jobBOMItems(job.id).forEach(it => {
+      ((it.bom && it.bom.materials) || []).forEach(m => {
+        if (!m.itemId) return;
+        const need = Number(m.qty) || 0;
+        if (!need) return;
+        const held = typeof reservedToThisJob === "function" ? reservedToThisJob(m.itemId, null, job.id) : 0;
+        const free = typeof stockFree === "function" ? stockFree(m.itemId, null) : 0;
+        const have = Math.min(need, held + free);
+        const item = (typeof itemMaster !== "undefined" ? itemMaster : []).find(x => x.id === m.itemId) || {};
+        const slot = laneSlots.find(s => s.jobCardId === job.id && s.kind === "work");
+        const crew = slot ? crews.find(c => c.id === slot.crewId) : null;
+        const unit = item.unit || m.unit || "";
+        rows.push({
+          itemId: m.itemId, name: item.name || m.name || m.itemId, unit,
+          jobCardId: job.id, need, held, free, have,
+          st: held >= need ? "ok" : have >= need ? "warn" : "bad",
+          // Reserve is tri-state: nothing left to hold is not the same as
+          // already held, and the button must not pretend otherwise.
+          reserve: held >= need ? "done" : free > 0 ? "can" : "none",
+          consequence: held >= need
+            ? "Held for this job. Nobody else can take it."
+            : have >= need
+              ? "On the shelf but not held — another job can take it first."
+              : crew
+                ? crew.name + " idles " + prdDayName(slot ? slotDate(slot) : null) + " without the other " + (need - have) + " " + unit + "."
+                : "Short " + (need - have) + " " + unit + " — this job cannot take a lane."
+        });
+      });
+    });
+  });
+  return rows;
+}
+
+/** Cutting lists: live sheets and what is on which saw. */
+function getCuttingListRows() {
+  return cuttingSheets.slice().reverse().map(sh => ({
+    id: sh.id, jobCardId: sh.jobCardId, rev: sh.revisionNo, saw: sh.saw || "",
+    lines: (sh.lines || []).length, status: sh.status,
+    st: sh.status === "dead" && !sh.confirmedOffSaw ? "bad"
+      : sh.status === "on-saw" ? "plain" : sh.status === "off-saw" ? "ok" : "wine",
+    state: sh.status === "dead" ? (sh.confirmedOffSaw ? "Dead, off the saw" : "Dead, still on a saw")
+      : sh.status === "on-saw" ? "On " + (sh.saw || "a saw") : sh.status === "off-saw" ? "Off the saw" : "Released"
+  }));
+}
+
+/** Veneer pressing: batches by veneer, and the sheets each run saves. */
+function getPressRows() {
+  return pressingBatches.slice().reverse().map(b => {
+    const jobs = b.jobs || [];
+    const sheets = jobs.reduce((a, j) => a + (Number(j.sheets) || 0), 0);
+    return {
+      id: b.id, veneer: b.veneer || "", jobs: jobs.length, sheets,
+      saved: Math.max(0, jobs.length - 1), status: b.status,
+      st: b.status === "open" ? "warn" : "ok",
+      state: b.status === "open" ? "Open — still collecting" : "Pressed"
+    };
+  });
+}
+
+/** Paint and installation both read pulled slots; they differ by crew. */
+function getPulledSlotRows(dept) {
+  return laneSlots.filter(s => s.kind === "pull").map(s => {
+    const crew = crews.find(c => c.id === s.crewId) || {};
+    if (crew.dept !== dept) return null;
+    const base = laneSlots.find(x => x.id === s.baseSlotId);
+    return {
+      id: s.id, jobCardId: s.jobCardId, crewId: s.crewId, crew: crew.name,
+      date: slotDate(s), pulledFrom: base ? slotDate(base) : null,
+      booked: !!s.confirmed, st: s.confirmed ? "ok" : "warn",
+      state: s.confirmed ? "Booked" : "Provisional"
+    };
+  }).filter(Boolean);
+}
+
+/** Overtime, refusals included — a refusal is a fact about the week too. */
+function getOvertimeRows() {
+  return overtimeShifts.slice().reverse().map(o => ({
+    id: o.id, crewId: o.crewId, crew: crewName(o.crewId), date: o.date,
+    hours: o.hours, men: o.men, recoversTarget: o.recoversTarget, cause: o.cause,
+    refused: !otWorked(o), refusedReason: o.refusedReason || "",
+    st: !otWorked(o) ? "bad" : o.cause === "BOM revision late" ? "bad" : "warn",
+    state: !otWorked(o) ? "Refused" : o.hours + " h × " + o.men
+  }));
+}
+
+/** Four weeks by cause, plus the refusals, for the overtime side card. */
+function getOvertimeCauseSummary(weeks = 4) {
+  const from = addDaysISO(prdToday(), -7 * weeks);
+  const rows = OVERTIME_CAUSES.map(c => ({ cause: c, hours: 0 }));
+  let refused = 0;
+  overtimeShifts.forEach(o => {
+    if (o.date < from) return;
+    if (!otWorked(o)) { refused++; return; }
+    const r = rows.find(x => x.cause === o.cause);
+    if (r) r.hours += (Number(o.hours) || 0) * (Number(o.men) || 1);
+  });
+  rows.sort((a, b) => b.hours - a.hours);
+  return { rows, refused, weeks };
+}
+
+/**
+ * Reminders, production-scoped. Derived rather than stored, and every row
+ * points at a crew waiting — a reminder nobody is waiting on is a to-do,
+ * and those already live in the shared tasks widget.
+ */
+function getProductionReminders() {
+  const out = [];
+  getWaitingForLane().forEach(w => {
+    const dept = ((w.job.items || [])[0] || {}).departmentSequence || [];
+    const crew = crews.find(c => dept.indexOf(c.dept) !== -1);
+    out.push({ ref: w.job.id, what: w.reason, waiting: crew ? crew.name : "the shop", st: "bad" });
+  });
+  cuttingSheets.forEach(sh => {
+    if (sh.status === "dead" && !sh.confirmedOffSaw) {
+      out.push({ ref: sh.id, what: "Cut from a superseded revision — confirm it off the saw",
+        waiting: sh.saw || "the saw", st: "bad" });
+    }
+  });
+  laneSlots.filter(s => s.kind === "pull" && !s.confirmed).forEach(s => {
+    const crew = crews.find(c => c.id === s.crewId) || {};
+    out.push({ ref: s.jobCardId, what: "Provisional " + (crew.dept === "paint" ? "booth day" : "site fit") + " on " + slotDate(s),
+      waiting: crew.name || "", st: "warn" });
+  });
+  return out;
+}
+
+/**
+ * Documents filed against a job card. Derived from the paperwork that
+ * actually exists rather than a new register — a register kept in step by
+ * hand goes stale, and then it lies.
+ */
+function getProductionDocuments() {
+  const out = [];
+  bomRevisions.forEach(r => out.push({ jobCardId: r.jobCardId, kind: "BOM revision",
+    ref: r.id + " · rev " + r.rev, when: r.issuedOn || r.startedOn || "",
+    st: r.status === "draft" ? "warn" : "ok", state: r.status === "draft" ? "Draft" : "Issued" }));
+  cuttingSheets.forEach(sh => out.push({ jobCardId: sh.jobCardId, kind: "Cutting list",
+    ref: sh.id + (sh.saw ? " · " + sh.saw : ""), when: sh.createdOn || "",
+    st: sh.status === "dead" && !sh.confirmedOffSaw ? "bad" : "ok",
+    state: sh.status === "dead" ? "Superseded" : "Live" }));
+  pressingBatches.forEach(b => (b.jobs || []).forEach(j => out.push({ jobCardId: j.jobCardId,
+    kind: "Press batch", ref: b.id + " · " + (b.veneer || ""), when: b.createdOn || "",
+    st: "ok", state: b.status === "open" ? "Open" : "Pressed" })));
+  return out.sort((a, b) => String(b.when).localeCompare(String(a.when)));
+}
+
 // server-side as well (overtime needs a cause from the closed enum; an
 // answer carrying anything money-shaped is refused). The other two need to
 // read across job cards, quotations and stock, which live as jsonb here —

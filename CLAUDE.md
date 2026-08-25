@@ -7737,3 +7737,82 @@ tally would ever show:**
 - **Next**: Phase 2, the fourteen working pages (one template plus the two
   custom layouts, `mat` and `team`). Still owed: the phone bottom tab bar
   screenshot comparison at 390px for Salman to decide.
+
+### 25 Aug 2026 — 19a Production, Phase 2: the fourteen working pages
+
+Twelve pages from one template — title and sub, a four-cell stats strip, a
+chip row with a wine primary, a content card, and a 300px rail carrying the
+page's own business rule plus one context card — and two that replace the
+table entirely because what they show is not a list of rows.
+
+- **`mat`** — one row per material with a **consequence line** (*"Joinery ·
+  Crew A idles Wednesday without the other 6 Meters"*), a 104px FREE OF NEED
+  column read live off 18a stock rather than the BOM, and a **tri-state
+  Reserve**: wine and clickable when something is free, a non-interactive
+  green chip when already held, and a `not-allowed` outline when there is
+  nothing to hold. Reserving goes through 18a's real `reserveStockForJob()`,
+  so it is a stock movement and not a flag on a row. The footnote under the
+  last row says, in the spec's own words, why *Request purchase* (commits)
+  and *Ask for prices* (commits nothing) are two buttons and not one.
+- **`team`** — five expandable crew cards over the **real roster** built from
+  `EMPLOYEE_RATES`, which lands the spec's exact split (6/5/4/3/4 = 22 in
+  crews) with the remaining 28 production staff in a *Not in a crew* card,
+  because a man with no crew cannot be given work: everything on the week
+  board is allotted to a crew, never to a person.
+- **Every page reader derives from records that already exist.** `rem` and
+  `doc` in particular introduce no store of their own — a document register
+  kept in step by hand goes stale and then it lies, so the documents page is
+  computed from the BOM revisions, cutting lists and press batches that
+  actually exist, and reminders are computed from who is actually stopped.
+
+**A real behaviour change, not just a screen**: a refused overtime shift is
+now *recorded*. It was returned as `{error}` and thrown away, so the spec's
+refused row could not exist and "nothing recoverable" could not be counted.
+Persisting it immediately exposed a second bug — `getOvertimeByCause()` and
+`overtimeHoursInWeek()` would have counted refused hours as worked, reporting
+paid hours nobody was paid for. Both now exclude them, and the suite asserts
+the arithmetic rather than the wording.
+
+**Four bugs found by building the pages, each pre-existing:**
+1. `render()` routed `S.page === 'board'` back to the dashboard — correct
+   before the board had a page of its own, and the reason that page rendered
+   as a fallback panel with no title.
+2. `crewTarget()` returns `{date, tone, label}`; two new callers treated it as
+   a date string. The dashboard already read it correctly.
+3. `getCrewMembers(crewId)` filters *by* crew, so calling it bare returned
+   nobody — the crew cards listed no men at all.
+4. `PrdUI.go()` did not reset the chip, so a page opened on a filter that
+   belonged to the previous one and silently showed a subset. The reset was
+   only in the click handler; it belongs in the single entry point.
+
+**Two styling gaps the screenshots caught**, both invisible to a tally:
+`.prd-btn` — the wine primary every page uses — had no rule at all, so each
+page's primary rendered as a bare browser button; and Phase 1's deliberate
+neutral `.prd-btn-o` (right for the paperwork rows) had erased the wine
+outline the material page needs, leaving its two purchase routes styled
+identically when the whole point is that one commits and the other does not.
+The suite now asserts the primary's computed background and that the two
+routes differ, so neither can regress quietly. Also fixed: two crews shared
+the monogram `JC`, and men sharing a first initial shared theirs — both are
+now the spec's `CA CB SU PP SI` and first-plus-last initials.
+
+- **Verification**: new `e2e-production-pages.js` (46/46) — all fourteen
+  opened through the real rail, none still a placeholder, each with a title,
+  four stat cells, a rule and a context card; the two request pages proven
+  never to show each other's work; the material page's tri-state, consequence
+  lines and real reservation driven by a real click; the crew cards opened,
+  closed and switched; the overtime page's cause column and refused row; chips
+  filtering and resetting across pages; **and a sweep of all fourteen
+  asserting no selling price, margin or profit renders anywhere** — the
+  package's hardest rule. Dark mode by computed style; no page card wider than
+  a 390px phone. `e2e-production-19a.js` still 52/52. Standing battery clean
+  (37-file concatenation, duplicate declaration scan, handler cross-reference).
+  Full sweep: the same three long-documented pre-existing failures, nothing new.
+- `sw.js` CACHE_VERSION v50 → v51.
+- **Also built and sent for a decision**: the package's 66px phone tab bar
+  (Asked · Board · Create · Floor), screenshotted at 390px both with and
+  without, since adding it makes Production the one module of eighteen that
+  navigates differently on a phone. It is hidden above 880px and costs nothing
+  either way until Salman chooses.
+- **Next**: Phase 3, the twelve create flows and the gate table — where the
+  blocked copy is the business rule and stays verbatim.
