@@ -1089,7 +1089,10 @@ window.PrdUI = (function () {
       if (gateTone(key) === 'warn') payload.isEstimate = true;
       r = safe(function () { return answerInputRequest(val('prd-req'), payload, 'Production Manager'); }, { error: 'Could not send it.' });
     } else if (key === 'bom') {
-      r = safe(function () { return startBOMRevision(val('prd-job'), val('prd-why') || val('prd-what'), 'Production Manager'); }, { error: 'Could not start it.' });
+      // (jobId, byWhom, note) — the reason is the NOTE, not who did it.
+      r = safe(function () {
+        return startBOMRevision(val('prd-job'), 'Production Manager', val('prd-why') || val('prd-what'));
+      }, { error: 'Could not start it.' });
     } else if (key === 'res') {
       var held = safe(function () { return reserveJobMaterial(val('prd-job'), 'Production Manager'); }, []);
       r = held && held.length ? { ok: held.length + ' held' } : { error: 'Nothing free to hold. Ask for prices, or raise a purchase.' };
@@ -1433,7 +1436,10 @@ window.PrdUI = (function () {
       cols: [
         { h: 'SHEET', cell: function (r) { return '<b>' + esc(r.id) + '</b><span class="prd-td-s">' + esc(r.jobCardId + ' · rev ' + r.rev + ' · ' + r.lines + ' parts') + '</span>'; } },
         { h: 'SAW', w: '110px', cell: function (r) { return r.saw ? esc(r.saw) : '<span class="prd-dim">not on a saw</span>'; } },
-        { h: '', w: '150px', right: true, cell: function (r) { return pill(r.st, r.state); } }
+        { h: '', w: '210px', right: true, cell: function (r) {
+          return pill(r.st, r.state) +
+            ' <button class="prd-btn-o sm" data-a="print-cut" data-s="' + esc(r.id) + '">Print</button>';
+        } }
       ],
       empty: 'No cutting lists yet.',
       rule: 'Take the sheet off the saw first. A revision does not stop the man cutting to the paper already in his hand.',
@@ -1733,6 +1739,10 @@ window.PrdUI = (function () {
     // resets the page — but changing page must reset the chip, or the new
     // page opens on a filter that belonged to the last one.
     if (a === 'chip') { S.pgChip = Number(el.getAttribute('data-i')) || 0; paint(); return; }
+    if (a === 'print-cut') {
+      if (typeof printCuttingList === 'function') printCuttingList(el.getAttribute('data-s'));
+      return;
+    }
     if (a === 'cut-pull') {
       // Pulling REPLACES rather than appends — pulling twice must not
       // silently double every part on the sheet the saw follows.

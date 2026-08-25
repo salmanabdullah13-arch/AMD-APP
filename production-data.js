@@ -776,11 +776,12 @@ function getInputRequestsOfType(type) {
 /** BOM changes: each revision and the cutting lists it killed. */
 function getBOMChangeRows() {
   return bomRevisions.slice().reverse().map(r => {
-    const killed = cuttingSheets.filter(sh => sh.status === "dead" && sh.jobCardId === r.jobCardId
-      && Number(sh.revisionNo) < Number(r.rev));
+    // A sheet is killed BY a revision, which stamps killedByRevision on it.
+    // Comparing revision letters breaks while one is still pending.
+    const killed = cuttingSheets.filter(sh => sh.killedByRevision === r.id);
     const outstanding = killed.filter(sh => !sh.confirmedOffSaw);
     return {
-      id: r.id, jobCardId: r.jobCardId, rev: r.rev, status: r.status,
+      id: r.id, jobCardId: r.jobCardId, rev: r.letter || "pending", status: r.status,
       killed: killed.length, outstanding: outstanding.length,
       sheets: killed.map(sh => sh.id),
       st: outstanding.length ? "bad" : r.status === "draft" ? "warn" : "ok",
@@ -842,7 +843,7 @@ function getMaterialRows() {
 /** Cutting lists: live sheets and what is on which saw. */
 function getCuttingListRows() {
   return cuttingSheets.slice().reverse().map(sh => ({
-    id: sh.id, jobCardId: sh.jobCardId, rev: sh.revisionNo, saw: sh.saw || "",
+    id: sh.id, jobCardId: sh.jobCardId, rev: sh.revisionLetter || "—", saw: sh.saw || "",
     lines: (sh.lines || []).length, status: sh.status,
     st: sh.status === "dead" && !sh.confirmedOffSaw ? "bad"
       : sh.status === "on-saw" ? "plain" : sh.status === "off-saw" ? "ok" : "wine",
@@ -940,14 +941,14 @@ function getProductionReminders() {
 function getProductionDocuments() {
   const out = [];
   bomRevisions.forEach(r => out.push({ jobCardId: r.jobCardId, kind: "BOM revision",
-    ref: r.id + " · rev " + r.rev, when: r.issuedOn || r.startedOn || "",
+    ref: r.id + " · rev " + (r.letter || "pending"), when: r.issuedOn || r.date || "",
     st: r.status === "draft" ? "warn" : "ok", state: r.status === "draft" ? "Draft" : "Issued" }));
   cuttingSheets.forEach(sh => out.push({ jobCardId: sh.jobCardId, kind: "Cutting list",
-    ref: sh.id + (sh.saw ? " · " + sh.saw : ""), when: sh.createdOn || "",
+    ref: sh.id + (sh.saw ? " · " + sh.saw : ""), when: sh.date || "",
     st: sh.status === "dead" && !sh.confirmedOffSaw ? "bad" : "ok",
     state: sh.status === "dead" ? "Superseded" : "Live" }));
   pressingBatches.forEach(b => (b.jobs || []).forEach(j => out.push({ jobCardId: j.jobCardId,
-    kind: "Press batch", ref: b.id + " · " + (b.veneer || ""), when: b.createdOn || "",
+    kind: "Press batch", ref: b.id + " · " + (b.veneer || ""), when: b.date || "",
     st: "ok", state: b.status === "open" ? "Open" : "Pressed" })));
   return out.sort((a, b) => String(b.when).localeCompare(String(a.when)));
 }

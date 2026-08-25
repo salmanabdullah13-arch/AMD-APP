@@ -696,3 +696,196 @@ function buildMaterialCostPrintHTML(job, lineId) {
     ${printPageFooter()}
   </body></html>`;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   The cutting list at A4 (19a Phase 5).
+
+   DEVIATION, and the reasoning, because it is a real one. The spec fixes
+   the page at 794 × 1123px with `padding: 42px 44px 32px` and says it fits
+   the box exactly. Every other document in this file uses
+   `@page { size: A4 portrait; margin: 12mm }` and lets the browser
+   paginate, and that is what this one does too: a fixed pixel box is a
+   96dpi assumption that prints differently on real paper and on a phone,
+   and this is the one document a man carries to a saw. The spec's own
+   visual density — 26px rows, the five-cell strip, the wine header rule —
+   is matched; only the page model differs.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function cuttingListCSS() {
+  return `
+    @page { size: A4 portrait; margin: 12mm; }
+    thead { display: table-header-group; }
+    .cl-row { break-inside: avoid; page-break-inside: avoid; }
+    .cl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;
+      border-bottom:2px solid #600131;padding-bottom:10px;margin-bottom:12px;}
+    .cl-kick{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#777;}
+    .cl-title{font-size:23px;font-weight:700;font-family:Georgia,serif;line-height:1.1;margin-top:3px;}
+    .cl-job{font-size:11px;color:#444;margin-top:4px;}
+    .cl-right{text-align:right;min-width:230px;}
+    .cl-cut{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:#777;}
+    .cl-rev{display:inline-block;background:#600131;color:#fff;border-radius:4px;
+      padding:4px 10px;font-size:12px;font-weight:700;margin-top:4px;font-family:Arial,sans-serif;}
+    /* The one line on this sheet that stops a wrong cut. */
+    .cl-scrap{color:#b42318;font-weight:700;font-size:10px;margin-top:6px;}
+    .cl-no{font-size:10px;color:#666;margin-top:4px;}
+    .cl-strip{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid #d7d7d7;margin-bottom:12px;}
+    .cl-strip div{border-left:1px solid #d7d7d7;padding:6px 9px;}
+    .cl-strip div:first-child{border-left:0;}
+    .cl-strip label{display:block;font-size:7.5px;letter-spacing:.07em;text-transform:uppercase;color:#777;margin-bottom:2px;}
+    .cl-strip b{font-size:11px;font-weight:700;color:#1a1a1a;}
+    table.cl{width:100%;border-collapse:collapse;margin-bottom:12px;}
+    table.cl th{background:#ececec;text-align:left;padding:6px 7px;font-size:9px;font-weight:700;
+      letter-spacing:.05em;text-transform:uppercase;border:1px solid #d7d7d7;font-family:Arial,sans-serif;}
+    table.cl td{padding:0 7px;height:26px;border:1px solid #e3e3e3;font-size:10.5px;vertical-align:middle;}
+    table.cl tbody tr:nth-child(even) td{background:#fafbfc;}
+    table.cl td.n{text-align:center;width:30px;color:#777;}
+    table.cl td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+    table.cl td.note{font-size:9.5px;color:#555;}
+    .cl-issue{background:#f4e6ec;border:1px solid #e0c2d0;padding:9px 11px;margin-bottom:12px;}
+    .cl-issue b{display:block;font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:#600131;margin-bottom:5px;}
+    .cl-issue .g{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:10.5px;}
+    .cl-issue .g span{display:block;font-size:8px;color:#777;text-transform:uppercase;letter-spacing:.05em;}
+    .cl-after{border:1px solid #d7d7d7;padding:9px 11px;margin-bottom:14px;}
+    .cl-after b{display:block;font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:#777;margin-bottom:7px;}
+    .cl-after .g{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:10px;text-align:center;}
+    .cl-rule{margin-top:14px;border-top:2px solid #b42318;padding-top:7px;
+      color:#b42318;font-weight:700;font-size:10px;}
+  `;
+}
+
+/**
+ * The sheet the saw follows. Everything on it is read off the real record —
+ * an invented dimension here becomes a wrongly cut board.
+ */
+function buildCuttingListPrintHTML(sheetId) {
+  const sheet = (typeof cuttingSheets !== 'undefined' ? cuttingSheets : []).find(s => s.id === sheetId);
+  if (!sheet) return '<!doctype html><html><body><p>No such cutting list.</p></body></html>';
+  const job = (typeof jobCards !== 'undefined' ? jobCards : []).find(j => j.id === sheet.jobCardId) || {};
+  const c = (typeof customers !== 'undefined' ? customers : []).find(x => x.id === job.customerId);
+  const qtn = (typeof quotations !== 'undefined' ? quotations : []).find(q => q.id === job.quotationId);
+  const enq = qtn && typeof enquiries !== 'undefined' ? enquiries.find(e => e.id === qtn.enquiryId) : null;
+  const lines = sheet.lines || [];
+
+  // A superseded sheet is not reprinted quietly. The whole point of the red
+  // line is that a man holding this paper can tell.
+  const deadNow = sheet.status === 'dead';
+  const rev = sheet.revisionLetter || '—';
+
+  const BOARD = 2440 * 1220;
+  const kind = (m) => {
+    const s = String(m || '').toLowerCase();
+    if (s.indexOf('oak') !== -1 || s.indexOf('veneer') !== -1) return 'oak';
+    if (s.indexOf('mdf') !== -1 || s.indexOf('ply') !== -1 || s.indexOf('board') !== -1) return 'plain';
+    return 'other';
+  };
+  let oakArea = 0, plainArea = 0, pressArea = 0, oversize = 0, parts = 0;
+  lines.forEach(l => {
+    const q = Math.max(1, Number(l.qty) || 1);
+    const a = q * (Number(l.length) || 0) * (Number(l.width) || 0);
+    parts += q;
+    if (l.press) { oversize += q; pressArea += a * 2; }
+    if (kind(l.material) === 'oak') oakArea += a; else if (kind(l.material) === 'plain') plainArea += a;
+  });
+  const sheetsOf = (area, waste) => area ? Math.ceil(area / BOARD * waste) : 0;
+  const oak = sheetsOf(oakArea, 1.12), plain = sheetsOf(plainArea, 1.06), veneer = sheetsOf(pressArea, 1.12);
+
+  // Materials on this sheet, so the strip names what is actually being cut
+  // rather than a category nobody chose.
+  const materials = [...new Set(lines.map(l => l.material).filter(Boolean))];
+
+  const rows = lines.length ? lines.map((l, i) => {
+    const q = Math.max(1, Number(l.qty) || 1);
+    const L = Number(l.length) || 0, W = Number(l.width) || 0;
+    // An oversize part carries the dimension it is CUT at, and the note says
+    // why — the man at the saw needs both, not a flag.
+    const cutL = l.press && L ? L + 20 : L;
+    const cutW = l.press && W ? W + 20 : W;
+    return `<tr class="cl-row">
+      <td class="n">${i + 1}</td>
+      <td>${prEsc(l.part || '—')}</td>
+      <td>${prEsc(l.material || '—')}</td>
+      <td class="num">${q}</td>
+      <td class="num">${cutL || '—'}</td>
+      <td class="num">${cutW || '—'}</td>
+      <td class="note">${l.press ? 'Oversize — trimmed after press.' : ''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7" style="height:40px;text-align:center;color:#999;">
+      No parts on this sheet. It was released empty — do not cut to it.</td></tr>`;
+
+  const tick = (label) => `<div><div style="width:18px;height:18px;border:1.5px solid #444;margin:0 auto 4px;"></div>${prEsc(label)}</div>`;
+  const sign = (label) => `<div style="font-size:9px;color:#666;"><div style="border-top:1px dotted #999;margin-top:26px;padding-top:3px;">${prEsc(label)}</div></div>`;
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Cutting list ${prEsc(sheet.id)}</title>
+  <style>${printBaseCSS()}${cuttingListCSS()}
+    body{font-family:Arial,Helvetica,sans-serif;}
+  </style></head>
+  <body>
+    <div class="print-btn"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
+
+    <div class="cl-head">
+      <div>
+        <div class="cl-kick">Al Maraya Decor · Joinery</div>
+        <div class="cl-title">Cutting list</div>
+        <div class="cl-job">${prEsc(job.id || '—')} · ${prEsc(job.projectName || '')}</div>
+      </div>
+      <div class="cl-right">
+        <div class="cl-cut">Cut from BOM</div>
+        <div class="cl-rev">REV ${prEsc(rev)}${sheet.date ? ' · ' + prEsc(sheet.date) : ''}</div>
+        <div class="cl-scrap">Any other revision on this saw is scrap.</div>
+        <div class="cl-no">Sheet ${prEsc(sheet.id)}${sheet.saw ? ' · ' + prEsc(sheet.saw) : ''}</div>
+      </div>
+    </div>
+
+    ${deadNow ? `<div class="cl-rule" style="margin-top:0;margin-bottom:12px;border-top:0;border-bottom:2px solid #b42318;padding:0 0 7px;">
+      This sheet is dead. It was cut from a superseded revision — take it back to the office and collect the reissue.</div>` : ''}
+
+    <div class="cl-strip">
+      <div><label>Client</label><b>${prEsc(c ? c.name : '—')}</b></div>
+      <div><label>Area</label><b>${prEsc((enq && enq.division) || job.projectName || '—')}</b></div>
+      <div><label>Material</label><b>${prEsc(materials[0] || '—')}</b></div>
+      <div><label>Finish</label><b>${prEsc(oversize ? 'Veneer press' : '—')}</b></div>
+      <div><label>Due out</label><b>${prEsc(job.targetDate || job.promisedDate || '—')}</b></div>
+    </div>
+
+    <table class="cl">
+      <thead><tr>
+        <th style="width:30px;">#</th><th>Part</th><th style="width:118px;">Material</th>
+        <th style="width:40px;text-align:right;">Qty</th>
+        <th style="width:62px;text-align:right;">Length</th>
+        <th style="width:56px;text-align:right;">Width</th>
+        <th style="width:126px;">Note</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <div class="cl-issue">
+      <b>Boards and veneer issued</b>
+      <div class="g">
+        <div><span>Oak boards</span>${oak}</div>
+        <div><span>Plain boards</span>${plain}</div>
+        <div><span>Veneer sheets</span>${veneer}</div>
+        <div><span>Cut oversize</span>${oversize}</div>
+        <div><span>Parts</span>${parts}</div>
+      </div>
+    </div>
+
+    <div class="cl-after">
+      <b>After the saw</b>
+      <div class="g">
+        ${tick('Press')}${tick('Edging')}${tick('Spray')}${tick('Install')}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      ${sign('Cut by')}${sign('Checked against BOM REV ' + rev)}${sign('Boards issued by')}
+    </div>
+
+    <div class="cl-rule">If the BOM changes, this sheet is dead. Bring it back to the office and take the reissue.</div>
+    ${printPageFooter()}
+  </body></html>`;
+}
+
+/** Entry point from the Cutting lists page and the cut flow. */
+function printCuttingList(sheetId) {
+  printOpenHTML(buildCuttingListPrintHTML(sheetId));
+}

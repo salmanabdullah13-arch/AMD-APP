@@ -72,8 +72,9 @@ const PAGES = ['board', 'price', 'bomb', 'bom', 'mat', 'quote', 'cut', 'press',
     // Paperwork: a live sheet on a saw, a dead sheet from a revision, a batch.
     const sh1 = createCuttingSheet({ jobCardId: good.id, saw: 'saw 2', lines: [{ part: 'Side', qty: 4 }], byWhom: 'Test' });
     if (sh1 && sh1.id) markSheetOnSaw(sh1.id, 'saw 2');
-    const rev = startBOMRevision(good.id, 'Client changed the carcass depth', 'Test');
-    if (rev && rev.id) issueBOMRevision(rev.id, 'Test');
+    // (jobId, byWhom, note), then issue against the JOB — not the revision.
+    const rev = startBOMRevision(good.id, 'Test', 'Client changed the carcass depth');
+    if (rev && rev.id) issueBOMRevision(good.id, 'Test');
     const batch = createPressingBatch({ veneer: 'Oak crown 0.6mm', byWhom: 'Test' });
     if (batch && batch.id) { addJobToPressingBatch(batch.id, good.id, 4); addJobToPressingBatch(batch.id, short.id, 3); }
 
@@ -321,7 +322,7 @@ const PAGES = ['board', 'price', 'bomb', 'bom', 'mat', 'quote', 'cut', 'press',
 
   console.log('\n— chips filter, and do not leak between pages —');
   const chips = await page.evaluate(async () => {
-    PrdUI.go('page', 'cut');
+    PrdUI.go('page', 'ot');
     await new Promise(r => setTimeout(r, 150));
     const rowsFor = () => document.querySelectorAll('#prd-body .prd-tbl tbody tr').length;
     const all = rowsFor();

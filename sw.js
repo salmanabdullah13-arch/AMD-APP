@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v53"; // v53: 19a Production cutting-list builder (Phase 4)
+const CACHE_VERSION = "amd-app-v54"; // v54: 19a Production A4 cutting list (Phase 5)
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./ops-dashboard.css", "./purchase.css", "./production.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

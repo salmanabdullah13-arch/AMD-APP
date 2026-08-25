@@ -7937,3 +7937,68 @@ Cleared on every flow entry, alongside the gate and the parts.
 - **Next**: Phase 5, the A4 printable — and a decision flagged in the plan,
   whether to keep the spec's fixed 794 × 1123 pixel page box or the house
   `@page` pattern every other document in `print.js` uses.
+
+### 25 Aug 2026 — 19a Production, Phase 5: the cutting list at A4
+
+`buildCuttingListPrintHTML()` + `cuttingListCSS()` in `print.js`, modelled on
+`buildJobOrderPrintHTML`/`jobOrderCSS` and reusing `printOpenHTML`, `prEsc`,
+`printPageFooter` and `printBaseCSS`. A Print action now sits on every row of
+the Cutting lists page.
+
+**The page-model decision, taken and stated.** The spec fixes the page at
+794 × 1123px with `padding: 42px 44px 32px` and says it fits the box exactly.
+This one uses the house `@page { size: A4 portrait; margin: 12mm }` instead,
+like every other document in `print.js` — a fixed pixel box is a 96dpi
+assumption that prints differently on real paper and on a phone, and this is
+the one document a man carries to a saw. The spec's visual density is matched
+(26px rows, the five-cell strip, the wine header rule, the wine-tint issue
+block, four tick boxes, three signatures); only the page model differs.
+Flagged in the plan as open decision C; this was the recommendation there.
+
+- **An oversize part carries the dimension it is CUT at** — 1800 × 580 pressed
+  prints as 1820 × 600 with a note saying why. The man at the saw needs the
+  number he cuts to, not the finished size and a flag.
+- **The two red lines are verbatim**: *"Any other revision on this saw is
+  scrap."* in the header, and the closing *"If the BOM changes, this sheet is
+  dead. Bring it back to the office and take the reissue."*
+- **A superseded sheet says so on its own face** — reprinting one silently is
+  how the wrong parts get cut. An empty sheet says plainly not to cut to it,
+  and a missing one returns a page rather than throwing.
+- Boards to issue are recomputed on the document from its own lines, so a
+  sheet printed twice cannot disagree with itself.
+- **Deliberate, minor**: a pressed row's note wraps to two lines rather than
+  holding the uniform 26px. The spec's own 26px rows go with its twelve
+  fixture parts and their note text; here the warning that the printed
+  dimension is *not* the finished size matters more than a uniform row.
+
+**Three real bugs found by building it**, all pre-existing and none visible in
+the earlier suites because they asserted presence rather than values:
+1. **The Phase 2 page readers used field names the records do not have** —
+   `revisionNo`, `createdOn`, `r.rev` — where the real shapes are
+   `revisionLetter`, `date` and `letter`. Every revision on the BOM changes
+   page and the cutting lists page was rendering as `undefined`.
+2. **`getBOMChangeRows()` matched killed sheets by comparing revision
+   numbers**, which cannot work while one revision is still pending. It reads
+   `killedByRevision` now — the field `issueBOMRevision()` actually stamps.
+3. **`startBOMRevision(jobId, byWhom, note)` was called with the reason in the
+   `byWhom` slot, and `issueBOMRevision(jobId, byWhom)` was passed a REVISION
+   id** — in the Phase 3 BOM-change flow and in two test seeds. No revision
+   was ever issued and no cutting sheet was ever killed, and the pages suite
+   passed only because it was asserting the empty branch.
+
+- **Verification**: new `e2e-production-printable.js` (29/29). The document is
+  rendered into a real page and read back, not pattern-matched: the head and
+  both red lines, the five-cell strip in order, the seven columns in order, a
+  26px row, the oversize dimensions and their note, boards-to-issue checked
+  against arithmetic worked out independently in the test, the tick boxes and
+  signatures, the dead/empty/missing cases, the Print action wired from the
+  page — and **not one figure of money anywhere on the sheet**.
+  `e2e-production-flows.js` 56/56, `e2e-production-19a.js` 52/52,
+  `e2e-production-pages.js` 46/46 (its chip check moved to Overtime, since
+  fixing bug 3 made the seeded sheet genuinely dead and the Dead chip is now
+  the whole set rather than a subset). Standing battery clean. Full sweep: the
+  same three long-documented pre-existing failures, nothing new.
+- `sw.js` CACHE_VERSION v53 → v54.
+- **Next**: Phase 6 is the teardown, which was already built early
+  (`clear-production-story.js`), so what remains of the plan is the story seed
+  itself against the live project, and Salman's call on the phone tab bar.
