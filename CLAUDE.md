@@ -8096,3 +8096,39 @@ project for now, and pick up everything else.
    quote", which is the same control named twice. 23/23 and 9/9.
 
 - `sw.js` CACHE_VERSION v55 → v56.
+
+### 25 Aug 2026 — The real signed-in salesperson now drives the Sales module
+
+The last open item from the Fable audit, and it turned out to be a live defect
+rather than the "surface an existing scope param" it was filed as.
+
+- **`salesCurrentUser` was a hardcoded dev-era name** from before there was a
+  real login — `STAFF.find(s => s !== 'Operations')` — and **14 places read
+  it**: the enquiry ownership lock (`e.salesPerson !== salesCurrentUser`), My
+  Jobs, and the audit attribution on extend / close / reinstate /
+  raise-revision. So a real salesperson saw somebody else's jobs, was locked
+  out of their own enquiries, and had their actions recorded against the wrong
+  person.
+- **One resolver, `salesIdentity()`** — a real cloud session is authoritative,
+  the simulated name is the offline fallback the suites run on. Resolved on
+  module OPEN rather than at load, because at load nobody has signed in yet.
+  `sales-dashboard.js` (the 5a package) already resolved this correctly for
+  its own screen and now delegates to the same function, so the dashboard and
+  the rest of the module cannot disagree about who is looking at it.
+- **`renderSalesAnalyticsSection()` removed** (55 lines) — the 5a redesign
+  replaced `renderSalesDashboard()` with a mount point, so this was defined
+  and never called. Dead code has been a recurring bug source here, and this
+  particular block rendered revenue charts, which Sales must never see.
+- **The audit item as filed is superseded, not merely done.** It asked for the
+  `{salesPerson}` scope to be surfaced on the Sales dashboard's revenue
+  charts. Those charts are gone by design — the 5a package's first rule is
+  that Sales never sees price, cost or supplier names — so the right answer
+  was the identity wiring above, not a scope parameter on a screen that must
+  not show money at all.
+
+- **Verification**: `e2e-sales-dashboard-5a.js` 27 → 32 — the offline fallback
+  (so the other suites are unaffected), a simulated real session being
+  authoritative, the module adopting it on open, the dashboard resolving the
+  same person through the same resolver, and the dead section being gone
+  rather than merely unreachable. Full offline sweep: **all green**.
+- `sw.js` CACHE_VERSION v56 → v57.

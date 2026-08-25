@@ -327,6 +327,47 @@ const MONEY = /BD\s?[\d,]|\d+\.\d{3}\b|BHD|\bcost\b|\bprice\b|receivable|payable
   });
   record('None of the handoff\'s invented sample data shipped', mock.length === 0 ? 'PASS' : 'FAIL', mock.join(', '));
 
+  currentStep = 'sales-identity';
+  // salesCurrentUser was a hardcoded dev-era name from before there was a real
+  // login, and 14 places read it: the enquiry ownership lock, My Jobs, and the
+  // audit attribution on extend/close/reinstate/raise-revision. A real
+  // salesperson saw somebody else's jobs and had their actions recorded
+  // against the wrong person.
+  const identity = await page.evaluate(async () => {
+    const fallback = salesCurrentUser;
+    const offline = salesIdentity();
+    const wasReal = window.__realCloudSession, wasId = window.cloudIdentity;
+    window.__realCloudSession = true;
+    window.cloudIdentity = 'Silva Fernandes';
+    const resolved = salesIdentity();
+    openSalesModule();
+    await new Promise(r => setTimeout(r, 300));
+    const afterOpen = salesCurrentUser;
+    const dashboardAgrees = (typeof SalesDashboard !== "undefined" && SalesDashboard.whoami) ? SalesDashboard.whoami() : null;
+    window.__realCloudSession = wasReal;
+    window.cloudIdentity = wasId;
+    salesCurrentUser = fallback;
+    return { fallback, offline, resolved, afterOpen, dashboardAgrees };
+  });
+  record('Offline it falls back to the simulated name, so the suites are unaffected',
+    identity.offline === identity.fallback ? 'PASS' : 'FAIL', String(identity.offline));
+  record('A real cloud session is authoritative for who Sales thinks you are',
+    identity.resolved === 'Silva Fernandes' ? 'PASS' : 'FAIL', String(identity.resolved));
+  // Resolved on OPEN, not at load — at load nobody has signed in yet, and
+  // every ownership check in the module depends on this being the real person.
+  record('Opening the module adopts it, so ownership checks are about the real person',
+    identity.afterOpen === 'Silva Fernandes' ? 'PASS' : 'FAIL', String(identity.afterOpen));
+  record('The dashboard resolves the same person, from the same resolver',
+    identity.dashboardAgrees === 'Silva Fernandes' ? 'PASS' : 'FAIL', String(identity.dashboardAgrees));
+
+  // The 5a redesign replaced renderSalesDashboard() with a mount point, so
+  // this was defined and never called. Dead code has been a recurring bug
+  // source here — and this block rendered revenue charts, which Sales must
+  // never see.
+  const deadCode = await page.evaluate(() => typeof renderSalesAnalyticsSection);
+  record('The superseded analytics section is gone, not merely unreachable',
+    deadCode === 'undefined' ? 'PASS' : 'FAIL', deadCode);
+
   const critical = consoleErrors.filter(e => !e.text.includes('favicon'));
   record('No unexpected console errors', critical.length === 0 ? 'PASS' : 'FAIL', critical.map(e => e.text).join(' | '));
   record('No uncaught page errors', pageErrors.length === 0 ? 'PASS' : 'FAIL', pageErrors.map(e => e.text).join(' | '));

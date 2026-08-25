@@ -46,6 +46,9 @@ window.SalesDashboard = (function () {
   /* Whose book this is. A real cloud session is authoritative; the module's
      own simulated identity is the fallback the rest of Sales already uses. */
   function me() {
+    // One resolver, in sales.js, so this screen and the rest of the module
+    // can never disagree about who is looking at it.
+    if (typeof salesIdentity === 'function') return salesIdentity();
     if (typeof window !== 'undefined' && window.__realCloudSession && window.cloudIdentity) return window.cloudIdentity;
     return typeof salesCurrentUser !== 'undefined' ? salesCurrentUser : 'Sales';
   }
@@ -972,6 +975,9 @@ window.SalesDashboard = (function () {
     render: render,
     mount: mount,
     state: S,
+    // Exposed so a test can prove this screen and the rest of Sales resolve
+    // the same person, rather than trusting that they both call me().
+    whoami: me,
     data: DATA,
     quickActions: salesQuickActions,
     quickAction: quickAction,

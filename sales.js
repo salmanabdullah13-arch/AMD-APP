@@ -232,7 +232,14 @@ let salesQtnListTab = 'all';           // draft | open | confirmed | closed | al
 let salesQtnRegFilters = { from: '', to: '', salesPerson: '', status: 'All' };
 let salesDraft = null;                 // scratch object for create forms
 let salesEditingLineId = null;         // which item's inline edit panel is open on Wizard Step 2
-let salesCurrentUser = STAFF.find(s => s !== 'Operations') || STAFF[0]; // simulates the logged-in Salesman for the lock/banner rule
+// Whose book this is. A real cloud session is authoritative; the simulated
+// name below is the offline fallback the e2e suites run on, and the value the
+// module starts with before anyone has signed in.
+let salesCurrentUser = STAFF.find(s => s !== 'Operations') || STAFF[0];
+function salesIdentity() {
+  if (typeof window !== 'undefined' && window.__realCloudSession && window.cloudIdentity) return window.cloudIdentity;
+  return salesCurrentUser;
+}
 
 function salesAlert(msg) {
   if (typeof showAlert === 'function') { showAlert(msg); return; }
@@ -253,6 +260,10 @@ function esc(s) { return (s === null || s === undefined) ? '' : String(s).replac
 
 // ── Module open/close ──
 function openSalesModule() {
+  // Resolve the identity on open rather than at load: at load nobody has
+  // signed in yet, and every ownership check below depends on this being the
+  // real person.
+  salesCurrentUser = salesIdentity();
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
@@ -1594,61 +1605,6 @@ function saveWizardStep3() {
   finaliseQuotation(salesActiveQtnId, { coveringLetterTemplate: covering, termsTemplate: terms });
   salesAlert('Quotation Status Updated successfully');
   openQuotationHub(salesActiveQtnId);
-}
-
-// ══════════════════════════════════════════
-// SALES DASHBOARD — the module's landing tab
-// ══════════════════════════════════════════
-// Dashboard Analytics rollout (5 Aug 2026), Phase 3 — reuses the same
-// chart-widgets.js primitives + data.js aggregations as Owner's
-// dashboard (Phase 2), company-wide/no scope filter, matching how
-// getSalesKPIs() already works (Sales is run as a shared queue, not
-// individual salesperson quotas — confirmed, nothing here filters by
-// salesCurrentUser). Upcoming Deliveries is a plain list, not a chart
-// — a delivery date has no meaningful "bar" — reusing
-// getDeliverySchedule() as-is.
-function renderSalesAnalyticsSection() {
-  const monthlyRev = getMonthlyRevenueByDivision(6);
-  const divSeries = monthlyRev.divisions.map((d, i) => ({
-    name: d, color: cwOrdinalColor(i), values: monthlyRev.months.map(m => monthlyRev.byMonthDiv[m.key][d])
-  }));
-
-  const funnel = getPipelineFunnel();
-  const funnelRows = funnel.stages.map((s, i) => ({
-    label: `${s} (${funnel.byStage[s].count})`, value: funnel.byStage[s].value, color: cwOrdinalColor(i)
-  }));
-
-  const topClients = getTopClientsByValue(6).map(c => ({ label: c.name, value: c.value }));
-
-  const upcoming = getDeliverySchedule().filter(s => s.status === 'planned').slice(0, 5);
-  const upcomingRows = upcoming.length === 0
-    ? `<p style="font-size:12px;color:#64748b;">No deliveries scheduled yet.</p>`
-    : upcoming.map(s => {
-        const job = getJobCard(s.jobId);
-        const cust = job ? customers.find(c => c.id === job.customerId) : null;
-        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--biz-border-light);font-size:12px;">
-          <span>${esc(s.jobId)}${cust ? ' · ' + esc(cust.name) : ''}</span>
-          <span style="color:#64748b;">${esc(s.plannedDate)}</span>
-        </div>`;
-      }).join('');
-
-  return `
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Monthly Revenue by Division</p>
-      ${cwStackedMonthlyBars(monthlyRev.months, divSeries, { valueFormatter: v => 'BD ' + Math.round(v).toLocaleString('en-US'), emptyMessage: 'Not enough confirmed jobs yet — this fills in as quotations are confirmed to Job Cards.' })}
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Pipeline Funnel</p>
-      ${cwHorizontalBarList(funnelRows, { valueFormatter: v => 'BD ' + Math.round(v).toLocaleString('en-US'), emptyMessage: 'No quotations or jobs yet.' })}
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Top Clients</p>
-      ${cwHorizontalBarList(topClients, { valueFormatter: v => 'BD ' + Math.round(v).toLocaleString('en-US'), emptyMessage: 'No confirmed jobs yet.' })}
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Upcoming Deliveries</p>
-      ${upcomingRows}
-    </div>`;
 }
 
 // ── Sales dashboard — the 7 Aug 2026 design handoff ──
