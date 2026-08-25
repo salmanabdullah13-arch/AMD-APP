@@ -43,6 +43,19 @@ async function openNode(page, nodeId, wrapId) {
 
   currentStep = 'app-loads';
   await page.waitForSelector('#app', { state: 'visible' });
+  // This suite routes jobs and leaves budgets pending, which correctly fires
+  // reminders — so the reminders panel auto-opens (by design, when somebody
+  // is waiting) and its full-screen scrim swallows every click below. The
+  // auto-open is on a 450ms timer in exec-shell.js, so waiting less than that
+  // dismisses nothing and it reopens straight afterwards. Dismiss it exactly
+  // as a person would before working the screen — the same fix
+  // e2e-session4-planner.js and e2e-ops-13b.js already carry.
+  // The auto-open fires 450ms after a MODULE renders, not at page load, so
+  // dismissing it here would only be undone the moment Joinery opens. The
+  // flag is what gates it (exec-shell.js, once per page load) — set it, and
+  // the panel stays shut for the whole run. Its real behaviour is covered by
+  // e2e-exec-shell.js; this suite is about the department pipeline.
+  await page.evaluate(() => { execAutoAlerted = true; });
   record('App loads (real Supabase login replaced the old PIN, 4 Aug 2026)', 'PASS');
 
   // ── Ecosystem hub: confirm the 3 new nodes are built and reachable ──

@@ -99,8 +99,21 @@ async function openNode(page, nodeId, wrapId) {
 
   currentStep = 'purchasing-chart';
   await openNode(page, 'purchasing', 'purch-module-wrap');
-  const purchState = await page.evaluate(() => document.getElementById('purch-module-wrap').innerHTML.includes('Open Requests by Division') && document.getElementById('purch-module-wrap').innerHTML.includes('mini-bar-col'));
-  record('Purchaser Dashboard renders the new "Open Requests by Division" mini-bar chart', purchState ? 'PASS' : 'FAIL');
+  // 16 Aug 2026: the 17a Purchase package replaced what a purchaser lands on
+  // — `purch-17a`, with its own five decision steps — so the legacy KPI
+  // dashboard carrying this chart is no longer the landing view. The chart
+  // itself is unchanged and still renders on that screen, so the check goes
+  // there rather than being deleted: same treatment the Owner and Sales chart
+  // checks got when those redesigns landed.
+  const purchLanding = await page.evaluate(() => (typeof purchCurrentPage !== 'undefined') && purchCurrentPage);
+  record('Purchaser lands on the 17a dashboard, not the legacy KPI screen',
+    purchLanding === 'purch-17a' ? 'PASS' : 'FAIL', String(purchLanding));
+  const purchState = await page.evaluate(() => {
+    purchGoTo('purch-dashboard');
+    const w = document.getElementById('purch-module-wrap').innerHTML;
+    return w.includes('Open Requests by Division') && w.includes('mini-bar-col');
+  });
+  record('the "Open Requests by Division" mini-bar chart still renders on that screen', purchState ? 'PASS' : 'FAIL');
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
 

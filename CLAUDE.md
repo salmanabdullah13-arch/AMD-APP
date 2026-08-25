@@ -8056,3 +8056,43 @@ builder and its A4 sheet are real, and the teardown
 (`clear-production-story.js`) is in place. Still open: Salman's call on the
 phone tab bar (built both ways, screenshots sent), and the three
 long-documented pre-existing suite failures, which are not this work.
+
+### 25 Aug 2026 — Phone tab bar dropped; the three stale suites repaired, sweep all green
+
+Salman's calls: drop the 19a phone tab bar, keep the seeded story on the live
+project for now, and pick up everything else.
+
+- **Tab bar removed** (`PRD_TABS`, `tabbarHTML()`, its call site and the CSS
+  section). His reasoning stands: he removed the app-wide bottom bar on 7 Aug
+  as dev-era chrome, and one module of eighteen navigating differently on a
+  phone is worse than matching the package here. Cheap to restore if the floor
+  asks for it.
+
+**The three long-documented failures are fixed — the offline sweep now reports
+`all green`, with no failures at all for the first time.**
+
+1. **`e2e-batch8-phase2-4.js`** had crashed since Session 3 on a timeout. Root
+   cause was not stale selectors: the suite routes jobs and leaves budgets
+   pending, which correctly fires reminders, so the reminders panel auto-opens
+   and its full-screen scrim intercepts every click. The same cause as the
+   documented `e2e-session4-planner.js` flake. Dismissing it at start-up does
+   **not** work here, because the auto-open fires 450ms after a *module*
+   renders, not at page load — so it reopens the moment Joinery does. Setting
+   `execAutoAlerted` up front is what actually holds; the panel's own behaviour
+   is covered by `e2e-exec-shell.js`. 17/17.
+2. **`e2e-lighter-touch-charts.js`** asserted the Purchaser's mini-bar chart on
+   the landing view. The 17a package replaced what a purchaser lands on
+   (`purch-17a`), so the legacy KPI dashboard carrying that chart is reachable
+   through `purchGoTo()` but has no door in the nav. Repointed rather than
+   deleted — it now asserts the 17a dashboard **is** the landing view and that
+   the chart still renders on the screen that owns it. Same treatment the Owner
+   and Sales chart checks got when those redesigns landed. 12/12.
+3. **`e2e-quote-confirmed-lock.js`** looked for a tile labelled "Edit Quote";
+   the button reads "Edit quote". A stale string, not a defect — the lock, the
+   data layer and the re-confirm all behaved correctly. Both this and
+   `e2e-edit-quote-lock.js` now match case-insensitively so a casing change
+   cannot break them again. Aligned one real inconsistency while there: the
+   explanatory note said "Edit Quote is locked…" beside a button reading "Edit
+   quote", which is the same control named twice. 23/23 and 9/9.
+
+- `sw.js` CACHE_VERSION v55 → v56.

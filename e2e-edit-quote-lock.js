@@ -62,7 +62,7 @@ function printReport() {
   await shot(page, 'hub-stage-estimator');
   const editHiddenAtEstimator = await page.evaluate(() => !Array.from(document.querySelectorAll('#sales-body .qh-pill')).some(t => t.textContent.includes('Edit quote')));
   record('Edit Quote tile is GONE while stage=estimator', editHiddenAtEstimator ? 'PASS' : 'FAIL');
-  const lockNoteShown = await page.evaluate(() => document.getElementById('sales-body').innerHTML.includes('Edit Quote is locked'));
+  const lockNoteShown = await page.evaluate(() => /edit quote is locked/i.test(document.getElementById('sales-body').innerHTML));
   record('Lock explanation note shown while stage=estimator', lockNoteShown ? 'PASS' : 'FAIL');
 
   currentStep = 'edit-locked-at-approver-stage';

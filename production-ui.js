@@ -1145,23 +1145,6 @@ window.PrdUI = (function () {
   }
 
   /* ── render ─────────────────────────────────────────────────────────── */
-  var PRD_TABS = [
-    { k: 'asked', ico: '◎', label: 'Asked' },
-    { k: 'board', ico: '▦', label: 'Board' },
-    { k: 'create', ico: '＋', label: 'Create' },
-    { k: 'floor', ico: '◧', label: 'Floor' }
-  ];
-  function tabbarHTML() {
-    var open = safe(function () { return getAskedOfYouToday().length; }, 0);
-    return '<nav class="prd-tabbar" aria-label="Production">' +
-      PRD_TABS.map(function (t) {
-        var on = (S.tab || 'board') === t.k;
-        return '<button class="prd-tab' + (on ? ' on' : '') + '" data-a="tab" data-t="' + t.k + '">' +
-          '<span class="prd-tab-i">' + t.ico +
-          (t.k === 'asked' && open ? '<i class="prd-tab-d"></i>' : '') + '</span>' +
-          '<span class="prd-tab-l">' + t.label + '</span></button>';
-      }).join('') + '</nav>';
-  }
   function dashHTML() {
     // Planner and My tasks are the shared collapsible widget — the
     // non-negotiables, one implementation, not a per-module copy.
@@ -1169,7 +1152,7 @@ window.PrdUI = (function () {
     return '<div class="prd-dash">' +
       '<div class="prd-l">' + askedHTML() + boardHTML() + paperworkHTML() + '</div>' +
       '<div class="prd-r">' + teamsHTML() + kpiHTML() + plannerTasks + '</div>' +
-      '</div>' + tabbarHTML();
+      '</div>';
   }
 
   /* ═══════════════════════════════════════════════════════════════════

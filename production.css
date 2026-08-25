@@ -632,30 +632,3 @@
   .prd-cut-c, .prd-cut-r{ min-width:660px; }
   .prd-cut-f{ min-width:660px; }
 }
-
-/* ── Phone tab bar (the package's 66px four-tab bar) ────────────────────
-   Built so it can be seen side by side against the version without it at
-   390px. It is hidden on desktop entirely, and it is a real decision for
-   Salman: the app-wide bottom bar was removed on 7 Aug as dev-era chrome,
-   so keeping this makes Production the one module of eighteen that
-   navigates differently on a phone. */
-.prd-tabbar{ display:none; }
-@media (max-width: 880px){
-  .prd-tabbar{
-    display:flex; position:fixed; left:0; right:0; bottom:0; height:66px;
-    padding-bottom:env(safe-area-inset-bottom,0px);
-    background:var(--card); border-top:1px solid var(--line);
-    box-shadow:0 -2px 14px rgba(16,24,40,.06); z-index:40;
-  }
-  .prd-tab{
-    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:3px; border:0; background:transparent; cursor:pointer; color:var(--tx3);
-    font-size:10.5px; font-weight:650; letter-spacing:.01em; padding:0;
-  }
-  .prd-tab.on{ color:var(--wine); }
-  .prd-tab-i{ position:relative; font-size:17px; line-height:1; }
-  .prd-tab-d{
-    position:absolute; top:-1px; right:-6px; width:6px; height:6px;
-    border-radius:50%; background:var(--bad);
-  }
-}

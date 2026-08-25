@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v55"; // v55: landing screens redraw when the cloud caches hydrate
+const CACHE_VERSION = "amd-app-v56"; // v56: 19a phone tab bar dropped; three stale suites repaired
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./ops-dashboard.css", "./purchase.css", "./production.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

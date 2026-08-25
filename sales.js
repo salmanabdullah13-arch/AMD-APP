@@ -952,7 +952,7 @@ function qhActionRow(q, lock) {
     ${q.lifecycleStatus !== 'draft' ? pill('print', 'Print / send') : ''}
     ${lock ? dead('Raise revision', lock.reason) : pill('revision', 'Raise revision')}
     ${pill('duplicate', 'Duplicate')}
-    ${q.stage !== 'sales' && !lock ? `<span class="qh-note">Edit Quote is locked while this is with the ${q.stage === 'estimator' ? 'Estimator' : 'Approver'} — it reopens once they send it back to Sales.</span>` : ''}
+    ${q.stage !== 'sales' && !lock ? `<span class="qh-note">Edit quote is locked while this is with the ${q.stage === 'estimator' ? 'Estimator' : 'Approver'} — it reopens once they send it back to Sales.</span>` : ''}
   </div>`;
 }
 

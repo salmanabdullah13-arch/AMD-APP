@@ -208,7 +208,7 @@ const check = (name, ok, extra) => {
     launchSalesModule();
     openQuotationHub(id);
     const body = document.getElementById('sales-body');
-    const edit = [...body.querySelectorAll('.qh-pill')].find(t => t.textContent.includes('Edit Quote'));
+    const edit = [...body.querySelectorAll('.qh-pill')].find(t => /edit quote/i.test(t.textContent));
     out.editLive = !!edit && !edit.classList.contains('is-off');
     const re = confirmQuotationToJobCard(id, 'Silva');
     out.reconfirmed = re.error || re.id;
