@@ -198,6 +198,29 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
   check('a job short of material shows it red, on the material row',
     checksPanel.short.some(c => c.tone === 't-bad' && /material short/i.test(c.label)), checksPanel.short);
 
+  console.log('\n— answering the gate does not wipe the form —');
+  // The third instance of this trap in this module: the job select, the cut
+  // builder, and the gate itself all repainted the whole form and threw away
+  // everything already typed into it.
+  const gateKeeps = await page.evaluate(async (s) => {
+    PrdUI.go('form', 'allot');
+    await new Promise(r => setTimeout(r, 130));
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+    set('prd-crew', 'CREW-A'); set('prd-date', s.day1); set('prd-job', s.clear);
+    await new Promise(r => setTimeout(r, 200));
+    document.querySelectorAll('#prd-body .prd-opt')[0].click();
+    await new Promise(r => setTimeout(r, 180));
+    return {
+      crew: document.getElementById('prd-crew').value,
+      date: document.getElementById('prd-date').value,
+      job: document.getElementById('prd-job').value,
+      live: !document.querySelector('#prd-body .prd-acts .prd-btn').disabled
+    };
+  }, seed);
+  check('every field survives answering the gate',
+    gateKeeps.crew === 'CREW-A' && !!gateKeeps.date && gateKeeps.job === seed.clear, gateKeeps);
+  check('and the primary still comes live', gateKeeps.live, gateKeeps);
+
   console.log('\n— an ok gate does not override the data layer —');
   // The gate is not a permission slip. A clear answer on a job whose boards
   // are not there must still be refused by allotLaneSlot(), and the refusal
@@ -289,6 +312,199 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
   // Pretending to save a draft is worse than saying it is not built.
   check('it does not pretend to have saved anything',
     draft.some(t => /not built|nothing was saved/i.test(t)), draft);
+
+  console.log('\n— the cutting-list builder —');
+  const cutSeed = await page.evaluate(() => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localISO(d); };
+    const c = createCustomer({ name: 'Cut Flow Co', contactPerson: 'A', tel: String(Math.floor(Math.random() * 1e8)), address: 'Tubli' });
+    const e = createEnquiry({ division: 'Joinery', customerId: c.id, contactPerson: 'A', tel: '1', source: 'walk inn', salesPerson: 'Salman Abdullah' });
+    const q = convertEnquiryToQuotation(e.id, { projectName: 'Cut run', taxPercent: 10, contactPerson: 'A' });
+    addQuotationItem(q.id, { product: 'Wardrobe carcass', qty: 2, unit: 'Nos' });
+    const it = quotations.find(x => x.id === q.id).items[0];
+    // One oak-veneered board and one plain, so the press default and the
+    // two wastage figures are both exercised rather than assumed.
+    const oak = itemMaster.find(i => /oak|veneer/i.test(i.name)) || itemMaster[0];
+    const plain = itemMaster.find(i => /mdf|ply|board/i.test(i.name) && !/oak|veneer/i.test(i.name)) || itemMaster[1];
+    addBOMMaterial(q.id, it.lineId, { name: oak.name, qty: 6, rate: 25, unit: oak.unit });
+    addBOMMaterial(q.id, it.lineId, { name: plain.name, qty: 4, rate: 12, unit: plain.unit });
+    submitItemBOM(q.id, it.lineId, 'Arun Kumar A');
+    setItemDepartmentSequence(q.id, it.lineId, ['carp']);
+    transferQuotationStage(q.id, 'approver', 'Estimator');
+    approveQuotation(q.id, 'Salman Abdullah', 'owner');
+    const job = confirmQuotationToJobCard(q.id, 'Sales');
+    confirmJobRouting(job.id, {}, 'Operations Manager', day(9));
+    return { job: job.id, oak: oak.name, plain: plain.name };
+  });
+
+  const emptyState = await page.evaluate(async () => {
+    PrdUI.go('form', 'cut');
+    await new Promise(r => setTimeout(r, 140));
+    const b = document.getElementById('prd-body');
+    return {
+      empty: (b.querySelector('.prd-cut-e') || {}).textContent || '',
+      pullLabel: (b.querySelector('[data-a="cut-pull"]') || {}).textContent || '',
+      pullDisabled: !!(b.querySelector('[data-a="cut-pull"]') || {}).disabled
+    };
+  });
+  check('the builder starts empty with the spec’s own words',
+    /No parts yet\. Pull them from the BOM, then adjust — the sheet is what the saw follows, so it is edited here and nowhere else\./.test(emptyState.empty),
+    emptyState.empty);
+  check('and Pull is dead until a job card is chosen',
+    emptyState.pullDisabled && /Choose a job card/i.test(emptyState.pullLabel), emptyState);
+
+  const pulled = await page.evaluate(async (s) => {
+    const el = document.getElementById('prd-job');
+    el.value = s.job; el.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 220));
+    const label = document.querySelector('#prd-body [data-a="cut-pull"]').textContent;
+    document.querySelector('#prd-body [data-a="cut-pull"]').click();
+    await new Promise(r => setTimeout(r, 220));
+    const b = document.getElementById('prd-body');
+    const rows = [...b.querySelectorAll('.prd-cut-r')].map(r => ({
+      material: r.querySelector('[data-k="material"]').value,
+      qty: Number(r.querySelector('.c-q b').textContent),
+      pressed: r.classList.contains('pressed'),
+      pressLabel: r.querySelector('.prd-prs').textContent.trim()
+    }));
+    return { label, rows };
+  }, cutSeed);
+  check('Pull names the revision and the real count', /Pull 2 parts from/i.test(pulled.label), pulled.label);
+  check('it pulls the job’s real BOM materials, not a fixture',
+    pulled.rows.length === 2 && pulled.rows.some(r => r.material === cutSeed.oak) && pulled.rows.some(r => r.material === cutSeed.plain),
+    pulled.rows);
+  check('quantities come from the BOM', pulled.rows.map(r => r.qty).sort().join(',') === '4,6', pulled.rows);
+  // "The press flag defaults true on every oak-veneer MDF part" — and only
+  // on those, or every plain part gets cut oversize for no reason.
+  const oakRow = pulled.rows.find(r => r.material === cutSeed.oak);
+  const plainRow = pulled.rows.find(r => r.material === cutSeed.plain);
+  check('press defaults on for the veneered part', oakRow && oakRow.pressed && oakRow.pressLabel === 'PRESS', oakRow);
+  check('and off for the plain one, which shows an em dash', plainRow && !plainRow.pressed && plainRow.pressLabel === '—', plainRow);
+
+  const pullTwice = await page.evaluate(async () => {
+    document.querySelector('#prd-body [data-a="cut-pull"]').click();
+    await new Promise(r => setTimeout(r, 200));
+    return document.querySelectorAll('#prd-body .prd-cut-r').length;
+  });
+  // Pulling twice must replace, not append — a doubled sheet is a doubled
+  // cut, and the saw follows the sheet.
+  check('pulling again replaces rather than doubling the sheet', pullTwice === 2, pullTwice);
+
+  console.log('\n— the five totals, checked against the arithmetic —');
+  const totals = await page.evaluate(async () => {
+    // 1800 × 580 on every row, so the numbers can be worked out by hand.
+    document.querySelectorAll('#prd-body .prd-cut-r').forEach(r => {
+      ['length', 'width'].forEach(k => {
+        const el = r.querySelector('[data-k="' + k + '"]');
+        el.value = k === 'length' ? '1800' : '580';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+    await new Promise(r => setTimeout(r, 200));
+    const cells = [...document.querySelectorAll('#prd-body .prd-cut-t')].map(t => [
+      t.querySelector('.l').textContent.trim(), t.querySelector('b').textContent.trim(), t.querySelector('.n').textContent.trim()
+    ]);
+    return { cells, note: document.querySelector('#prd-body .prd-cut-hn i').textContent };
+  });
+  const A = 1800 * 580, BOARD = 2440 * 1220;
+  const wantOak = Math.ceil(6 * A / BOARD * 1.12);
+  const wantPlain = Math.ceil(4 * A / BOARD * 1.06);
+  const wantVeneer = Math.ceil(6 * A * 2 / BOARD * 1.12);
+  const got = Object.fromEntries(totals.cells.map(c => [c[0].toUpperCase(), c[1]]));
+  check('five totals cells', totals.cells.length === 5, totals.cells.map(c => c[0]));
+  check('oak boards = ceil(area / board × 1.12)', Number(got['OAK BOARDS']) === wantOak, { got: got['OAK BOARDS'], want: wantOak });
+  check('plain boards use 6% wastage, not 12%', Number(got['PLAIN BOARDS']) === wantPlain, { got: got['PLAIN BOARDS'], want: wantPlain });
+  check('veneer counts both faces of every pressed part', Number(got['VENEER SHEETS']) === wantVeneer, { got: got['VENEER SHEETS'], want: wantVeneer });
+  check('cut oversize is the pressed quantity', Number(got['CUT OVERSIZE']) === 6, got['CUT OVERSIZE']);
+  check('parts is the total quantity', Number(got['PARTS']) === 10, got['PARTS']);
+  check('and the live note in the header agrees',
+    /2 lines · 10 parts · 6 cut oversize for the press/.test(totals.note), totals.note);
+
+  console.log('\n— editing a row —');
+  const edits = await page.evaluate(async () => {
+    const row = () => document.querySelector('#prd-body .prd-cut-r');
+    const qty = () => Number(row().querySelector('.c-q b').textContent);
+    const before = qty();
+    row().querySelector('[data-v="1"]').click();
+    await new Promise(r => setTimeout(r, 130));
+    const up = qty();
+    // The stepper floors at 1 — a part with zero of it is not a part.
+    for (let i = 0; i < up + 4; i++) { row().querySelector('[data-v="-1"]').click(); await new Promise(r => setTimeout(r, 45)); }
+    const floored = qty();
+    const wasPressed = row().classList.contains('pressed');
+    row().querySelector('.prd-prs').click();
+    await new Promise(r => setTimeout(r, 130));
+    const toggled = row().classList.contains('pressed');
+    const n0 = document.querySelectorAll('#prd-body .prd-cut-r').length;
+    row().querySelector('[data-a="cut-del"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    return { before, up, floored, wasPressed, toggled, n0, n1: document.querySelectorAll('#prd-body .prd-cut-r').length };
+  });
+  check('the ＋ stepper adds one', edits.up === edits.before + 1, edits);
+  check('and the − stepper floors at 1, never zero', edits.floored === 1, edits);
+  check('the PRESS toggle really toggles', edits.wasPressed !== edits.toggled, edits);
+  check('✕ removes the row', edits.n1 === edits.n0 - 1, edits);
+
+  console.log('\n— typing a dimension does not disturb the form —');
+  const typing = await page.evaluate(async (s) => {
+    PrdUI.go('form', 'cut');
+    await new Promise(r => setTimeout(r, 140));
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+    set('prd-job', s.job);
+    await new Promise(r => setTimeout(r, 200));
+    set('prd-saw', 'saw 2');
+    document.querySelector('#prd-body [data-a="cut-pull"]').click();
+    await new Promise(r => setTimeout(r, 200));
+    const first = document.querySelector('#prd-body .prd-cut-r [data-k="length"]');
+    first.focus();
+    first.value = '1500';
+    first.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 180));
+    return {
+      saw: document.getElementById('prd-saw').value,
+      job: document.getElementById('prd-job').value,
+      // The field the caret is in must survive its own keystroke.
+      stillFocused: document.activeElement === document.querySelector('#prd-body .prd-cut-r [data-k="length"]'),
+      value: document.querySelector('#prd-body .prd-cut-r [data-k="length"]').value,
+      rows: document.querySelectorAll('#prd-body .prd-cut-r').length
+    };
+  }, cutSeed);
+  check('the saw and job card are not thrown away by typing', typing.saw === 'saw 2' && typing.job === cutSeed.job, typing);
+  check('the field being typed into keeps focus and its value',
+    typing.stillFocused && typing.value === '1500', typing);
+
+  console.log('\n— releasing the sheet —');
+  const released = await page.evaluate(async () => {
+    const toasts = [];
+    const orig = window.commsToast;
+    window.commsToast = (m) => { toasts.push(m); };
+    document.querySelectorAll('#prd-body .prd-opt')[0].click();   // "The current revision"
+    await new Promise(r => setTimeout(r, 120));
+    const before = cuttingSheets.length;
+    document.querySelector('#prd-body .prd-acts .prd-btn').click();
+    await new Promise(r => setTimeout(r, 300));
+    window.commsToast = orig;
+    const sheet = cuttingSheets[cuttingSheets.length - 1];
+    return {
+      before, after: cuttingSheets.length, toasts,
+      lines: sheet ? (sheet.lines || []).length : 0,
+      firstLine: sheet && sheet.lines ? sheet.lines[0] : null,
+      saw: sheet && sheet.saw
+    };
+  });
+  check('a real cutting sheet is created', released.after === released.before + 1, released);
+  check('with the builder’s real parts on it, not an empty list',
+    released.lines === 2 && released.firstLine && released.firstLine.material, released);
+  check('and the parts carry their press flag and dimensions',
+    released.firstLine && typeof released.firstLine.press === 'boolean' && released.firstLine.qty >= 1, released.firstLine);
+
+  const cleared = await page.evaluate(async () => {
+    PrdUI.go('form', 'cut');
+    await new Promise(r => setTimeout(r, 150));
+    return { rows: document.querySelectorAll('#prd-body .prd-cut-r').length, state: PrdUI.state.cutRows };
+  });
+  // Parts belong to one sheet. Carrying them into the next one would put
+  // the last job's parts on this job's saw.
+  check('re-entering the flow starts from an empty sheet', cleared.rows === 0 && cleared.state === null, cleared);
 
   console.log('\n— no flow shows money, anywhere —');
   const money = await page.evaluate(async (flows) => {

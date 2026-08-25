@@ -112,7 +112,8 @@ window.PrdUI = (function () {
     pgChip: 0,
     off: 0,            // period offset — drives the week board
     crewOpen: 'CREW-A',
-    formJob: null      // the job the open form is about, so the checks are real
+    formJob: null,     // the job the open form is about, so the checks are real
+    cutRows: null      // cutting-list builder; null = nothing pulled yet
   };
 
   function esc(s) {
@@ -856,8 +857,218 @@ window.PrdUI = (function () {
     }).join('');
   }
 
-  /** Phase 4 fills this in — the parts editor the `cut` flow needs. */
-  function cutBuilderHTML() { return ''; }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     The cutting-list builder — the one flow with a real editor.
+
+     DEVIATION, stated rather than hidden: the spec's twelve default parts
+     live in `CUTDEF` inside the prototype, which is not committed. Twelve
+     invented parts would put fake dimensions on the one document the saw
+     actually follows, so the builder starts EMPTY with the spec's own
+     empty state and pulls its parts from the job's real BOM instead —
+     which is exactly what "Pull N parts from REV C" and that empty-state
+     sentence already describe. Everything else here is the spec: the
+     column strip, the steppers, the PRESS toggle, and the five totals.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  var BOARD_L = 2440, BOARD_W = 1220;
+  var BOARD_AREA = BOARD_L * BOARD_W;
+  var OAK_WASTE = 1.12;     // 12% — veneered board is less forgiving
+  var PLAIN_WASTE = 1.06;   // 6%
+
+  /** Which board a part is cut from, read off the material name. */
+  function cutBoardKind(material) {
+    var m = String(material || '').toLowerCase();
+    if (m.indexOf('oak') !== -1 || m.indexOf('veneer') !== -1) return 'oak';
+    if (m.indexOf('mdf') !== -1 || m.indexOf('ply') !== -1 || m.indexOf('board') !== -1) return 'plain';
+    return 'other';
+  }
+
+  function cutRows() { return S.cutRows || []; }
+
+  /**
+   * The five totals, recomputed on every edit. Board is 2440 × 1220; a
+   * pressed part is counted twice because both faces take veneer.
+   */
+  function cutTotals() {
+    var rows = cutRows();
+    var oakArea = 0, plainArea = 0, pressArea = 0, oversize = 0, parts = 0;
+    rows.forEach(function (r) {
+      var q = Math.max(1, Number(r.qty) || 1);
+      var area = q * (Number(r.length) || 0) * (Number(r.width) || 0);
+      parts += q;
+      if (r.press) { oversize += q; pressArea += area * 2; }
+      var kind = cutBoardKind(r.material);
+      if (kind === 'oak') oakArea += area;
+      else if (kind === 'plain') plainArea += area;
+    });
+    var sheets = function (area, waste) { return area ? Math.ceil(area / BOARD_AREA * waste) : 0; };
+    return {
+      oak: sheets(oakArea, OAK_WASTE),
+      plain: sheets(plainArea, PLAIN_WASTE),
+      veneer: sheets(pressArea, OAK_WASTE),
+      oversize: oversize, parts: parts, lines: rows.length
+    };
+  }
+
+  /** Parts pulled from the job's real BOM, one line per material. */
+  function cutPullFromBOM(jobId) {
+    var out = [];
+    safe(function () {
+      jobBOMItems(jobId).forEach(function (it) {
+        ((it.bom && it.bom.materials) || []).forEach(function (m) {
+          var item = (typeof itemMaster !== 'undefined' ? itemMaster : []).find(function (x) { return x.id === m.itemId; }) || {};
+          var name = item.name || m.name || 'Part';
+          out.push({
+            part: it.product || 'Part',
+            material: name,
+            qty: Math.max(1, Math.round(Number(m.qty) || 1)),
+            length: '', width: '',
+            // Every oak-veneer part is pressed by default, per the spec.
+            press: cutBoardKind(name) === 'oak'
+          });
+        });
+      });
+    }, null);
+    return out;
+  }
+
+  function cutRevisionLabel(jobId) {
+    var rev = jobId ? safe(function () { return currentBOMRevision(jobId); }, null) : null;
+    return rev ? ('REV ' + rev.rev) : 'the BOM';
+  }
+
+  function cutBuilderHTML() {
+    var rows = cutRows();
+    var t = cutTotals();
+    var jobId = S.formJob;
+    var pullN = jobId ? cutPullFromBOM(jobId).length : 0;
+
+    var head = '<div class="prd-cut-h">' +
+      '<div class="prd-cut-hn"><b>Parts, item by item</b>' +
+      '<i>' + t.lines + ' line' + (t.lines === 1 ? '' : 's') + ' · ' + t.parts + ' part' + (t.parts === 1 ? '' : 's') +
+      (t.oversize ? ' · ' + t.oversize + ' cut oversize for the press' : '') + '</i></div>' +
+      '<button class="prd-btn-w sm"' + (pullN ? '' : ' disabled') + ' data-a="cut-pull">' +
+      (jobId ? (pullN ? 'Pull ' + pullN + ' part' + (pullN === 1 ? '' : 's') + ' from ' + cutRevisionLabel(jobId) : 'Nothing on the BOM to pull')
+        : 'Choose a job card first') + '</button>' +
+      '<button class="prd-btn sm" data-a="cut-add">＋ Add a part</button></div>';
+
+    var cols = '<div class="prd-cut-c">' +
+      '<span class="c-n">#</span><span class="c-p">PART</span><span class="c-m">MATERIAL</span>' +
+      '<span class="c-q">QTY</span><span class="c-l">LENGTH</span><span class="c-w">WIDTH</span>' +
+      '<span class="c-pr">PRESS</span><span class="c-x"></span></div>';
+
+    var body = rows.length ? rows.map(function (r, i) {
+      return '<div class="prd-cut-r' + (r.press ? ' pressed' : '') + '">' +
+        '<span class="c-n">' + (i + 1) + '</span>' +
+        '<span class="c-p"><input class="prd-cin" data-a="cut-f" data-i="' + i + '" data-k="part" value="' + esc(r.part || '') + '"></span>' +
+        '<span class="c-m"><input class="prd-cin" data-a="cut-f" data-i="' + i + '" data-k="material" value="' + esc(r.material || '') + '"></span>' +
+        '<span class="c-q"><button class="prd-stp" data-a="cut-qty" data-i="' + i + '" data-v="-1">−</button>' +
+        '<b>' + Math.max(1, Number(r.qty) || 1) + '</b>' +
+        '<button class="prd-stp" data-a="cut-qty" data-i="' + i + '" data-v="1">＋</button></span>' +
+        '<span class="c-l"><input class="prd-cin num" data-a="cut-f" data-i="' + i + '" data-k="length" value="' + esc(r.length || '') + '" placeholder="—"></span>' +
+        '<span class="c-w"><input class="prd-cin num" data-a="cut-f" data-i="' + i + '" data-k="width" value="' + esc(r.width || '') + '" placeholder="—"></span>' +
+        '<span class="c-pr"><button class="prd-prs' + (r.press ? ' on' : '') + '" data-a="cut-press" data-i="' + i + '">' +
+        (r.press ? 'PRESS' : '—') + '</button></span>' +
+        '<span class="c-x"><button class="prd-cx" data-a="cut-del" data-i="' + i + '">✕</button></span></div>';
+    }).join('')
+      : '<div class="prd-cut-e">No parts yet. Pull them from the BOM, then adjust — the sheet is what the saw follows, so it is edited here and nowhere else.</div>';
+
+    var cell = function (label, value, note) {
+      return '<div class="prd-cut-t"><span class="l">' + esc(label) + '</span>' +
+        '<b>' + esc(String(value)) + '</b><span class="n">' + esc(note) + '</span></div>';
+    };
+    var totals = '<div class="prd-cut-f">' +
+      cell('Oak boards', t.oak, '2440 × 1220, 12% wastage') +
+      cell('Plain boards', t.plain, '2440 × 1220, 6% wastage') +
+      cell('Veneer sheets', t.veneer, 'both faces of every pressed part') +
+      cell('Cut oversize', t.oversize, 'trimmed after the press') +
+      cell('Parts', t.parts, 'across ' + t.lines + ' line' + (t.lines === 1 ? '' : 's')) +
+      '</div>';
+
+    return '<div class="prd-cut">' + head + cols + body + totals + '</div>';
+  }
+
+  /** The rows the sheet is actually created from. */
+  /**
+   * Answering the gate repaints the gate, the banner and the actions —
+   * NOT the fields. A full paint() threw away the job card, the saw and
+   * every dimension already typed, which is the third time this trap has
+   * bitten in this module: the job select, the cut builder, and now here.
+   * If a control changes only part of the form, it repaints only that part.
+   */
+  function repaintGate() {
+    var key = FLOW_ORDER.indexOf(S.form) !== -1 ? S.form : 'price';
+    var g = GATES[key], m = FLOW_META[key];
+    var tone = gateTone(key);
+    var banner = bannerFor(key, tone);
+    var dead = !tone || tone === 'bad';
+
+    var card = root.querySelector('.prd-gate');
+    if (!card) { paint(); return; }
+    card.className = 'prd-gate' + (tone ? ' t-' + tone : '');
+    var badge = card.querySelector('.prd-gate-b');
+    if (badge) badge.textContent = tone ? TONE_ICON[tone] : '?';
+    var opts = card.querySelectorAll('.prd-opt');
+    g.opts.forEach(function (o, i) {
+      if (opts[i]) opts[i].className = 'prd-opt' + (S.gate === i ? ' on t-' + o.tone : '');
+    });
+
+    var ban = root.querySelector('.prd-banner');
+    if (ban) { ban.className = 'prd-banner t-' + banner.tone; ban.textContent = banner.text; }
+
+    var btn = root.querySelector('.prd-acts .prd-btn');
+    if (btn) {
+      btn.className = 'prd-btn' + (dead ? ' dead' : tone === 'warn' ? ' warn' : '');
+      btn.disabled = dead;
+    }
+    var hint = root.querySelector('.prd-acts-h');
+    if (hint) {
+      hint.textContent = dead
+        ? (tone === 'bad' ? 'Blocked by the answer above.' : 'Answer the question first.')
+        : 'Nothing is written until you press this.';
+    }
+  }
+
+  /**
+   * The builder repaints ITSELF, not the form. A full paint() would throw
+   * away the job card, the saw and the revision the user has already
+   * chosen — the same trap the job select hit in Phase 3.
+   */
+  function repaintCut() {
+    var host = root.querySelector('.prd-cut');
+    if (!host) { paint(); return; }
+    var wrap = document.createElement('div');
+    wrap.innerHTML = cutBuilderHTML();
+    host.replaceWith(wrap.firstChild);
+  }
+
+  /**
+   * And typing a dimension repaints only the totals, because replacing the
+   * row would take the caret out of the field mid-keystroke.
+   */
+  function repaintCutTotals() {
+    var foot = root.querySelector('.prd-cut-f');
+    var head = root.querySelector('.prd-cut-hn');
+    if (!foot) return;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = cutBuilderHTML();
+    var newFoot = wrap.querySelector('.prd-cut-f');
+    var newHead = wrap.querySelector('.prd-cut-hn');
+    if (newFoot) foot.replaceWith(newFoot);
+    if (head && newHead) head.replaceWith(newHead);
+  }
+
+  function cutLinesForSubmit() {
+    return cutRows().map(function (r) {
+      return {
+        part: r.part, material: r.material,
+        qty: Math.max(1, Number(r.qty) || 1),
+        length: Number(r.length) || 0, width: Number(r.width) || 0,
+        press: !!r.press
+      };
+    });
+  }
 
   /* ── submitting ───────────────────────────────────────────────────── */
 
@@ -930,8 +1141,6 @@ window.PrdUI = (function () {
     paint();
   }
 
-  /** Phase 4 replaces this with the real editor's rows. */
-  function cutLinesForSubmit() { return []; }
   /* ── render ─────────────────────────────────────────────────────────── */
   var PRD_TABS = [
     { k: 'asked', ico: '◎', label: 'Asked' },
@@ -1494,12 +1703,23 @@ window.PrdUI = (function () {
   function onChange(e) {
     var t = e.target;
     if (!t || !root.contains(t)) return;
+    if (t.getAttribute && t.getAttribute('data-a') === 'cut-f') {
+      var i = Number(t.getAttribute('data-i'));
+      var rows = cutRows();
+      if (rows[i]) rows[i][t.getAttribute('data-k')] = t.value;
+      repaintCutTotals();
+      return;
+    }
     if (t.id === 'prd-job') {
       S.formJob = t.value || null;
       // NOT paint() — a full re-render throws away every other field the
       // user has already filled in. Only the checks panel depends on this.
       var panel = document.getElementById('prd-checks');
       if (panel) panel.innerHTML = checksRowsHTML(safe(function () { return flowChecks(S.form); }, []));
+      // The cutting-list builder also reads the job — its Pull button is
+      // disabled until there is one, and a disabled button does nothing
+      // when clicked. Repaint it too, but still not the whole form.
+      if (root.querySelector('.prd-cut')) repaintCut();
     }
   }
   function onClick(e) {
@@ -1513,7 +1733,34 @@ window.PrdUI = (function () {
     // resets the page — but changing page must reset the chip, or the new
     // page opens on a filter that belonged to the last one.
     if (a === 'chip') { S.pgChip = Number(el.getAttribute('data-i')) || 0; paint(); return; }
-    if (a === 'gate') { S.gate = Number(el.getAttribute('data-i')); paint(); return; }
+    if (a === 'cut-pull') {
+      // Pulling REPLACES rather than appends — pulling twice must not
+      // silently double every part on the sheet the saw follows.
+      S.cutRows = cutPullFromBOM(S.formJob);
+      repaintCut(); return;
+    }
+    if (a === 'cut-add') {
+      S.cutRows = cutRows().concat([{ part: '', material: '', qty: 1, length: '', width: '', press: false }]);
+      repaintCut(); return;
+    }
+    if (a === 'cut-qty') {
+      var qi = Number(el.getAttribute('data-i'));
+      var rows = cutRows();
+      if (rows[qi]) rows[qi].qty = Math.max(1, (Number(rows[qi].qty) || 1) + (Number(el.getAttribute('data-v')) || 0));
+      repaintCut(); return;
+    }
+    if (a === 'cut-press') {
+      var pi = Number(el.getAttribute('data-i'));
+      var pr = cutRows();
+      if (pr[pi]) pr[pi].press = !pr[pi].press;
+      repaintCut(); return;
+    }
+    if (a === 'cut-del') {
+      var di = Number(el.getAttribute('data-i'));
+      S.cutRows = cutRows().filter(function (_, i) { return i !== di; });
+      repaintCut(); return;
+    }
+    if (a === 'gate') { S.gate = Number(el.getAttribute('data-i')); repaintGate(); return; }
     if (a === 'submit') { submitFlow(el.getAttribute('data-f')); return; }
     if (a === 'draft') {
       // A draft is a real thing to want, and pretending to save one would
@@ -1534,9 +1781,9 @@ window.PrdUI = (function () {
     }
     // Entering ANY create flow resets the gate to null. A gate that arrives
     // pre-answered in the job's favour defeats the entire mechanism.
-    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; paint(); return; }
+    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; S.cutRows = null; S.formJob = null; paint(); return; }
     // Every board cell opens the allotment flow — the handoff's own rule.
-    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
+    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cutRows = null; S.formJob = null; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
   }
   function mount(el) {
     root = el;
@@ -1555,7 +1802,7 @@ window.PrdUI = (function () {
     go: function (view, key) {
       S.view = view;
       if (view === 'page') { S.page = key; S.pgChip = 0; }
-      if (view === 'form') { S.form = key; S.gate = null; }
+      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; }
       paint();
     }
   };

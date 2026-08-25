@@ -7882,3 +7882,58 @@ that pair, so a later edit cannot quietly drop a real block somewhere else.
 - `sw.js` CACHE_VERSION v51 → v52.
 - **Next**: Phase 4, the cutting-list builder — the one flow with a real
   editor, and the five totals formulas the A4 sheet is printed from.
+
+### 25 Aug 2026 — 19a Production, Phase 4: the cutting-list builder
+
+The one flow with a real editor. Wine-tint header with a live note (*"2 lines
+· 10 parts · 6 cut oversize for the press"*), the spec's column strip, one row
+per part with − / qty / ＋ steppers that floor at 1, right-aligned tabular
+dimensions, a PRESS toggle, a ✕ to remove, and the five totals recomputed on
+every edit against the 2440 × 1220 board:
+
+```
+oak boards    = ceil( Σ(qty·l·w) oak-veneered  / board × 1.12 )
+plain boards  = ceil( Σ(qty·l·w) plain         / board × 1.06 )
+veneer sheets = ceil( Σ(qty·l·w) pressed × 2   / board × 1.12 )   // both faces
+```
+
+**A deviation, stated rather than hidden.** The spec's twelve default parts
+live in `CUTDEF` inside the prototype, which is not committed. Twelve invented
+parts would put fake dimensions on the one document the saw actually follows,
+so the builder starts empty — with the spec's own empty-state sentence
+verbatim — and pulls its parts from the job's **real BOM**, which is exactly
+what *"Pull N parts from REV C"* and that sentence already describe. Press
+defaults on for every oak-veneered part and off for plain, per the spec.
+Pulling twice replaces rather than appends: a doubled sheet is a doubled cut.
+
+**The third instance of one trap, and the rule that comes out of it.** Phase 3
+found that changing the job select repainted the whole form and threw away
+every other field. Phase 4 found the same thing twice more: the cut builder
+repainting on every keystroke would take the caret out of the field mid-edit,
+and **answering the gate repainted the entire form**, wiping the job card, the
+saw and every dimension already typed — which is why releasing a sheet
+reported *"Which job card?"* after the user had plainly chosen one. All three
+now repaint only the part that actually changed (`repaintGate()`,
+`repaintCut()`, `repaintCutTotals()`), and each has its own regression check.
+The rule, worth keeping: **if a control changes only part of the form, it
+repaints only that part.**
+
+**Also fixed**: `S.formJob` survived a flow change, so the job the *previous*
+form was about leaked into the next one's checks panel and its Pull button.
+Cleared on every flow entry, alongside the gate and the parts.
+
+- **Verification**: `e2e-production-flows.js` 29 → 56. The totals are checked
+  against the arithmetic worked out independently in the test (6 × 1800 × 580
+  ÷ 2440 × 1220 × 1.12 → 3 oak boards), not against whatever the code
+  produced; the steppers, the press toggle, the remove and the empty-state
+  copy are driven through real clicks; releasing creates a real cutting sheet
+  carrying the builder's real parts, press flags and dimensions; and
+  re-entering the flow starts from an empty sheet, because carrying parts
+  over would put the last job's parts on this job's saw.
+  `e2e-production-19a.js` 52/52 and `e2e-production-pages.js` 46/46 unchanged.
+  Standing battery clean. Full sweep: the same three long-documented
+  pre-existing failures, nothing new.
+- `sw.js` CACHE_VERSION v52 → v53.
+- **Next**: Phase 5, the A4 printable — and a decision flagged in the plan,
+  whether to keep the spec's fixed 794 × 1123 pixel page box or the house
+  `@page` pattern every other document in `print.js` uses.
