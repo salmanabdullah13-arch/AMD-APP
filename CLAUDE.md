@@ -7816,3 +7816,69 @@ now the spec's `CA CB SU PP SI` and first-plus-last initials.
   either way until Salman chooses.
 - **Next**: Phase 3, the twelve create flows and the gate table — where the
   blocked copy is the business rule and stays verbatim.
+
+### 25 Aug 2026 — 19a Production, Phase 3: the twelve create flows and the gate table
+
+One skeleton — twelve pills, title, gate card, fields, banner, actions — with
+the flow's own rule and a four-row checks panel in the rail.
+
+**The gate is the enforcement layer, not a confirmation step.** Each option
+carries a tone: `ok` and `warn` make the primary live, `bad` leaves it dead
+*and disabled*. Amber is not a quieter green — it fills the primary amber and
+the banner says the record will show it that way. The gate card and the banner
+both re-tint to the answer, so the card itself is the state rather than a
+label beside it.
+
+**The blocked copy is the business rule and it is verbatim** — *"You do not
+send a price."* · *"Take the sheet off the saw first."* · *"Overtime will not
+fix this."* · *"Trade does not match the crew."* The suite asserts all four
+as exact strings so a later edit cannot soften them into validation messages.
+
+**The gate does not replace the data layer.** Every primary calls the real
+function — `answerInputRequest`, `startBOMRevision`, `reserveJobMaterial`,
+`createPurchaseRequestFromShortfall`, `createRFQ`, `createCuttingSheet`,
+`createPressingBatch`/`addJobToPressingBatch`, `allotLaneSlot`,
+`bookOvertimeShift`, `assignToCrew`, and a new `confirmInstallationSlot()` —
+and a clear answer still has to survive the same checks any other caller
+faces. The suite proves this the only way that means anything: it answers
+*"Material reserved · BOM current"* on a job whose boards are **not** there,
+presses the live button, and asserts that no slot is created, that the
+refusal is shown rather than swallowed into a success message, and that the
+form stays open so it can be corrected.
+
+- **New `confirmInstallationSlot()`** carries the rule rather than validating
+  around it: a fit cannot be confirmed with no paint scheduled, or booked
+  before paint finishes. Installation pulls its date from paint, and
+  confirming early only moves the disappointment to the client.
+- **The checks panel is real.** Four rows read off the selected job —
+  material short, BOM live, revision pending, dead sheets still on a saw —
+  so it goes red when the thing it names is actually wrong. A panel that
+  always shows four green ticks is decoration.
+- **Save as draft says plainly that it is not built.** Pretending to save one
+  would be worse, and the suite asserts it does not pretend.
+
+**A real data-loss bug, found by the suite and not by review**: changing the
+job select repainted the whole form, throwing away every other field already
+filled in — the same trap CLAUDE.md records from the Batch 3 line-item forms.
+Only the checks panel depends on that select, so only the checks panel
+re-renders now, and there is a regression check for it.
+
+**One test assumption corrected rather than the code**: the spec's own gate
+table gives `quote` (ok/ok/warn) and `press` (ok/warn/ok) no blocked option —
+neither can be wrong enough to stop work. The suite now asserts *exactly*
+that pair, so a later edit cannot quietly drop a real block somewhere else.
+
+- **Verification**: new `e2e-production-flows.js` (29/29). The central check
+  is exhaustive rather than sampled — every option of every gate is clicked
+  through the real DOM and the primary's live/dead/amber state read from the
+  real element. Plus: switching flow clears the answer and the badge returns
+  to `?`; a clear flow writes a real lane slot and returns to the board; an
+  overtime shift with no cause is refused from the form even with a clear
+  gate; **no selling price, margin or profit renders on any of the twelve**;
+  dark mode by computed style; gate options stack full width at 390px with
+  nothing scrolling sideways. `e2e-production-19a.js` 52/52 and
+  `e2e-production-pages.js` 46/46 unchanged. Standing battery clean. Full
+  sweep: the same three long-documented pre-existing failures, nothing new.
+- `sw.js` CACHE_VERSION v51 → v52.
+- **Next**: Phase 4, the cutting-list builder — the one flow with a real
+  editor, and the five totals formulas the A4 sheet is printed from.

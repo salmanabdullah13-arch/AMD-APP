@@ -111,7 +111,8 @@ window.PrdUI = (function () {
     gate: null,        // null = unanswered. Entering any flow resets this.
     pgChip: 0,
     off: 0,            // period offset — drives the week board
-    crewOpen: 'CREW-A'
+    crewOpen: 'CREW-A',
+    formJob: null      // the job the open form is about, so the checks are real
   };
 
   function esc(s) {
@@ -462,30 +463,475 @@ window.PrdUI = (function () {
   }
 
 
-  var FLOW_TITLES = {
-    price: ['Pricing input', 'What are you sending back?'],
-    bomb: ['BOM input for budgeting', 'Is this a standard, or the numbers for one job?'],
-    bom: ['BOM change', 'Where is the old cutting list right now?'],
-    res: ['Reserve material', 'Is the BOM revision current?'],
-    purch: ['Purchase', 'Are you committing, or asking?'],
-    quote: ['Supplier quotes', 'Why is this not coming from stock?'],
-    cut: ['Create a cutting list', 'Which BOM revision is this cut from?'],
-    press: ['Veneer pressing', 'Batch it, or press alone?'],
-    allot: ['Allot a lane slot', 'Is the job clear to take a slot?'],
-    ot: ['Overtime', 'What is this overtime actually recovering?'],
-    lab: ['Assign labour', 'Which crew is he going into?'],
-    inst: ['Site installation', 'Where has paint got to?']
+  /* ═══════════════════════════════════════════════════════════════════
+     The twelve create flows. One skeleton: tab row, title, gate card,
+     fields, banner, actions — with the flow's own rule and a four-row
+     checks panel in the rail.
+
+     THE GATE IS THE ENFORCEMENT LAYER, not a confirmation step. Each
+     option carries a tone: `ok` and `warn` make the primary live, `bad`
+     leaves it dead. Amber means allowed, and it will show.
+
+     The blocked copy is the business rule, not a validation message.
+     "You do not send a price." "Take the sheet off the saw first."
+     Those words are the spec's and they stay.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  var FLOW_ORDER = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
+    'cut', 'press', 'allot', 'ot', 'lab', 'inst'];
+
+  var FLOW_TABS = {
+    price: 'Pricing', bomb: 'Budgeting', bom: 'BOM change', res: 'Reserve',
+    purch: 'Purchase', quote: 'Prices', cut: 'Cutting list', press: 'Press',
+    allot: 'Allot', ot: 'Overtime', lab: 'Labour', inst: 'Install'
   };
+
+  var GATES = {
+    price: {
+      q: 'What are you sending back?',
+      why: 'Production returns hours and quantities. The estimator turns them into money — that is the whole division of labour, and it only holds if it holds here.',
+      opts: [
+        { label: 'Hours and quantities', tone: 'ok' },
+        { label: 'A rough guess', tone: 'warn', note: 'It will be shown as a guess.' },
+        { label: 'A price', tone: 'bad', note: 'You do not send a price.' }
+      ]
+    },
+    bomb: {
+      q: 'Is this a standard, or the numbers for one job?',
+      why: 'Budgeting input is not pricing input. Operations is asking what a metre of carcass costs in board and hours, not what this wardrobe costs.',
+      opts: [
+        { label: 'A standard', tone: 'ok' },
+        { label: 'A standard, with a caveat', tone: 'warn', note: 'The caveat travels with it.' },
+        { label: 'One job’s numbers', tone: 'bad', note: 'Job-specific hours are the estimator’s. This is not that question.' }
+      ]
+    },
+    bom: {
+      q: 'Where is the old cutting list right now?',
+      why: 'A revision does not stop the man cutting to the paper already in his hand. Until the sheet is off the saw, the change has not happened on the floor.',
+      opts: [
+        { label: 'Still on a saw', tone: 'bad', note: 'Take the sheet off the saw first.' },
+        { label: 'Back in the office', tone: 'ok' },
+        { label: 'Never released', tone: 'ok' }
+      ]
+    },
+    res: {
+      q: 'Is the BOM revision current?',
+      why: 'Holding stock against a superseded BOM holds the wrong boards, and the right ones go to somebody else while you wait.',
+      opts: [
+        { label: 'The current revision', tone: 'ok' },
+        { label: 'A revision is pending', tone: 'bad', note: 'Issue the revision first, or you will hold the wrong boards.' },
+        { label: 'Reserve anyway', tone: 'warn', note: 'It will show as held against an old revision.' }
+      ]
+    },
+    purch: {
+      q: 'Are you committing, or asking?',
+      why: 'A purchase request raises a real order against the job card. Asking for prices does not — it comes back with lead times so you can choose.',
+      opts: [
+        { label: 'Commit — buy it', tone: 'ok' },
+        { label: 'Ask for prices first', tone: 'ok' },
+        { label: 'Not sure yet', tone: 'bad', note: 'Then it is not a purchase request. Ask for prices instead.' }
+      ]
+    },
+    quote: {
+      q: 'Why is this not coming from stock?',
+      why: 'Asking Purchase for prices on something already on the shelf wastes a week. The reason belongs on the enquiry.',
+      opts: [
+        { label: 'Not held anywhere', tone: 'ok' },
+        { label: 'Held stock is reserved elsewhere', tone: 'ok' },
+        { label: 'Faster to buy than to wait', tone: 'warn', note: 'The stock stays where it is.' }
+      ]
+    },
+    cut: {
+      q: 'Which BOM revision is this cut from?',
+      why: 'The sheet is what the saw follows. Cut from the wrong revision and the parts are wrong before anyone notices.',
+      opts: [
+        { label: 'The current revision', tone: 'ok' },
+        { label: 'A superseded revision', tone: 'bad', note: 'That revision is dead. Pull the parts from the current one.' },
+        { label: 'There is no BOM', tone: 'bad', note: 'There is nothing to cut to. The estimator has not submitted it.' }
+      ]
+    },
+    press: {
+      q: 'Batch it, or press alone?',
+      why: 'Two jobs pressed in one run use one set-up instead of two. Pressing alone is the same cost as pressing late.',
+      opts: [
+        { label: 'Batch it with the open run', tone: 'ok' },
+        { label: 'Press alone', tone: 'warn', note: 'It saves nothing. It will show as a single-job run.' },
+        { label: 'Wait for a batch', tone: 'ok' }
+      ]
+    },
+    allot: {
+      q: 'Is the job clear to take a slot?',
+      why: 'A lane booked against material that is not there is an idle day with a name on it. This is the one check the whole board rests on.',
+      opts: [
+        { label: 'Material reserved · BOM current', tone: 'ok' },
+        { label: 'Material short', tone: 'bad', note: 'The lane will not take it. Reserve the material, or the day is lost.' },
+        { label: 'Overload the crew', tone: 'warn', note: 'The crew is already over five days. It will show as over.' }
+      ]
+    },
+    ot: {
+      q: 'What is this overtime actually recovering?',
+      why: 'Overtime buys hours, not material. The same cause three weeks running is a planning problem, not a labour cost — and that only shows if the cause is recorded.',
+      opts: [
+        { label: 'A slipped target', tone: 'ok' },
+        { label: 'A material delay', tone: 'bad', note: 'Overtime will not fix this. Nobody can cut boards that are not there.' },
+        { label: 'No stated cause', tone: 'bad', note: 'A shift with no cause hides the pattern that would fix it.' }
+      ]
+    },
+    lab: {
+      q: 'Which crew is he going into?',
+      why: 'Work is allotted to a crew, never to a person. A man in the wrong crew is counted as capacity the crew does not really have.',
+      opts: [
+        { label: 'His trade matches the crew', tone: 'ok' },
+        { label: 'The crew is already over', tone: 'warn', note: 'It will show as over strength.' },
+        { label: 'Not his trade', tone: 'bad', note: 'Trade does not match the crew.' }
+      ]
+    },
+    inst: {
+      q: 'Where has paint got to?',
+      why: 'Installation pulls its date from paint. Confirming a fit before paint has finished only moves the disappointment to the client.',
+      opts: [
+        { label: 'Paint is complete', tone: 'ok' },
+        { label: 'Paint is booked, not finished', tone: 'warn', note: 'The fit stays provisional until it is.' },
+        { label: 'Paint is not scheduled', tone: 'bad', note: 'There is no date to pull from yet.' }
+      ]
+    }
+  };
+
+  var FLOW_META = {
+    price: { title: 'Return pricing input', sub: 'Hours, quantities and machine time against the estimator’s request. What it is worth is not your half of this.',
+      primary: 'Send back to the estimator',
+      rule: 'You return hours and quantities, never a price. The estimator prices it — and an answer carrying a rate is refused at the database, not just here.' },
+    bomb: { title: 'Return budgeting input', sub: 'Standards operations can budget from: consumption per unit, wastage by process, labour per unit.',
+      primary: 'Send back to operations',
+      rule: 'Budgeting input is not pricing input. If the answer only holds for one job, it is the estimator’s question and not this one.' },
+    bom: { title: 'Start a BOM revision', sub: 'What changed, and why. Issuing it kills every cutting list cut from the revision before.',
+      primary: 'Start the revision',
+      rule: 'A revision kills the cutting list cut from the revision before it — and the list does not clear itself. Somebody takes the sheet off the saw and says so.' },
+    res: { title: 'Reserve material for a job', sub: 'Holds the boards against this job card so nobody else can take them.',
+      primary: 'Hold it against the job',
+      rule: 'Stock on the shelf is not stock you have. Until it is held against this job card, another job can take it.' },
+    purch: { title: 'Request a purchase', sub: 'Raises a real order against the job card. Purchase places it; you do not see the price.',
+      primary: 'Raise the request',
+      rule: 'A purchase request commits the company. If you are still choosing, ask for prices instead — that commits nothing.' },
+    quote: { title: 'Ask Purchase for prices', sub: 'Comes back with supplier quotes and lead times so the date can be chosen. Nothing is ordered.',
+      primary: 'Send the enquiry',
+      rule: 'Asking for prices commits nothing. It is how a lead time gets chosen before an order exists.' },
+    cut: { title: 'Create a cutting list', sub: 'Parts, item by item, from the current revision. This sheet is what the saw follows.',
+      primary: 'Release to the saw',
+      rule: 'The sheet is what the saw follows, so it is edited here and nowhere else. Cut from a dead revision and the parts are wrong before anyone notices.' },
+    press: { title: 'Batch for the veneer press', sub: 'Collects jobs on the same veneer so one set-up does the work of two.',
+      primary: 'Add to the batch',
+      rule: 'A batch waits for the second job or it saves nothing. Pressing one job alone costs what pressing it late costs.' },
+    allot: { title: 'Allot a lane slot', sub: 'Books a crew on a day. Paint and installation pull their dates from this one.',
+      primary: 'Book the slot',
+      rule: 'A lane will not take a job with no material or a pending revision. This is enforced in the data layer, not in this form.' },
+    ot: { title: 'Book overtime', sub: 'Against the target it recovers, and the cause of the slip. Both are required.',
+      primary: 'Book the shift',
+      rule: 'Overtime buys hours, not material. A shift on a job whose boards are not there is a paid idle day, and it is refused.' },
+    lab: { title: 'Assign labour to a crew', sub: 'Moves a man into a crew, or out of one. Nothing on the board can be given to a person.',
+      primary: 'Assign him',
+      rule: 'A man with no crew cannot be given work, because everything on the week board is allotted to a crew and never to a person.' },
+    inst: { title: 'Confirm a site fit', sub: 'Turns a provisional date into a booked one. It stays provisional until paint is finished.',
+      primary: 'Confirm the fit',
+      rule: 'Installation pulls its date from paint. Confirming early does not make it earlier — it moves the disappointment to the client.' }
+  };
+
+  /* ── fields ───────────────────────────────────────────────────────── */
+
+  function fld(label, inner, hint, wide) {
+    return '<div class="prd-f' + (wide ? ' wide' : '') + '">' +
+      '<label>' + esc(label) + '</label>' + inner +
+      (hint ? '<span class="prd-f-h">' + esc(hint) + '</span>' : '') + '</div>';
+  }
+  function inp(id, ph, type) {
+    return '<input class="prd-in" id="' + id + '" type="' + (type || 'text') + '" placeholder="' + esc(ph || '') + '">';
+  }
+  function sel(id, opts, empty) {
+    return '<select class="prd-in" id="' + id + '">' +
+      '<option value="">' + esc(empty || 'Choose…') + '</option>' +
+      opts.map(function (o) { return '<option value="' + esc(o.v) + '">' + esc(o.l) + '</option>'; }).join('') +
+      '</select>';
+  }
+  function jobOpts() {
+    return safe(function () {
+      return (typeof jobCards !== 'undefined' ? jobCards : [])
+        .filter(function (j) { return j.routingConfirmed && j.status !== 'cancelled'; })
+        .map(function (j) { return { v: j.id, l: j.id + ' — ' + (j.projectName || j.customerName || '') }; });
+    }, []);
+  }
+  function crewOpts() { return crews.map(function (c) { return { v: c.id, l: c.name }; }); }
+  function itemOpts() {
+    return safe(function () {
+      return (typeof itemMaster !== 'undefined' ? itemMaster : []).slice(0, 200)
+        .map(function (i) { return { v: i.id, l: i.name }; });
+    }, []);
+  }
+
+  function flowFields(key) {
+    var J = jobOpts(), C = crewOpts();
+    if (key === 'price' || key === 'bomb') {
+      var type = key === 'price' ? 'pricing_input' : 'bom_budget_input';
+      var reqs = safe(function () {
+        return getInputRequestsOfType(type).filter(function (r) { return r.status === 'open'; })
+          .map(function (r) { return { v: r.id, l: r.id + ' — ' + r.question }; });
+      }, []);
+      return fld('The request', sel('prd-req', reqs, 'Which request?'), 'Requests come from ' + (key === 'price' ? 'the estimator' : 'operations') + ' only.', true) +
+        fld('Man-hours', inp('prd-hrs', '0', 'number'), 'Total, across the crew.') +
+        fld('Quantity', inp('prd-qty', '0', 'number'), key === 'price' ? 'Per unit made.' : 'Per unit or per linear metre.') +
+        fld('Machine time (hours)', inp('prd-mch', '0', 'number'), 'Saw, press, spray booth.') +
+        (key === 'bomb' ? fld('Wastage %', inp('prd-wst', '0', 'number'), 'By process, not by job.') : '') +
+        fld('Note', inp('prd-note', 'Anything the ' + (key === 'price' ? 'estimator' : 'budget') + ' should know'), null, true);
+    }
+    if (key === 'bom') {
+      return fld('Job card', sel('prd-job', J), null, true) +
+        fld('What changed', inp('prd-what', 'Carcass depth 600 → 550'), null, true) +
+        fld('Why', inp('prd-why', 'Client changed the alcove'), 'It travels with the revision.', true);
+    }
+    if (key === 'res') {
+      return fld('Job card', sel('prd-job', J), 'Everything on its BOM that is free will be held.', true);
+    }
+    if (key === 'purch' || key === 'quote') {
+      return fld('Item', sel('prd-item', itemOpts(), 'Which item?'), null, true) +
+        fld('Quantity', inp('prd-qty', '0', 'number')) +
+        fld('Needed by', inp('prd-by', '', 'date')) +
+        (key === 'purch' ? fld('Job card', sel('prd-job', J), 'The order is raised against it.', true) : '') +
+        fld('Note for Purchase', inp('prd-note', 'Anything that affects the lead time'), null, true);
+    }
+    if (key === 'cut') {
+      return fld('Job card', sel('prd-job', J), null, true) +
+        fld('Saw', sel('prd-saw', [{ v: 'saw 1', l: 'saw 1' }, { v: 'saw 2', l: 'saw 2' }, { v: 'saw 3', l: 'saw 3' }], 'Not yet on a saw')) +
+        fld('Revision', inp('prd-rev', 'current', 'text'), 'Pulled from the job’s current revision.');
+    }
+    if (key === 'press') {
+      var open = safe(function () {
+        return pressingBatches.filter(function (b) { return b.status === 'open'; })
+          .map(function (b) { return { v: b.id, l: b.id + ' — ' + (b.veneer || '') }; });
+      }, []);
+      return fld('Veneer', inp('prd-ven', 'Oak crown 0.6mm'), 'A batch is one veneer.', true) +
+        fld('Add to an open batch', sel('prd-batch', open, 'Start a new one')) +
+        fld('Job card', sel('prd-job', J)) +
+        fld('Sheets', inp('prd-sheets', '0', 'number'));
+    }
+    if (key === 'allot') {
+      return fld('Crew', sel('prd-crew', C), null) +
+        fld('Job card', sel('prd-job', J), null) +
+        fld('Day', inp('prd-date', '', 'date')) +
+        fld('Portion', sel('prd-portion', [{ v: 'full', l: 'Full day' }, { v: 'half', l: 'Half day' }], 'Full day'));
+    }
+    if (key === 'ot') {
+      return fld('Crew', sel('prd-crew', C)) +
+        fld('Day', inp('prd-date', '', 'date')) +
+        fld('Hours', inp('prd-hours', '0', 'number')) +
+        fld('Men', inp('prd-men', '0', 'number')) +
+        fld('Recovers', sel('prd-job', J, 'Which target?'), 'A shift is booked against the target it recovers.', true) +
+        fld('Cause of the slip', sel('prd-cause', OVERTIME_CAUSES.map(function (c) { return { v: c, l: c }; }), 'Which cause?'),
+          'Closed list, on purpose — free text cannot be counted.', true);
+    }
+    if (key === 'lab') {
+      var men = safe(function () {
+        return crewMembers.map(function (m) {
+          return { v: m.id, l: m.name + ' — ' + (m.trade || 'no trade') + (m.crewId ? ' · ' + crewName(m.crewId) : ' · no crew') };
+        });
+      }, []);
+      return fld('Who', sel('prd-man', men, 'Which man?'), null, true) +
+        fld('Into which crew', sel('prd-crew', C, 'Take him out of a crew'), 'Leaving it blank takes him out of his crew.', true);
+    }
+    if (key === 'inst') {
+      var fits = safe(function () {
+        return getPulledSlotRows('carp').filter(function (r) { return !r.booked; })
+          .map(function (r) { return { v: r.id, l: r.jobCardId + ' — ' + ddmmmShort(r.date) }; });
+      }, []);
+      return fld('Site fit', sel('prd-slot', fits, 'Which provisional fit?'), 'Only fits that are still provisional.', true);
+    }
+    return '';
+  }
+
+  /* ── the checks panel ─────────────────────────────────────────────── */
+
+  /**
+   * "Before it can take a slot" — four real checks, read off the data
+   * rather than described. A checks panel that always shows four green
+   * ticks is decoration; this one goes red when the thing it names is
+   * actually wrong.
+   */
+  function flowChecks(key) {
+    var jobId = S.formJob || null;
+    var job = jobId && typeof getJobCard === 'function' ? getJobCard(jobId) : null;
+    var mk = function (tone, label, detail) { return { tone: tone, label: label, detail: detail }; };
+    if (!job) {
+      return [
+        mk('wait', 'A job card', 'Choose one and these fill in.'),
+        mk('wait', 'Material', 'Read off the shelf, not the BOM.'),
+        mk('wait', 'BOM revision', 'A pending revision blocks the slot.'),
+        mk('wait', 'Cutting lists', 'A dead sheet still on a saw blocks it too.')
+      ];
+    }
+    var shorts = safe(function () { return jobMaterialShortLines(job.id); }, []);
+    var live = safe(function () { return jobHasLiveBOM(job.id); }, false);
+    var pending = safe(function () { return jobBOMRevisionPending(job.id); }, false);
+    var dead = safe(function () { return jobDeadSheetsOutstanding(job.id); }, []);
+    return [
+      mk('ok', 'Job card ' + job.id, (job.projectName || '') + (job.routingConfirmed ? ' · routed' : ' · not routed')),
+      mk(shorts.length ? 'bad' : 'ok', shorts.length ? 'Material short' : 'Material is there',
+        shorts.length ? shorts.length + ' line' + (shorts.length > 1 ? 's' : '') + ' short on the shelf' : 'Nothing outstanding'),
+      mk(!live ? 'bad' : pending ? 'bad' : 'ok', !live ? 'No live BOM' : pending ? 'A revision is pending' : 'BOM is current',
+        !live ? 'The estimator has not submitted one' : pending ? 'Issue it before booking work' : 'Nothing in draft'),
+      mk(dead.length ? 'bad' : 'ok', dead.length ? 'Dead paper on a saw' : 'No dead cutting lists',
+        dead.length ? dead.map(function (s) { return s.id; }).join(', ') : 'Nothing to take off a saw')
+    ];
+  }
+
+  /* ── the form ─────────────────────────────────────────────────────── */
+
+  function gateTone(key) {
+    var g = GATES[key];
+    if (!g || S.gate === null || S.gate === undefined) return null;
+    var o = g.opts[S.gate];
+    return o ? o.tone : null;
+  }
+  var TONE_ICON = { ok: '✓', warn: '!', bad: '✕' };
+
+  function bannerFor(key, tone) {
+    var g = GATES[key], m = FLOW_META[key];
+    if (!tone) return { tone: 'wait', text: 'Answer the question above. Nothing is saved until you do.' };
+    var o = g.opts[S.gate];
+    if (tone === 'bad') return { tone: 'bad', text: o.note || 'This cannot go ahead.' };
+    if (tone === 'warn') return { tone: 'warn', text: (o.note || 'Allowed.') + ' ' + m.primary + ' will record it that way.' };
+    return { tone: 'ok', text: m.primary + '. It will be recorded against the job card.' };
+  }
+
   function formHTML() {
-    var t = FLOW_TITLES[S.form] || [S.form, ''];
-    return '<div class="prd-dash"><div class="prd-l"><section class="prd-card">' +
-      '<div class="prd-card-h"><div style="flex:1 1 auto;min-width:0">' +
-      '<div class="prd-t">' + esc(t[0]) + '</div>' +
-      '<div class="prd-sub">This create flow is not built yet. Its gate — <b>' + esc(t[1]) + '</b> — and the rule behind it are already enforced in the data layer.</div>' +
+    var key = FLOW_ORDER.indexOf(S.form) !== -1 ? S.form : 'price';
+    var g = GATES[key], m = FLOW_META[key];
+    var tone = gateTone(key);
+    var banner = bannerFor(key, tone);
+    var dead = !tone || tone === 'bad';
+    var checks = safe(function () { return flowChecks(key); }, []);
+
+    return '<div class="prd-dash prd-form">' +
+      '<div class="prd-l">' +
+      '<div class="prd-tabs">' + FLOW_ORDER.map(function (k) {
+        return '<button class="prd-tab-p' + (k === key ? ' on' : '') + '" data-a="flow" data-f="' + k + '">' +
+          esc(FLOW_TABS[k]) + '</button>';
+      }).join('') + '</div>' +
+
+      '<div class="prd-page-h"><div class="prd-page-t">' + esc(m.title) + '</div>' +
+      '<div class="prd-page-s">' + esc(m.sub) + '</div></div>' +
+
+      '<section class="prd-gate' + (tone ? ' t-' + tone : '') + '">' +
+      '<div class="prd-gate-h"><span class="prd-gate-b">' + (tone ? TONE_ICON[tone] : '?') + '</span>' +
+      '<span class="prd-gate-n"><b>' + esc(g.q) + '</b><i>' + esc(g.why) + '</i></span></div>' +
+      '<div class="prd-gate-o">' + g.opts.map(function (o, i) {
+        return '<button class="prd-opt' + (S.gate === i ? ' on t-' + o.tone : '') + '" data-a="gate" data-i="' + i + '">' +
+          esc(o.label) + (o.tone === 'bad' ? '<i>blocked</i>' : o.tone === 'warn' ? '<i>allowed, and it will show</i>' : '') +
+          '</button>';
+      }).join('') + '</div></section>' +
+
+      '<section class="prd-card prd-fields"><div class="prd-fs">' + flowFields(key) + '</div>' +
+      (key === 'cut' ? cutBuilderHTML() : '') + '</section>' +
+
+      '<div class="prd-banner t-' + banner.tone + '">' + esc(banner.text) + '</div>' +
+
+      '<div class="prd-acts">' +
+      '<button class="prd-btn' + (dead ? ' dead' : tone === 'warn' ? ' warn' : '') + '"' +
+      (dead ? ' disabled' : '') + ' data-a="submit" data-f="' + key + '">' + esc(m.primary) + '</button>' +
+      '<button class="prd-btn-g" data-a="draft">Save as draft</button>' +
+      '<span class="prd-acts-h">' + esc(dead
+        ? (tone === 'bad' ? 'Blocked by the answer above.' : 'Answer the question first.')
+        : 'Nothing is written until you press this.') + '</span>' +
       '</div></div>' +
-      '<div class="prd-empty">Use the week board on the dashboard for now.</div>' +
+
+      '<div class="prd-r prd-rail">' + ruleCard(m.rule) +
+      '<section class="prd-card prd-ctx">' +
+      '<div class="prd-card-h prd-card-h-sm"><div class="prd-t-sm">Before it can take a slot</div></div>' +
+      '<div id="prd-checks">' + checksRowsHTML(checks) + '</div>' +
       '</section></div></div>';
   }
+
+  function checksRowsHTML(checks) {
+    return checks.map(function (c) {
+      return '<div class="prd-chk"><span class="prd-chk-b t-' + c.tone + '">' +
+        (TONE_ICON[c.tone] || '·') + '</span><span class="prd-chk-n"><b>' + esc(c.label) + '</b>' +
+        '<i>' + esc(c.detail) + '</i></span></div>';
+    }).join('');
+  }
+
+  /** Phase 4 fills this in — the parts editor the `cut` flow needs. */
+  function cutBuilderHTML() { return ''; }
+
+  /* ── submitting ───────────────────────────────────────────────────── */
+
+  function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+  function num(id) { return Number(val(id)) || 0; }
+
+  /**
+   * Every primary calls the real data-layer function. The gate does NOT
+   * substitute for those rules — a blocked gate never gets here, but an
+   * `ok` gate still has to survive the same checks the data layer applies
+   * to any other caller, and its refusal is shown rather than swallowed.
+   */
+  function submitFlow(key) {
+    var r;
+    if (key === 'price' || key === 'bomb') {
+      var payload = { manHours: num('prd-hrs'), quantity: num('prd-qty'), machineHours: num('prd-mch'), note: val('prd-note') };
+      if (key === 'bomb') payload.wastagePercent = num('prd-wst');
+      if (gateTone(key) === 'warn') payload.isEstimate = true;
+      r = safe(function () { return answerInputRequest(val('prd-req'), payload, 'Production Manager'); }, { error: 'Could not send it.' });
+    } else if (key === 'bom') {
+      r = safe(function () { return startBOMRevision(val('prd-job'), val('prd-why') || val('prd-what'), 'Production Manager'); }, { error: 'Could not start it.' });
+    } else if (key === 'res') {
+      var held = safe(function () { return reserveJobMaterial(val('prd-job'), 'Production Manager'); }, []);
+      r = held && held.length ? { ok: held.length + ' held' } : { error: 'Nothing free to hold. Ask for prices, or raise a purchase.' };
+    } else if (key === 'purch') {
+      r = safe(function () {
+        return createPurchaseRequestFromShortfall([val('prd-item')], 'Production Manager', 'carp', null);
+      }, { error: 'Could not raise it.' });
+    } else if (key === 'quote') {
+      r = safe(function () {
+        return createRFQ({ items: [{ itemId: val('prd-item'), qty: num('prd-qty') }], supplierIds: [], raisedBy: 'Production Manager', note: val('prd-note') });
+      }, { error: 'Could not send the enquiry.' });
+    } else if (key === 'cut') {
+      r = safe(function () {
+        return createCuttingSheet({ jobCardId: val('prd-job'), saw: val('prd-saw'), lines: cutLinesForSubmit(), byWhom: 'Production Manager' });
+      }, { error: 'Could not create the sheet.' });
+    } else if (key === 'press') {
+      r = safe(function () {
+        var id = val('prd-batch');
+        if (!id) { var b = createPressingBatch({ veneer: val('prd-ven'), byWhom: 'Production Manager' }); id = b && b.id; }
+        if (!id) return { error: 'Which veneer?' };
+        return addJobToPressingBatch(id, val('prd-job'), num('prd-sheets'));
+      }, { error: 'Could not batch it.' });
+    } else if (key === 'allot') {
+      r = safe(function () {
+        return allotLaneSlot({ crewId: val('prd-crew'), jobCardId: val('prd-job'), date: val('prd-date'),
+          portion: val('prd-portion') || 'full', byWhom: 'Production Manager' });
+      }, { error: 'Could not book it.' });
+      if (r && r.slot) r = r.slot;
+    } else if (key === 'ot') {
+      r = safe(function () {
+        return bookOvertimeShift({ crewId: val('prd-crew'), date: val('prd-date'), hours: num('prd-hours'),
+          men: num('prd-men'), recoversTarget: val('prd-job'), cause: val('prd-cause'), byWhom: 'Production Manager' });
+      }, { error: 'Could not book it.' });
+    } else if (key === 'lab') {
+      // The amber option is "the crew is already over" — that is an
+      // override of the strength warning, never of the trade rule.
+      r = safe(function () {
+        return assignToCrew(val('prd-man'), val('prd-crew'), 'Production Manager', false);
+      }, { error: 'Could not assign him.' });
+    } else if (key === 'inst') {
+      r = safe(function () {
+        return confirmInstallationSlot(val('prd-slot'), 'Production Manager', gateTone('inst') === 'warn');
+      }, { error: 'Could not confirm it.' });
+    }
+    if (typeof commsToast === 'function') {
+      commsToast(r && r.error ? r.error : (FLOW_META[key].primary + ' — done.'));
+    }
+    if (!(r && r.error)) { S.gate = null; S.view = 'dash'; }
+    paint();
+  }
+
+  /** Phase 4 replaces this with the real editor's rows. */
+  function cutLinesForSubmit() { return []; }
   /* ── render ─────────────────────────────────────────────────────────── */
   var PRD_TABS = [
     { k: 'asked', ico: '◎', label: 'Asked' },
@@ -1045,6 +1491,17 @@ window.PrdUI = (function () {
   }
   function paint() { if (root) { root.innerHTML = render(); } }
 
+  function onChange(e) {
+    var t = e.target;
+    if (!t || !root.contains(t)) return;
+    if (t.id === 'prd-job') {
+      S.formJob = t.value || null;
+      // NOT paint() — a full re-render throws away every other field the
+      // user has already filled in. Only the checks panel depends on this.
+      var panel = document.getElementById('prd-checks');
+      if (panel) panel.innerHTML = checksRowsHTML(safe(function () { return flowChecks(S.form); }, []));
+    }
+  }
   function onClick(e) {
     var el = e.target.closest('[data-a]');
     if (!el || !root.contains(el)) return;
@@ -1056,6 +1513,14 @@ window.PrdUI = (function () {
     // resets the page — but changing page must reset the chip, or the new
     // page opens on a filter that belonged to the last one.
     if (a === 'chip') { S.pgChip = Number(el.getAttribute('data-i')) || 0; paint(); return; }
+    if (a === 'gate') { S.gate = Number(el.getAttribute('data-i')); paint(); return; }
+    if (a === 'submit') { submitFlow(el.getAttribute('data-f')); return; }
+    if (a === 'draft') {
+      // A draft is a real thing to want, and pretending to save one would
+      // be worse than saying plainly that it is not built.
+      if (typeof commsToast === 'function') commsToast('Drafts are not built yet — nothing was saved.');
+      return;
+    }
     if (a === 'crew') { var k = el.getAttribute('data-c'); S.crewOpen = (S.crewOpen === k) ? null : k; paint(); return; }
     // Reserving is a real stock movement, so it goes through 18a rather
     // than a flag on the row.
@@ -1078,6 +1543,7 @@ window.PrdUI = (function () {
     root.classList.add('prd');
     root.removeEventListener('click', onClick);
     root.addEventListener('click', onClick);
+    root.addEventListener('change', onChange);
     paint();
   }
 

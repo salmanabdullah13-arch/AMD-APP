@@ -705,6 +705,42 @@ function overtimeHoursInWeek(weekDates) {
 // Cloud-backed since 19 Aug 2026 — all six arrays are registered in
 // CLOUD_JSON_COLLECTIONS (data.js) and ride the same snapshot-diff autosave
 // every other collection uses. Two of the five commitments are enforced
+/**
+ * Confirming a site fit. It stays provisional until paint is actually
+ * finished — confirming it early only moves the disappointment to the
+ * client, so the refusal is the point of the function rather than a
+ * validation on top of it.
+ */
+function confirmInstallationSlot(slotId, byWhom = "Production Manager", override = false) {
+  const s = laneSlots.find(x => x.id === slotId);
+  if (!s) return { error: "Which site fit?" };
+  const crew = crews.find(c => c.id === s.crewId) || {};
+  if (crew.dept === "paint") return { error: "That is a booth day, not a site fit." };
+  if (s.confirmed) return { error: "Already confirmed." };
+  // Paint is whatever paint slot the same job holds. No paint slot at all
+  // means paint is not scheduled, which is the gate's own blocked option.
+  const paint = laneSlots.filter(x => x.jobCardId === s.jobCardId)
+    .filter(x => (crews.find(c => c.id === x.crewId) || {}).dept === "paint");
+  if (!paint.length && !override) {
+    return { error: "Paint is not scheduled. A site fit confirmed before paint has a date is a promise nobody made." };
+  }
+  const last = paint.map(p => slotDate(p)).sort().pop();
+  if (last && last >= slotDate(s) && !override) {
+    return { error: "Paint runs to " + last + " and the fit is booked " + slotDate(s) +
+      ". Installation pulls its date from paint — move the fit, or move paint." };
+  }
+  s.confirmed = true;
+  s.confirmedBy = byWhom;
+  s.confirmedOn = prdToday();
+  if (typeof logActivity === "function") {
+    logActivity({
+      type: "install-confirmed", linkedType: "job", linkedId: s.jobCardId, user: byWhom,
+      message: "Site fit confirmed for " + slotDate(s)
+    });
+  }
+  return s;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    Page readers (19a Phase 2). Every one derives from records that already
    exist — no page introduces state of its own.
