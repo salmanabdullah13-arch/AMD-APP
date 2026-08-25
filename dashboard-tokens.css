@@ -30,7 +30,7 @@
    DESCENDANT, so each card re-declares --card locally and a rule on the
    `.opsd` parent alone never reaches it. Mirroring the descendant selector is
    what actually wins. */
-.od, .sd, .ed, .opsd, .prd, #ops-module-wrap .opsd, #ops-module-wrap .opsd *{
+.od, .sd, .ed, .opsd, .prd, .jd, #ops-module-wrap .opsd, #ops-module-wrap .opsd *{
   /* Brand — single accent, wine. No second brand colour. */
   --wine:#600131; --wine2:#7c1a4a; --wine3:#9c3d6c;
   --wine-tint:#f7eef3; --wine-line:#ecd9e3;
@@ -61,6 +61,7 @@
 [data-theme="dark"] .ed, .x-dark .ed,
 [data-theme="dark"] .opsd, .x-dark .opsd,
 [data-theme="dark"] .prd, .x-dark .prd,
+[data-theme="dark"] .jd, .x-dark .jd,
 [data-theme="dark"] #ops-module-wrap .opsd, #ops-module-wrap.x-dark .opsd,
 [data-theme="dark"] #ops-module-wrap .opsd *, #ops-module-wrap.x-dark .opsd *{
   --wine:#a83c63; --wine2:#c2557c; --wine3:#d98aa8;

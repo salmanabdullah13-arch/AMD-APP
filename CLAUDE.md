@@ -8056,3 +8056,76 @@ builder and its A4 sheet are real, and the teardown
 (`clear-production-story.js`) is in place. Still open: Salman's call on the
 phone tab bar (built both ways, screenshots sent), and the three
 long-documented pre-existing suite failures, which are not this work.
+
+### 25 Aug 2026 — Joinery restyled into the 19a visual language
+
+Salman: the Production dashboard on his phone "looks the same as before."
+Checked before changing anything: Phases 1–5 of 19a were on `origin/main` and
+GitHub Pages had deployed every one of them cleanly. `joinery.js` was never
+touched by any of that — so the module he was looking at was the OLD Joinery
+one, which still sits next to Production in the picker under a similar name.
+**Owner's sidebar has no Production entry at all**, so from the Owner dashboard
+the only route to the new module is Admin → Developer Preview.
+
+Investigating that surfaced something bigger, reported but NOT acted on here:
+the Production module covers **no budget submission, no QC pass and no
+hand-off** — all three live only in `dept-pipeline-ui.js`, reached through
+Joinery. Since `startLineProduction()` gates on an approved budget and
+`DEPT_QC_AUTHORITY` makes the Joinery Production Manager the only identity
+allowed to pass a `carp` line, the one person authorised to pass QC now lands
+on a screen that cannot do it. The 19a package is a lane-planning module and
+never covered budgets or QC, so this is a gap the rollout opened rather than
+anything built wrongly. Offered three ways to close it; **Salman's call was to
+keep the two modules separate and restyle Joinery to the 19a look**, so that
+is what this entry is. The workflow gap stands, flagged.
+
+- **This is a styling pass and deliberately nothing else.** Not one label,
+  count, class name, DOM order or onclick changed, because ~30 e2e suites
+  drive this module by text and by selector — `e2e-dashboard-enhancements.js`
+  reads `#joinery-body .sales-kpi-tile .num` **by index** (Budgets Pending is
+  [4]), and `e2e-joinery-substages.js` asserts `.sales-tabs` is present for
+  the manager views and absent for the granular ones. Rebuilding the markup
+  into 19a's own `.prd-stat`/`.prd-kpi` shapes would have broken both for a
+  look achievable in CSS.
+- **Scoped to `#joinery-module-wrap`.** `dept-pipeline-ui.js` is shared with
+  Upholstery, so restyling its classed surfaces (`.sales-card`,
+  `.sales-items`, `.stage-pill`, `.primary`, `.secondary`) inside this wrap
+  re-skins its output here and leaves Upholstery alone — verified by computed
+  style, not assumed: Upholstery still reads 14px radius / centred tiles,
+  the pre-change values.
+- **No `!important` anywhere.** `dept-pipeline-ui.js` carries 87 inline
+  `style=` attributes and an inline style beats any rule here. Rather than
+  fight that, the classed surfaces are restyled and the inline bits left as
+  they are — they are already within a hair of 19a's values (13px/700 vs
+  13.5/650, `#94a3b8` vs `--tx3` `#98a2b3`), so the visible gap was never the
+  small type. It was layout, and the layout is joinery.js's own.
+- **What actually changed:** `.jd` joins `dashboard-tokens.css` (light and
+  dark) so there is still one copy of the token values; the dashboard becomes
+  19a's two columns with the 340px right rail; the six counts keep their
+  markup and become 19a's stats strip; Ready for hand-off / Budgets Pending /
+  Over Budget become 19a KPI rows in the rail (Budgets Pending keeps its
+  click through to the Budgets tab); tables get 10px/700/.05em uppercase
+  column headers; pills become 3px 9px / 999 / 10.5px / 700 tone pairs; and
+  the sub-stage, floor, queue and budget views get the same card language and
+  page padding.
+- **Two things the screenshots caught that no tally would have:** "BUDGETS
+  PENDING" wrapped to two lines and made its cell taller than the other five
+  (now `white-space:nowrap`), and the QC ring sat in a bordered `.ring-card`
+  inside an already bordered `.sales-card` — one frame inside another,
+  stretched full width and mostly empty (inner frame dropped, capped at
+  200px).
+- **Verification, and its honest limit.** Standing battery clean: `node
+  --check` on all 37 local files plus the full load-order concatenation, every
+  script tag resolving, duplicate top-level declaration scan (none), and every
+  `onclick` in joinery.js cross-referenced (none dangling). Rendering verified
+  in a real browser at 1440 and 390 across all five views (dashboard, queue,
+  budgets, a granular sub-stage, floor overview), dark mode confirmed by
+  **computed style** (`--card` → `rgb(29,24,33)`, text → `rgb(238,233,240)`),
+  no horizontal overflow at 390px, tiles 2-up on phone, zero page errors.
+  **The Playwright e2e suites were NOT run** — this sandbox cannot reach the
+  Supabase CDN, and `auth.js` bails before its `file://` test bypass when that
+  script fails, so the app only boots here behind a local stub (throwaway,
+  not committed, app untouched). The CI workflow was removed in `eacaf51`, so
+  there is no gate behind this either: **the joinery/upholstery/dashboard
+  suites are owed a real run** before this is trusted. The selector contracts
+  above were checked by hand and by rendered DOM instead.
