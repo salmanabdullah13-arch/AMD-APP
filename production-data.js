@@ -193,7 +193,83 @@ function reserveJobMaterial(jobId, byWhom) {
 }
 
 // ═══ 1. The week board — lane slots ═════════════════════════════════════
-function allotLaneSlot({ crewId, jobCardId, date, portion = "full", byWhom = "Production Manager" } = {}) {
+/* ── Which items a lane slot covers ──────────────────────────────────────
+   A slot used to mean "this crew, this day, this WHOLE job". It can now
+   carry `lineIds`, so a crew can be booked on three of a job's seven items.
+
+   `[]` or absent still means the whole job. That one rule is what keeps
+   this cheap: every slot written before this change, and every caller that
+   does not care about items, keeps its exact meaning with no edit.
+
+   Derived (`kind:"pull"`) slots never store their own lines — they inherit
+   the base slot's, the same way they inherit its date. */
+const LANE_DEPTS = ["carp", "uph", "paint"];
+
+/** Every line with a production stop at all — what a job must cover to leave the waiting strip. */
+function jobRoutedLineIds(jobId) {
+  const job = typeof getJobCard === "function" ? getJobCard(jobId) : null;
+  if (!job) return [];
+  return (job.items || [])
+    .filter(it => (it.departmentSequence || []).some(d => LANE_DEPTS.includes(d)))
+    .map(it => it.lineId);
+}
+
+/** One department's lines on a job, with the live stage entry the picker greys on. */
+function jobLinesForDept(jobId, deptKey) {
+  const job = typeof getJobCard === "function" ? getJobCard(jobId) : null;
+  if (!job) return [];
+  return (job.items || [])
+    .filter(it => (it.departmentSequence || []).indexOf(deptKey) !== -1)
+    .map(it => ({
+      lineId: it.lineId, product: it.product, qty: it.qty, unit: it.unit,
+      entry: (it.departmentStatuses || []).find(d => d.department === deptKey) || null
+    }))
+    .sort((a, b) => Number(a.lineId) - Number(b.lineId));
+}
+
+/** What a slot actually covers. The "[] means everything" rule is resolved
+    HERE and nowhere else, so no caller has to remember it. */
+function slotLineIds(slot) {
+  if (!slot) return [];
+  if (slot.kind === "pull") {
+    const base = laneSlots.find(s => s.id === slot.baseSlotId);
+    return base ? slotLineIds(base) : [];
+  }
+  const own = slot.lineIds || [];
+  return own.length ? own.slice() : jobRoutedLineIds(slot.jobCardId);
+}
+
+/**
+ * Lines already on a work slot.
+ *
+ * Department-blind by default, and that matters: a line routed carp → paint
+ * takes its paint day from a DERIVED slot, never a work slot. Asking "one
+ * work slot per department" would park every job with a paint stop in the
+ * waiting strip forever. Pass a deptKey only where the question really is
+ * per-department — the picker, so a line booked on the paint crew is not
+ * greyed out while you are booking joinery.
+ */
+function laneAllottedLineIds(jobId, deptKey = null) {
+  const out = {};
+  laneSlots
+    .filter(s => s.kind === "work" && s.jobCardId === jobId)
+    .filter(s => {
+      if (!deptKey) return true;
+      const crew = crews.find(c => c.id === s.crewId);
+      return crew && crew.dept === deptKey;
+    })
+    .forEach(s => slotLineIds(s).forEach(id => { out[id] = true; }));
+  return Object.keys(out).map(Number);
+}
+
+/** routed / allotted / missing, for a job. */
+function jobLaneCoverage(jobId) {
+  const routed = jobRoutedLineIds(jobId);
+  const allotted = laneAllottedLineIds(jobId);
+  return { routed, allotted, missing: routed.filter(id => allotted.indexOf(id) === -1) };
+}
+
+function allotLaneSlot({ crewId, jobCardId, date, portion = "full", lineIds = [], byWhom = "Production Manager" } = {}) {
   if (!crews.some(c => c.id === crewId)) return { error: "Which crew?" };
   if (!date) return { error: "Which day?" };
   if (!["full", "half"].includes(portion)) return { error: "Full day or half day." };
@@ -201,14 +277,30 @@ function allotLaneSlot({ crewId, jobCardId, date, portion = "full", byWhom = "Pr
   const reason = jobLaneBlockReason(jobCardId);
   if (reason) return { error: "No lane slot: " + reason + ". It stays in the waiting strip until that clears." };
 
+  // Item selection is checked AFTER the gate, deliberately: no caller that
+  // passes no lineIds can reach it, so every existing one keeps its exact
+  // behaviour and its exact refusal strings.
+  const crew = crews.find(c => c.id === crewId);
+  const picked = [...new Set((lineIds || []).map(Number))];
+  if (picked.length) {
+    const mine = jobLinesForDept(jobCardId, crew.dept).map(l => Number(l.lineId));
+    const stray = picked.filter(id => mine.indexOf(id) === -1);
+    if (stray.length) return { error: "Item " + stray[0] + " isn't routed to " + crew.name + "." };
+  }
+
   const slot = {
     id: nextPrdId("SLOT", laneSlots),
     crewId, jobCardId, date, portion, kind: "work", byWhom,
+    lineIds: picked,        // [] still means every routed line — see slotLineIds()
     bookedOn: prdToday()
   };
   // Two jobs on one crew is allowed but never silent — the board renders
   // it "over" and the caller gets the warning to show.
-  const clash = laneSlots.filter(s => s.kind === "work" && s.crewId === crewId && slotDate(s) === date);
+  // A SECOND booking of the same job on the same crew and day is not a
+  // clash — it is the rest of that job's items, which is the whole point of
+  // picking them. Only a different job is an overload.
+  const clash = laneSlots.filter(s => s.kind === "work" && s.crewId === crewId
+    && slotDate(s) === date && s.jobCardId !== jobCardId);
   laneSlots.push(slot);
   // Claim the boards for this job — see reserveJobMaterial() above.
   if (slot.kind === "work") reserveJobMaterial(jobCardId, byWhom);
@@ -247,13 +339,29 @@ function moveLaneSlot(slotId, newDate, byWhom = "Production Manager") {
   // this one, which is the whole reason it is stored as an offset.
   return slot;
 }
+/**
+ * Jobs with routed work that has no lane yet.
+ *
+ * Keyed by job AND line: one slot used to drop a whole job out of here, so
+ * booking three of seven items looked finished. A job now stays until every
+ * routed line has a slot — without that, picking items means nothing.
+ */
 function getWaitingForLane() {
-  const allotted = {};
-  laneSlots.forEach(s => { allotted[s.jobCardId] = true; });
   return (typeof jobCards !== "undefined" ? jobCards : [])
-    .filter(j => j.status !== "cancelled" && j.routingConfirmed && !allotted[j.id])
-    .filter(j => (j.items || []).some(it => (it.departmentSequence || []).some(d => ["carp", "uph", "paint"].includes(d))))
-    .map(j => ({ job: j, reason: jobLaneBlockReason(j.id) || "No lane yet — clear to allot" }));
+    .filter(j => j.status !== "cancelled" && j.routingConfirmed)
+    .map(j => ({ job: j, cov: jobLaneCoverage(j.id) }))
+    .filter(x => x.cov.routed.length && x.cov.missing.length)
+    .map(x => ({
+      job: x.job,
+      missing: x.cov.missing,
+      routedCount: x.cov.routed.length,
+      allottedCount: x.cov.allotted.length,
+      partial: x.cov.allotted.length > 0,
+      reason: jobLaneBlockReason(x.job.id)
+        || (x.cov.allotted.length
+          ? x.cov.missing.length + " item" + (x.cov.missing.length === 1 ? "" : "s") + " still without a lane"
+          : "No lane yet — clear to allot")
+    }));
 }
 function getCrewWeek(crewId, weekDates) {
   return (weekDates || []).map(d => ({
@@ -679,7 +787,10 @@ function crewBlockedReason(crewId) {
   const crew = crews.find(c => c.id === crewId);
   if (!crew) return null;
   const waiting = getWaitingForLane().filter(w =>
-    (w.job.items || []).some(it => (it.departmentSequence || []).indexOf(crew.dept) !== -1));
+    (w.missing || []).some(id => {
+      const it = (w.job.items || []).find(x => Number(x.lineId) === Number(id));
+      return it && (it.departmentSequence || []).indexOf(crew.dept) !== -1;
+    }));
   if (!waiting.length) return null;
   return waiting[0].reason;
 }
@@ -822,7 +933,8 @@ function getMaterialRows() {
         const free = typeof stockFree === "function" ? stockFree(m.itemId, null) : 0;
         const have = Math.min(need, held + free);
         const item = (typeof itemMaster !== "undefined" ? itemMaster : []).find(x => x.id === m.itemId) || {};
-        const slot = laneSlots.find(s => s.jobCardId === job.id && s.kind === "work");
+        const slot = laneSlots.find(s => s.kind === "work" && s.jobCardId === job.id
+          && slotLineIds(s).indexOf(Number(it.lineId)) !== -1);
         const crew = slot ? crews.find(c => c.id === slot.crewId) : null;
         const unit = item.unit || m.unit || "";
         rows.push({
@@ -921,7 +1033,9 @@ function getOvertimeCauseSummary(weeks = 4) {
 function getProductionReminders() {
   const out = [];
   getWaitingForLane().forEach(w => {
-    const dept = ((w.job.items || [])[0] || {}).departmentSequence || [];
+    const first = (w.job.items || []).find(x => Number(x.lineId) === Number((w.missing || [])[0]))
+      || (w.job.items || [])[0] || {};
+    const dept = first.departmentSequence || [];
     const crew = crews.find(c => dept.indexOf(c.dept) !== -1);
     out.push({ ref: w.job.id, what: w.reason, waiting: crew ? crew.name : "the shop", st: "bad" });
   });

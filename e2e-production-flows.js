@@ -235,6 +235,12 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
     await new Promise(r => setTimeout(r, 90));
     const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
     set('prd-crew', 'CREW-U'); set('prd-job', s.short); set('prd-date', s.day1); set('prd-portion', 'full');
+    // The allot form now books chosen ITEMS, so a booking with nothing
+    // ticked is refused before it reaches the data layer.
+    await new Promise(r => setTimeout(r, 180));
+    const tickAll = document.querySelector('#prd-body [data-a="allot-all"]');
+    if (tickAll) tickAll.click();
+    await new Promise(r => setTimeout(r, 150));
     await new Promise(r => setTimeout(r, 120));
     const before = laneSlots.length;
     document.querySelector('#prd-body .prd-acts .prd-btn').click();
@@ -259,6 +265,12 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
     await new Promise(r => setTimeout(r, 90));
     const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
     set('prd-crew', 'CREW-A'); set('prd-job', s.clear); set('prd-date', s.day1); set('prd-portion', 'full');
+    // The allot form now books chosen ITEMS, so a booking with nothing
+    // ticked is refused before it reaches the data layer.
+    await new Promise(r => setTimeout(r, 180));
+    const tickAll = document.querySelector('#prd-body [data-a="allot-all"]');
+    if (tickAll) tickAll.click();
+    await new Promise(r => setTimeout(r, 150));
     await new Promise(r => setTimeout(r, 120));
     const before = laneSlots.length;
     document.querySelector('#prd-body .prd-acts .prd-btn').click();
@@ -312,6 +324,147 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
   // Pretending to save a draft is worse than saying it is not built.
   check('it does not pretend to have saved anything',
     draft.some(t => /not built|nothing was saved/i.test(t)), draft);
+
+  console.log('\n— booking a lane against chosen items —');
+  const picker = await page.evaluate(async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localISO(d); };
+    // A four-item job, one item already in production so the picker has
+    // something real to grey.
+    const c = createCustomer({ name: 'Picker Co ' + Date.now(), contactPerson: 'A', tel: String(Math.floor(Math.random() * 1e8)), address: 'Tubli' });
+    const e = createEnquiry({ division: 'Joinery', customerId: c.id, contactPerson: 'A', tel: '1', source: 'walk inn', salesPerson: 'Salman Abdullah' });
+    const q = convertEnquiryToQuotation(e.id, { projectName: 'Villa fit-out', taxPercent: 10, contactPerson: 'A' });
+    ['Wardrobe A', 'Wardrobe B', 'Dresser', 'TV unit'].forEach(nm => addQuotationItem(q.id, { product: nm, qty: 1, unit: 'Nos' }));
+    quotations.find(x => x.id === q.id).items.forEach(it => {
+      addBOMMaterial(q.id, it.lineId, { name: itemMaster[0].name, qty: 2, rate: 25, unit: itemMaster[0].unit });
+      submitItemBOM(q.id, it.lineId, 'Arun Kumar A');
+      setItemDepartmentSequence(q.id, it.lineId, ['carp']);
+    });
+    transferQuotationStage(q.id, 'approver', 'Estimator');
+    approveQuotation(q.id, 'Salman Abdullah', 'owner');
+    const job = confirmQuotationToJobCard(q.id, 'Sales');
+    confirmJobRouting(job.id, {}, 'Operations Manager', day(10));
+    submitDepartmentBudget(job.id, 'carp', { materials: 50, labour: 20, subcontract: 0, hiring: 0, others: 0 }, 'PM');
+    approveDepartmentBudget(job.id, 'carp', 'Operations Manager');
+    startLineProduction(job.id, job.items[0].lineId, 'carp');
+    // Week-relative, and days of its own: the board only shows this week, and
+    // an earlier block books CREW-A on day(1) with another job — that IS a
+    // real overload, which would mask the check below.
+    const sun = new Date(); sun.setDate(sun.getDate() - sun.getDay());
+    const wk = (n) => { const d = new Date(sun); d.setDate(sun.getDate() + n); return localISO(d); };
+    return { job: job.id, day1: wk(1), day2: wk(2), lines: job.items.map(i => Number(i.lineId)) };
+  });
+
+  const rows = await page.evaluate(async (s) => {
+    PrdUI.go('form', 'allot');
+    await new Promise(r => setTimeout(r, 160));
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+    set('prd-crew', 'CREW-A'); set('prd-job', s.job); set('prd-date', s.day1);
+    await new Promise(r => setTimeout(r, 300));
+    return [...document.querySelectorAll('#prd-body .prd-allot-r')].map(x => ({
+      n: Number(x.querySelector('.c-n').textContent),
+      product: x.querySelector('.c-p b').textContent.trim(),
+      stage: x.querySelector('.c-s').textContent.trim(),
+      greyed: x.classList.contains('off'),
+      tickable: !!x.querySelector('button[data-a="allot-t"]')
+    }));
+  }, picker);
+  check('the picker lists every line routed to the crew', rows.length === 4, rows);
+  check('in serial order', rows.map(r => r.n).join(',') === picker.lines.join(','), rows.map(r => r.n));
+  // Greying without saying why is what makes people think the app is broken.
+  const started = rows.find(r => r.n === picker.lines[0]);
+  check('a line already in production is greyed and not tickable',
+    started && started.greyed && !started.tickable, started);
+  check('and its stage is named, down to the joinery sub-stage',
+    started && /In production/.test(started.stage) && /drafting/.test(started.stage), started);
+  check('the rest are tickable and read "Ready to start"',
+    rows.filter(r => r.n !== picker.lines[0]).every(r => r.tickable && !r.greyed && /Ready to start/.test(r.stage)),
+    rows);
+
+  const booked = await page.evaluate(async (s) => {
+    const before = laneSlots.length;
+    // Tick two of the three available, by hand rather than "tick all".
+    document.querySelectorAll('#prd-body [data-a="allot-t"]')[0].click();
+    await new Promise(r => setTimeout(r, 140));
+    document.querySelectorAll('#prd-body [data-a="allot-t"]')[1].click();
+    await new Promise(r => setTimeout(r, 140));
+    const headAfterTicks = (document.querySelector('#prd-body .prd-allot-hn i') || {}).textContent;
+    document.querySelectorAll('#prd-body .prd-opt')[0].click();   // gate: clear
+    await new Promise(r => setTimeout(r, 140));
+    // Answering the gate must not wipe the ticks — same trap as every other
+    // field on this form.
+    const ticksSurvived = (PrdUI.state.allotLines || []).length;
+    const toasts = []; const orig = window.commsToast; window.commsToast = (m) => toasts.push(m);
+    document.querySelector('#prd-body .prd-acts .prd-btn').click();
+    await new Promise(r => setTimeout(r, 300));
+    window.commsToast = orig;
+    const slot = laneSlots[laneSlots.length - 1];
+    return {
+      before, after: laneSlots.length, headAfterTicks, ticksSurvived, toasts,
+      lineIds: slot && slot.lineIds, jobCardId: slot && slot.jobCardId
+    };
+  }, picker);
+  check('ticking updates the count in the header', /2 of 3/.test(booked.headAfterTicks || ''), booked);
+  check('answering the gate does not wipe the ticks', booked.ticksSurvived === 2, booked);
+  check('a slot is written carrying exactly the ticked lines',
+    booked.after === booked.before + 1 && (booked.lineIds || []).length === 2, booked);
+
+  const coverage = await page.evaluate((s) => {
+    const w = getWaitingForLane().find(x => x.job.id === s.job);
+    return {
+      stillWaiting: !!w,
+      missing: w ? w.missing.length : 0,
+      partial: w ? w.partial : false,
+      reason: w ? w.reason : null,
+      cov: jobLaneCoverage(s.job)
+    };
+  }, picker);
+  // Booking three of four items used to drop the whole job out of the strip,
+  // which made picking items meaningless.
+  check('a partly-booked job stays in the waiting strip', coverage.stillWaiting, coverage);
+  check('and says how many items still have no lane',
+    coverage.missing === 2 && coverage.partial && /2 items still without a lane/.test(coverage.reason || ''),
+    coverage);
+
+  const noTicks = await page.evaluate(async (s) => {
+    PrdUI.go('form', 'allot');
+    await new Promise(r => setTimeout(r, 160));
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+    set('prd-crew', 'CREW-A'); set('prd-job', s.job); set('prd-date', s.day2);
+    await new Promise(r => setTimeout(r, 300));
+    document.querySelectorAll('#prd-body .prd-opt')[0].click();
+    await new Promise(r => setTimeout(r, 140));
+    const before = laneSlots.length;
+    const toasts = []; const orig = window.commsToast; window.commsToast = (m) => toasts.push(m);
+    document.querySelector('#prd-body .prd-acts .prd-btn').click();
+    await new Promise(r => setTimeout(r, 300));
+    window.commsToast = orig;
+    // A line already on a lane must not be offered again on another day.
+    const greyedNow = [...document.querySelectorAll('#prd-body .prd-allot-r.off')].length;
+    return { before, after: laneSlots.length, toasts, greyedNow };
+  }, picker);
+  check('booking with nothing ticked is refused, not treated as "everything"',
+    noTicks.after === noTicks.before && noTicks.toasts.some(t => /Tick at least one/.test(t)), noTicks);
+  check('and a line already on a lane is greyed on the next booking',
+    noTicks.greyedNow === 3, noTicks);
+
+  const sameDay = await page.evaluate(async (s) => {
+    // The rest of the same job, same crew, same day. Not a clash — the board
+    // must not cry "two jobs" at one job's own items.
+    const r = allotLaneSlot({ crewId: 'CREW-A', jobCardId: s.job, date: s.day1,
+      portion: 'full', lineIds: [s.lines[3]], byWhom: 'Test' });
+    PrdUI.go('dash', 'board');
+    await new Promise(x => setTimeout(x, 300));
+    const lane = [...document.querySelectorAll('#prd-body .prd-lane')].find(l => /Crew A/.test(l.textContent));
+    const cells = lane ? [...lane.querySelectorAll('.prd-cell')].map(c => ({
+      st: [...c.classList].find(x => x.indexOf('c-') === 0),
+      sub: (c.querySelector('.s') || {}).textContent
+    })) : [];
+    return { warning: r && r.warning, cells };
+  }, picker);
+  check('a second booking of the same job on one crew and day is not an overload',
+    !sameDay.warning, sameDay.warning);
+  check('the cell stays the job, and counts the items covered',
+    sameDay.cells.some(c => c.st === 'c-full' && /3 of 4/.test(c.sub || '')), sameDay.cells);
 
   console.log('\n— the cutting-list builder —');
   const cutSeed = await page.evaluate(() => {

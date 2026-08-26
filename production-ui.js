@@ -169,7 +169,9 @@ window.PrdUI = (function () {
     off: 0,            // period offset — drives the week board
     crewOpen: 'CREW-A',
     formJob: null,     // the job the open form is about, so the checks are real
-    cutRows: null      // cutting-list builder; null = nothing pulled yet
+    cutRows: null,     // cutting-list builder; null = nothing pulled yet
+    formCrew: null,    // the crew the open allot form is about
+    allotLines: null   // ticked lineIds; null = untouched
   };
 
   function esc(s) {
@@ -302,18 +304,36 @@ window.PrdUI = (function () {
     var otH = ot.reduce(function (a, o) { return a + (o.hours || 0); }, 0);
     var weekend = dayIdx === 5 || dayIdx === 6;
 
-    if (slots.length > 1) {
-      return { st: 'over', j: slots.map(function (s) { return String(s.jobCardId); }).join(' + '), s: 'two jobs' };
+    // Two bookings of the SAME job on one crew and day is not a clash — it
+    // is the rest of that job's items, booked deliberately. Group by job, and
+    // only a genuinely different job reads as an overload.
+    var byJob = {};
+    slots.forEach(function (s) { (byJob[s.jobCardId] = byJob[s.jobCardId] || []).push(s); });
+    var jobIds = Object.keys(byJob);
+
+    if (jobIds.length > 1) {
+      return { st: 'over', j: jobIds.join(' + '), s: 'two jobs' };
     }
-    if (slots.length === 1) {
-      var sl = slots[0];
-      var st = sl.baseSlotId ? 'pull' : (sl.portion === 'half' ? 'half' : 'full');
+    if (jobIds.length === 1) {
+      var group = byJob[jobIds[0]];
+      var sl = group[0];
+      var st = sl.baseSlotId ? 'pull' : (group.some(function (s) { return s.portion !== 'half'; }) ? 'full' : 'half');
+      // How much of the job this crew has on this day. Only worth saying when
+      // it is a subset — "4 of 4" is noise.
+      var covered = safe(function () {
+        var seen = {};
+        group.forEach(function (s) { slotLineIds(s).forEach(function (id) { seen[id] = true; }); });
+        return Object.keys(seen).length;
+      }, 0);
+      var routed = safe(function () { return jobRoutedLineIds(sl.jobCardId).length; }, 0);
+      var part = (covered && routed && covered < routed) ? covered + ' of ' + routed : '';
       // Overtime on a day that already has work does NOT turn the cell green —
       // it stays the job's own state and says so in the sub-line. Only a day
       // whose ONLY reason to exist is the shift is an `ot` cell.
       var sub = otH ? '+' + otH + ' h OT'
         : sl.baseSlotId ? 'after joinery'
-          : sl.portion === 'half' ? 'half day' : 'full day';
+          : (st === 'half' ? 'half day' : 'full day');
+      if (part) sub = sub + ' · ' + part;
       return { st: st, j: sl.jobCardId, s: sub };
     }
     if (otH) return { st: 'ot', j: 'OT', s: 'OT ' + otH + ' h shift' };
@@ -388,7 +408,11 @@ window.PrdUI = (function () {
       '<span class="prd-wait-rule">A lane will not take a job with no material or a pending revision</span></div>' +
       (waiting.length ? '<div class="prd-wait-row">' + waiting.slice(0, 3).map(function (w) {
         var tone = /short|No BOM/i.test(w.reason) ? 'bad' : 'warn';
-        var form = /short/i.test(w.reason) ? 'res' : 'bom';
+        // A job with nothing blocking it needs a LANE, not a BOM revision.
+        // It used to send you to the revision form, which will be much more
+        // visible now that partly-booked jobs appear here too.
+        var form = /short/i.test(w.reason) ? 'res'
+          : /No BOM|revision/i.test(w.reason) ? 'bom' : 'allot';
         return '<button class="prd-wait-c t-' + tone + '" data-a="flow" data-f="' + form + '" data-k="' + esc(w.job.id) + '">' +
           '<span class="prd-wait-id">' + esc(w.job.id) + '</span>' +
           '<span class="prd-wait-t">' + esc(w.job.projectName || '') + '</span>' +
@@ -885,7 +909,7 @@ window.PrdUI = (function () {
       }).join('') + '</div></section>' +
 
       '<section class="prd-card prd-fields"><div class="prd-fs">' + flowFields(key) + '</div>' +
-      (key === 'cut' ? cutBuilderHTML() : '') + '</section>' +
+      (key === 'cut' ? cutBuilderHTML() : key === 'allot' ? allotPickerHTML() : '') + '</section>' +
 
       '<div class="prd-banner t-' + banner.tone + '">' + esc(banner.text) + '</div>' +
 
@@ -913,6 +937,99 @@ window.PrdUI = (function () {
     }).join('');
   }
 
+
+  /* ── The item picker (allot flow) ───────────────────────────────────
+     A crew usually takes more than one of a job's items on a day, so the
+     slot is booked against the ones ticked. A line already in production
+     is greyed WITH ITS STAGE NAMED — greying something without saying why
+     is what makes people think the app is broken.
+
+     Material and the BOM are still checked for the whole job card, not per
+     item. That is commitment 1 and it has not been split; the footer says
+     so rather than leaving it to be discovered. */
+
+  var LINE_STAGE = {
+    'pending': 'Waiting on an earlier stop',
+    'queued': 'Ready to start',
+    'in-production': 'In production',
+    'rework': 'In rework',
+    'qc': 'At QC',
+    'ready-for-handoff': 'Ready to hand off',
+    'done': 'Done'
+  };
+  // Anything past "queued" is work that has already begun — it cannot be
+  // booked onto a lane again.
+  var LINE_PICKABLE = ['pending', 'queued'];
+
+  function allotRows() {
+    var crew = crews.find(function (c) { return c.id === S.formCrew; });
+    if (!S.formJob || !crew) return null;
+    var booked = safe(function () { return laneAllottedLineIds(S.formJob, crew.dept); }, []);
+    return safe(function () { return jobLinesForDept(S.formJob, crew.dept); }, []).map(function (l) {
+      var st = (l.entry && l.entry.status) || 'pending';
+      var onLane = booked.indexOf(Number(l.lineId)) !== -1;
+      return {
+        lineId: l.lineId, product: l.product, qty: l.qty, unit: l.unit,
+        stage: LINE_STAGE[st] || st,
+        sub: st === 'in-production' && l.entry && l.entry.joinerySubStage
+          ? 'In production · ' + l.entry.joinerySubStage : null,
+        started: LINE_PICKABLE.indexOf(st) === -1,
+        onLane: onLane
+      };
+    });
+  }
+
+  function allotPickerHTML() {
+    var rows = allotRows();
+    var crew = crews.find(function (c) { return c.id === S.formCrew; });
+    if (!rows) {
+      return '<div class="prd-allot"><div class="prd-allot-e">' +
+        (S.formJob ? 'Choose a crew and its items appear here.' : 'Choose a job card and its items appear here.') +
+        '</div></div>';
+    }
+    var picked = S.allotLines || [];
+    var free = rows.filter(function (r) { return !r.started && !r.onLane; });
+    var head = '<div class="prd-allot-h"><div class="prd-allot-hn">' +
+      '<b>Which items is ' + esc(crew.name) + ' taking?</b>' +
+      '<i>' + picked.length + ' of ' + free.length + ' available ticked</i></div>' +
+      (free.length ? '<button class="prd-btn-w sm" data-a="allot-all">Tick all that can go</button>' : '') +
+      '</div>';
+
+    var body = rows.length ? rows.map(function (r) {
+      var blocked = r.started || r.onLane;
+      var on = picked.indexOf(Number(r.lineId)) !== -1;
+      var why = r.onLane ? 'Already on a lane' : (r.sub || r.stage);
+      return '<div class="prd-allot-r' + (blocked ? ' off' : '') + (on ? ' on' : '') + '">' +
+        '<span class="c-t">' +
+        (blocked
+          ? '<span class="prd-tick off" title="' + esc(why) + '">—</span>'
+          : '<button class="prd-tick' + (on ? ' on' : '') + '" data-a="allot-t" data-i="' + esc(r.lineId) + '">' +
+            (on ? '✓' : '') + '</button>') +
+        '</span>' +
+        '<span class="c-n">' + esc(r.lineId) + '</span>' +
+        '<span class="c-p"><b>' + esc(r.product || '—') + '</b>' +
+        '<i>' + esc((r.qty || 0) + ' ' + (r.unit || '')) + '</i></span>' +
+        '<span class="c-s' + (blocked ? ' dim' : '') + '">' + esc(why) + '</span></div>';
+    }).join('')
+      : '<div class="prd-allot-e">Nothing on this job card is routed to ' + esc(crew.name) + '.</div>';
+
+    return '<div class="prd-allot">' + head +
+      '<div class="prd-allot-c"><span class="c-t"></span><span class="c-n">#</span>' +
+      '<span class="c-p">ITEM</span><span class="c-s">STAGE</span></div>' +
+      body +
+      '<div class="prd-allot-note">Material and the BOM are checked for the whole job card, not per item — ' +
+      'booking any item here holds every board on this job. That check has not been split per item.</div>' +
+      '</div>';
+  }
+
+  /** Repaints ITSELF, like the cut builder — never the form around it. */
+  function repaintAllot() {
+    var host = root.querySelector('.prd-allot');
+    if (!host) return;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = allotPickerHTML();
+    host.replaceWith(wrap.firstChild);
+  }
 
   /* ═══════════════════════════════════════════════════════════════════
      The cutting-list builder — the one flow with a real editor.
@@ -1178,8 +1295,16 @@ window.PrdUI = (function () {
       }, { error: 'Could not batch it.' });
     } else if (key === 'allot') {
       r = safe(function () {
+        // The UI never sends [] — that is the data layer's own "whole job"
+        // for programmatic callers, and merging the two meanings would make
+        // an empty tick-list book everything.
+        var rows = allotRows();
+        var picked = S.allotLines || [];
+        if (rows && rows.length && !picked.length) {
+          return { error: 'Which items? Tick at least one, or the booking says nothing.' };
+        }
         return allotLaneSlot({ crewId: val('prd-crew'), jobCardId: val('prd-job'), date: val('prd-date'),
-          portion: val('prd-portion') || 'full', byWhom: 'Production Manager' });
+          portion: val('prd-portion') || 'full', lineIds: picked, byWhom: 'Production Manager' });
       }, { error: 'Could not book it.' });
       if (r && r.slot) r = r.slot;
     } else if (key === 'ot') {
@@ -1777,6 +1902,14 @@ window.PrdUI = (function () {
       repaintCutTotals();
       return;
     }
+    if (t.id === 'prd-crew') {
+      // Not paint(): a full re-render throws away every other field, which
+      // is the trap this module hit three times.
+      S.formCrew = t.value || null;
+      S.allotLines = null;
+      repaintAllot();
+      return;
+    }
     if (t.id === 'prd-job') {
       S.formJob = t.value || null;
       // NOT paint() — a full re-render throws away every other field the
@@ -1787,6 +1920,9 @@ window.PrdUI = (function () {
       // disabled until there is one, and a disabled button does nothing
       // when clicked. Repaint it too, but still not the whole form.
       if (root.querySelector('.prd-cut')) repaintCut();
+      // The picker reads the job too. Same rule — only it repaints.
+      S.allotLines = null;
+      if (root.querySelector('.prd-allot')) repaintAllot();
     }
   }
   function onClick(e) {
@@ -1803,6 +1939,18 @@ window.PrdUI = (function () {
     if (a === 'print-cut') {
       if (typeof printCuttingList === 'function') printCuttingList(el.getAttribute('data-s'));
       return;
+    }
+    if (a === 'allot-t') {
+      var li = Number(el.getAttribute('data-i'));
+      var cur = S.allotLines || [];
+      S.allotLines = cur.indexOf(li) !== -1 ? cur.filter(function (x) { return x !== li; }) : cur.concat([li]);
+      repaintAllot(); return;
+    }
+    if (a === 'allot-all') {
+      var rows = allotRows() || [];
+      S.allotLines = rows.filter(function (r) { return !r.started && !r.onLane; })
+        .map(function (r) { return Number(r.lineId); });
+      repaintAllot(); return;
     }
     if (a === 'cut-pull') {
       // Pulling REPLACES rather than appends — pulling twice must not
@@ -1852,9 +2000,9 @@ window.PrdUI = (function () {
     }
     // Entering ANY create flow resets the gate to null. A gate that arrives
     // pre-answered in the job's favour defeats the entire mechanism.
-    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; S.cutRows = null; S.formJob = null; paint(); return; }
+    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; paint(); return; }
     // Every board cell opens the allotment flow — the handoff's own rule.
-    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cutRows = null; S.formJob = null; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
+    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
   }
   function mount(el) {
     root = el;
@@ -1885,7 +2033,7 @@ window.PrdUI = (function () {
     go: function (view, key) {
       S.view = view;
       if (view === 'page') { S.page = key; S.pgChip = 0; }
-      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; }
+      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; }
       paint();
     }
   };

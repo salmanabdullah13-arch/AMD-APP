@@ -8282,3 +8282,76 @@ nobody."* can actually fire on a blank form instead of storing four zeros.
   answer still refused, and no whitelisted key tripping the database regex.
   Pages 46/46. Standing battery clean; full offline sweep **all green**.
 - `sw.js` CACHE_VERSION v59 → v60.
+
+### 26 Aug 2026 — 19a: a lane slot books chosen items, not the whole job
+
+Salman's second finding: *"in the crew allotment pages, should be able to
+select the item number after selecting the job — should load all the items in
+sequence — and to be able to pick the items — grey out the items that are
+already in production."* His call: several items per slot, not one.
+
+Lane slots were job-level — `laneSlots[]` carried `jobCardId` and there was no
+`lineId` anywhere in the module, while the rest of the app is thoroughly
+per-line already (`getDepartmentQueue()` returns `{job, item, entry}`;
+`startLineProduction(jobId, lineId, deptKey)`). So this adopts an established
+pattern rather than inventing one.
+
+- **A slot gains `lineIds`, and `[]` still means the whole job.** That one rule
+  is what kept it cheap: every slot written before this change, the seeded
+  story, and five e2e suites keep their exact meaning with no edit. The
+  convention is resolved in `slotLineIds()` and nowhere else, so no caller has
+  to remember it. Derived (`pull`) slots inherit their base's lines, the same
+  way they inherit its date.
+- **The picker** lists the crew's own lines in serial order with stage, and
+  greys anything past `queued` **with its stage named** — down to the joinery
+  sub-stage ("In production · drafting"). Greying without saying why is what
+  makes people think the app is broken. It repaints only itself, like the cut
+  builder, and the suite proves answering the gate does not wipe the ticks.
+- **Item selection is validated after the whole-job gate**, so no existing
+  caller can reach the new refusal and every original error string is intact.
+- **The UI never sends `[]`.** With rows on screen and nothing ticked it
+  refuses — `[]` stays the data layer's "whole job" for programmatic callers,
+  and merging the two meanings would make an empty tick-list book everything.
+
+**Three knock-ons, each a real behaviour change rather than a rename:**
+- `getWaitingForLane()` keyed by job alone, so booking one item dropped the
+  whole job out of the strip — which made picking items meaningless. It is
+  coverage-based now and reports *"2 items still without a lane"*. Coverage is
+  deliberately **department-blind**: a line routed carp → paint takes its paint
+  day from a *derived* slot, never a work slot, so asking "one work slot per
+  department" would park every job with a paint stop in the strip forever. The
+  picker still scopes to the crew's own department.
+- **A second booking of the same job on one crew and day is no longer an
+  overload.** It is the rest of that job's items, booked deliberately; the
+  board groups by job, keeps the job code, and appends the coverage — "full day
+  · 3 of 4" — showing the count only when it is a subset.
+- `crewBlockedReason()` now reads the **missing** lines, not the job's items,
+  or a partly-booked job turned an otherwise busy crew's free days red for work
+  already on the board. `getMaterialRows()` picks the slot covering *that* line
+  rather than the job's first slot, and a reminder names the crew waiting on
+  the first missing line.
+
+**A pre-existing bug this made visible and worth fixing now**: the waiting
+strip sent a job with *nothing* blocking it to the BOM **revision** form. It
+sends it to `allot`, which is what it needs — and partly-booked jobs appearing
+there would have made the wrong destination much more common.
+
+**Deliberately unchanged: `jobLaneBlockReason()` stays whole-job.** It is
+commitment 1 and it is covered three ways in the suites. Per-line gating would
+force per-line *reservation*, and the two must not diverge: the gate asks
+whether **any** line is short, so a per-line reservation would leave the
+un-alloted lines unheld, the gate would then read short, and the next booking
+on the same job would be refused. The picker's footer says so plainly rather
+than leaving it to be discovered.
+
+- **Verification**: `e2e-production-flows.js` 61 → 75 — the picker's order,
+  the greyed line with its sub-stage named, ticking two by hand, the ticks
+  surviving the gate, a slot carrying exactly those lines, a partly-booked job
+  staying in the strip with the right count, a line already on a lane greyed on
+  the next booking, an empty tick-list refused rather than treated as
+  "everything", and the same-job second booking reading as one cell at "3 of 4"
+  rather than an overload. Two existing allot submits updated to tick, since
+  that is now the required behaviour. `e2e-production-cycle.js` 31/31,
+  `e2e-production-19a.js` 63/63, pages 46/46. Standing battery clean; full
+  offline sweep **all green**.
+- `sw.js` CACHE_VERSION v60 → v61.
