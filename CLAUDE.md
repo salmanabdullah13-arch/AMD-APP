@@ -8355,3 +8355,91 @@ than leaving it to be discovered.
   `e2e-production-19a.js` 63/63, pages 46/46. Standing battery clean; full
   offline sweep **all green**.
 - `sw.js` CACHE_VERSION v60 → v61.
+
+### 26 Aug 2026 — 19a: the BOM request means what Operations actually asks for
+
+Salman's third finding: *"Not sure what the BOM — return input is supposed to
+mean… the operation manager requested the production manager to fill up an
+approved job BOM to get overall project budget before commencing the works."*
+He was right that it was modelled wrongly. It asked *"Is this a standard, or
+the numbers for one job?"* with **"one job's numbers" as the BLOCKED option** —
+exactly backwards — and the form was five loose scalars against a free-text
+question.
+
+His decisions: a **real multi-line BOM**; **material rates visible, labour
+rates not**; it **becomes the department budget**; **Joinery and Painting are
+one job for him** (he owns both — there is no dedicated painting manager),
+while Upholstery and Curtain stay separate; **labour money computed and
+hidden**, so the budget he submits is complete rather than something Operations
+has to finish.
+
+- **The request, the budget and the production gate are now one chain.** He
+  builds the BOM; submitting it sets the department budget; Operations
+  approves it; and that approval is already what `isDepartmentBudgetApproved()`
+  uses to open `startLineProduction()`. Three unrelated things became one.
+- **Why it was cheap**: `computeBOMTotals()` only ever reads `r.amount` per
+  line, so real multi-line arrays work with the existing rollup, the BD 5,000
+  threshold, the approval chain and the gate **untouched**.
+  `finaliseDepartmentBudgetSubmission()` is extracted so the five-scalar writer
+  and the new `submitDepartmentBudgetFromBOM()` cannot drift on status, rollup,
+  log or persistence.
+- **Materials** are picked from the Item Master — free text is refused, for the
+  same reason the Estimator refuses it: an unlinked line is invisible to stock
+  and cannot be reserved. Rate is `cost || lastPurchaseRate`, **never**
+  `sellingPrice`. **Labour** is tasks of days × men with no rate field
+  anywhere; the amount is applied at submit from `getDeptAvgLabourRate()`, a
+  department payroll *average*, and his own screens show man-days throughout.
+- **One screen, two records.** A job with carp and paint work shows a section
+  each and one Submit writes both budgets — one action for one manager, two
+  gates underneath, so the per-department machinery is untouched.
+- **"Pull from the estimate"** seeds from `jobBOMItems()`, and **re-reads rates
+  from the Item Master rather than copying the quotation's** — a job costed
+  three months ago must not silently become today's budget. Where they differ
+  it says so ("quoted at 25.000, the Item Master says 4.200") instead of
+  quietly picking one.
+- **A BOM never travels as an answer payload.** `closeInputRequestWithBudget()`
+  stores a *pointer* (`jobCardRef`, `departmentRef`) — money would be refused
+  by the client whitelist and again by the Postgres trigger, and both refusals
+  are correct. `answerInputRequest()` now refuses a budgeting request outright
+  and says where to go.
+- **A lock-out avoided**, caught in design review: the form is keyed on an
+  *open* request, and a rejected budget has none — so refusing the five-box
+  form for line-itemised budgets would have left a rejected one with no
+  editable path anywhere. The request select offers *"No request —
+  resubmitting after a rejection"*.
+- **The five-box form cannot flatten the lines.** It prefilled from
+  `entry.bom[cat][0].amount`, so against a twelve-line BOM it showed line 1 and
+  would overwrite all twelve. It shows a read-only summary instead, and
+  `submitDepartmentBudget()` refuses as well, because a UI check is a courtesy
+  and that is the boundary. Checked rather than assumed: those two prefills
+  (`dept-pipeline-ui.js`, `painting.js`) were the **only** single-element
+  readers — Operations' own approval widget already sums.
+- **The approver sees what is behind the total** where there is anything behind
+  it. Clearing BD 8,400 from a row of five numbers is not a check, and above BD
+  5,000 that row goes to the Owner.
+
+**A real bug found while verifying this, and fixed**: `nextJobCardNo()` was
+**length-based**, so it minted an id that already existed the moment the array
+had a gap — and the 25 Aug purge put gaps in it. Live it returned
+`JB26AMD01011` on every run while that id was already taken: the insert failed
+on the primary key, `getJobCard()` handed back the OLD job, and the lane gate
+then correctly refused with *"No BOM"*. Diagnosed by probing the live project
+rather than guessing — the id was identical on every run, which is what gave it
+away. Now max-based, the same fix `nextItemStockCode`, `nextPIId`, `nextTaskId`
+and `logActivity` all needed. `e2e-cloud-production.js` went 17/20 → **20/20**
+with no test change; its failure detail was widened first so it says *why* the
+lane refused instead of leaving a bare `false` to chase.
+
+- **Verification**: `e2e-production-flows.js` 75 → 98 — the gate's new
+  question and its blocked option, the five number boxes gone, picking a
+  request filling in its job, a section per department, cost on materials and
+  man-days with no rate on labour, free text refused, the rate-drift note, one
+  submit writing **both** budgets with the material amount checked against
+  arithmetic worked out in the test, labour costed from 12 man-days without him
+  seeing a rate, the request answered by a pointer carrying no money-shaped
+  key, five totals refused against a line-itemised budget, and the
+  approve → production-gate chain opening. `e2e-production-cycle.js` 31/31
+  (one stale label), 19a 63/63, pages 46/46, batch8 17/17, budget-threshold
+  13/13. Standing battery clean; offline sweep **all green**; live suites
+  20/20, 8/8, 12/12, 11/11, 11/11.
+- `sw.js` CACHE_VERSION v61 → v62.

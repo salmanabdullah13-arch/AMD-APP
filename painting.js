@@ -140,7 +140,18 @@ function renderPaintingBudgetTab() {
     const editing = paintingBudgetEditingJobId === job.id;
     const t = computeBOMTotals(entry.bom);
     const cats = [['materials', 'Material'], ['labour', 'Labour'], ['subcontract', 'Subcontract'], ['hiring', 'Hiring'], ['others', 'Others']];
-    const formBody = editing
+    // Paint budgets are built line by line in Production now (joinery and
+    // paint are one manager's job), so the five-box form must not overwrite
+    // those lines with five totals. Same guard as dept-pipeline-ui.js.
+    const lineItemised = typeof departmentBudgetIsLineItemised === 'function'
+      && departmentBudgetIsLineItemised(entry);
+    const formBody = (editing && lineItemised)
+      ? `<p style="font-size:11.5px;color:#64748b;line-height:1.5;margin:0 0 8px;">
+          This budget was built line by line in Production — ${(entry.bom.materials || []).length} material lines,
+          BD ${t.totalCostInclOH.toFixed(3)}. Editing it here would replace those lines with five totals,
+          so it is edited there.</p>
+        <button class="secondary" style="width:100%;font-size:11.5px;" onclick="paintingBudgetEditingJobId=null;renderPaintingBody();">Close</button>`
+      : editing
       ? `${cats.map(([cat, label]) => `<div class="sales-field" style="margin-bottom:6px;"><label style="font-size:10px;">${label} Cost (BD)</label><input type="number" step="0.001" id="pb-${cat}" value="${(entry.bom[cat][0] && entry.bom[cat][0].amount) || 0}" style="padding:6px 8px;"></div>`).join('')}
         <div style="display:flex;gap:8px;margin-top:6px;">
           <button class="primary" style="flex:1;font-size:11.5px;" onclick="paintingSubmitBudget('${job.id}')">Submit for Approval</button>

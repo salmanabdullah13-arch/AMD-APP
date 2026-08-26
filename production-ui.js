@@ -171,7 +171,9 @@ window.PrdUI = (function () {
     formJob: null,     // the job the open form is about, so the checks are real
     cutRows: null,     // cutting-list builder; null = nothing pulled yet
     formCrew: null,    // the crew the open allot form is about
-    allotLines: null   // ticked lineIds; null = untouched
+    allotLines: null,  // ticked lineIds; null = untouched
+    bomLines: null,    // job-BOM editor, keyed by department
+    bomSearch: ''      // its Item Master search box
   };
 
   function esc(s) {
@@ -241,7 +243,7 @@ window.PrdUI = (function () {
   function needLine(r) {
     var k = String(r.kind || '').toLowerCase();
     if (/pricing/.test(k)) return { text: 'Hours and board counts. Not a price.', tone: 'wine' };
-    if (/budget/.test(k)) return { text: 'A standard per unit, not this one job\'s numbers.', tone: 'wine' };
+    if (/budget/.test(k)) return { text: 'This job\'s materials and man-days — the budget is set from it.', tone: 'wine' };
     if (/bom/.test(k)) return { text: 'Any sheet cut from the old revision is dead paper.', tone: 'bad' };
     if (/quote/.test(k)) return { text: 'Pick one, or the work cannot be finished.', tone: 'plain' };
     return { text: 'Reserve it or take supplier quotes before the crew stops.', tone: 'bad' };
@@ -562,7 +564,7 @@ window.PrdUI = (function () {
     'cut', 'press', 'allot', 'ot', 'lab', 'inst'];
 
   var FLOW_TABS = {
-    price: 'Pricing', bomb: 'Budgeting', bom: 'BOM change', res: 'Reserve',
+    price: 'Pricing', bomb: 'Job BOM', bom: 'BOM change', res: 'Reserve',
     purch: 'Purchase', quote: 'Prices', cut: 'Cutting list', press: 'Press',
     allot: 'Allot', ot: 'Overtime', lab: 'Labour', inst: 'Install'
   };
@@ -578,12 +580,14 @@ window.PrdUI = (function () {
       ]
     },
     bomb: {
-      q: 'Is this a standard, or the numbers for one job?',
-      why: 'Budgeting input is not pricing input. Operations is asking what a metre of carcass costs in board and hours, not what this wardrobe costs.',
+      q: 'Is this job’s BOM complete enough to budget from?',
+      why: 'Operations sets the project budget from what you send, before work starts. A BOM with the big items missing does not get corrected later — it becomes an approved budget the job then overruns.',
       opts: [
-        { label: 'A standard', tone: 'ok' },
-        { label: 'A standard, with a caveat', tone: 'warn', note: 'The caveat travels with it.' },
-        { label: 'One job’s numbers', tone: 'bad', note: 'Job-specific hours are the estimator’s. This is not that question.' }
+        { label: 'Complete — every item is on it', tone: 'ok' },
+        { label: 'Complete for now, items still to price', tone: 'warn',
+          note: 'It goes in with the gap stated, and the gap travels to the approver.' },
+        { label: 'Still guessing at the main items', tone: 'bad',
+          note: 'A guessed budget is approved as if it were real. Finish the BOM first.' }
       ]
     },
     bom: {
@@ -682,9 +686,9 @@ window.PrdUI = (function () {
     price: { title: 'Return pricing input', sub: 'Hours, quantities and machine time against the estimator’s request. What it is worth is not your half of this.',
       primary: 'Send back to the estimator',
       rule: 'You return hours and quantities, never a price. The estimator prices it — and an answer carrying a rate is refused at the database, not just here.' },
-    bomb: { title: 'Return budgeting input', sub: 'Standards operations can budget from: consumption per unit, wastage by process, labour per unit.',
-      primary: 'Send back to operations',
-      rule: 'Budgeting input is not pricing input. If the answer only holds for one job, it is the estimator’s question and not this one.' },
+    bomb: { title: 'Build the job BOM', sub: 'Materials and labour for an approved job, so operations can set the project budget before work starts. What you submit becomes the department budget.',
+      primary: 'Submit for approval',
+      rule: 'You send materials and man-days; the rate on a man-day is not yours to see. Operations approves what you submit, and that approval is what opens production.' },
     bom: { title: 'Start a BOM revision', sub: 'What changed, and why. Issuing it kills every cutting list cut from the revision before.',
       primary: 'Start the revision',
       rule: 'A revision kills the cutting list cut from the revision before it — and the list does not clear itself. Somebody takes the sheet off the saw and says so.' },
@@ -756,12 +760,21 @@ window.PrdUI = (function () {
         return getInputRequestsOfType(type).filter(function (r) { return r.status === 'open'; })
           .map(function (r) { return { v: r.id, l: r.id + ' — ' + r.question }; });
       }, []);
-      return fld('The request', sel('prd-req', reqs, 'Which request?'), 'Requests come from ' + (key === 'price' ? 'the estimator' : 'operations') + ' only.', true) +
+      if (key === 'bomb') {
+        // A budgeting request is answered by building the BOM below, so this
+        // form carries the job and the request, not figures. The request is
+        // OPTIONAL: a rejected budget has no open request, and without this
+        // there would be no way back in to correct it.
+        return fld('The request', sel('prd-req', reqs, 'No request — resubmitting after a rejection'),
+          'Requests come from operations only.', true) +
+          fld('Job card', sel('prd-job', J), 'The BOM below is this job’s.', true) +
+          fld('Note for the approver', inp('prd-note', 'Anything operations should know'), null, true);
+      }
+      return fld('The request', sel('prd-req', reqs, 'Which request?'), 'Requests come from the estimator only.', true) +
         fld('Man-hours', inp('prd-hrs', '0', 'number'), 'Total, across the crew.') +
-        fld('Quantity', inp('prd-qty', '0', 'number'), key === 'price' ? 'Per unit made.' : 'Per unit or per linear metre.') +
+        fld('Quantity', inp('prd-qty', '0', 'number'), 'Per unit made.') +
         fld('Machine time (hours)', inp('prd-mch', '0', 'number'), 'Saw, press, spray booth.') +
-        (key === 'bomb' ? fld('Wastage %', inp('prd-wst', '0', 'number'), 'By process, not by job.') : '') +
-        fld('Note', inp('prd-note', 'Anything the ' + (key === 'price' ? 'estimator' : 'budget') + ' should know'), null, true);
+        fld('Note', inp('prd-note', 'Anything the estimator should know'), null, true);
     }
     if (key === 'bom') {
       return fld('Job card', sel('prd-job', J), null, true) +
@@ -909,7 +922,8 @@ window.PrdUI = (function () {
       }).join('') + '</div></section>' +
 
       '<section class="prd-card prd-fields"><div class="prd-fs">' + flowFields(key) + '</div>' +
-      (key === 'cut' ? cutBuilderHTML() : key === 'allot' ? allotPickerHTML() : '') + '</section>' +
+      (key === 'cut' ? cutBuilderHTML() : key === 'allot' ? allotPickerHTML()
+        : key === 'bomb' ? bomBuilderHTML() : '') + '</section>' +
 
       '<div class="prd-banner t-' + banner.tone + '">' + esc(banner.text) + '</div>' +
 
@@ -1032,7 +1046,185 @@ window.PrdUI = (function () {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     The cutting-list builder — the one flow with a real editor.
+     The job BOM for budgeting.
+
+     Operations asks the production manager to build an approved job's BOM
+     so the project budget can be set before work starts. What he submits
+     BECOMES the department budget, which Operations then approves — and
+     that approval is already what opens the production gate. Request,
+     budget and gate are one chain rather than three unrelated things.
+
+     He picks materials from the Item Master (free text is refused, so every
+     line carries a real itemId and can be reserved later) and sees their
+     cost. Labour is tasks of days x men with NO rate: the rate is applied
+     at submit from the department's payroll average, and his own screens
+     show labour as man-days throughout. Subcontract, hiring and other costs
+     are money somebody else commits and are not on this form.
+
+     Joinery and Painting are one job for one manager — where a job has both,
+     the editor shows a section each and ONE submit writes both budgets.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  function bomDepts() {
+    // The departments this manager owns on the chosen job. carp and paint
+    // are his; uph and curt are somebody else's.
+    if (!S.formJob) return [];
+    var job = safe(function () { return getJobCard(S.formJob); }, null);
+    if (!job) return [];
+    var seq = {};
+    (job.items || []).forEach(function (it) {
+      (it.departmentSequence || []).forEach(function (d) { seq[d] = true; });
+    });
+    return ['carp', 'paint'].filter(function (d) { return seq[d]; });
+  }
+
+  function bomLines(dept) {
+    S.bomLines = S.bomLines || {};
+    S.bomLines[dept] = S.bomLines[dept] || { materials: [], labour: [] };
+    return S.bomLines[dept];
+  }
+
+  function bomItemResults() {
+    var q = String(S.bomSearch || '').trim().toLowerCase();
+    if (q.length < 2) return [];
+    return safe(function () {
+      return (typeof itemMaster !== 'undefined' ? itemMaster : [])
+        .filter(function (i) { return String(i.name || '').toLowerCase().indexOf(q) !== -1; })
+        .slice(0, 8);
+    }, []);
+  }
+
+  function bomMatTotal(dept) {
+    return bomLines(dept).materials.reduce(function (a, m) {
+      return a + (Number(m.qty) || 0) * (Number(m.rate) || 0);
+    }, 0);
+  }
+  function bomManDays(dept) {
+    return bomLines(dept).labour.reduce(function (a, l) {
+      return a + (Number(l.men) || 0) * (Number(l.days) || 0);
+    }, 0);
+  }
+
+  function bomSectionHTML(dept) {
+    var L = bomLines(dept);
+    var pull = safe(function () { return seedDepartmentBudgetLinesFromEstimate(S.formJob, dept); }, null);
+    var pullN = pull ? (pull.materials.length + pull.labour.length) : 0;
+
+    var mats = L.materials.length ? L.materials.map(function (m, i) {
+      return '<div class="prd-bom-r">' +
+        '<span class="c-n">' + (i + 1) + '</span>' +
+        '<span class="c-p"><b>' + esc(m.name) + '</b></span>' +
+        '<span class="c-q"><button class="prd-stp" data-a="bom-q" data-d="' + dept + '" data-i="' + i + '" data-v="-1">−</button>' +
+        '<b>' + (Number(m.qty) || 0) + '</b>' +
+        '<button class="prd-stp" data-a="bom-q" data-d="' + dept + '" data-i="' + i + '" data-v="1">＋</button></span>' +
+        '<span class="c-u">' + esc(m.unit || '') + '</span>' +
+        '<span class="c-r">' + bd(m.rate) + '</span>' +
+        '<span class="c-a">' + bd((Number(m.qty) || 0) * (Number(m.rate) || 0)) + '</span>' +
+        '<span class="c-x"><button class="prd-cx" data-a="bom-del" data-d="' + dept + '" data-i="' + i + '">✕</button></span>' +
+        '</div>';
+    }).join('') : '<div class="prd-bom-e">No materials yet. Pull them from the estimate, then adjust — this is what the budget is set from.</div>';
+
+    var labs = L.labour.length ? L.labour.map(function (l, i) {
+      return '<div class="prd-bom-r">' +
+        '<span class="c-n">' + (i + 1) + '</span>' +
+        '<span class="c-p"><input class="prd-cin" data-a="bom-f" data-d="' + dept + '" data-i="' + i + '" data-k="task" value="' + esc(l.task || '') + '" placeholder="What the crew is doing"></span>' +
+        '<span class="c-q"><button class="prd-stp" data-a="bom-l" data-d="' + dept + '" data-i="' + i + '" data-k="men" data-v="-1">−</button>' +
+        '<b>' + (Number(l.men) || 0) + '</b>' +
+        '<button class="prd-stp" data-a="bom-l" data-d="' + dept + '" data-i="' + i + '" data-k="men" data-v="1">＋</button></span>' +
+        '<span class="c-q"><button class="prd-stp" data-a="bom-l" data-d="' + dept + '" data-i="' + i + '" data-k="days" data-v="-1">−</button>' +
+        '<b>' + (Number(l.days) || 0) + '</b>' +
+        '<button class="prd-stp" data-a="bom-l" data-d="' + dept + '" data-i="' + i + '" data-k="days" data-v="1">＋</button></span>' +
+        '<span class="c-a">' + ((Number(l.men) || 0) * (Number(l.days) || 0)) + ' man-days</span>' +
+        '<span class="c-x"><button class="prd-cx" data-a="bom-ldel" data-d="' + dept + '" data-i="' + i + '">✕</button></span>' +
+        '</div>';
+    }).join('') : '<div class="prd-bom-e">No labour yet.</div>';
+
+    var results = bomItemResults();
+    var search = '<div class="prd-bom-search">' +
+      '<input class="prd-in" id="prd-bom-q-' + dept + '" data-a="bom-s" data-d="' + dept + '" ' +
+      'value="' + esc(S.bomSearch || '') + '" placeholder="Search the Item Master by name…" autocomplete="off">' +
+      (results.length
+        ? '<div class="prd-bom-res">' + results.map(function (i) {
+            return '<button class="prd-bom-hit" data-a="bom-add" data-d="' + dept + '" data-id="' + esc(i.id) + '">' +
+              '<b>' + esc(i.name) + '</b><i>' + esc(i.id) + ' · ' + esc(i.unit || '') + ' · ' + bd(i.cost || i.lastPurchaseRate || 0) + '</i></button>';
+          }).join('') + '</div>'
+        : (String(S.bomSearch || '').trim().length >= 2
+          ? '<div class="prd-bom-none">Nothing in the Item Master matches. It has to be a real code — a line nobody can reserve is not a budget line.</div>'
+          : '')) +
+      '</div>';
+
+    return '<section class="prd-bom-sec" data-dept="' + dept + '">' +
+      '<div class="prd-bom-h"><div class="prd-bom-hn"><b>' + esc(dc(dept).n) + '</b>' +
+      '<i>' + L.materials.length + ' material line' + (L.materials.length === 1 ? '' : 's') + ' · ' +
+      bomManDays(dept) + ' man-days</i></div>' +
+      '<button class="prd-btn-w sm"' + (pullN ? '' : ' disabled') + ' data-a="bom-pull" data-d="' + dept + '">' +
+      (pullN ? 'Pull ' + pullN + ' line' + (pullN === 1 ? '' : 's') + ' from the estimate' : 'Nothing on the estimate') +
+      '</button></div>' +
+      (pull && pull.notes.length
+        ? '<div class="prd-bom-note">' + pull.notes.map(esc).join(' ') + '</div>' : '') +
+      '<div class="prd-bom-sub">Materials</div>' + search +
+      '<div class="prd-bom-c"><span class="c-n">#</span><span class="c-p">ITEM</span>' +
+      '<span class="c-q">QTY</span><span class="c-u">UNIT</span><span class="c-r">COST</span>' +
+      '<span class="c-a">AMOUNT</span><span class="c-x"></span></div>' + mats +
+      '<div class="prd-bom-sub">Labour <button class="prd-btn-g sm" data-a="bom-ladd" data-d="' + dept + '">＋ Add a task</button></div>' +
+      '<div class="prd-bom-c"><span class="c-n">#</span><span class="c-p">TASK</span>' +
+      '<span class="c-q">MEN</span><span class="c-q">DAYS</span>' +
+      '<span class="c-a">MAN-DAYS</span><span class="c-x"></span></div>' + labs +
+      '<div class="prd-bom-f">' +
+      '<div class="prd-bom-t"><span class="l">Materials</span><b>' + bd(bomMatTotal(dept)) + '</b>' +
+      '<span class="n">at Item Master cost</span></div>' +
+      '<div class="prd-bom-t"><span class="l">Labour</span><b>' + bomManDays(dept) + ' man-days</b>' +
+      '<span class="n">costed at the floor average when you submit</span></div>' +
+      '</div></section>';
+  }
+
+  function bomBuilderHTML() {
+    var depts = bomDepts();
+    if (!S.formJob) {
+      return '<div class="prd-bom"><div class="prd-bom-e">Choose a job card and its departments appear here.</div></div>';
+    }
+    if (!depts.length) {
+      return '<div class="prd-bom"><div class="prd-bom-e">Nothing on this job card is routed to joinery or paint.</div></div>';
+    }
+    return '<div class="prd-bom">' + depts.map(bomSectionHTML).join('') +
+      (depts.length > 1
+        ? '<div class="prd-bom-note">Both sections go in together — one submission, two budgets, because joinery and paint are one job for one manager but two production gates.</div>'
+        : '') + '</div>';
+  }
+
+  /** Repaints ITSELF. A full paint() would eat the job card and the search box. */
+  function repaintBOM() {
+    var host = root.querySelector('.prd-bom');
+    if (!host) return;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = bomBuilderHTML();
+    host.replaceWith(wrap.firstChild);
+  }
+  /** And typing in a task repaints only the section footers, so the caret survives. */
+  function repaintBOMTotals() {
+    var wrap = document.createElement('div');
+    wrap.innerHTML = bomBuilderHTML();
+    var fresh = wrap.querySelectorAll('.prd-bom-sec');
+    root.querySelectorAll('.prd-bom-sec').forEach(function (sec, i) {
+      if (!fresh[i]) return;
+      var a = sec.querySelector('.prd-bom-f'), b = fresh[i].querySelector('.prd-bom-f');
+      if (a && b) a.replaceWith(b);
+      var ha = sec.querySelector('.prd-bom-hn'), hb = fresh[i].querySelector('.prd-bom-hn');
+      if (ha && hb) ha.replaceWith(hb);
+    });
+  }
+
+  /** What submitFlow sends, per department. */
+  function bomLinesForSubmit(dept) {
+    var L = bomLines(dept);
+    return {
+      materials: L.materials.map(function (m) { return { itemId: m.itemId, qty: Number(m.qty) || 0 }; }),
+      labour: L.labour.map(function (l) { return { task: l.task, men: Number(l.men) || 0, days: Number(l.days) || 0 }; })
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     The cutting-list builder — a real editor too.
 
      DEVIATION, stated rather than hidden: the spec's twelve default parts
      live in `CUTDEF` inside the prototype, which is not committed. Twelve
@@ -1256,9 +1448,33 @@ window.PrdUI = (function () {
    */
   function submitFlow(key) {
     var r;
-    if (key === 'price' || key === 'bomb') {
+    if (key === 'bomb') {
+      var depts = bomDepts();
+      if (!depts.length) { r = { error: 'Choose a job card with joinery or paint work on it.' }; }
+      else {
+        var note = val('prd-note') || (gateTone('bomb') === 'warn' ? 'Complete for now — items still to price.' : '');
+        var failed = null, wrote = [];
+        for (var di2 = 0; di2 < depts.length && !failed; di2++) {
+          var res = safe(function () {
+            return submitDepartmentBudgetFromBOM(S.formJob, depts[di2], bomLinesForSubmit(depts[di2]),
+              'Production Manager', { note: note });
+          }, { error: 'Could not submit it.' });
+          if (res && res.error) failed = dc(depts[di2]).n + ': ' + res.error; else wrote.push(depts[di2]);
+        }
+        if (failed) r = { error: failed };
+        else {
+          // Point the request at the budget rather than sending figures — a
+          // BOM must never travel as an answer payload.
+          if (val('prd-req')) {
+            safe(function () {
+              return closeInputRequestWithBudget(val('prd-req'), { jobCardId: S.formJob, deptKey: wrote[0] }, 'Production Manager');
+            }, null);
+          }
+          r = { ok: wrote.length + ' budget' + (wrote.length === 1 ? '' : 's') + ' submitted' };
+        }
+      }
+    } else if (key === 'price') {
       var payload = { manHours: num('prd-hrs'), quantity: num('prd-qty'), machineHours: num('prd-mch'), note: val('prd-note') };
-      if (key === 'bomb') payload.wastagePct = num('prd-wst');
       if (gateTone(key) === 'warn') payload.isEstimate = true;
       // Drop the empties, so "An empty answer helps nobody." can actually
       // fire on a blank form instead of storing four zeros and a "".
@@ -1451,7 +1667,7 @@ window.PrdUI = (function () {
     return {
       sub: isPricing
         ? 'Requests arrive from the estimator and from nowhere else. There is no new-request button here — the button returns input.'
-        : 'Raised by the operations manager only, and it asks for standards rather than one job’s numbers.',
+        : 'Raised by the operations manager only, on jobs that are already approved. Build the BOM and the project budget is set from it.',
       stats: [
         { v: rows.length, l: 'Requests' },
         { v: open.length, l: 'Open', st: open.length ? 'warn' : 'ok' },
@@ -1470,18 +1686,19 @@ window.PrdUI = (function () {
       empty: isPricing ? 'The estimator is not waiting on anything.' : 'Operations is not waiting on anything.',
       rule: isPricing
         ? 'Requests come from the estimator only — not sales, not the client, not production itself. You return hours and quantities; the estimator turns them into money.'
-        : 'Budgeting input is not pricing input. Operations asks for standards; job-specific hours are the estimator’s.',
+        : 'What you submit becomes the department budget, and operations approving it is what opens production. A guessed BOM is approved as if it were real.',
       ctx: isPricing
         ? ['What you may return', [
             { l: 'Man-hours', v: 'yes', st: 'ok' }, { l: 'Quantities', v: 'yes', st: 'ok' },
             { l: 'Machine time', v: 'yes', st: 'ok' }, { l: 'A rate or a price', v: 'never', st: 'bad' }
           ], 'You do not send a price. The estimator prices it.']
-        : ['What operations may ask for', [
-            { l: 'Consumption per unit', v: 'yes', st: 'ok' },
-            { l: 'Wastage by process', v: 'yes', st: 'ok' },
-            { l: 'Labour standard per unit', v: 'yes', st: 'ok' },
-            { l: 'Job-specific hours', v: 'that is the estimator', st: 'bad' }
-          ], null]
+        : ['What goes on a job BOM', [
+            { l: 'Materials from the Item Master', v: 'yes', st: 'ok' },
+            { l: 'Quantities', v: 'yes', st: 'ok' },
+            { l: 'Labour as days × men', v: 'yes', st: 'ok' },
+            { l: 'A labour rate', v: 'you never see one', st: 'bad' },
+            { l: 'A selling price', v: 'never', st: 'bad' }
+          ], 'Subcontract and hiring are money somebody else commits — they are not on this form.']
     };
   }
 
@@ -1895,11 +2112,42 @@ window.PrdUI = (function () {
   function onChange(e) {
     var t = e.target;
     if (!t || !root.contains(t)) return;
+    if (t.getAttribute && t.getAttribute('data-a') === 'bom-s') {
+      S.bomSearch = t.value;
+      // Replace the whole editor, then put the caret back — the results list
+      // has to change as you type, and it lives inside the section.
+      var caret = t.selectionStart, id = t.id;
+      repaintBOM();
+      var again = document.getElementById(id);
+      if (again) { again.focus(); try { again.setSelectionRange(caret, caret); } catch (e) { /* not all inputs support it */ } }
+      return;
+    }
+    if (t.getAttribute && t.getAttribute('data-a') === 'bom-f') {
+      var fd = t.getAttribute('data-d'), fi = Number(t.getAttribute('data-i'));
+      var frow = bomLines(fd).labour[fi];
+      if (frow) frow[t.getAttribute('data-k')] = t.value;
+      // Only the footers — replacing the row would take the caret with it.
+      repaintBOMTotals();
+      return;
+    }
     if (t.getAttribute && t.getAttribute('data-a') === 'cut-f') {
       var i = Number(t.getAttribute('data-i'));
       var rows = cutRows();
       if (rows[i]) rows[i][t.getAttribute('data-k')] = t.value;
       repaintCutTotals();
+      return;
+    }
+    if (t.id === 'prd-req') {
+      var req = safe(function () { return inputRequests.find(function (x) { return x.id === t.value; }); }, null);
+      if (req && req.jobCardId) {
+        var js = document.getElementById('prd-job');
+        if (js) js.value = req.jobCardId;
+        S.formJob = req.jobCardId;
+        S.bomLines = null; S.bomSearch = '';
+        var panel0 = document.getElementById('prd-checks');
+        if (panel0) panel0.innerHTML = checksRowsHTML(safe(function () { return flowChecks(S.form); }, []));
+        if (root.querySelector('.prd-bom')) repaintBOM();
+      }
       return;
     }
     if (t.id === 'prd-crew') {
@@ -1923,6 +2171,9 @@ window.PrdUI = (function () {
       // The picker reads the job too. Same rule — only it repaints.
       S.allotLines = null;
       if (root.querySelector('.prd-allot')) repaintAllot();
+      // The BOM editor reads the job as well. Same rule — only it repaints.
+      S.bomLines = null; S.bomSearch = '';
+      if (root.querySelector('.prd-bom')) repaintBOM();
     }
   }
   function onClick(e) {
@@ -1939,6 +2190,59 @@ window.PrdUI = (function () {
     if (a === 'print-cut') {
       if (typeof printCuttingList === 'function') printCuttingList(el.getAttribute('data-s'));
       return;
+    }
+    if (a === 'bom-pull') {
+      var pd = el.getAttribute('data-d');
+      var seeded = safe(function () { return seedDepartmentBudgetLinesFromEstimate(S.formJob, pd); }, null);
+      if (seeded) {
+        // Replace, never append — pulling twice must not double the budget.
+        bomLines(pd).materials = seeded.materials.map(function (m) {
+          return { itemId: m.itemId, name: m.name, unit: m.unit, qty: m.qty, rate: m.rate };
+        });
+        bomLines(pd).labour = seeded.labour.slice();
+      }
+      repaintBOM(); return;
+    }
+    if (a === 'bom-add') {
+      var ad = el.getAttribute('data-d');
+      var item = safe(function () {
+        return (typeof itemMaster !== 'undefined' ? itemMaster : []).find(function (x) { return x.id === el.getAttribute('data-id'); });
+      }, null);
+      if (item) {
+        var L = bomLines(ad);
+        if (!L.materials.some(function (m) { return m.itemId === item.id; })) {
+          L.materials.push({ itemId: item.id, name: item.name, unit: item.unit, qty: 1,
+            rate: Number(item.cost) || Number(item.lastPurchaseRate) || 0 });
+        }
+        S.bomSearch = '';
+      }
+      repaintBOM(); return;
+    }
+    if (a === 'bom-q') {
+      var qd = el.getAttribute('data-d'), qi = Number(el.getAttribute('data-i'));
+      var mrow = bomLines(qd).materials[qi];
+      if (mrow) mrow.qty = Math.max(1, (Number(mrow.qty) || 1) + (Number(el.getAttribute('data-v')) || 0));
+      repaintBOM(); return;
+    }
+    if (a === 'bom-del') {
+      var dd = el.getAttribute('data-d'), di = Number(el.getAttribute('data-i'));
+      bomLines(dd).materials = bomLines(dd).materials.filter(function (_, i) { return i !== di; });
+      repaintBOM(); return;
+    }
+    if (a === 'bom-ladd') {
+      bomLines(el.getAttribute('data-d')).labour.push({ task: '', men: 1, days: 1 });
+      repaintBOM(); return;
+    }
+    if (a === 'bom-l') {
+      var ld = el.getAttribute('data-d'), li2 = Number(el.getAttribute('data-i')), lk = el.getAttribute('data-k');
+      var lrow = bomLines(ld).labour[li2];
+      if (lrow) lrow[lk] = Math.max(1, (Number(lrow[lk]) || 1) + (Number(el.getAttribute('data-v')) || 0));
+      repaintBOM(); return;
+    }
+    if (a === 'bom-ldel') {
+      var xd = el.getAttribute('data-d'), xi = Number(el.getAttribute('data-i'));
+      bomLines(xd).labour = bomLines(xd).labour.filter(function (_, i) { return i !== xi; });
+      repaintBOM(); return;
     }
     if (a === 'allot-t') {
       var li = Number(el.getAttribute('data-i'));
@@ -2000,9 +2304,9 @@ window.PrdUI = (function () {
     }
     // Entering ANY create flow resets the gate to null. A gate that arrives
     // pre-answered in the job's favour defeats the entire mechanism.
-    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; paint(); return; }
+    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; paint(); return; }
     // Every board cell opens the allotment flow — the handoff's own rule.
-    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
+    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
   }
   function mount(el) {
     root = el;
@@ -2033,7 +2337,7 @@ window.PrdUI = (function () {
     go: function (view, key) {
       S.view = view;
       if (view === 'page') { S.page = key; S.pgChip = 0; }
-      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; }
+      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; }
       paint();
     }
   };

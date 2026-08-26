@@ -455,7 +455,7 @@ function demoSeedProduction() {
   raiseInputRequest({ type: 'pricing_input', raisedBy: 'Estimator — Arun Kumar A', raiserRole: 'estimator',
     jobCardId: a.id, question: 'Man-hours and board counts for 9 wardrobes and 2 dressers', neededBy: mon(0) });
   raiseInputRequest({ type: 'bom_budget_input', raisedBy: 'Operations — Silva Fernandes', raiserRole: 'operations_manager',
-    jobCardId: a.id, question: 'Consumption standard per wardrobe unit, and wastage by process', neededBy: mon(1) });
+    jobCardId: a.id, question: 'Build the BOM for this job so we can set the project budget.', neededBy: mon(1) });
 }
 
 function clearDemoData() {

@@ -712,6 +712,187 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
   check('and no whitelisted key would be refused by the database trigger',
     guard.trippedByTrigger.length === 0, guard.trippedByTrigger);
 
+  console.log('\n— the job BOM for budgeting —');
+  // Operations asks the production manager to build an approved job's BOM so
+  // the project budget can be set before work starts. It used to ask for
+  // "standards per unit", with "one job's numbers" as the BLOCKED option —
+  // exactly backwards from what Operations actually wants.
+  const bomSeed = await page.evaluate(() => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localISO(d); };
+    const c = createCustomer({ name: 'BOM Co ' + Date.now(), contactPerson: 'A', tel: String(Math.floor(Math.random() * 1e8)), address: 'Tubli' });
+    const e = createEnquiry({ division: 'Joinery', customerId: c.id, contactPerson: 'A', tel: '1', source: 'walk inn', salesPerson: 'Salman Abdullah' });
+    const q = convertEnquiryToQuotation(e.id, { projectName: 'Majlis wardrobes', taxPercent: 10, contactPerson: 'A' });
+    addQuotationItem(q.id, { product: 'Wardrobe run', qty: 2, unit: 'Nos' });
+    const it = quotations.find(x => x.id === q.id).items[0];
+    addBOMMaterial(q.id, it.lineId, { name: itemMaster[0].name, qty: 6, rate: 25, unit: itemMaster[0].unit });
+    addBOMLabour(q.id, it.lineId, { department: 'carp', empCategory: 'Skilled', calcMode: 'days', noOfPpl: 3, qty: 4, rate: 5 });
+    submitItemBOM(q.id, it.lineId, 'Arun Kumar A');
+    setItemDepartmentSequence(q.id, it.lineId, ['carp', 'paint']);
+    transferQuotationStage(q.id, 'approver', 'Estimator');
+    approveQuotation(q.id, 'Salman Abdullah', 'owner');
+    const job = confirmQuotationToJobCard(q.id, 'Sales');
+    confirmJobRouting(job.id, {}, 'Operations Manager', day(10));
+    const req = raiseInputRequest({ type: 'bom_budget_input', raisedBy: 'Silva Fernandes',
+      raiserRole: 'operations_manager', jobCardId: job.id,
+      question: 'Build the BOM for the majlis wardrobes.', neededBy: day(2) });
+    return { job: job.id, req: req.id, itemId: itemMaster[0].id,
+      itemCost: Number(itemMaster[0].cost) || Number(itemMaster[0].lastPurchaseRate) || 0 };
+  });
+
+  const gate = await page.evaluate(async () => {
+    PrdUI.go('form', 'bomb');
+    await new Promise(r => setTimeout(r, 180));
+    const body = document.getElementById('prd-body');
+    return {
+      q: (body.querySelector('.prd-gate-n b') || {}).textContent,
+      opts: [...body.querySelectorAll('.prd-opt')].map(o => o.textContent.replace(/\s+/g, ' ').trim()),
+      title: (body.querySelector('.prd-page-t') || {}).textContent,
+      primary: (body.querySelector('.prd-acts .prd-btn') || {}).textContent,
+      // The old form was five numeric boxes; those are gone.
+      numberBoxes: body.querySelectorAll('.prd-fs input[type="number"]').length
+    };
+  });
+  check('the gate asks whether the BOM is complete, not whether it is a standard',
+    /complete enough to budget from/i.test(gate.q || '') && !/standard/i.test(gate.q || ''), gate.q);
+  check('and its blocked option is guessing, not "one job’s numbers"',
+    gate.opts.some(o => /Still guessing/.test(o)) && !gate.opts.some(o => /standard/i.test(o)), gate.opts);
+  check('the flow is "Build the job BOM" and submits for approval',
+    /Build the job BOM/.test(gate.title || '') && /Submit for approval/i.test(gate.primary || ''), gate);
+  check('the five loose number boxes are gone', gate.numberBoxes === 0, gate.numberBoxes);
+
+  const editor = await page.evaluate(async (s) => {
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+    set('prd-req', s.req);
+    await new Promise(r => setTimeout(r, 300));
+    const body = document.getElementById('prd-body');
+    return {
+      // Picking the request must fill in the job it names, so the two cannot
+      // disagree about which job the BOM is for.
+      job: document.getElementById('prd-job').value,
+      sections: [...body.querySelectorAll('.prd-bom-sec')].map(x => x.getAttribute('data-dept')),
+      cols: [...body.querySelectorAll('.prd-bom-sec[data-dept="carp"] .prd-bom-c')].map(x => x.textContent.replace(/\s+/g, ' ').trim()),
+      // The hardest rule on this screen.
+      labourRate: /labour rate|rate on a man/i.test(body.textContent) && !!body.querySelector('.prd-bom-sec [data-k="rate"]'),
+      money: body.textContent.match(/selling price|margin|\bprofit\b/i)
+    };
+  }, bomSeed);
+  check('picking the request fills in the job it names', editor.job === bomSeed.job, editor);
+  // Joinery and painting are one job for one manager, so one screen — but two
+  // records underneath, because they are two production gates.
+  check('a job with joinery and paint work shows a section for each',
+    editor.sections.join(',') === 'carp,paint', editor.sections);
+  check('materials carry a cost column, labour carries man-days and no rate',
+    /COST/.test(editor.cols[0] || '') && /MAN-DAYS/.test(editor.cols[1] || '') && !/RATE/.test(editor.cols[1] || ''),
+    editor.cols);
+  check('there is no labour rate field anywhere on the screen', !editor.labourRate, editor);
+  check('and no selling price, margin or profit', !editor.money, editor.money);
+
+  const bomPulled = await page.evaluate(async () => {
+    document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull"]').click();
+    await new Promise(r => setTimeout(r, 300));
+    const sec = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
+    return {
+      rows: sec.querySelectorAll('.prd-bom-r').length,
+      totals: [...sec.querySelectorAll('.prd-bom-t b')].map(x => x.textContent.trim()),
+      // The estimate's rate is not copied — a job costed months ago must not
+      // silently become today's budget.
+      note: (sec.querySelector('.prd-bom-note') || {}).textContent
+    };
+  });
+  check('pulling from the estimate brings its materials and labour', bomPulled.rows === 2, pulled);
+  check('labour comes back as man-days, from 3 men over 4 days',
+    /12 man-days/.test(bomPulled.totals[1] || ''), bomPulled.totals);
+  check('and a rate that has moved since the quote is called out, not used silently',
+    /Item Master says/.test(bomPulled.note || ''), bomPulled.note);
+
+  const freeText = await page.evaluate(async () => {
+    const box = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-s"]');
+    box.value = 'zzz not a real item';
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 250));
+    const sec = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
+    return { none: (sec.querySelector('.prd-bom-none') || {}).textContent, hits: sec.querySelectorAll('.prd-bom-hit').length };
+  });
+  // Free text is refused for the same reason the Estimator refuses it: an
+  // unlinked line is invisible to stock and cannot be reserved.
+  check('free text is not accepted as a material line',
+    freeText.hits === 0 && /real code/i.test(freeText.none || ''), freeText);
+
+  const submitted = await page.evaluate(async (s) => {
+    document.querySelectorAll('#prd-body .prd-opt')[0].click();   // "Complete — every item is on it"
+    await new Promise(r => setTimeout(r, 150));
+    // Give paint something too, so the one-submit-two-budgets rule is real.
+    document.querySelector('#prd-body .prd-bom-sec[data-dept="paint"] [data-a="bom-pull"]').click();
+    await new Promise(r => setTimeout(r, 250));
+    const toasts = []; const orig = window.commsToast; window.commsToast = (m) => toasts.push(m);
+    document.querySelector('#prd-body .prd-acts .prd-btn').click();
+    await new Promise(r => setTimeout(r, 400));
+    window.commsToast = orig;
+    const job = getJobCard(s.job);
+    const carp = job.departmentBudgets.carp, paint = job.departmentBudgets.paint;
+    const req = inputRequests.find(x => x.id === s.req);
+    return {
+      toasts,
+      carpStatus: carp && carp.approvalStatus, paintStatus: paint && paint.approvalStatus,
+      carpMats: carp && (carp.bom.materials || []).length,
+      carpLabour: carp && (carp.bom.labour || []).length,
+      matAmount: carp && carp.bom.materials[0] && carp.bom.materials[0].amount,
+      matItemId: carp && carp.bom.materials[0] && carp.bom.materials[0].itemId,
+      labourAmount: carp && carp.bom.labour[0] && carp.bom.labour[0].amount,
+      manQty: carp && carp.bom.labour[0] && carp.bom.labour[0].manQty,
+      // The BOM must never travel as an answer payload — money would be
+      // refused by the whitelist and again by the database.
+      reqStatus: req && req.status, reqAnswer: req && req.answer,
+      totals: carp ? computeBOMTotals(carp.bom).totalCostInclOH : null,
+      lineItemised: departmentBudgetIsLineItemised(carp)
+    };
+  }, bomSeed);
+  check('one submit writes BOTH departments’ budgets',
+    submitted.carpStatus === 'pending' && submitted.paintStatus === 'pending', submitted);
+  check('with the real lines on them, linked to a real Item Master entry',
+    submitted.carpMats === 1 && submitted.carpLabour === 1 && submitted.matItemId === bomSeed.itemId, submitted);
+  check('the material amount is qty × the Item Master cost, not the quoted rate',
+    Math.abs(submitted.matAmount - 6 * bomSeed.itemCost) < 0.002, { got: submitted.matAmount, want: 6 * bomSeed.itemCost });
+  // He never saw the rate; the system applied the department's payroll
+  // average so the budget he submits is complete rather than half-priced.
+  check('labour is costed at submit from 12 man-days, without him seeing a rate',
+    submitted.manQty === 12 && submitted.labourAmount > 0, submitted);
+  check('and the whole thing counts as line-itemised', submitted.lineItemised === true, submitted);
+  check('the request is answered by a POINTER at the budget, never by figures',
+    submitted.reqStatus === 'answered' && submitted.reqAnswer
+    && submitted.reqAnswer.jobCardRef === bomSeed.job
+    && !Object.keys(submitted.reqAnswer).some(k => /rate|amount|cost|total/i.test(k)),
+    submitted.reqAnswer);
+
+  const guards = await page.evaluate((s) => {
+    // A BOM must not be pushed through answerInputRequest at all. A FRESH
+    // request, because the one above is already answered and would trip the
+    // "already answered" guard before reaching the type guard.
+    const fresh = raiseInputRequest({ type: 'bom_budget_input', raisedBy: 'Silva Fernandes',
+      raiserRole: 'operations_manager', jobCardId: s.job, question: 'And the second run?', neededBy: null });
+    const viaAnswer = answerInputRequest(fresh.id, { manHours: 10 }, 'Test');
+    // Five typed totals must not flatten the lines somebody built.
+    const flatten = submitDepartmentBudget(s.job, 'carp',
+      { materials: 1, labour: 1, subcontract: 0, hiring: 0, others: 0 }, 'Someone');
+    const stillThere = getJobCard(s.job).departmentBudgets.carp.bom.materials.length;
+    return { viaAnswer: viaAnswer && viaAnswer.error, flatten: flatten && flatten.error, stillThere };
+  }, bomSeed);
+  check('a budgeting request cannot be answered with figures',
+    /submitting the department|not by returning figures/i.test(guards.viaAnswer || ''), guards);
+  check('and five typed totals cannot overwrite a line-itemised budget',
+    /line by line/i.test(guards.flatten || '') && guards.stillThere === 1, guards);
+
+  const gateOpens = await page.evaluate((s) => {
+    // The chain the whole change exists for: approve what he submitted, and
+    // production can start.
+    const before = startLineProduction(s.job, getJobCard(s.job).items[0].lineId, 'carp');
+    approveDepartmentBudget(s.job, 'carp', 'Operations Manager');
+    const after = startLineProduction(s.job, getJobCard(s.job).items[0].lineId, 'carp');
+    return { before: before && before.error, afterOk: !(after && after.error) };
+  }, bomSeed);
+  check('production is blocked until the budget is approved', !!gateOpens.before, gateOpens);
+  check('and approving what he built opens it', gateOpens.afterOk, gateOpens);
+
   console.log('\n— no flow shows money, anywhere —');
   const money = await page.evaluate(async (flows) => {
     const hits = [];

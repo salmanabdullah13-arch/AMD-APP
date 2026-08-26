@@ -305,7 +305,21 @@ function renderDeptBudgetTab(deptKey, currentUser, modPrefix) {
     const editing = deptBudgetEditingJobId === `${modPrefix}:${job.id}`;
     const t = computeBOMTotals(entry.bom);
     let body = '';
-    if (editing) {
+    const lineItemised = typeof departmentBudgetIsLineItemised === 'function'
+      && departmentBudgetIsLineItemised(entry);
+    if (editing && lineItemised) {
+      // Built line by line in Production. Show what is on it rather than five
+      // boxes that would throw the lines away on save.
+      const counts = [['materials', 'Material'], ['labour', 'Labour']]
+        .map(([cat, label]) => `${(entry.bom[cat] || []).length} ${label.toLowerCase()} line${(entry.bom[cat] || []).length === 1 ? '' : 's'}`)
+        .join(' · ');
+      body = `
+        <p style="font-size:11.5px;color:#64748b;line-height:1.5;margin:0 0 8px;">
+          This budget was built line by line in Production — ${counts}, BD ${t.totalCostInclOH.toFixed(3)}.
+          Editing it here would replace those lines with five totals, so it is edited there.
+        </p>
+        <button class="secondary" style="width:100%;font-size:11.5px;" onclick="deptBudgetEditingJobId=null;${modPrefix === 'upholstery' ? 'renderUpholsteryBody()' : 'renderJoineryBody()'};">Close</button>`;
+    } else if (editing) {
       const cats = [['materials', 'Material'], ['labour', 'Labour'], ['subcontract', 'Subcontract'], ['hiring', 'Hiring'], ['others', 'Others']];
       body = `
         ${cats.map(([cat, label]) => `<div class="sales-field" style="margin-bottom:6px;"><label style="font-size:10px;">${label} Cost (BD)</label><input type="number" step="0.001" id="db-${modPrefix}-${cat}" value="${(entry.bom[cat][0] && entry.bom[cat][0].amount) || 0}" style="padding:6px 8px;"></div>`).join('')}
@@ -379,6 +393,35 @@ function deptRecordActual(modPrefix, jobId, deptKey, currentUser) {
 // recorded as approvedBy/rejectedBy — split apart 5 Aug 2026 as part of
 // the role-based access rollout, since a person's role and their name are
 // no longer the same string (see the note on DEPARTMENT_APPROVERS).
+/**
+ * What is actually behind the total, when there is anything behind it.
+ *
+ * A budget typed as five figures has one synthetic `{amount}` per category
+ * and nothing to show, so this renders nothing and the card looks exactly as
+ * it always did. A budget built line by line in Production shows its lines —
+ * which is the whole reason for building it that way.
+ */
+function deptBudgetLinesHTML(entry) {
+  if (typeof departmentBudgetIsLineItemised !== 'function' || !departmentBudgetIsLineItemised(entry)) return '';
+  const mats = (entry.bom.materials || []).filter(m => m.name);
+  const labs = (entry.bom.labour || []).filter(l => l.task || l.manQty);
+  if (!mats.length && !labs.length) return '';
+  const note = entry.submissionNote
+    ? `<p style="font-size:11px;color:#b45309;margin:6px 0 0;">${deptEsc(entry.submissionNote)}</p>` : '';
+  return `<details style="margin-top:8px;">
+    <summary style="font-size:11.5px;color:#64748b;cursor:pointer;">What is on it — ${mats.length} material line${mats.length === 1 ? '' : 's'}, ${labs.length} labour task${labs.length === 1 ? '' : 's'}</summary>
+    ${mats.length ? `<table class="sales-items" style="margin-top:6px;">
+      <tr><th style="text-align:left;">Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr>
+      ${mats.map(m => `<tr><td style="text-align:left;">${deptEsc(m.name)}</td><td>${m.qty}</td><td>${deptEsc(m.unit || '')}</td><td>${(Number(m.rate) || 0).toFixed(3)}</td><td>${(Number(m.amount) || 0).toFixed(3)}</td></tr>`).join('')}
+    </table>` : ''}
+    ${labs.length ? `<table class="sales-items" style="margin-top:6px;">
+      <tr><th style="text-align:left;">Task</th><th>Men</th><th>Days</th><th>Man-days</th><th>Amount</th></tr>
+      ${labs.map(l => `<tr><td style="text-align:left;">${deptEsc(l.task || l.empCategory || 'Labour')}</td><td>${l.noOfPpl || ''}</td><td>${l.qty || ''}</td><td>${l.manQty || ''}</td><td>${(Number(l.amount) || 0).toFixed(3)}</td></tr>`).join('')}
+    </table>` : ''}
+    ${note}
+  </details>`;
+}
+
 function renderBudgetApprovals(approverUserType, approverDisplayName, modPrefix) {
   const rows = getPendingBudgetApprovalsFor(approverUserType);
   if (rows.length === 0) {
@@ -395,6 +438,7 @@ function renderBudgetApprovals(approverUserType, approverDisplayName, modPrefix)
       <table class="sales-items" style="margin-top:8px;"><tr><th>Material</th><th>Labour</th><th>Subcontract</th><th>Hiring</th><th>Others</th></tr>
         <tr><td>${t.materialCost.toFixed(3)}</td><td>${t.labourCost.toFixed(3)}</td><td>${t.subcontractCost.toFixed(3)}</td><td>${t.hiringCost.toFixed(3)}</td><td>${t.othersCost.toFixed(3)}</td></tr>
       </table>
+      ${deptBudgetLinesHTML(r.entry)}
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="primary" style="flex:1;font-size:11.5px;" onclick="deptApproveBudget('${modPrefix}','${r.job.id}','${r.deptKey}','${deptEsc(approverDisplayName)}')">Approve</button>
         <button class="secondary" style="flex:1;font-size:11.5px;color:#b91c1c;" onclick="deptRejectBudget('${modPrefix}','${r.job.id}','${r.deptKey}','${deptEsc(approverDisplayName)}')">Reject</button>

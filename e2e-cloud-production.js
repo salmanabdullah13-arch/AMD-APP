@@ -103,7 +103,8 @@ async function signIn(page, fileUrl, identity) {
     const bin = storeBins[0] || createStoreBin({ storeId: store.id, code: 'C1' });
     putAwayStock({ itemId: itemMaster[0].id, binId: bin.id, qty: 40, source: 'test' });
 
-    const slot = (allotLaneSlot({ crewId: 'CREW-A', jobCardId: job.id, date: todayISO(), portion: 'full', byWhom: 'E2E' }) || {}).slot;
+    const allotRes = allotLaneSlot({ crewId: 'CREW-A', jobCardId: job.id, date: todayISO(), portion: 'full', byWhom: 'E2E' }) || {};
+    const slot = allotRes.slot;
     const ot = bookOvertimeShift({ crewId: 'CREW-A', date: todayISO(), hours: 4, men: 3,
       recoversTarget: job.id, cause: OVERTIME_CAUSES[0], byWhom: 'E2E' });
     const rev = ensureBOMRevision(job.id);
@@ -114,6 +115,10 @@ async function signIn(page, fileUrl, identity) {
     const revRow = rev && rev.id ? await sb.from('bom_revisions').select('*').eq('id', rev.id).maybeSingle() : { data: null };
     return {
       jobId: job.id, slotId: slot && slot.id, otId: ot && ot.id, revId: rev && rev.id,
+      // Say WHY when the lane refuses, instead of leaving a bare false to
+      // chase — the gate has half a dozen real reasons to say no.
+      allotError: allotRes.error || null,
+      blockReason: jobLaneBlockReason(job.id),
       slotFound: !!slotRow.data, slotErr: slotRow.error && slotRow.error.message,
       otFound: !!otRow.data, otErr: otRow.error && otRow.error.message,
       revFound: !!revRow.data, revErr: revRow.error && revRow.error.message

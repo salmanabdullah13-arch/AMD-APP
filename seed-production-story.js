@@ -226,7 +226,7 @@ async function signIn(page, fileUrl) {
       jobCardId: j1.id, question: 'Man-hours and board counts for 3 wardrobes and 2 dressing tables', neededBy: day(0) });
     if (r1.id) made.requests.push(r1.id);
     const r2 = raiseInputRequest({ type: 'bom_budget_input', raisedBy: 'Operations — Silva Fernandes', raiserRole: 'operations_manager',
-      jobCardId: j2.id, question: 'Consumption standard per wardrobe unit, and wastage by process', neededBy: day(1) });
+      jobCardId: j2.id, question: 'Build the BOM for this job so we can set the project budget.', neededBy: day(1) });
     if (r2.id) made.requests.push(r2.id);
 
     // S10/S11 — what he may send back.

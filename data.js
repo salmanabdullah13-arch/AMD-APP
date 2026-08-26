@@ -4099,7 +4099,14 @@ const jobCards = [];
 // practice.
 function nextJobCardNo() {
   const yy = new Date().getFullYear().toString().slice(-2);
-  return "JB" + yy + "AMD" + String(1000 + jobCards.length).padStart(5, "0");
+  // Max-based, not length-based. A length-based id collides the moment the
+  // array has a gap — and once records can be deleted, it always will. The
+  // collision is silent locally and only fails at the primary key.
+  const highest = jobCards.reduce((max, j) => {
+    const n = parseInt(String(j.id || "").slice(-5), 10);
+    return isNaN(n) ? max : Math.max(max, n);
+  }, 1000);
+  return "JB" + yy + "AMD" + String(highest + 1).padStart(5, "0");
 }
 
 function getJobCard(jobId) { return jobCards.find(j => j.id === jobId); }
@@ -5146,24 +5153,126 @@ function recomputeJobBudgetRollup(job) {
   proj.actuals.hir = round(actualTotals.hir); proj.actuals.oth = round(actualTotals.oth);
 }
 
+/**
+ * Was this budget built line by line, or typed as five totals?
+ *
+ * The stamp is authoritative; the shape sniff is the safety net for anything
+ * written before the stamp existed. The five-scalar writer's synthetic line
+ * is `{amount}` and nothing else, so it can never trip either test.
+ */
+function departmentBudgetIsLineItemised(entry) {
+  if (!entry || !entry.bom) return false;
+  if (entry.source === "bom") return true;
+  return EMPTY_BOM_CATEGORIES.some(cat =>
+    (entry.bom[cat] || []).some(r => r.itemId || r.qty !== undefined || r.department));
+}
+
+/**
+ * Everything that happens once a department's budget is final, whatever
+ * built it — five typed totals or a real line-itemised BOM. Extracted so
+ * the two writers cannot drift on status, rollup, log or persistence.
+ */
+function finaliseDepartmentBudgetSubmission(job, deptKey, entry, submittedBy, note) {
+  entry.approvalStatus = "pending";
+  entry.submittedBy = submittedBy;
+  entry.submittedDate = todayISO();
+  entry.rejectionComment = null;
+  if (note) entry.submissionNote = note; else delete entry.submissionNote;
+  recomputeJobBudgetRollup(job);
+  logActivity({
+    type: "budget-submitted", linkedType: "job", linkedId: job.id, user: submittedBy,
+    message: `${dc(deptKey).n} budget submitted for approval` + (note ? ` — ${note}` : "")
+  });
+  persistJobCardUpdate(job);
+  return entry;
+}
+
 function submitDepartmentBudget(jobId, deptKey, categoryAmounts, submittedBy) {
   const job = getJobCard(jobId);
   if (!job) return { error: "Job Card not found." };
   ensureDepartmentBudgets(job);
   const entry = job.departmentBudgets[deptKey];
   if (!entry) return { error: "This job isn't routed to that department." };
+  // Five totals cannot overwrite a budget somebody built line by line — that
+  // would throw the lines away silently, which is the worst kind of loss. The
+  // UI also hides the form, but this is the boundary and the UI is a courtesy.
+  if (departmentBudgetIsLineItemised(entry)) {
+    return { error: "This budget was entered line by line. Overwriting it with five totals would throw those lines away — edit it in Production." };
+  }
   EMPTY_BOM_CATEGORIES.forEach(cat => {
     const amt = Number(categoryAmounts[cat]) || 0;
     entry.bom[cat] = amt > 0 ? [{ amount: amt }] : [];
   });
-  entry.approvalStatus = "pending";
-  entry.submittedBy = submittedBy;
-  entry.submittedDate = todayISO();
-  entry.rejectionComment = null;
-  recomputeJobBudgetRollup(job);
-  logActivity({ type: "budget-submitted", linkedType: "job", linkedId: job.id, user: submittedBy, message: `${dc(deptKey).n} budget submitted for approval` });
-  persistJobCardUpdate(job);
-  return entry;
+  return finaliseDepartmentBudgetSubmission(job, deptKey, entry, submittedBy, null);
+}
+
+/**
+ * The same budget, built from a real BOM: materials picked from the Item
+ * Master with quantities, and labour as tasks of days x men.
+ *
+ * The labour RATE is not a parameter. It is looked up here from the
+ * department's payroll average, because the man sending days and men is not
+ * the man who may see what a day costs — the same division of labour the
+ * pricing-input rule draws. He never sees it, and his own screens show
+ * labour as man-days.
+ *
+ * lines = { materials: [{itemId, qty, description?}],
+ *           labour:    [{task, men, days, empCategory?}] }
+ */
+function submitDepartmentBudgetFromBOM(jobId, deptKey, lines, submittedBy, opts = {}) {
+  const job = getJobCard(jobId);
+  if (!job) return { error: "Job Card not found." };
+  ensureDepartmentBudgets(job);
+  const entry = job.departmentBudgets[deptKey];
+  if (!entry) return { error: "This job isn't routed to that department." };
+
+  const mats = (lines && lines.materials) || [];
+  const labs = (lines && lines.labour) || [];
+  if (!mats.length && !labs.length) return { error: "A budget with no lines is not a budget." };
+
+  const matRows = [];
+  for (let i = 0; i < mats.length; i++) {
+    const l = mats[i];
+    const item = (typeof itemMaster !== "undefined" ? itemMaster : []).find(x => x.id === l.itemId);
+    // An unlinked line is invisible to jobMaterialShortLines() and to Job
+    // Material Requirement — the same reason the Estimator refuses free text.
+    if (!item) return { error: "Pick a real Item Master entry — free text isn't accepted." };
+    const qty = Number(l.qty) || 0;
+    if (qty <= 0) return { error: item.name + " needs a quantity." };
+    // Cost, never sellingPrice. Production sees what we pay, not what we charge.
+    const rate = Number(item.cost) || Number(item.lastPurchaseRate) || 0;
+    matRows.push({
+      id: matRows.length + 1, itemId: item.id, name: item.name,
+      description: l.description || "", qty, unit: item.unit,
+      rate, amount: Math.round(qty * rate * 1000) / 1000
+    });
+  }
+
+  const labRate = typeof getDeptAvgLabourRate === "function" ? getDeptAvgLabourRate(deptKey) : 0;
+  const labRows = [];
+  for (let i = 0; i < labs.length; i++) {
+    const l = labs[i];
+    const men = Number(l.men) || 0, days = Number(l.days) || 0;
+    if (!l.task || !String(l.task).trim()) return { error: "Every labour line needs a task." };
+    if (men <= 0 || days <= 0) return { error: String(l.task) + " needs men and days." };
+    const manQty = men * days;
+    labRows.push({
+      id: labRows.length + 1, department: deptKey,
+      empCategory: l.empCategory || EMP_CATEGORIES[0],
+      calcMode: "days", task: String(l.task).trim(),
+      noOfPpl: men, qty: days, manQty,
+      rate: labRate, amount: Math.round(manQty * labRate * 1000) / 1000
+    });
+  }
+
+  entry.bom.materials = matRows;
+  entry.bom.labour = labRows;
+  // subcontract / hiring / others are money somebody else commits — Purchase
+  // raises the order, Operations hires the machine. They are not on a
+  // production form, and anything already on them is left alone rather than
+  // blanked by a form that never offered them.
+  entry.source = "bom";
+  return finaliseDepartmentBudgetSubmission(job, deptKey, entry, submittedBy, opts.note || null);
 }
 
 // Fix Plan Phase 2 (5 Aug 2026, Fable audit findings #1/#2) — a real

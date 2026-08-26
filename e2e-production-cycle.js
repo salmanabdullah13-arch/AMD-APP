@@ -211,7 +211,7 @@ function check(name, ok, detail) {
     return {
       pressed: pressed.status, emptyErr: emptyPress.error,
       askedKinds: asked.map(a => a.kind),
-      hasBudgetAsk: asked.some(a => a.kind === 'BOM input for budgeting'),
+      hasBudgetAsk: asked.some(a => a.kind === 'Job BOM for budgeting'),
       k
     };
   });
