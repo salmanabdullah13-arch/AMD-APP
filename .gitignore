@@ -12,3 +12,11 @@ amd-app-systems-audit-*.md
 # Story manifests: working files, not source. The live one is kept so the
 # teardown can find it; the archived ones are just receipts.
 production-story-manifest.cleared-*.json
+
+# Scratch files from working sessions. They are named _something by
+# convention and are never part of the app; two got committed by mistake
+# on 26 Aug 2026.
+_*.js
+_*.txt
+_*.md
+_*.png
