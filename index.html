@@ -1180,7 +1180,12 @@ const NODES = [
   { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ launchPurchasingModule(); } },
   { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ launchStorekeeperModule(); } },
   { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ launchUpholsteryModule(); } },
-  { id:'joinery',      label:'Joinery',          built:true,  launch:()=>{ launchJoineryModule(); } },
+  // Superseded by the 19a Production module (id 'production'), which is what
+  // every joinery user_type now lands on. The wrapper stays because the four
+  // granular joinery views render inside its own module wrap — but the label
+  // says so, because 'Joinery' and 'Production' sitting side by side is how
+  // Owner ended up on the wrong screen and thought the 19a build was wrong.
+  { id:'joinery',      label:'Joinery (old pipeline view)', built:true,  launch:()=>{ launchJoineryModule(); } },
   { id:'painting',    label:'Painting',         built:true,  launch:()=>{ launchPaintingModule(); } },
   { id:'sales',        label:'Sales',            built:true,  launch:()=>{ launchSalesModule(); } },
   { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ launchEstimatorModule(); } },

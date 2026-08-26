@@ -1157,7 +1157,12 @@ window.OwnerDashboard = (function () {
     operations: ['launchOperationsModule', null],
     jobs:       ['launchJobsModule', null],
     purchase:   ['launchPurchasingModule', null],
-    production: ['launchJoineryModule', null],
+    // 26 Aug 2026: the production manager's module is 19a (production-ui.js).
+    // This still pointed at joinery.js, the Batch 8 pipeline wrapper 19a
+    // replaced — the 4a Owner package predates 19a, and no role lands on the
+    // plain joinery node any more (every joinery user_type points at
+    // production, joinery-floor, -drafting, -cutting or -veneer-pressing).
+    production: ['launchProductionModule', null],
     accounts:   ['launchAccountsModule', null],
     hr:         ['launchHRModule', null]
   };

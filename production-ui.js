@@ -45,9 +45,47 @@ const PRD_OTHER_WRAPS = ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wr
   'painting-module-wrap', 'owner-module-wrap', 'admin-module-wrap', 'fleet-module-wrap',
   'delivery-sched-module-wrap'];
 
+/**
+ * The topbar sub-line, which the prototype frame carries and which reads as
+ * the day in one sentence: what is asked of you, what cannot start, and
+ * which crew is over. Each clause is dropped when its count is zero rather
+ * than shown as "0" — a line of zeros is noise.
+ *
+ * Written on RENDER rather than passed into the shell, because this module
+ * is the production manager's landing screen: the shell is built before the
+ * cloud caches hydrate, so at build time every count is zero. Same approach,
+ * and the same reason, as 13b's Operations dashboard.
+ */
+function prdRefreshSubtitle() {
+  const el = document.querySelector('#prd-module-wrap .xs-sub');
+  if (!el) return;
+  const k = safeTop(() => getProductionKPIs(), {});
+  const d = new Date();
+  let line = d.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const rest = prdSubLine(k);
+  el.textContent = rest ? line + ' · ' + rest : line;
+}
+function prdSubLine(k) {
+  const bits = [];
+  if (k.askedOfYou) bits.push(k.askedOfYou + (k.askedOfYou === 1 ? ' thing asked of you' : ' things asked of you'));
+  if (k.waitingForLane) bits.push(k.waitingForLane + (k.waitingForLane === 1 ? ' job with no lane' : ' jobs with no lane'));
+  const over = safeTop(function () {
+    return crews.filter(function (c) {
+      return laneSlots.filter(function (s) { return s.crewId === c.id && s.kind === 'work'; }).length > 5;
+    }).map(function (c) { return c.name.replace(/^Joinery · /, ''); });
+  }, []);
+  if (over.length) bits.push(over.length === 1 ? over[0] + ' over' : over.length + ' crews over');
+  return bits.length ? bits.join(' · ') : null;
+}
+/** Module-scope safe(), for the helpers that sit outside the UI closure. */
+function safeTop(fn, fallback) { try { const v = fn(); return v === undefined ? fallback : v; } catch (e) { return fallback; } }
+
 function prdBuildShell() {
   const k = (typeof getProductionKPIs === 'function') ? getProductionKPIs() : {};
   const nv = (id, ico, label, onclick, tag) => ({ id, ico, label, onclick, tag });
+  // Badge counts the frame shows on almost every rail item — all real
+  // readers, so an empty shop shows an empty rail rather than invented ones.
+  const cnt = (fn) => safeTop(fn, 0) || '';
   prdModuleWrap.innerHTML = execShellHTML({
     title: 'Production', sub: null, role: 'Joinery Production Manager',
     contentId: 'prd-body', closeFn: 'closeProductionModule',
@@ -56,20 +94,34 @@ function prdBuildShell() {
        rather than a dead view — flagged in the session log, not hidden. */
     navGroups: [{
       label: 'Workspace', items: [
+        /* The frame's rail opens with Dashboard, above Week board — without
+           it there is no way back to the board from inside a page except the
+           back arrow, and the board page is not the dashboard. */
+        nv('prd-dash', '⌂', 'Dashboard', "PrdUI.go('dash','board')", k.askedOfYou || ''),
         nv('prd-board', '▦', 'Week board', "PrdUI.go('page','board')", k.waitingForLane || ''),
         nv('prd-price', '∑', 'Pricing input', "PrdUI.go('page','price')", k.askedOfYou || ''),
-        nv('prd-bomb', '⊟', 'BOM input for budgeting', "PrdUI.go('page','bomb')"),
+        nv('prd-bomb', '⊟', 'BOM input for budgeting', "PrdUI.go('page','bomb')",
+          cnt(() => getInputRequestsOfType('bom_budget_input').filter(r => r.status === 'open').length)),
         nv('prd-bom', '⇄', 'BOM changes', "PrdUI.go('page','bom')", k.deadPaperOut || ''),
         nv('prd-mat', '▣', 'Material & reservations', "PrdUI.go('page','mat')", k.blockedForMaterial || ''),
-        nv('prd-quote', '⌸', 'Supplier quotes', "PrdUI.go('page','quote')"),
+        nv('prd-quote', '⌸', 'Supplier quotes', "PrdUI.go('page','quote')",
+          cnt(() => (typeof rfqs !== 'undefined' ? rfqs : []).filter(r => r.status === 'quotes-in').length)),
         nv('prd-cut', '⌗', 'Cutting lists', "PrdUI.go('page','cut')", k.liveSheets || ''),
         nv('prd-press', '▤', 'Veneer pressing', "PrdUI.go('page','press')", k.openBatches || ''),
-        nv('prd-paint', '◐', 'Paint & polish', "PrdUI.go('page','paint')"),
-        nv('prd-inst', '⌂', 'Site installation', "PrdUI.go('page','inst')"),
-        nv('prd-team', '☷', 'Teams & labour', "PrdUI.go('page','team')"),
-        nv('prd-ot', '◑', 'Overtime & recovery', "PrdUI.go('page','ot')"),
-        nv('prd-rem', '⏱', 'Reminders', "PrdUI.go('page','rem')"),
-        nv('prd-doc', '▨', 'Documents', "PrdUI.go('page','doc')")
+        nv('prd-paint', '◐', 'Paint & polish', "PrdUI.go('page','paint')",
+          cnt(() => getPulledSlotRows('paint').length)),
+        nv('prd-inst', '⇱', 'Site installation', "PrdUI.go('page','inst')",
+          cnt(() => getPulledSlotRows('carp').filter(r => !r.booked).length)),
+        nv('prd-team', '☷', 'Teams & labour', "PrdUI.go('page','team')",
+          cnt(() => getCrewlessMen().length)),
+        nv('prd-ot', '◑', 'Overtime & recovery', "PrdUI.go('page','ot')",
+          cnt(() => getOvertimeRows().filter(r => !r.refused).length)),
+        nv('prd-rem', '⏱', 'Reminders', "PrdUI.go('page','rem')",
+          cnt(() => getProductionReminders().length)),
+        nv('prd-doc', '▨', 'Documents', "PrdUI.go('page','doc')"),
+        /* The frame's last rail item. The form view's own twelve pills ARE
+           the create menu, so this opens it on the spec's default flow. */
+        nv('prd-create', '＋', 'Create…', "PrdUI.go('form','price')")
       ]
     }]
   });
@@ -1687,7 +1739,11 @@ window.PrdUI = (function () {
     if (S.view === 'page') return pageHTML();
     return dashHTML();
   }
-  function paint() { if (root) { root.innerHTML = render(); } }
+  function paint() {
+    if (root) { root.innerHTML = render(); }
+    // Keep the topbar counts in step with whatever was just drawn.
+    safeTop(prdRefreshSubtitle, null);
+  }
 
   function onChange(e) {
     var t = e.target;

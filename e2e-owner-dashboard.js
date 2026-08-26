@@ -325,8 +325,8 @@ function printReport() {
     rowGeom.qaAndBellSameRow && rowGeom.titleBelowControls && rowGeom.inToprow ? 'PASS' : 'FAIL',
     JSON.stringify(rowGeom));
 
-  record('Nav groups are Workspace · Business · Money · Company · Administration',
-    JSON.stringify(shell.navGroups) === JSON.stringify(['Workspace', 'Business', 'Money', 'Company', 'Administration']) ? 'PASS' : 'FAIL', JSON.stringify(shell.navGroups));
+  record('Nav groups are Workspace · Business · Workshops · Money · Company · Administration',
+    JSON.stringify(shell.navGroups) === JSON.stringify(['Workspace', 'Business', 'Workshops', 'Money', 'Company', 'Administration']) ? 'PASS' : 'FAIL', JSON.stringify(shell.navGroups));
 
   await page.click('#owner-module-wrap .xs-qa');
   await page.waitForTimeout(200);
@@ -420,6 +420,70 @@ function printReport() {
   });
   record('Opening Owner hides every other module wrap', hygiene.othersVisible.length === 0 ? 'PASS' : 'FAIL', hygiene.othersVisible.join(', '));
 
+
+  console.log('\n— every built dashboard is reachable from Owner —');
+  // Salman, 26 Aug 2026, mandatory: "every dashboard we built should show up
+  // on owners dashboard as well." This check is written against the module
+  // REGISTRY, not a hand-kept list, so a dashboard added later fails here
+  // until someone gives Owner a route to it.
+  const reach = await page.evaluate(async () => {
+    launchOwnerModule();
+    await new Promise(r => setTimeout(r, 400));
+    ownerNav('alldash');
+    await new Promise(r => setTimeout(r, 300));
+    const body = document.getElementById('owner-body');
+    const built = (window.__eco3d.NODES || []).filter(n => n.built && n.id !== 'owner');
+    const listed = [...body.querySelectorAll('[onclick^="ownerOpenNode"]')]
+      .map(b => (b.getAttribute('onclick').match(/ownerOpenNode\('([^']+)'\)/) || [])[1]);
+    return {
+      builtIds: built.map(n => n.id),
+      listed,
+      missing: built.map(n => n.id).filter(id => listed.indexOf(id) === -1),
+      groups: [...body.querySelectorAll('.sales-card h3')].map(h => h.textContent.trim())
+    };
+  });
+  record('Every built dashboard is listed on Owner, none missing',
+    reach.missing.length === 0 ? 'PASS' : 'FAIL', reach.missing.join(', '));
+  record('The list is grouped into modules and shop floor',
+    reach.groups.indexOf('Modules') !== -1 && reach.groups.indexOf('Shop floor') !== -1 ? 'PASS' : 'FAIL', reach.groups.join(' | '));
+
+  // The specific thing that started this: Owner drilled into "Joinery" and
+  // got joinery.js, the Batch 8 wrapper 19a replaced.
+  const prodTarget = await page.evaluate(async () => {
+    launchOwnerModule();
+    await new Promise(r => setTimeout(r, 400));
+    const nav = [...document.querySelectorAll('#owner-module-wrap .xs-item')]
+      .map(a => ({ label: a.textContent.trim(), on: a.getAttribute('onclick') || '' }));
+    const production = nav.find(n => /Production$/i.test(n.label));
+    return { production, labels: nav.map(n => n.label) };
+  });
+  record('Owner has a direct Production entry, and it opens 19a not the old joinery wrapper',
+    prodTarget.production && /launchProductionModule/.test(prodTarget.production.on) ? 'PASS' : 'FAIL',
+    prodTarget.production ? prodTarget.production.on : prodTarget.labels.join(', '));
+
+  // A dashboard opened from here must be able to get back, which is the
+  // return-ticket bug this app has hit three times.
+  const roundTrip = await page.evaluate(async () => {
+    launchOwnerModule();
+    await new Promise(r => setTimeout(r, 400));
+    ownerNav('alldash');
+    await new Promise(r => setTimeout(r, 250));
+    ownerOpenNode('production');
+    await new Promise(r => setTimeout(r, 500));
+    const opened = getComputedStyle(document.getElementById('prd-module-wrap')).display;
+    const ownerHidden = getComputedStyle(document.getElementById('owner-module-wrap')).display;
+    const canGoBack = typeof execBack === 'function' && !!document.querySelector('#prd-module-wrap .xs-back');
+    if (typeof execBack === 'function') execBack();
+    await new Promise(r => setTimeout(r, 500));
+    return {
+      opened, ownerHidden, canGoBack,
+      backOnOwner: getComputedStyle(document.getElementById('owner-module-wrap')).display
+    };
+  });
+  record('Opening one from the list really opens it and hides Owner',
+    roundTrip.opened === 'flex' && roundTrip.ownerHidden === 'none' ? 'PASS' : 'FAIL', JSON.stringify(roundTrip));
+  record('It leaves a return ticket, and Back lands on Owner again',
+    roundTrip.canGoBack && roundTrip.backOnOwner === 'flex' ? 'PASS' : 'FAIL', JSON.stringify(roundTrip));
   const critical = consoleErrors.filter(e => !e.text.includes('favicon'));
   record('No unexpected console errors', critical.length === 0 ? 'PASS' : 'FAIL', critical.map(e => e.text).join(' | '));
   record('No uncaught page errors', pageErrors.length === 0 ? 'PASS' : 'FAIL', pageErrors.map(e => e.text).join(' | '));

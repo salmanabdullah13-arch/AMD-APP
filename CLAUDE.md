@@ -8175,3 +8175,59 @@ cause sitting behind that label, one of them masking a genuine regression in
 job-card coverage since 16 Aug.
 
 - `sw.js` CACHE_VERSION v57 → v58.
+
+### 26 Aug 2026 — Owner reaches every dashboard (mandatory); 19a rail and topbar to the frame
+
+Salman sent a screenshot of a Joinery screen asking "this doesn't look the
+same?" — the breadcrumb read `Owner › Joinery`. He was looking at
+**`joinery.js`, the Batch 8 pipeline wrapper**, not the 19a Production module.
+Owner's `DEPT_TARGET.production` still pointed at `launchJoineryModule`: the 4a
+Owner package predates 19a and was never repointed, while **no `user_type`
+lands on the plain `joinery` node any more** (every joinery role now points at
+`production`, `joinery-floor`, `-drafting`, `-cutting` or `-veneer-pressing`).
+
+**New standing rule, his words — "every dashboard we built should show up on
+owners dashboard as well - this is mandatory."** Recorded in memory
+(`amd-owner-sees-every-dashboard`). A module is not finished until Owner can
+open it, pointed at the current version.
+
+- **Owner's sidebar** gained the modules that had no route at all: Estimating,
+  Approvals, a new **Workshops** group (Production · Curtain & blinds ·
+  Upholstery · Paint & polish), Store, and Vehicles. Nine of ~28 dashboards
+  were reachable before; the sidebar now covers every module a person uses
+  daily.
+- **"All dashboards"** — a new Owner view listing **every built node**, read
+  straight off the ecosystem `NODES` registry rather than a hand-kept list,
+  because a second list is exactly what went stale here. Grouped Modules (17)
+  and Shop floor (10) so the granular views don't drown the modules. 27 in
+  total, each opening through `ownerOpenNode()`, which leaves a return ticket.
+- **The `joinery` node is relabelled "Joinery (old pipeline view)"** — the
+  wrapper stays, because the four granular joinery views render inside its
+  module wrap, but "Joinery" and "Production" sitting side by side unlabelled
+  is precisely how he ended up on the wrong screen and thought the 19a build
+  was wrong.
+
+**Then, against the 19a prototype frame he sent, three real fidelity gaps:**
+
+1. **No "Dashboard" rail item.** The frame's rail opens with it, above Week
+   board — without it there is no rail route back to the board from inside a
+   page, and the board *page* is not the dashboard.
+2. **No "+ Create…" rail item.** The frame closes the rail with it; the form
+   view's own twelve pills are the create menu, so it opens on the spec's
+   default flow.
+3. **No topbar sub-line.** The frame reads "Thursday 13 August 2026 · 5 things
+   asked of you · 3 jobs with no lane · Crew A over". Written on **render**,
+   not passed into the shell — this module is the production manager's landing
+   screen, so the shell is built before the caches hydrate and every count
+   would be zero. Same approach and the same reason as 13b's Operations
+   dashboard. A zero clause is dropped rather than rendered as "0".
+   Eight rail badges also went from blank to real counts.
+
+- **Verification**: `e2e-owner-dashboard.js` 40 → 45 — including a check
+  written against the **registry** rather than a fixed list, so a dashboard
+  added later fails until Owner has a route to it; plus the specific
+  Production-not-Joinery target, and a real round trip proving Back returns to
+  Owner. `e2e-production-19a.js` 52 → 58 for the rail and topbar.
+  `e2e-admin-dashboard.js` 12/12, production pages 46/46, flows 56/56. Full
+  offline sweep: **all green**.
+- `sw.js` CACHE_VERSION v58 → v59.

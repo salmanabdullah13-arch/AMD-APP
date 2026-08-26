@@ -66,9 +66,22 @@ function ownerBuildShell() {
       {
         label: 'Business', items: [
           { id: 'm-sales', ico: '◉', label: 'Sales pipeline', onclick: "ownerGoTo('launchSalesModule')" },
+          { id: 'm-estimating', ico: '∑', label: 'Estimating', onclick: "ownerGoTo('launchEstimatorModule')" },
+          { id: 'm-approvals', ico: '✔', label: 'Approvals', onclick: "ownerGoTo('launchApproverModule')" },
           { id: 'm-jobs', ico: '⚒', label: 'Job cards', onclick: "ownerGoTo('launchJobsModule')" },
           /* "Deliveries" is this app's Delivery Scheduling module. */
           { id: 'm-deliveries', ico: '🚚', label: 'Deliveries', onclick: "ownerGoTo('launchDeliverySchedModule')" }
+        ]
+      },
+      {
+        /* The four production floors. "Production" is the 19a module — the
+           joinery production manager's own dashboard, which replaced the
+           Batch 8 joinery.js wrapper. */
+        label: 'Workshops', items: [
+          { id: 'm-production', ico: '▦', label: 'Production', onclick: "ownerGoTo('launchProductionModule')" },
+          { id: 'm-curtain', ico: '◫', label: 'Curtain & blinds', onclick: "ownerGoTo('launchCurtainModule')" },
+          { id: 'm-upholstery', ico: '◧', label: 'Upholstery', onclick: "ownerGoTo('launchUpholsteryModule')" },
+          { id: 'm-painting', ico: '◐', label: 'Paint & polish', onclick: "ownerGoTo('launchPaintingModule')" }
         ]
       },
       {
@@ -84,8 +97,10 @@ function ownerBuildShell() {
         label: 'Company', items: [
           /* "Departments" is Operations, which owns the cross-department view. */
           { id: 'm-departments', ico: '⚙', label: 'Departments', onclick: 'ownerGoToOperations()' },
-          { id: 'm-hr', ico: '☰', label: 'HR & payroll', onclick: "ownerGoTo('launchHRModule')" },
-          { id: 'm-purchasing', ico: '⬡', label: 'Purchasing', onclick: "ownerGoTo('launchPurchasingModule')" }
+          { id: 'm-purchasing', ico: '⬡', label: 'Purchasing', onclick: "ownerGoTo('launchPurchasingModule')" },
+          { id: 'm-store', ico: '▤', label: 'Store', onclick: "ownerGoTo('launchStorekeeperModule')" },
+          { id: 'm-fleet', ico: '🚐', label: 'Vehicles', onclick: "ownerGoTo('launchFleetModule')" },
+          { id: 'm-hr', ico: '☰', label: 'HR & payroll', onclick: "ownerGoTo('launchHRModule')" }
         ]
       },
       {
@@ -95,7 +110,10 @@ function ownerBuildShell() {
              catalogues) — this app has no separate Masters module. */
           { id: 'm-users', ico: '🛡', label: 'Users & roles', onclick: "ownerGoToAdmin('users')" },
           { id: 'm-masters', ico: '🗂', label: 'Masters', onclick: 'ownerGoToMasters()' },
-          { id: 'm-settings', ico: '⚙', label: 'Settings', onclick: "ownerGoToAdmin('devpreview')" }
+          { id: 'm-settings', ico: '⚙', label: 'Settings', onclick: "ownerGoToAdmin('devpreview')" },
+          /* The completeness guarantee: every built dashboard, including the
+             shop-floor views no sidebar could carry. */
+          { id: 'owner-alldash', ico: '⊞', label: 'All dashboards', onclick: "ownerNav('alldash')" }
         ]
       }
     ]
@@ -189,6 +207,51 @@ function ownerGoToOperations() {
 // Approvals tab, see approval-queue.js.
 let ownerView = 'dashboard';
 function ownerOpenApprovals() { ownerNav('approvals'); }
+
+/**
+ * Every built dashboard, read straight off the ecosystem NODES registry
+ * rather than a hand-kept list — a second list would go stale the first
+ * time a module was added, which is exactly how Owner ended up pointing at
+ * the Batch 8 joinery wrapper months after 19a replaced it.
+ *
+ * Grouped so the ten shop-floor views do not drown the sixteen modules.
+ */
+function ownerAllDashboardsHTML() {
+  const nodes = (window.__eco3d && window.__eco3d.NODES ? window.__eco3d.NODES : []).filter(n => n.built);
+  const FLOOR = /^(curtain-|joinery-|upholstery-team|upholstery-qc)/;
+  const modules = nodes.filter(n => !FLOOR.test(n.id) && n.id !== 'owner');
+  const floors = nodes.filter(n => FLOOR.test(n.id));
+  const card = (list, title, note) => `
+    <div class="sales-card">
+      <h3>${ownerEsc(title)}</h3>
+      <p style="font-size:11.5px;color:#64748b;margin:-2px 0 10px;">${ownerEsc(note)}</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;">
+        ${list.length === 0
+          ? '<p style="font-size:12px;color:#94a3b8;">Nothing built in this group yet.</p>'
+          : list.map(n => `<button class="prd-btn-o sm" style="justify-content:flex-start;text-align:left;height:auto;padding:10px 12px;"
+              onclick="ownerOpenNode('${ownerEsc(n.id)}')">${ownerEsc(n.label || n.id)}</button>`).join('')}
+      </div>
+    </div>`;
+  return `
+    <div class="sales-card" style="background:var(--wine-tint,#f4e6ec);border-color:var(--wine-line,#e0c2d0);">
+      <h3>All dashboards</h3>
+      <p style="font-size:12px;color:#4b5563;line-height:1.55;margin:0;">
+        Everything built in the app, straight from the module registry — so a new
+        dashboard cannot be added without appearing here. ${modules.length + floors.length} in total.
+      </p>
+    </div>
+    ${card(modules, 'Modules', 'Each role\u2019s own dashboard.')}
+    ${card(floors, 'Shop floor', 'The task-level views inside Curtain, Joinery and Upholstery.')}`;
+}
+
+/** Opens a dashboard by its registry id, leaving a return ticket. */
+function ownerOpenNode(id) {
+  const node = (window.__eco3d && window.__eco3d.NODES ? window.__eco3d.NODES : []).find(n => n.id === id);
+  if (!node || typeof node.launch !== 'function') return;
+  if (typeof execPushCurrent === 'function') execPushCurrent();
+  hideModuleWrap(ownerModuleWrap);
+  setTimeout(() => node.launch(), 150);
+}
 function ownerBackToDashboard() { ownerNav('dashboard'); }
 
 // ── My Tasks (exec-shell pilot) — the "task code should be there" ask:
@@ -320,6 +383,10 @@ function ownerBudgetReviewReject(jobId, deptKey, status) {
 function renderOwnerBody() {
   const body = document.getElementById('owner-body');
   if (!body) return;
+  if (ownerView === 'alldash') {
+    body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span>` + ownerAllDashboardsHTML();
+    return;
+  }
   if (ownerView === 'approvals') {
     body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span><div id="owner-approval-queue"></div>`;
     renderApprovalQueueScreen('owner-approval-queue');

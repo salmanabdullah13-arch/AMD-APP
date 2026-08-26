@@ -293,6 +293,36 @@ function check(name, ok, detail) {
   check('the week label is not clipped by the arrow width', !lblFit.clipped, lblFit);
 
 
+  console.log('\n— the rail and topbar against the prototype frame —');
+  const frame = await page.evaluate(async () => {
+    PrdUI.go('dash', 'board');
+    await new Promise(r => setTimeout(r, 200));
+    const items = [...document.querySelectorAll('#prd-module-wrap .xs-item')];
+    return {
+      labels: items.map(a => a.textContent.replace(/\s+/g, ' ').trim()),
+      first: items[0] ? items[0].getAttribute('onclick') : null,
+      last: items[items.length - 1] ? items[items.length - 1].getAttribute('onclick') : null,
+      sub: (document.querySelector('#prd-module-wrap .xs-sub') || {}).textContent || '',
+      badged: items.filter(a => a.querySelector('.xs-tag')).length
+    };
+  });
+  // The frame's rail opens with Dashboard and closes with Create… Without the
+  // first there is no rail route back to the board from inside a page.
+  check('the rail opens with Dashboard, and it returns to the board',
+    /Dashboard$/.test(frame.labels[0] || '') && /go\('dash'/.test(frame.first || ''), frame.labels.slice(0, 2));
+  check('and closes with Create…, which opens the flows',
+    /Create/.test(frame.labels[frame.labels.length - 1] || '') && /go\('form'/.test(frame.last || ''),
+    frame.labels.slice(-2));
+  check('all sixteen rail entries are there', frame.labels.length === 16, frame.labels.length);
+  // "Thursday 13 August 2026 · 5 things asked of you · 3 jobs with no lane ·
+  // Crew A over" — the day in one sentence.
+  check('the topbar carries the date', /\d{4}/.test(frame.sub), frame.sub);
+  check('and the counts alongside it, not instead of it',
+    frame.sub.indexOf('·') !== -1 && /asked of you|no lane|over/.test(frame.sub), frame.sub);
+  // A count of zero is dropped rather than rendered as "0" — a line of zeros
+  // is noise, not information.
+  check('a zero clause is dropped, not shown as 0', !/\b0 (things|jobs|crews)/.test(frame.sub), frame.sub);
+
   console.log('\n— the dashboard against the package —');
   // Every class below had a rule in production.css and no renderer emitting
   // it. A rule nothing produces is a deviation that reads as done.
