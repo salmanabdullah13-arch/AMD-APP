@@ -173,7 +173,8 @@ window.PrdUI = (function () {
     formCrew: null,    // the crew the open allot form is about
     allotLines: null,  // ticked lineIds; null = untouched
     bomLines: null,    // job-BOM editor, keyed by department
-    bomSearch: ''      // its Item Master search box
+    bomSearch: '',     // its Item Master search box
+    bomExcel: null     // a parsed upload waiting to be reviewed
   };
 
   function esc(s) {
@@ -927,6 +928,15 @@ window.PrdUI = (function () {
 
       '<div class="prd-banner t-' + banner.tone + '">' + esc(banner.text) + '</div>' +
 
+      (key === 'bomb' && S.bomExcel
+        // A pending review owns the action row. Submitting underneath it
+        // would send operations a budget nobody had read.
+        ? '<div class="prd-acts">' +
+          '<button class="prd-btn" data-a="bom-xl-apply">Put these rows on the form</button>' +
+          '<button class="prd-btn-g" data-a="bom-xl-discard">Discard the upload</button>' +
+          '<span class="prd-acts-h">Nothing is saved yet — you still submit from the form.</span>' +
+          '</div>'
+        :
       '<div class="prd-acts">' +
       '<button class="prd-btn' + (dead ? ' dead' : tone === 'warn' ? ' warn' : '') + '"' +
       (dead ? ' disabled' : '') + ' data-a="submit" data-f="' + key + '">' + esc(m.primary) + '</button>' +
@@ -934,7 +944,8 @@ window.PrdUI = (function () {
       '<span class="prd-acts-h">' + esc(dead
         ? (tone === 'bad' ? 'Blocked by the answer above.' : 'Answer the question first.')
         : 'Nothing is written until you press this.') + '</span>' +
-      '</div></div>' +
+      '</div>'
+      ) + '</div>' +
 
       '<div class="prd-r prd-rail">' + ruleCard(m.rule) +
       '<section class="prd-card prd-ctx">' +
@@ -1109,14 +1120,23 @@ window.PrdUI = (function () {
     var L = bomLines(dept);
     var pull = safe(function () { return seedDepartmentBudgetLinesFromEstimate(S.formJob, dept); }, null);
     var pullN = pull ? (pull.materials.length + pull.labour.length) : 0;
+    var cmp = bomEstimate(dept);
+    var byCode = (cmp && cmp.byCode) || {};
 
     var mats = L.materials.length ? L.materials.map(function (m, i) {
+      // The estimator's own quantity for THIS code, matched on itemId — a
+      // fact, not a guess. Blank where he never itemised it, which per the
+      // note above is the usual case; the footer is what to read then.
+      var e = byCode[m.itemId];
       return '<div class="prd-bom-r">' +
         '<span class="c-n">' + (i + 1) + '</span>' +
         '<span class="c-p"><b>' + esc(m.name) + '</b></span>' +
         '<span class="c-q"><button class="prd-stp" data-a="bom-q" data-d="' + dept + '" data-i="' + i + '" data-v="-1">−</button>' +
         '<b>' + (Number(m.qty) || 0) + '</b>' +
         '<button class="prd-stp" data-a="bom-q" data-d="' + dept + '" data-i="' + i + '" data-v="1">＋</button></span>' +
+        '<span class="c-e' + (e && (Number(m.qty) || 0) > e.qty ? ' over' : '') + '"' +
+        (e ? '' : ' title="The estimator has no line for this code."') + '>' +
+        (e ? e.qty : '—') + '</span>' +
         '<span class="c-u">' + esc(m.unit || '') + '</span>' +
         '<span class="c-r">' + bd(m.rate) + '</span>' +
         '<span class="c-a">' + bd((Number(m.qty) || 0) * (Number(m.rate) || 0)) + '</span>' +
@@ -1153,6 +1173,9 @@ window.PrdUI = (function () {
           : '')) +
       '</div>';
 
+    var estMat = cmp ? cmp.totals.materialCost : 0;
+    var estDays = cmp ? cmp.totals.manDays : 0;
+
     return '<section class="prd-bom-sec" data-dept="' + dept + '">' +
       '<div class="prd-bom-h"><div class="prd-bom-hn"><b>' + esc(dc(dept).n) + '</b>' +
       '<i>' + L.materials.length + ' material line' + (L.materials.length === 1 ? '' : 's') + ' · ' +
@@ -1162,9 +1185,11 @@ window.PrdUI = (function () {
       '</button></div>' +
       (pull && pull.notes.length
         ? '<div class="prd-bom-note">' + pull.notes.map(esc).join(' ') + '</div>' : '') +
+      bomItemStripHTML(dept, cmp) +
       '<div class="prd-bom-sub">Materials</div>' + search +
       '<div class="prd-bom-c"><span class="c-n">#</span><span class="c-p">ITEM</span>' +
-      '<span class="c-q">QTY</span><span class="c-u">UNIT</span><span class="c-r">COST</span>' +
+      '<span class="c-q">QTY</span><span class="c-e">EST</span>' +
+      '<span class="c-u">UNIT</span><span class="c-r">COST</span>' +
       '<span class="c-a">AMOUNT</span><span class="c-x"></span></div>' + mats +
       '<div class="prd-bom-sub">Labour <button class="prd-btn-g sm" data-a="bom-ladd" data-d="' + dept + '">＋ Add a task</button></div>' +
       '<div class="prd-bom-c"><span class="c-n">#</span><span class="c-p">TASK</span>' +
@@ -1172,9 +1197,14 @@ window.PrdUI = (function () {
       '<span class="c-a">MAN-DAYS</span><span class="c-x"></span></div>' + labs +
       '<div class="prd-bom-f">' +
       '<div class="prd-bom-t"><span class="l">Materials</span><b>' + bd(bomMatTotal(dept)) + '</b>' +
-      '<span class="n">at Item Master cost</span></div>' +
+      '<span class="n">at Item Master cost' +
+      (estMat ? '. Estimator allowed ' + bd(estMat) + '. ' : '') + '</span>' +
+      (estMat ? bomDelta(bomMatTotal(dept), estMat, bd) : '') + '</div>' +
       '<div class="prd-bom-t"><span class="l">Labour</span><b>' + bomManDays(dept) + ' man-days</b>' +
-      '<span class="n">costed at the floor average when you submit</span></div>' +
+      '<span class="n">costed at the floor average when you submit' +
+      (estDays ? '. Estimator allowed ' + estDays + '. ' : '') + '</span>' +
+      (estDays ? bomDelta(bomManDays(dept), estDays, function (n) { return Math.round(n * 10) / 10 + ' man-days'; }) : '') +
+      '</div>' +
       '</div></section>';
   }
 
@@ -1186,7 +1216,18 @@ window.PrdUI = (function () {
     if (!depts.length) {
       return '<div class="prd-bom"><div class="prd-bom-e">Nothing on this job card is routed to joinery or paint.</div></div>';
     }
-    return '<div class="prd-bom">' + depts.map(bomSectionHTML).join('') +
+    // An upload waiting to be reviewed replaces the editor rather than sitting
+    // beside it — leaving Submit live under a pending review would let a
+    // budget go to operations that nobody had looked at.
+    if (S.bomExcel) return bomExcelReviewHTML();
+    return '<div class="prd-bom">' +
+      '<div class="prd-bom-xl">' +
+      '<button class="prd-btn-g sm" data-a="bom-xl-dl">⬇ Download as Excel</button>' +
+      '<label class="prd-btn-g sm as-lbl">⬆ Upload the filled sheet' +
+      '<input type="file" accept=".xlsx,.xls" data-a="bom-xl" hidden></label>' +
+      '<i>One sheet per department, with what the estimator allowed alongside. Nothing is saved by the upload — you review it here first.</i>' +
+      '</div>' +
+      depts.map(bomSectionHTML).join('') +
       (depts.length > 1
         ? '<div class="prd-bom-note">Both sections go in together — one submission, two budgets, because joinery and paint are one job for one manager but two production gates.</div>'
         : '') + '</div>';
@@ -1221,6 +1262,296 @@ window.PrdUI = (function () {
       materials: L.materials.map(function (m) { return { itemId: m.itemId, qty: Number(m.qty) || 0 }; }),
       labour: L.labour.map(function (l) { return { task: l.task, men: Number(l.men) || 0, days: Number(l.days) || 0 }; })
     };
+  }
+
+  /* ── What the estimator allowed ─────────────────────────────────────
+     SALMAN, 26 Aug 2026: "the estimator doesn't put all the items for the
+     quote — he roughly calculates and puts the material cost and labour
+     cost as two line items lumpsum." So the comparison is drawn at three
+     levels and each is shown only where the estimate actually supports it:
+     a per-ITEM strip (always real — his BOM hangs off the quotation item),
+     a per-CODE column in the material rows (real only where he itemised),
+     and the section footer (always real, and what a lump sum is read on).
+
+     Labour is compared in MAN-DAYS and never in money. getEstimateCompar-
+     isonForDepartment() is what enforces that — it does not hand this
+     screen a labour amount to leak. Material money is in scope: Item
+     Master cost is already on this form, and what the estimator allowed
+     for material is the same class of number. ─────────────────────────── */
+
+  function bomEstimate(dept) {
+    return safe(function () { return getEstimateComparisonForDepartment(S.formJob, dept); }, null);
+  }
+
+  /** A signed delta, coloured only when it is over — under budget is not a fault. */
+  function bomDelta(mine, est, fmt) {
+    if (!est) return '';
+    var d = mine - est;
+    if (Math.abs(d) < 0.0005) return '<span class="prd-bom-d">same as the estimate</span>';
+    return '<span class="prd-bom-d' + (d > 0 ? ' over' : '') + '">' +
+      (d > 0 ? '+' : '−') + fmt(Math.abs(d)) + (d > 0 ? ' over' : ' under') + ' the estimate</span>';
+  }
+
+  /* The per-item strip. The photo is Sales' own, uploaded at quote level and
+     resolved by lineId — the job card never copied it. It is here rather than
+     on a material row because a photo belongs to the PRODUCT, not to a board. */
+  function bomItemStripHTML(dept, cmp) {
+    if (!cmp || !cmp.items.length) return '';
+    var cards = cmp.items.map(function (r) {
+      var fig = r.hasBOM
+        ? bd(r.materialCost) + ' material · ' + r.manDays + ' man-day' + (r.manDays === 1 ? '' : 's')
+        : 'The estimator costed nothing for this item.';
+      return '<div class="prd-bom-card' + (r.hasBOM ? '' : ' none') + '">' +
+        (r.imageUrl
+          ? '<img class="prd-bom-ph" loading="lazy" src="' + esc(r.imageUrl) + '" alt="">'
+          : '<span class="prd-bom-ph is-none">no photo</span>') +
+        '<div class="prd-bom-cn"><b>' + esc(r.product) + '</b>' +
+        '<i>' + r.qty + ' ' + esc(r.unit) + '</i>' +
+        '<em>' + esc(fig) + '</em>' +
+        (r.otherCost
+          ? '<u>plus ' + bd(r.otherCost) + ' subcontract, hiring or other — not on this form</u>' : '') +
+        '</div></div>';
+    }).join('');
+    var cov = safe(function () { return estimateCoverage(cmp); }, { bare: 0, total: 0, thin: false });
+    return '<div class="prd-bom-strip">' +
+      '<div class="prd-bom-strip-h">What the estimator allowed' +
+      (cov.thin
+        // Narrower than it used to say, and true: an item with no material
+        // line of its own is covered by somebody else's, so the EST column
+        // has nothing to show for it. It does not follow that the column is
+        // useless everywhere — where it shows a number, that number is real.
+        ? '<i>' + cov.bare + ' of ' + cov.total + ' item' + (cov.total === 1 ? '' : 's') +
+          ' carry no material line of their own — a rough figure covers them. Read the totals for those; ' +
+          'the EST column is real wherever it shows a number.</i>'
+        : '<i>Itemised — the EST column on each material row is his own quantity for that code.</i>') +
+      '</div><div class="prd-bom-cards">' + cards + '</div></div>';
+  }
+
+  /* ── The Excel round-trip ───────────────────────────────────────────
+     One sheet per department, mirroring the sections on screen, so joinery
+     and paint work can never be mixed up by a mistyped row. The estimator's
+     own figures ride along as reference columns — filling a budget in blind
+     is how a budget ends up wrong.
+
+     Nothing is written by the upload. It fills THIS form, he reviews it, and
+     the same gate and the same Submit still apply — one submit path, one set
+     of rules, whether the lines were typed or imported.
+
+     Deliberately reuses the shape estimator.js has used since Stage 5:
+     marker row, staleness check, parse, validate every row against the same
+     gates the form applies, review, then apply. Same SheetJS build, already
+     pinned in index.html. ──────────────────────────────────────────────── */
+
+  var XL_MARKER = 'AMD JOB BOM v1';
+  var XL_HEAD = ['Section', 'Item code / Task', 'Item name (reference)', 'Unit',
+    'Men', 'Days', 'Qty', 'Cost (reference)',
+    'Estimator qty (reference)', 'Estimator cost (reference)', 'Estimator man-days (reference)'];
+
+  function bomExcelDownload() {
+    if (typeof XLSX === 'undefined') {
+      if (typeof commsToast === 'function') commsToast('The Excel library did not load — check the connection and reload once.');
+      return;
+    }
+    var depts = bomDepts();
+    if (!S.formJob || !depts.length) return;
+    var wb = XLSX.utils.book_new();
+    depts.forEach(function (dept) {
+      var cmp = bomEstimate(dept) || { byCode: {}, items: [], totals: {} };
+      var L = bomLines(dept);
+      var rows = [[XL_MARKER, S.formJob, dept, dc(dept).n], XL_HEAD];
+
+      // Whatever is already on the form, so a part-filled budget round-trips.
+      L.materials.forEach(function (m) {
+        var e = cmp.byCode[m.itemId] || null;
+        rows.push(['Material', m.itemId, m.name, m.unit || '', '', '',
+          Number(m.qty) || 0, Number(m.rate) || 0,
+          e ? e.qty : '', e ? Math.round(e.cost * 1000) / 1000 : '', '']);
+      });
+      // Anything the estimator costed that is NOT on the form yet, so the
+      // sheet is a starting point rather than a blank page.
+      Object.keys(cmp.byCode).forEach(function (id) {
+        if (L.materials.some(function (m) { return m.itemId === id; })) return;
+        var e = cmp.byCode[id];
+        var master = safe(function () {
+          return (typeof itemMaster !== 'undefined' ? itemMaster : []).find(function (x) { return x.id === id; });
+        }, null);
+        rows.push(['Material', id, e.name, e.unit || (master && master.unit) || '', '', '',
+          '', master ? (Number(master.cost) || Number(master.lastPurchaseRate) || 0) : '',
+          e.qty, Math.round(e.cost * 1000) / 1000, '']);
+      });
+      L.labour.forEach(function (l) {
+        rows.push(['Labour', l.task || '', '', '', Number(l.men) || 0, Number(l.days) || 0, '', '', '', '', '']);
+      });
+      if (!L.labour.length) rows.push(['Labour', '', '', '', '', '', '', '', '', '', cmp.totals.manDays || '']);
+
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 10 }, { wch: 30 }, { wch: 34 }, { wch: 8 }, { wch: 7 }, { wch: 7 },
+        { wch: 9 }, { wch: 15 }, { wch: 18 }, { wch: 20 }, { wch: 22 }];
+      XLSX.utils.book_append_sheet(wb, ws, dc(dept).n.slice(0, 28));
+    });
+    XLSX.writeFile(wb, 'JOB-BOM-' + S.formJob + '.xlsx');
+  }
+
+  function bomExcelUpload(file) {
+    if (!file) return;
+    if (typeof XLSX === 'undefined') {
+      if (typeof commsToast === 'function') commsToast('The Excel library did not load — check the connection and reload once.');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        var wb = XLSX.read(e.target.result, { type: 'array' });
+        var sheets = wb.SheetNames.map(function (n) {
+          return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true });
+        });
+        bomProcessExcel(sheets);
+      } catch (err) {
+        if (typeof commsToast === 'function') commsToast('Could not read that file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /**
+   * Parse and validate. Exposed on PrdUI so the suite can drive it without a
+   * real file-picker interaction, exactly as estimator.js exposes its own.
+   * Every rule here is a rule the form already applies — a row that would be
+   * refused by submitDepartmentBudgetFromBOM is flagged before it is applied,
+   * not after.
+   */
+  function bomProcessExcel(sheets) {
+    var depts = bomDepts();
+    var rows = [], seen = {}, fatal = null;
+    (sheets || []).forEach(function (aoa) {
+      if (!aoa || !aoa.length) return;
+      var mk = aoa[0] || [];
+      if (String(mk[0]) !== XL_MARKER) return;   // not one of ours — skip the sheet
+      if (String(mk[1]) !== String(S.formJob)) {
+        fatal = 'That sheet was downloaded for job ' + mk[1] + ', not ' + S.formJob + '. Download a fresh copy.';
+        return;
+      }
+      var dept = String(mk[2] || '').trim();
+      if (depts.indexOf(dept) === -1) {
+        fatal = 'This job card has no ' + (safe(function () { return dc(dept).n; }, dept) || dept) +
+          ' work on it. Download a fresh copy.';
+        return;
+      }
+      seen[dept] = true;
+      aoa.slice(2).forEach(function (r, i) {
+        if (!r || r.every(function (c) { return c === undefined || c === null || String(c).trim() === ''; })) return;
+        var row = {
+          sheetRow: i + 3, dept: dept,
+          section: String(r[0] || '').trim(),
+          key: String(r[1] || '').trim(),
+          unit: String(r[3] || '').trim(),
+          men: Number(r[4]) || 0, days: Number(r[5]) || 0, qty: Number(r[6]) || 0,
+          name: '', itemId: null, status: 'ok', reason: ''
+        };
+        var flag = function (why) { row.status = 'flagged'; row.reason = why; };
+
+        if (row.section !== 'Material' && row.section !== 'Labour') {
+          flag('Section must be Material or Labour.');
+        } else if (row.section === 'Material') {
+          var master = safe(function () {
+            var im = (typeof itemMaster !== 'undefined' ? itemMaster : []);
+            return im.find(function (x) { return String(x.id) === row.key; }) ||
+              im.find(function (x) { return String(x.name).toLowerCase() === row.key.toLowerCase(); });
+          }, null);
+          if (!row.key) flag('An item code is required.');
+          else if (!master) {
+            // Same rule as the form's own search, and the same reason:
+            // a line nobody can reserve is not a budget line.
+            var close = safe(function () {
+              return (typeof itemMaster !== 'undefined' ? itemMaster : []).find(function (x) {
+                return String(x.name).toLowerCase().indexOf(row.key.toLowerCase().slice(0, 10)) !== -1;
+              });
+            }, null);
+            flag('"' + row.key + '" is not a real Item Master code.' +
+              (close ? ' Did you mean ' + close.id + ' — ' + close.name + '?' : ''));
+          } else {
+            row.itemId = master.id; row.name = master.name;
+            row.unit = master.unit || row.unit;
+            row.rate = Number(master.cost) || Number(master.lastPurchaseRate) || 0;
+            if (!(row.qty > 0)) flag(master.name + ' needs a quantity.');
+          }
+        } else {
+          row.name = row.key;
+          if (!row.key) flag('Every labour line needs a task.');
+          else if (!(row.men > 0) || !(row.days > 0)) flag(row.key + ' needs men and days.');
+        }
+        rows.push(row);
+      });
+    });
+
+    if (fatal) { if (typeof commsToast === 'function') commsToast(fatal); return; }
+    if (!rows.length) {
+      if (typeof commsToast === 'function') {
+        commsToast('No rows found. Use the sheet downloaded from this form — the first row identifies the job.');
+      }
+      return;
+    }
+    S.bomExcel = { rows: rows, depts: Object.keys(seen) };
+    paint();
+  }
+
+  function bomExcelReviewHTML() {
+    var st = S.bomExcel, flagged = st.rows.filter(function (r) { return r.status === 'flagged'; });
+    var body = st.rows.map(function (r) {
+      return '<div class="prd-bom-rv-r' + (r.status === 'flagged' ? ' bad' : '') + '">' +
+        '<span class="c-s">' + (r.status === 'flagged' ? '✕' : '✓') + '</span>' +
+        '<span class="c-d">' + esc(safe(function () { return dc(r.dept).n; }, r.dept)) + '</span>' +
+        '<span class="c-t">' + esc(r.section) + '</span>' +
+        '<span class="c-p"><b>' + esc(r.name || r.key || '—') + '</b>' +
+        (r.reason ? '<i>' + esc(r.reason) + '</i>' : '') + '</span>' +
+        '<span class="c-a">' + (r.section === 'Labour'
+          ? (r.men || 0) + ' × ' + (r.days || 0) + ' days'
+          : (r.qty || 0) + ' ' + esc(r.unit || '')) + '</span></div>';
+    }).join('');
+    return '<div class="prd-bom">' +
+      '<div class="prd-bom-rv">' +
+      '<div class="prd-bom-rv-h"><b>Check this before it goes on the form</b>' +
+      '<i>' + st.rows.length + ' row' + (st.rows.length === 1 ? '' : 's') + ' read' +
+      (flagged.length
+        ? ' · ' + flagged.length + ' cannot be used. Fix them in the sheet and upload again, or bring in the rest and add those by hand.'
+        : ' · every row can be used.') + '</i></div>' +
+      '<div class="prd-bom-rv-c"><span class="c-s"></span><span class="c-d">DEPT</span>' +
+      '<span class="c-t">SECTION</span><span class="c-p">ITEM / TASK</span><span class="c-a">QTY</span></div>' +
+      body +
+      '<div class="prd-bom-rv-f">Applying replaces what is on the form for ' +
+      st.depts.map(function (d) { return esc(safe(function () { return dc(d).n; }, d)); }).join(' and ') +
+      '. Nothing reaches operations until you press Submit afterwards.</div>' +
+      '</div></div>';
+  }
+
+  function bomExcelApply() {
+    var st = S.bomExcel;
+    if (!st) return;
+    var use = st.rows.filter(function (r) { return r.status === 'ok'; });
+    if (!use.length) {
+      if (typeof commsToast === 'function') commsToast('Nothing on that sheet can be used yet.');
+      return;
+    }
+    // Replace per department, never append — uploading twice must not double
+    // the budget, the same rule the pull and the cutting list already follow.
+    st.depts.forEach(function (d) { S.bomLines[d] = { materials: [], labour: [] }; });
+    use.forEach(function (r) {
+      var L = bomLines(r.dept);
+      if (r.section === 'Material') {
+        var hit = L.materials.find(function (m) { return m.itemId === r.itemId; });
+        if (hit) hit.qty = (Number(hit.qty) || 0) + r.qty;   // one code, one line
+        else L.materials.push({ itemId: r.itemId, name: r.name, unit: r.unit, qty: r.qty, rate: r.rate });
+      } else {
+        L.labour.push({ task: r.key, men: r.men, days: r.days });
+      }
+    });
+    var n = use.length, dropped = st.rows.length - n;
+    S.bomExcel = null;
+    paint();
+    if (typeof commsToast === 'function') {
+      commsToast(n + ' row' + (n === 1 ? '' : 's') + ' on the form' +
+        (dropped ? ', ' + dropped + ' left out' : '') + ' — check it, then submit.');
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -1382,6 +1713,9 @@ window.PrdUI = (function () {
     var ban = root.querySelector('.prd-banner');
     if (ban) { ban.className = 'prd-banner t-' + banner.tone; ban.textContent = banner.text; }
 
+    // A pending upload review owns the action row (see formHTML) — its
+    // buttons are not this gate's, so leave them alone.
+    if (S.form === 'bomb' && S.bomExcel) return;
     var btn = root.querySelector('.prd-acts .prd-btn');
     if (btn) {
       btn.className = 'prd-btn' + (dead ? ' dead' : tone === 'warn' ? ' warn' : '');
@@ -2112,6 +2446,11 @@ window.PrdUI = (function () {
   function onChange(e) {
     var t = e.target;
     if (!t || !root.contains(t)) return;
+    if (t.getAttribute && t.getAttribute('data-a') === 'bom-xl') {
+      bomExcelUpload(t.files && t.files[0]);
+      t.value = '';   // so re-picking the same file after a fix still fires
+      return;
+    }
     if (t.getAttribute && t.getAttribute('data-a') === 'bom-s') {
       S.bomSearch = t.value;
       // Replace the whole editor, then put the caret back — the results list
@@ -2143,7 +2482,7 @@ window.PrdUI = (function () {
         var js = document.getElementById('prd-job');
         if (js) js.value = req.jobCardId;
         S.formJob = req.jobCardId;
-        S.bomLines = null; S.bomSearch = '';
+        S.bomLines = null; S.bomSearch = ''; S.bomExcel = null;
         var panel0 = document.getElementById('prd-checks');
         if (panel0) panel0.innerHTML = checksRowsHTML(safe(function () { return flowChecks(S.form); }, []));
         if (root.querySelector('.prd-bom')) repaintBOM();
@@ -2172,7 +2511,7 @@ window.PrdUI = (function () {
       S.allotLines = null;
       if (root.querySelector('.prd-allot')) repaintAllot();
       // The BOM editor reads the job as well. Same rule — only it repaints.
-      S.bomLines = null; S.bomSearch = '';
+      S.bomLines = null; S.bomSearch = ''; S.bomExcel = null;
       if (root.querySelector('.prd-bom')) repaintBOM();
     }
   }
@@ -2191,6 +2530,9 @@ window.PrdUI = (function () {
       if (typeof printCuttingList === 'function') printCuttingList(el.getAttribute('data-s'));
       return;
     }
+    if (a === 'bom-xl-dl') { bomExcelDownload(); return; }
+    if (a === 'bom-xl-apply') { bomExcelApply(); return; }
+    if (a === 'bom-xl-discard') { S.bomExcel = null; paint(); return; }
     if (a === 'bom-pull') {
       var pd = el.getAttribute('data-d');
       var seeded = safe(function () { return seedDepartmentBudgetLinesFromEstimate(S.formJob, pd); }, null);
@@ -2304,9 +2646,9 @@ window.PrdUI = (function () {
     }
     // Entering ANY create flow resets the gate to null. A gate that arrives
     // pre-answered in the job's favour defeats the entire mechanism.
-    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; paint(); return; }
+    if (a === 'flow') { S.view = 'form'; S.form = el.getAttribute('data-f') || 'price'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; S.bomExcel = null; paint(); return; }
     // Every board cell opens the allotment flow — the handoff's own rule.
-    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
+    if (a === 'cell') { S.view = 'form'; S.form = 'allot'; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; S.bomExcel = null; S.cellCrew = el.getAttribute('data-c'); S.cellDay = el.getAttribute('data-d'); paint(); return; }
   }
   function mount(el) {
     root = el;
@@ -2331,13 +2673,17 @@ window.PrdUI = (function () {
 
   return {
     mount: mount, render: render, paint: paint, state: S,
+    // Exposed so the suite can drive the upload without a real file picker,
+    // the same reason estimator.js exposes processExcelImport().
+    processBOMExcel: function (sheets) { return bomProcessExcel(sheets); },
+    bomExcelState: function () { return S.bomExcel; },
     reset: function () { S.view = 'dash'; S.page = 'board'; S.gate = null; S.off = 0; },
     // Entering any create flow resets the gate to null — a gate that arrives
     // pre-answered in the job's favour defeats the entire mechanism.
     go: function (view, key) {
       S.view = view;
       if (view === 'page') { S.page = key; S.pgChip = 0; }
-      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; }
+      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; S.bomExcel = null; }
       paint();
     }
   };

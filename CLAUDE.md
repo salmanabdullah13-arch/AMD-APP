@@ -8443,3 +8443,89 @@ lane refused instead of leaving a bare `false` to chase.
   13/13. Standing battery clean; offline sweep **all green**; live suites
   20/20, 8/8, 12/12, 11/11, 11/11.
 - `sw.js` CACHE_VERSION v61 → v62.
+
+### 26 Aug 2026 (later) — What the estimator allowed, on the job BOM: photos, a comparison, and an Excel round-trip
+
+Salman, looking at the new Build-the-job-BOM screen: *"maybe should pull in the
+data and images from quote level / show a comparison what the estimator
+calculated? also, give an option to download excel format to input and upload
+the data / after uploading a review page before submitting to operations?"*
+
+**He corrected the premise before anything was built, and it changed the
+design.** Asked whether showing the estimator's cost beside his man-days would
+put the floor rate one division away, he answered with the fact underneath:
+*"the estimator doesn't put all the items for the quote — he roughly calculates
+and puts the material cost and labour cost as two line items lumpsum."* So a
+line-by-line material comparison is often impossible, and a comparison that
+only worked line by line would read as empty on most real jobs.
+
+- **Three levels, each shown only where the estimate supports it.** New
+  `getEstimateComparisonForDepartment()` (production-data.js) returns per-ITEM
+  figures (always real — the estimator's BOM hangs off the quotation item, so
+  even a two-line lump sum gives a material figure and man-days for it), per-CODE
+  quantities (real only where he itemised, matched on `itemId` so it is a fact
+  rather than a guess), and totals (always real, and what a lump sum is read on).
+- **The money boundary lives in that function, not in the screen.** Material
+  money is in scope for this role — Item Master cost is already on his own form
+  — but labour comes back as man-days and never as an amount, and nothing reads
+  sellingPrice, profit or margin at all. A screen cannot leak what it is never
+  handed. The suite asserts it both ways.
+- **The photo is Sales' own, from quote level.** `confirmQuotationToJobCard()`
+  deliberately does not copy `imageUrl` or `description` onto a job card item,
+  so both are resolved at read time by `lineId` — the same way `jobBOMItems()`
+  already resolves the BOM — rather than widening what a job card stores.
+- **Subcontract, hiring and other come back as one labelled figure.** The
+  production form does not offer those categories on purpose (money somebody
+  else commits), so without naming them a budget that ignores them would look
+  bigger than the estimate for no reason a reader could see.
+- **A wrong sentence caught by reading the screen back, not by a test.** The
+  first version compared line COUNT against item count and told the reader to
+  "compare on the totals, not row by row" — which is wrong whenever one item
+  carries a real parts list and another carries none: the EST column was
+  populated and the note said to ignore it. `estimateCoverage()` now counts the
+  items with no material line of their own, and the note says the narrower true
+  thing: read the totals for those, the column is real wherever it shows a
+  number.
+- **The Excel round-trip is the Estimator's own Stage 5 shape, reused rather
+  than reinvented** — marker row, staleness check, parse, validate every row
+  against the gates the form itself applies, review, then apply. One sheet per
+  department (Salman's call), so joinery and paint can never be mixed up by a
+  mistyped row, with the estimator's figures as read-only reference columns:
+  filling a budget in blind is how a budget ends up wrong. Codes not in the Item
+  Master are refused with a suggestion, the same rule and the same reason as the
+  form's own search — a line nobody can reserve is not a budget line.
+- **The upload writes nothing.** It fills the form; the same gate and the same
+  Submit still apply, so there is one submit path whether the lines were typed
+  or imported. While a review is open it REPLACES the editor and owns the action
+  row — leaving Submit live underneath would send operations a budget nobody had
+  read. `repaintGate()` is guarded so it cannot clobber that row.
+
+**Verification**: new `e2e-production-bom-estimate.js` (45/45), driven on two
+deliberately different jobs — one itemised, one the rough two-line figure he
+describes. Covers the money rule at the data layer and on screen, the quote-level
+photo reaching the strip, the EST column and its over-estimate flag, the totals
+comparison holding on a lump sum, the named subcontract figure, the sheet layout
+read back from a real workbook, every validation refusal, the review replacing
+the editor with Submit unreachable, a sheet from another job refused outright,
+and an imported budget submitting through the same path a typed one does. Dark
+mode by computed style; the strip scrolls inside itself on a phone rather than
+pushing the page sideways.
+
+Standing battery clean (37 files individually and concatenated, no duplicate
+top-level declarations, 509 inline handlers with none newly dangling). All six
+production suites re-run green after the data-layer change (45/98/63/46/31/29).
+
+**Environment note for whoever runs this in a cloud session, not a bug in the
+app**: this container's network policy denies both CDN hosts `index.html` loads
+(supabase-js from jsdelivr, SheetJS) at the proxy, and auth.js's `if (!sb)`
+guard runs BEFORE the file:// test bypass — so every suite parks on "Couldn't
+load the login library". npm IS reachable, so the same libraries were installed
+locally and served by intercepting exactly those two URLs from a gitignored
+`_cdnshim.js` preloaded with `NODE_OPTIONS=--require`. Nothing in the repo
+changed and all ~60 suites ran unedited. `e2e-direct-landing.js` still shows 5/7
+because it calls the real `finishCloudLogin()`, which fetches `user_types` from
+the live project — confirmed identical against a stashed clean tree, so it is
+the network policy and not a regression. It is really a live-cloud suite that
+happens not to have "cloud" in its filename.
+
+`sw.js` CACHE_VERSION v62 → v63.

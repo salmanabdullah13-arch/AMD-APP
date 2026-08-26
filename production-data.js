@@ -695,6 +695,140 @@ function seedDepartmentBudgetLinesFromEstimate(jobId, deptKey) {
 }
 function safe0(fn) { try { return fn(); } catch (e) { return null; } }
 
+/**
+ * What the estimator allowed, as the production manager is permitted to see it.
+ *
+ * THE MONEY BOUNDARY LIVES HERE, not in the screen that draws it. Material
+ * money is in scope for this role — Item Master cost is already on his own
+ * form, and what the estimator allowed for material is the same class of
+ * number. Labour money is NOT: he knows the man-days, so a labour cost beside
+ * them is the floor rate one division away. So labour comes back as man-days
+ * and never as an amount, and nothing here reads sellingPrice, profit or
+ * margin at all. A screen cannot leak what it is never handed.
+ *
+ * SALMAN, 26 Aug 2026 — the fact this is built around: "the estimator doesn't
+ * put all the items for the quote, he roughly calculates and puts the material
+ * cost and labour cost as two line items lumpsum." So a line-by-line material
+ * comparison is often impossible, and a comparison that only worked line by
+ * line would read as empty on most real jobs. Three levels come back instead,
+ * and the screen uses whichever the estimate actually supports:
+ *
+ *   per ITEM   — always real. The estimator's BOM hangs off the quotation
+ *                ITEM, so even a two-line lump sum gives a material figure
+ *                and man-days for that item.
+ *   per CODE   — real only where he itemised. Matched on itemId, so it is a
+ *                fact rather than a guess; absent where he did not.
+ *   TOTALS     — always real, and what a lump-sum estimate is compared on.
+ *
+ * `itemisedLines` vs `itemCount` is reported rather than guessed at with a
+ * heuristic, so the screen can say plainly how thin the estimate is instead of
+ * showing an empty column that reads like the estimator forgot.
+ *
+ * Subcontract / hiring / others come back as ONE figure, `otherCost`. The
+ * production form deliberately does not offer those categories (money somebody
+ * else commits), so a budget that ignores them would otherwise look bigger
+ * than the estimate for no reason a reader could see.
+ */
+function getEstimateComparisonForDepartment(jobId, deptKey) {
+  const out = {
+    items: [], byCode: {},
+    totals: { materialCost: 0, manDays: 0, otherCost: 0, itemisedLines: 0, itemCount: 0 },
+    hasEstimate: false
+  };
+  const job = typeof getJobCard === "function" ? getJobCard(jobId) : null;
+  if (!job) return out;
+
+  // The photo and the description live on the QUOTATION item — the job card
+  // deliberately does not copy them (see confirmQuotationToJobCard). Resolved
+  // at read time by lineId, the same way jobBOMItems() resolves the BOM,
+  // rather than widening what a job card stores.
+  const qtn = (typeof quotations !== "undefined")
+    ? quotations.find(q => q.id === job.quotationId) : null;
+  const qItems = (qtn && qtn.items) || [];
+
+  safe0(function () {
+    jobBOMItems(jobId).forEach(function (it) {
+      if ((it.departmentSequence || []).indexOf(deptKey) === -1) return;
+      const src = qItems.find(x => x.lineId === it.lineId) || {};
+      const bom = it.bom || null;
+      const row = {
+        lineId: it.lineId, product: it.product, qty: Number(it.qty) || 0,
+        unit: it.unit || "Nos",
+        imageUrl: src.imageUrl || null,
+        description: src.description || "",
+        hasBOM: !!bom, materialCost: 0, manDays: 0, otherCost: 0, materialLines: 0
+      };
+      out.totals.itemCount++;
+
+      ((bom && bom.materials) || []).forEach(function (m) {
+        const amt = Number(m.amount) || (Number(m.qty) || 0) * (Number(m.rate) || 0);
+        row.materialCost += amt;
+        row.materialLines++;
+        out.totals.itemisedLines++;
+        if (!m.itemId) return;   // free text or an older import — no code to match on
+        const c = out.byCode[m.itemId] || (out.byCode[m.itemId] = { qty: 0, cost: 0, name: m.name, unit: m.unit || "" });
+        c.qty += Number(m.qty) || 0;
+        c.cost += amt;
+      });
+
+      ((bom && bom.labour) || []).forEach(function (l) {
+        if (l.department && l.department !== deptKey) return;
+        const men = Number(l.noOfPpl) || 1;
+        let days = Number(l.qty) || 0;
+        // Same 8-hours-to-the-day conversion seedDepartmentBudgetLinesFromEstimate
+        // uses, so the pulled lines and the comparison can never disagree.
+        if (l.calcMode === "hours") days = Math.round((days / 8) * 10) / 10;
+        row.manDays += men * days;
+        // l.rate and l.amount are deliberately NOT read.
+      });
+
+      ["subcontract", "hiring", "others"].forEach(function (k) {
+        ((bom && bom[k]) || []).forEach(function (r) { row.otherCost += Number(r.amount) || 0; });
+      });
+
+      row.materialCost = Math.round(row.materialCost * 1000) / 1000;
+      row.manDays = Math.round(row.manDays * 10) / 10;
+      row.otherCost = Math.round(row.otherCost * 1000) / 1000;
+      if (bom) out.hasEstimate = true;
+      out.items.push(row);
+    });
+  });
+
+  out.items.forEach(function (r) {
+    out.totals.materialCost += r.materialCost;
+    out.totals.manDays += r.manDays;
+    out.totals.otherCost += r.otherCost;
+  });
+  out.totals.materialCost = Math.round(out.totals.materialCost * 1000) / 1000;
+  out.totals.manDays = Math.round(out.totals.manDays * 10) / 10;
+  out.totals.otherCost = Math.round(out.totals.otherCost * 1000) / 1000;
+  return out;
+}
+
+/**
+ * How much of the estimate is actually itemised, reported as a fact rather
+ * than judged by a heuristic: an item with no material line of its own was
+ * covered by somebody else's line, so the EST column can have nothing to show
+ * for it. `bare` counts those items.
+ *
+ * The distinction matters on screen. An earlier version compared line COUNT
+ * against item count and told the reader to "compare on the totals, not row by
+ * row" — which is wrong whenever one item carries a real parts list and
+ * another carries none: the EST column is populated and the note says to
+ * ignore it. What is true in that case is narrower, and that is what the
+ * screen now says.
+ */
+function estimateCoverage(cmp) {
+  if (!cmp || !cmp.hasEstimate) return { bare: 0, total: 0, thin: false };
+  const bare = cmp.items.filter(function (r) { return !r.materialLines; }).length;
+  return { bare: bare, total: cmp.totals.itemCount, thin: bare > 0 };
+}
+
+/** The plain question the screen asks: is any item left uncovered? */
+function estimateIsLumpSum(cmp) {
+  return estimateCoverage(cmp).thin;
+}
+
 // ═══ 6. Asked of you today — the first card ═════════════════════════════
 // Other people's deadlines, before the board. Typed rows from the systems
 // that own each ask: input requests here, shorts from the store (18a),
