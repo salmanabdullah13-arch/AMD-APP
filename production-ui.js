@@ -82,7 +82,9 @@ function safeTop(fn, fallback) { try { const v = fn(); return v === undefined ? 
 
 function prdBuildShell() {
   const k = (typeof getProductionKPIs === 'function') ? getProductionKPIs() : {};
-  const nv = (id, ico, label, onclick, tag) => ({ id, ico, label, onclick, tag });
+  // NO local nv() here. exec-shell.js's global one appends
+  // ";execMarkActive('<id>')" to the onclick, which is how every other
+  // module keeps its rail in step. Shadowing it is what broke this rail.
   // Badge counts the frame shows on almost every rail item — all real
   // readers, so an empty shop shows an empty rail rather than invented ones.
   const cnt = (fn) => safeTop(fn, 0) || '';
@@ -138,7 +140,9 @@ function openProductionModule() {
   execThemeApply();
   PrdUI.reset();
   renderProductionBody();
-  execMarkActive('prd-board');
+  // PrdUI.reset() has just set the view to 'dash', so this is prd-dash.
+  // It marked prd-board for a fortnight.
+  execMarkActive('prd-dash');
   execRefreshBadges();
 }
 function closeProductionModule() { closeModuleWrap(prdModuleWrap, 'launchProductionModule'); }
@@ -1137,8 +1141,13 @@ window.PrdUI = (function () {
     var r;
     if (key === 'price' || key === 'bomb') {
       var payload = { manHours: num('prd-hrs'), quantity: num('prd-qty'), machineHours: num('prd-mch'), note: val('prd-note') };
-      if (key === 'bomb') payload.wastagePercent = num('prd-wst');
+      if (key === 'bomb') payload.wastagePct = num('prd-wst');
       if (gateTone(key) === 'warn') payload.isEstimate = true;
+      // Drop the empties, so "An empty answer helps nobody." can actually
+      // fire on a blank form instead of storing four zeros and a "".
+      Object.keys(payload).forEach(function (kk) {
+        if (payload[kk] === 0 || payload[kk] === '' || payload[kk] === null) delete payload[kk];
+      });
       r = safe(function () { return answerInputRequest(val('prd-req'), payload, 'Production Manager'); }, { error: 'Could not send it.' });
     } else if (key === 'bom') {
       // (jobId, byWhom, note) — the reason is the NOTE, not who did it.
@@ -1739,10 +1748,23 @@ window.PrdUI = (function () {
     if (S.view === 'page') return pageHTML();
     return dashHTML();
   }
+  /* The rail id for whatever is on screen. The ids line up with the page
+     keys by construction ('prd-' + page), so this needs no lookup table. */
+  function railIdForView() {
+    if (S.view === 'dash') return 'prd-dash';
+    if (S.view === 'form') return 'prd-create';
+    return 'prd-' + S.page;
+  }
+
   function paint() {
     if (root) { root.innerHTML = render(); }
     // Keep the topbar counts in step with whatever was just drawn.
     safeTop(prdRefreshSubtitle, null);
+    // And the rail. The nav item's own onclick covers a rail click; this
+    // covers every OTHER way the view changes — a board cell, an inbox row,
+    // a paperwork button, submitFlow() returning to the dashboard. Same
+    // belt-and-braces purchase-ui.js has carried since 17a.
+    safeTop(function () { execMarkActive(railIdForView()); }, null);
   }
 
   function onChange(e) {

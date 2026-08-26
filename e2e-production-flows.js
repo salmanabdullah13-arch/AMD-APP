@@ -506,6 +506,59 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
   // the last job's parts on this job's saw.
   check('re-entering the flow starts from an empty sheet', cleared.rows === 0 && cleared.state === null, cleared);
 
+  console.log('\n— returning input actually saves —');
+  // Every submit of both request forms used to fail: the UI sent `quantity`,
+  // `machineHours`, `wastagePercent` and `isEstimate`, none of which were on
+  // INPUT_ANSWER_FIELDS, so the first key hit the guard. Nothing was ever
+  // saved, and nobody had tried it.
+  const answered = await page.evaluate(async (s) => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localISO(d); };
+    const req = raiseInputRequest({ type: 'pricing_input', raisedBy: 'Arun Kumar A', raiserRole: 'estimator',
+      jobCardId: s.clear, question: 'Man-hours for the run?', neededBy: day(2) });
+    PrdUI.go('form', 'price');
+    await new Promise(r => setTimeout(r, 150));
+    document.querySelectorAll('#prd-body .prd-opt')[0].click();   // "Hours and quantities"
+    await new Promise(r => setTimeout(r, 120));
+    const set = (id, v) => { const el = document.getElementById(id); if (el) { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); } };
+    set('prd-req', req.id); set('prd-hrs', '40'); set('prd-qty', '6'); set('prd-mch', '9');
+    set('prd-note', 'Two men on the saw.');
+    await new Promise(r => setTimeout(r, 150));
+    const toasts = [];
+    const orig = window.commsToast; window.commsToast = (m) => toasts.push(m);
+    document.querySelector('#prd-body .prd-acts .prd-btn').click();
+    await new Promise(r => setTimeout(r, 300));
+    window.commsToast = orig;
+    const saved = inputRequests.find(x => x.id === req.id);
+    return { toasts, status: saved.status, answer: saved.answer };
+  }, seed);
+  check('a clear answer is accepted, not refused by the whitelist',
+    answered.status === 'answered' && !answered.toasts.some(t => /is not something this role returns/.test(t)),
+    answered);
+  check('and the figures land on the record', answered.answer &&
+    answered.answer.manHours === 40 && answered.answer.quantity === 6 && answered.answer.machineHours === 9,
+    answered.answer);
+
+  const guard = await page.evaluate(() => {
+    const bad = raiseInputRequest({ type: 'pricing_input', raisedBy: 'Arun Kumar A', raiserRole: 'estimator',
+      question: 'What does it cost?', neededBy: null });
+    // The whitelist still exists to keep MONEY out — that is commitment 3,
+    // and widening it for the form's own advertised fields must not have
+    // opened it to a rate.
+    const money = answerInputRequest(bad.id, { manHours: 10, rate: 12 }, 'Test');
+    const empty = answerInputRequest(bad.id, {}, 'Test');
+    return {
+      moneyRefused: !!(money && money.error), moneyMsg: money && money.error,
+      emptyRefused: !!(empty && empty.error),
+      // Every key on the list must also survive the Postgres trigger, whose
+      // regex is substring-based — a failure there appears only live.
+      trippedByTrigger: INPUT_ANSWER_FIELDS.filter(k => /(rate|price|cost|amount|margin|total|bd|money|value)/i.test(k))
+    };
+  });
+  check('a rate is still refused', guard.moneyRefused && /rate/.test(guard.moneyMsg || ''), guard);
+  check('an empty answer is still refused', guard.emptyRefused, guard);
+  check('and no whitelisted key would be refused by the database trigger',
+    guard.trippedByTrigger.length === 0, guard.trippedByTrigger);
+
   console.log('\n— no flow shows money, anywhere —');
   const money = await page.evaluate(async (flows) => {
     const hits = [];

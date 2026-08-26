@@ -293,6 +293,54 @@ function check(name, ok, detail) {
   check('the week label is not clipped by the arrow width', !lblFit.clipped, lblFit);
 
 
+  console.log('\n— the rail highlight follows the view —');
+  // It stuck on "Week board" for a fortnight: prdBuildShell() shadowed
+  // exec-shell's global nv(), which is what appends execMarkActive to every
+  // item's onclick, and nothing else in the module ever called it except one
+  // line at open that marked the wrong item.
+  const rail = await page.evaluate(async () => {
+    const active = () => {
+      const a = document.querySelector('#prd-module-wrap .xs-item.active');
+      return a ? (a.id || '').replace('xsnav-', '') : null;
+    };
+    const click = async (id) => {
+      const el = document.querySelector('#prd-module-wrap [id="xsnav-' + id + '"]');
+      if (el) el.click();
+      await new Promise(r => setTimeout(r, 200));
+      return active();
+    };
+    PrdUI.go('dash', 'board');
+    await new Promise(r => setTimeout(r, 200));
+    const onDash = active();
+    const viaRail = await click('prd-mat');
+    // The half that the rail's own onclick does NOT cover: navigation from
+    // inside the body. A board cell opens the allot flow.
+    // Back to the dashboard first — the Material page has no board cells.
+    PrdUI.go('dash', 'board');
+    await new Promise(r => setTimeout(r, 220));
+    const cell = document.querySelector('#prd-body .prd-cell[data-a="cell"]');
+    if (cell) cell.click();
+    await new Promise(r => setTimeout(r, 250));
+    const viaCell = active();
+    PrdUI.go('dash', 'board');
+    await new Promise(r => setTimeout(r, 250));
+    return { onDash, viaRail, viaCell, backOnDash: active() };
+  });
+  check('the dashboard marks Dashboard, not Week board', rail.onDash === 'prd-dash', rail);
+  check('a rail click marks the page it opened', rail.viaRail === 'prd-mat', rail);
+  check('and navigating from the body marks it too — a board cell opens Create',
+    rail.viaCell === 'prd-create', rail);
+  check('returning to the dashboard marks Dashboard again', rail.backOnDash === 'prd-dash', rail);
+  // execCurrentViewLabel() builds the breadcrumb's middle rung from
+  // `.xs-item.active .xs-lbl`, so a stale highlight was a wrong breadcrumb too.
+  const crumb = await page.evaluate(async () => {
+    PrdUI.go('page', 'cut');
+    await new Promise(r => setTimeout(r, 250));
+    const el = document.querySelector('#prd-module-wrap .xs-item.active .xs-lbl');
+    return el ? el.textContent.trim() : null;
+  });
+  check('so the breadcrumb reads the view you are actually on', /Cutting lists/.test(crumb || ''), crumb);
+
   console.log('\n— the rail and topbar against the prototype frame —');
   const frame = await page.evaluate(async () => {
     PrdUI.go('dash', 'board');

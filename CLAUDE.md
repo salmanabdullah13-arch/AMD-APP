@@ -8231,3 +8231,54 @@ open it, pointed at the current version.
   `e2e-admin-dashboard.js` 12/12, production pages 46/46, flows 56/56. Full
   offline sweep: **all green**.
 - `sw.js` CACHE_VERSION v58 → v59.
+
+### 26 Aug 2026 — 19a fixes from real use: rail highlight, and a form that never saved
+
+Salman found three things using the module. This entry covers the two that
+needed no decisions from him; the third (what the BOM request means) is a
+modelling change and follows separately.
+
+**1. The rail highlight stuck on "Week board".** Root cause was not styling:
+`prdBuildShell()` declared a **local `nv()` that shadowed the global one** in
+`exec-shell.js`, and the global is the entire mechanism — it appends
+`;execMarkActive('<id>')` to every nav item's onclick. Production opted out of
+it by accident. Nothing else in the module ever called `execMarkActive` except
+one line at open, which marked `prd-board` while `PrdUI.reset()` had just set
+the view to `dash` — so it was wrong from the moment the module opened and
+never changed. Not only cosmetic either: `execCurrentViewLabel()` builds the
+breadcrumb's middle rung from `.xs-item.active .xs-lbl`, so the stale highlight
+produced a wrong breadcrumb too.
+Fixed the way `purchase-ui.js` has done it since 17a — the closest structural
+twin (same `S.view/page/form` IIFE, same `go(view,key)` API): drop the shadow so
+rail clicks mark themselves, and re-assert in `paint()` via a new
+`railIdForView()` so that **navigation from inside the body** — a board cell, an
+inbox row, a paperwork button, `submitFlow()` returning to the dashboard —
+marks the rail too. Belt-and-braces on purpose, because the two halves cover
+different routes.
+
+**2. Both request forms failed on submit, and nobody had tried them.**
+`INPUT_ANSWER_FIELDS` whitelists eight keys; the UI sent `quantity`,
+`machineHours`, `wastagePercent` and `isEstimate` — none of them on the list —
+so the first key hit the guard and **nothing was ever saved**. The seeded story
+passed only because it happens to use the right names.
+Fixed on **both** sides, because both were wrong in different ways:
+`wastagePercent` → `wastagePct` is a UI spelling bug. But `quantity`,
+`machineHours` and `isEstimate` are fields the form's own side card advertises
+("Quantities — yes", "Machine time — yes") and the amber gate promises to
+carry — deleting them to satisfy the list would quietly remove advertised
+features. **The list exists to keep money out, not the form's own fields**, so
+those three joined it and a rate is still refused.
+Checked against the database too: the Postgres trigger matches key names by
+**substring** against `(rate|price|cost|amount|margin|total|bd|money|value)`, so
+a name like `bdCount` would be refused live and nowhere else. All eleven keys
+pass, and the suite now asserts that so it cannot regress into a live-only bug.
+Also: empty keys are stripped before sending, so *"An empty answer helps
+nobody."* can actually fire on a blank form instead of storing four zeros.
+
+- **Verification**: `e2e-production-19a.js` 58 → 63 — the highlight on open, from
+  a rail click, from a board cell, and back to the dashboard, plus the
+  breadcrumb rung that reads from it. `e2e-production-flows.js` 56 → 61 — a real
+  answer saving with its figures on the record, a rate still refused, an empty
+  answer still refused, and no whitelisted key tripping the database regex.
+  Pages 46/46. Standing battery clean; full offline sweep **all green**.
+- `sw.js` CACHE_VERSION v59 → v60.

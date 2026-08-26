@@ -466,7 +466,13 @@ function raiseInputRequest({ type, raisedBy, raiserRole, jobCardId = null, quest
 }
 // Commitment 3: hours and quantities, never a price. A whitelist rather
 // than a blacklist — a shape that has to be named to get through.
-const INPUT_ANSWER_FIELDS = ["manHours", "men", "days", "boards", "veneerSheets", "processDays", "wastagePct", "note"];
+// Quantities, hours and flags — never money. Keep it that way: this list is
+// the client-side half of commitment 3, and a Postgres trigger enforces the
+// other half. That trigger matches key names by SUBSTRING against
+// (rate|price|cost|amount|margin|total|bd|money|value), so a name like
+// "bdCount" would be refused by the database and by nothing else here.
+const INPUT_ANSWER_FIELDS = ["manHours", "men", "days", "quantity", "machineHours",
+  "boards", "veneerSheets", "processDays", "wastagePct", "isEstimate", "note"];
 function answerInputRequest(reqId, payload, byWhom = "Production Manager") {
   const r = inputRequests.find(x => x.id === reqId);
   if (!r) return { error: "Request not found." };
