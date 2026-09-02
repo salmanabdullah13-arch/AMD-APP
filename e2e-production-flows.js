@@ -787,8 +787,27 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
   check('there is no labour rate field anywhere on the screen', !editor.labourRate, editor);
   check('and no selling price, margin or profit', !editor.money, editor.money);
 
-  const bomPulled = await page.evaluate(async () => {
+  // 22d — pull SHOWS before it DOES: the button opens a preview, and nothing
+  // is on the form until "Bring in" is pressed.
+  const preview = await page.evaluate(async () => {
     document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull"]').click();
+    await new Promise(r => setTimeout(r, 300));
+    const sec = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
+    return {
+      panel: !!sec.querySelector('.prd-bom-pull'),
+      panelRows: sec.querySelectorAll('.prd-bom-pull-r').length,
+      newMarks: sec.querySelectorAll('.prd-bom-pull-r:not(.had) .m').length,
+      formRows: sec.querySelectorAll('.prd-bom-r').length,
+      bring: (sec.querySelector('[data-a="bom-pull-in"]') || {}).textContent || '',
+      note: (sec.querySelector('.prd-bom-pull-f i') || {}).textContent || ''
+    };
+  });
+  check('pull shows the lines first and puts nothing on the form',
+    preview.panel && preview.panelRows === 2 && preview.formRows === 0 && /Bring in 2 lines/.test(preview.bring) &&
+    /None of these are on the form yet/.test(preview.note), preview);
+
+  const bomPulled = await page.evaluate(async () => {
+    document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull-in"]').click();
     await new Promise(r => setTimeout(r, 300));
     const sec = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
     return {
@@ -804,6 +823,25 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
     /12 man-days/.test(bomPulled.totals[1] || ''), bomPulled.totals);
   check('and a rate that has moved since the quote is called out, not used silently',
     /Item Master says/.test(bomPulled.note || ''), bomPulled.note);
+
+  // Pulling again must not double a line — every one is already on the form.
+  const again = await page.evaluate(async () => {
+    document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull"]').click();
+    await new Promise(r => setTimeout(r, 300));
+    const sec = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
+    const btn = sec.querySelector('.prd-bom-pull-f button');
+    const out = {
+      had: sec.querySelectorAll('.prd-bom-pull-r.had').length,
+      dead: !!btn && btn.disabled && /Nothing to bring in/.test(btn.textContent),
+      note: (sec.querySelector('.prd-bom-pull-f i') || {}).textContent || ''
+    };
+    sec.querySelector('[data-a="bom-pull-close"]').click();
+    await new Promise(r => setTimeout(r, 200));
+    out.rowsAfter = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]').querySelectorAll('.prd-bom-r').length;
+    return out;
+  });
+  check('pulling a second time offers nothing and doubles nothing',
+    again.had === 2 && again.dead && /will not double a line/.test(again.note) && again.rowsAfter === 2, again);
 
   const freeText = await page.evaluate(async () => {
     const box = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-s"]');
@@ -823,6 +861,8 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
     await new Promise(r => setTimeout(r, 150));
     // Give paint something too, so the one-submit-two-budgets rule is real.
     document.querySelector('#prd-body .prd-bom-sec[data-dept="paint"] [data-a="bom-pull"]').click();
+    await new Promise(r => setTimeout(r, 250));
+    document.querySelector('#prd-body .prd-bom-sec[data-dept="paint"] [data-a="bom-pull-in"]').click();
     await new Promise(r => setTimeout(r, 250));
     const toasts = []; const orig = window.commsToast; window.commsToast = (m) => toasts.push(m);
     document.querySelector('#prd-body .prd-acts .prd-btn').click();

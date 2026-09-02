@@ -154,6 +154,8 @@ function check(name, ok, detail) {
   const est = await page.evaluate(async () => {
     document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull"]').click();
     await new Promise(r => setTimeout(r, 300));
+    document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull-in"]').click();
+    await new Promise(r => setTimeout(r, 300));
     const sec = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
     return {
       estCells: [...sec.querySelectorAll('.prd-bom-r .c-e')].map(x => x.textContent.trim()),
@@ -179,13 +181,14 @@ function check(name, ok, detail) {
     return {
       qty: s.querySelectorAll('.prd-bom-r')[0].querySelector('.c-q b').textContent.trim(),
       flagged: !!s.querySelector('.prd-bom-r .c-e.over'),
-      delta: (s.querySelector('.prd-bom-t .prd-bom-d') || {}).textContent || ''
+      // 22d: the deltas sit beside the section header, where the decision is.
+      delta: (s.querySelector('.prd-bom-hd .prd-bom-d') || {}).textContent || ''
     };
   });
   check('budgeting more than the estimate flags the row', over.qty === '10' && over.flagged, over);
   // Either side is possible and both are worth saying: the budget is priced
   // at Item Master cost while the estimate carries the estimator own rate.
-  check('and the footer says how far off the estimate the section is',
+  check('and the section header says how far off the estimate it is',
     /(over|under|same as) the estimate/.test(over.delta), over.delta);
 
   // ── 3. The lump-sum job — the normal case ─────────────────────────────
@@ -199,6 +202,8 @@ function check(name, ok, detail) {
     const sec = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
     document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull"]').click();
     await new Promise(r => setTimeout(r, 300));
+    document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"] [data-a="bom-pull-in"]').click();
+    await new Promise(r => setTimeout(r, 300));
     const s2 = document.querySelector('#prd-body .prd-bom-sec[data-dept="carp"]');
     return {
       note: (sec.querySelector('.prd-bom-strip-h i') || {}).textContent || '',
@@ -209,12 +214,12 @@ function check(name, ok, detail) {
     };
   }, seed);
   check('an item the estimator did not itemise is named as such',
-    /1 of 2 items carry no material line of their own/.test(lump.note), lump.note);
+    /2 items · BD [\d,.]+ material and \d+ man-days allowed in total\. 1 item carries no material line of its own/.test(lump.note), lump.note);
   // Narrower than an earlier version, deliberately: telling the reader to
   // ignore the EST column would be wrong whenever another item DOES carry a
   // parts list, which is exactly the mixed case this job is.
   check('and the note points at the totals for those without claiming the column is useless',
-    /Read the totals for those/.test(lump.note) && /real wherever it shows a number/.test(lump.note),
+    /real wherever it shows a number/.test(lump.note) && /blank where a rough figure covers the item/.test(lump.note),
     lump.note);
   check('the item he costed nothing for is shown as such, not hidden',
     lump.noneCards === 1 && lump.cards.some(c => /costed nothing/.test(c)), lump.cards);
@@ -296,7 +301,7 @@ function check(name, ok, detail) {
   check('the editor is replaced while the review is open', !review.editorStillThere, review);
   check('Submit is not reachable under a pending review',
     !review.acts.some(a => /Submit for approval/i.test(a)) &&
-    review.acts.some(a => /Put these rows on the form/i.test(a)), review.acts);
+    review.acts.some(a => /Use the \d+ rows that work/i.test(a)), review.acts);
   check('a code that is not in the Item Master is refused, with a reason',
     review.bad === 3 && review.rows.some(r => /not a real Item Master code/.test(r)), review.rows);
   check('a material line with no quantity is refused',

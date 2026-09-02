@@ -63,7 +63,28 @@ function prdRefreshSubtitle() {
   const d = new Date();
   let line = d.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const rest = prdSubLine(k);
-  el.textContent = rest ? line + ' · ' + rest : line;
+  const text = rest ? line + ' · ' + rest : line;
+  el.textContent = text;
+  // 22b: the day line is the page title's badge, not a line of its own.
+  const q = document.getElementById('prd-title-q');
+  if (q) { q.title = text; const t = q.parentElement.querySelector('.prd-qtext'); if (t) t.textContent = text; }
+}
+/** 22b — puts the ? badge beside the topbar title. Idempotent per build. */
+function prdTitleBadge() {
+  const title = prdModuleWrap.querySelector('.xs-title');
+  if (!title || !window.PrdUI || document.getElementById('prd-title-q')) return;
+  const row = title.parentElement;
+  row.classList.add('xs-title-row');
+  const holder = document.createElement('span');
+  holder.className = 'prd-hrow';
+  holder.innerHTML = PrdUI.qBadge('Today', 'neutral');
+  const q = holder.querySelector('.prd-q'); if (q) q.id = 'prd-title-q';
+  title.insertAdjacentElement('afterend', holder);
+  // The chip toggles its text the same way the in-body ones do.
+  holder.addEventListener('click', function (e) {
+    const c = e.target.closest('.prd-qchip'); if (!c) return;
+    const t = holder.querySelector('.prd-qtext'); if (t) t.hidden = !t.hidden;
+  });
 }
 function prdSubLine(k) {
   const bits = [];
@@ -137,6 +158,7 @@ function openProductionModule() {
   prdModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   prdBuildShell();
   execSetContext('production', 'renderProductionBody');
+  prdTitleBadge();
   execThemeApply();
   PrdUI.reset();
   renderProductionBody();
@@ -185,6 +207,22 @@ window.PrdUI = (function () {
   // BD 1,350.000 — 3 decimals, where cost appears. Production sees cost,
   // never selling price.
   function bd(n) { return 'BD ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
+
+  /* 22b — a heading's explanatory sub-line, folded into a hover badge.
+     tone: 'wine' on wine-tinted card headers, 'neutral' on plain ones,
+     'bad' where the sub-line states a refusal. The text goes in title=,
+     so it is plain — any <b> is stripped before it gets here.
+     title= does not open on a tap, so the phone build gets the tappable
+     "? What this page is for" chip instead, which expands the same text
+     inline; CSS shows exactly one of the two per viewport. */
+  function qBadge(text, tone) {
+    if (!text) return '';
+    var t = String(text).replace(/<[^>]+>/g, '');
+    return '<span class="prd-q' + (tone === 'wine' ? ' q-wine' : tone === 'bad' ? ' q-bad' : '') +
+      '" title="' + esc(t) + '">?</span>' +
+      '<button type="button" class="prd-qchip" data-a="qchip">? What this page is for</button>' +
+      '<span class="prd-qtext" hidden>' + esc(t) + '</span>';
+  }
   // Dates DD MMM YYYY.
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function ddmmm(iso) {
@@ -272,8 +310,8 @@ window.PrdUI = (function () {
     var dueToday = rows.filter(function (r) { return r.due && r.due <= todayLocal(); }).length;
     return '<section class="prd-card prd-asked">' +
       '<div class="prd-card-h"><div style="flex:1 1 auto;min-width:0">' +
-      '<div class="prd-asked-t">Asked of you today</div>' +
-      '<div class="prd-sub prd-sub-lg">Other people\'s deadlines. These come before the board, because somebody is waiting on the other end.</div>' +
+      '<div class="prd-hrow"><span class="prd-asked-t">Asked of you today</span>' +
+      qBadge("Other people's deadlines. These come before the board, because somebody is waiting on the other end.", 'wine') + '</div>' +
       '</div><span class="prd-pill solid prd-count">' + rows.length + ' open · ' + dueToday + ' due today</span></div>' +
       (shown.length ? shown.map(function (r) {
         var kc = kindChip(r.kind), tone = dueTone(r.due), act = askAction(r.kind), need = needLine(r);
@@ -365,8 +403,8 @@ window.PrdUI = (function () {
 
     return '<section class="prd-card prd-board">' +
       '<div class="prd-card-h prd-card-h-lg"><div style="flex:1 1 auto;min-width:0">' +
-      '<div class="prd-t">The week board</div>' +
-      '<div class="prd-sub prd-sub-lg">Four lanes, one clock. <b>Paint and install pull their dates from joinery</b> — move a joinery slot and the ones after it move with it. Green Friday cells are <b>overtime</b>, booked against the target they recover.</div>' +
+      '<div class="prd-hrow"><span class="prd-t">The week board</span>' +
+      qBadge('Four lanes, one clock. Paint and install pull their dates from joinery — move a joinery slot and the ones after it move with it. Green Friday cells are overtime, booked against the target they recover.', 'neutral') + '</div>' +
       '</div><span class="prd-step"><button data-a="wk" data-v="-1" aria-label="Previous week">‹</button>' +
       '<button class="lbl" data-a="wk-today">This week</button>' +
       '<button data-a="wk" data-v="1" aria-label="Next week">›</button></span></div>' +
@@ -490,9 +528,9 @@ window.PrdUI = (function () {
     var days = weekDates(S.off);
     var now = new Date(todayLocal() + 'T00:00:00');
     return '<section class="prd-card prd-teams">' +
-      '<div class="prd-teams-h"><span class="prd-t-sm">Teams today</span>' +
+      '<div class="prd-teams-h"><span class="prd-hrow"><span class="prd-t-sm">Teams today</span>' +
+      qBadge("Crews and where they physically are. Who stands in each crew is the labour dashboard's business.", 'neutral') + '</span>' +
       '<span class="prd-note">' + esc(DL[now.getDay()] + ' ' + ddmmmShort(todayLocal())) + '</span></div>' +
-      '<div class="prd-teams-note">Crews and where they physically are. Who stands in each crew is the labour dashboard\'s business.</div>' +
       '<div class="prd-teams-list">' +
       crewList().map(function (c) {
         var booked = laneLoad(c, days);
@@ -910,8 +948,8 @@ window.PrdUI = (function () {
           esc(FLOW_TABS[k]) + '</button>';
       }).join('') + '</div>' +
 
-      '<div class="prd-page-h"><div class="prd-page-t">' + esc(m.title) + '</div>' +
-      '<div class="prd-page-s">' + esc(m.sub) + '</div></div>' +
+      '<div class="prd-page-h prd-hrow"><span class="prd-page-t">' + esc(m.title) + '</span>' +
+      qBadge(m.sub, 'neutral') + '</div>' +
 
       '<section class="prd-gate' + (tone ? ' t-' + tone : '') + '">' +
       '<div class="prd-gate-h"><span class="prd-gate-b">' + (tone ? TONE_ICON[tone] : '?') + '</span>' +
@@ -932,9 +970,10 @@ window.PrdUI = (function () {
         // A pending review owns the action row. Submitting underneath it
         // would send operations a budget nobody had read.
         ? '<div class="prd-acts">' +
-          '<button class="prd-btn" data-a="bom-xl-apply">Put these rows on the form</button>' +
+          '<button class="prd-btn" data-a="bom-xl-apply">Use the ' +
+            S.bomExcel.rows.filter(function (r) { return r.status === 'ok'; }).length + ' rows that work</button>' +
           '<button class="prd-btn-g" data-a="bom-xl-discard">Discard the upload</button>' +
-          '<span class="prd-acts-h">Nothing is saved yet — you still submit from the form.</span>' +
+          '<span class="prd-acts-h wine">No Submit here — the review owns the action row until it is resolved.</span>' +
           '</div>'
         :
       '<div class="prd-acts">' +
@@ -1116,12 +1155,57 @@ window.PrdUI = (function () {
     }, 0);
   }
 
+  /** What a pull would bring in, each line marked new or already on the form. */
+  function bomPullPreview(dept) {
+    var pull = safe(function () { return seedDepartmentBudgetLinesFromEstimate(S.formJob, dept); }, null);
+    if (!pull) return null;
+    var L = bomLines(dept);
+    var rows = pull.materials.map(function (m) {
+      return { kind: 'Material', itemId: m.itemId, name: m.name, unit: m.unit, qty: m.qty, rate: m.rate,
+        isNew: !L.materials.some(function (x) { return x.itemId === m.itemId; }),
+        q: (m.qty || 0) + ' ' + (m.unit || '') };
+    }).concat(pull.labour.map(function (l) {
+      return { kind: 'Labour', name: l.task, men: l.men, days: l.days,
+        isNew: !L.labour.some(function (x) { return String(x.task || '').trim().toLowerCase() === String(l.task || '').trim().toLowerCase(); }),
+        q: (l.men || 0) + ' men × ' + (l.days || 0) + ' days' };
+    }));
+    return { rows: rows, mats: pull.materials.length, labs: pull.labour.length,
+      fresh: rows.filter(function (r) { return r.isNew; }).length, notes: pull.notes || [] };
+  }
+
+  /** The pull preview — pull SHOWS before it DOES. */
+  function bomPullPanelHTML(dept, pv) {
+    var n = pv.rows.length, fresh = pv.fresh;
+    var note = fresh === n
+      ? 'None of these are on the form yet. Quantities arrive as the estimator allowed them; you correct them here.'
+      : fresh === 0
+        ? 'Every one of these is already on the form. Pulling again changes nothing — it will not double a line.'
+        : fresh + ' of ' + n + ' are new. The rest are already on the form and are left alone, not doubled.';
+    return '<div class="prd-bom-pull">' +
+      '<div class="prd-bom-pull-h"><b>What comes in — ' + pv.mats + ' material, ' + pv.labs + ' labour</b>' +
+      '<button class="prd-btn-g sm" data-a="bom-pull-close">Close</button></div>' +
+      '<div class="prd-bom-pull-rows">' + pv.rows.map(function (r) {
+        return '<div class="prd-bom-pull-r' + (r.isNew ? '' : ' had') + '">' +
+          '<span class="m">' + (r.isNew ? '＋' : '·') + '</span>' +
+          '<span class="n">' + esc(r.name) + '</span>' +
+          '<span class="k">' + r.kind + '</span>' +
+          '<span class="q">' + esc(r.q) + '</span></div>';
+      }).join('') + '</div>' +
+      '<div class="prd-bom-pull-f">' +
+      (fresh
+        ? '<button class="prd-btn sm" data-a="bom-pull-in" data-d="' + dept + '">Bring in ' + fresh + ' line' + (fresh === 1 ? '' : 's') + '</button>'
+        : '<button class="prd-btn sm dead" disabled>Nothing to bring in</button>') +
+      '<i>' + esc(note) + '</i></div></div>';
+  }
+
   function bomSectionHTML(dept) {
     var L = bomLines(dept);
-    var pull = safe(function () { return seedDepartmentBudgetLinesFromEstimate(S.formJob, dept); }, null);
-    var pullN = pull ? (pull.materials.length + pull.labour.length) : 0;
+    var pv = bomPullPreview(dept);
+    var pull = pv ? { notes: pv.notes } : null;
+    var pullN = pv ? pv.rows.length : 0;
     var cmp = bomEstimate(dept);
     var byCode = (cmp && cmp.byCode) || {};
+    var taskPh = dept === 'paint' ? 'e.g. Spray and polish' : 'e.g. Carcass assembly';
 
     var mats = L.materials.length ? L.materials.map(function (m, i) {
       // The estimator's own quantity for THIS code, matched on itemId — a
@@ -1135,8 +1219,10 @@ window.PrdUI = (function () {
         '<b>' + (Number(m.qty) || 0) + '</b>' +
         '<button class="prd-stp" data-a="bom-q" data-d="' + dept + '" data-i="' + i + '" data-v="1">＋</button></span>' +
         '<span class="c-e' + (e && (Number(m.qty) || 0) > e.qty ? ' over' : '') + '"' +
-        (e ? '' : ' title="The estimator has no line for this code."') + '>' +
-        (e ? e.qty : '—') + '</span>' +
+        ' title="' + esc(e
+          ? 'The estimator allowed ' + e.qty + ' of this code; you have ' + (Number(m.qty) || 0) + '.'
+          : 'The estimator has no line for this code. Blank is honest — it is not zero.') + '">' +
+        (e ? e.qty : '') + '</span>' +
         '<span class="c-u">' + esc(m.unit || '') + '</span>' +
         '<span class="c-r">' + bd(m.rate) + '</span>' +
         '<span class="c-a">' + bd((Number(m.qty) || 0) * (Number(m.rate) || 0)) + '</span>' +
@@ -1147,7 +1233,7 @@ window.PrdUI = (function () {
     var labs = L.labour.length ? L.labour.map(function (l, i) {
       return '<div class="prd-bom-r">' +
         '<span class="c-n">' + (i + 1) + '</span>' +
-        '<span class="c-p"><input class="prd-cin" data-a="bom-f" data-d="' + dept + '" data-i="' + i + '" data-k="task" value="' + esc(l.task || '') + '" placeholder="What the crew is doing"></span>' +
+        '<span class="c-p"><input class="prd-cin" data-a="bom-f" data-d="' + dept + '" data-i="' + i + '" data-k="task" value="' + esc(l.task || '') + '" placeholder="' + taskPh + '"></span>' +
         '<span class="c-q"><button class="prd-stp" data-a="bom-l" data-d="' + dept + '" data-i="' + i + '" data-k="men" data-v="-1">−</button>' +
         '<b>' + (Number(l.men) || 0) + '</b>' +
         '<button class="prd-stp" data-a="bom-l" data-d="' + dept + '" data-i="' + i + '" data-k="men" data-v="1">＋</button></span>' +
@@ -1176,35 +1262,57 @@ window.PrdUI = (function () {
     var estMat = cmp ? cmp.totals.materialCost : 0;
     var estDays = cmp ? cmp.totals.manDays : 0;
 
+    // The two deltas — over or under the estimate, per department — are the
+    // most valuable numbers on the screen, and the 22d review found them at
+    // the bottom of a long scroll where nobody reached them before Submit.
+    // They sit beside the section header now, where the decision is.
+    var deltas = (estMat || estDays)
+      ? '<div class="prd-bom-hd">' +
+        (estMat ? bomDelta(bomMatTotal(dept), estMat, bd) : '') +
+        (estDays ? bomDelta(bomManDays(dept), estDays, function (n) { return Math.round(n * 10) / 10 + ' man-days'; }) : '') +
+        '</div>'
+      : '';
+    var open = !!(S.bomPull === dept && pv);
+
     return '<section class="prd-bom-sec" data-dept="' + dept + '">' +
       '<div class="prd-bom-h"><div class="prd-bom-hn"><b>' + esc(dc(dept).n) + '</b>' +
       '<i>' + L.materials.length + ' material line' + (L.materials.length === 1 ? '' : 's') + ' · ' +
-      bomManDays(dept) + ' man-days</i></div>' +
-      '<button class="prd-btn-w sm"' + (pullN ? '' : ' disabled') + ' data-a="bom-pull" data-d="' + dept + '">' +
-      (pullN ? 'Pull ' + pullN + ' line' + (pullN === 1 ? '' : 's') + ' from the estimate' : 'Nothing on the estimate') +
+      bomManDays(dept) + ' man-days</i>' +
+      // While the panel is closed, the hint says what the button would show,
+      // so its effect is legible without a click.
+      (pullN && !open
+        ? '<em class="prd-bom-hint">Shows ' + pv.mats + ' material line' + (pv.mats === 1 ? '' : 's') + ' and ' +
+          pv.labs + ' labour task' + (pv.labs === 1 ? '' : 's') + ' at the estimator\'s quantities</em>'
+        : '') +
+      '</div>' + deltas +
+      '<button class="prd-btn-w sm"' + (pullN ? '' : ' disabled') + ' data-a="bom-pull" data-d="' + dept + '"' +
+      ' title="Shows you the lines first. Nothing goes on the form until you press Bring in.">' +
+      (pullN ? 'Pull ' + pullN + ' line' + (pullN === 1 ? '' : 's') + ' from the estimate ▾' : 'Nothing on the estimate') +
       '</button></div>' +
+      (open ? bomPullPanelHTML(dept, pv) : '') +
       (pull && pull.notes.length
         ? '<div class="prd-bom-note">' + pull.notes.map(esc).join(' ') + '</div>' : '') +
-      bomItemStripHTML(dept, cmp) +
+      // What the estimator allowed — on the Joinery section only (22d).
+      (dept === 'carp' ? bomItemStripHTML(dept, cmp) : '') +
       '<div class="prd-bom-sub">Materials</div>' + search +
       '<div class="prd-bom-c"><span class="c-n">#</span><span class="c-p">ITEM</span>' +
       '<span class="c-q">QTY</span><span class="c-e">EST</span>' +
       '<span class="c-u">UNIT</span><span class="c-r">COST</span>' +
-      '<span class="c-a">AMOUNT</span><span class="c-x"></span></div>' + mats +
-      '<div class="prd-bom-sub">Labour <button class="prd-btn-g sm" data-a="bom-ladd" data-d="' + dept + '">＋ Add a task</button></div>' +
+      '<span class="c-a">AMOUNT</span><span class="c-x"></span></div>' +
+      // The 20-item case scrolls inside the section rather than pushing the
+      // totals off the page.
+      '<div class="prd-bom-rows">' + mats + '</div>' +
+      '<div class="prd-bom-sub">Labour <span class="prd-bom-sub-sp"></span><button class="prd-btn-g sm" data-a="bom-ladd" data-d="' + dept + '">Add a task</button></div>' +
       '<div class="prd-bom-c"><span class="c-n">#</span><span class="c-p">TASK</span>' +
       '<span class="c-q">MEN</span><span class="c-q">DAYS</span>' +
       '<span class="c-a">MAN-DAYS</span><span class="c-x"></span></div>' + labs +
       '<div class="prd-bom-f">' +
       '<div class="prd-bom-t"><span class="l">Materials</span><b>' + bd(bomMatTotal(dept)) + '</b>' +
       '<span class="n">at Item Master cost' +
-      (estMat ? '. Estimator allowed ' + bd(estMat) + '. ' : '') + '</span>' +
-      (estMat ? bomDelta(bomMatTotal(dept), estMat, bd) : '') + '</div>' +
+      (estMat ? '. Estimator allowed ' + bd(estMat) + '.' : '') + '</span></div>' +
       '<div class="prd-bom-t"><span class="l">Labour</span><b>' + bomManDays(dept) + ' man-days</b>' +
-      '<span class="n">costed at the floor average when you submit' +
-      (estDays ? '. Estimator allowed ' + estDays + '. ' : '') + '</span>' +
-      (estDays ? bomDelta(bomManDays(dept), estDays, function (n) { return Math.round(n * 10) / 10 + ' man-days'; }) : '') +
-      '</div>' +
+      '<span class="n">costed at the floor average when you submit — you never see the rate' +
+      (estDays ? '. Estimator allowed ' + estDays + '.' : '') + '</span></div>' +
       '</div></section>';
   }
 
@@ -1229,7 +1337,7 @@ window.PrdUI = (function () {
       '</div>' +
       depts.map(bomSectionHTML).join('') +
       (depts.length > 1
-        ? '<div class="prd-bom-note">Both sections go in together — one submission, two budgets, because joinery and paint are one job for one manager but two production gates.</div>'
+        ? '<div class="prd-bom-together">Both sections go in together — one submission, two budgets, because joinery and paint are one job for one manager but two production gates.</div>'
         : '') + '</div>';
   }
 
@@ -1313,17 +1421,21 @@ window.PrdUI = (function () {
         '</div></div>';
     }).join('');
     var cov = safe(function () { return estimateCoverage(cmp); }, { bare: 0, total: 0, thin: false });
+    var tot = cmp.totals || {};
+    var head = cmp.items.length + ' item' + (cmp.items.length === 1 ? '' : 's') + ' · ' +
+      bd(tot.materialCost || 0) + ' material and ' + (tot.manDays || 0) + ' man-day' + ((tot.manDays || 0) === 1 ? '' : 's') +
+      ' allowed in total. ';
     return '<div class="prd-bom-strip">' +
       '<div class="prd-bom-strip-h">What the estimator allowed' +
       (cov.thin
-        // Narrower than it used to say, and true: an item with no material
-        // line of its own is covered by somebody else's, so the EST column
-        // has nothing to show for it. It does not follow that the column is
-        // useless everywhere — where it shows a number, that number is real.
-        ? '<i>' + cov.bare + ' of ' + cov.total + ' item' + (cov.total === 1 ? '' : 's') +
-          ' carry no material line of their own — a rough figure covers them. Read the totals for those; ' +
-          'the EST column is real wherever it shows a number.</i>'
-        : '<i>Itemised — the EST column on each material row is his own quantity for that code.</i>') +
+        // An item with no material line of its own is covered by somebody
+        // else's, so the EST column has nothing to show for it. It does not
+        // follow that the column is useless — where it shows a number, that
+        // number is real.
+        ? '<i>' + head + cov.bare + ' item' + (cov.bare === 1 ? '' : 's') +
+          ' carr' + (cov.bare === 1 ? 'ies' : 'y') + ' no material line of ' + (cov.bare === 1 ? 'its' : 'their') + ' own — ' +
+          'the EST column is real wherever it shows a number, and blank where a rough figure covers the item.</i>'
+        : '<i>' + head + 'Itemised — the EST column on each material row is his own quantity for that code.</i>') +
       '</div><div class="prd-bom-cards">' + cards + '</div></div>';
   }
 
@@ -1518,9 +1630,9 @@ window.PrdUI = (function () {
       '<div class="prd-bom-rv-c"><span class="c-s"></span><span class="c-d">DEPT</span>' +
       '<span class="c-t">SECTION</span><span class="c-p">ITEM / TASK</span><span class="c-a">QTY</span></div>' +
       body +
-      '<div class="prd-bom-rv-f">Applying replaces what is on the form for ' +
+      '<div class="prd-bom-rv-f">A row already on the form for ' +
       st.depts.map(function (d) { return esc(safe(function () { return dc(d).n; }, d)); }).join(' and ') +
-      '. Nothing reaches operations until you press Submit afterwards.</div>' +
+      ' is updated in place, not doubled; a new row is added. Nothing reaches operations until you press Submit afterwards.</div>' +
       '</div></div>';
   }
 
@@ -1532,17 +1644,20 @@ window.PrdUI = (function () {
       if (typeof commsToast === 'function') commsToast('Nothing on that sheet can be used yet.');
       return;
     }
-    // Replace per department, never append — uploading twice must not double
-    // the budget, the same rule the pull and the cutting list already follow.
-    st.depts.forEach(function (d) { S.bomLines[d] = { materials: [], labour: [] }; });
+    // Never double. A line already on the form is UPDATED in place from the
+    // sheet (the sheet was downloaded to be corrected, so its quantity wins);
+    // a new line is added; uploading the same sheet twice changes nothing
+    // the second time. Same rule the pull and the cutting list follow.
     use.forEach(function (r) {
       var L = bomLines(r.dept);
       if (r.section === 'Material') {
         var hit = L.materials.find(function (m) { return m.itemId === r.itemId; });
-        if (hit) hit.qty = (Number(hit.qty) || 0) + r.qty;   // one code, one line
+        if (hit) hit.qty = r.qty;   // one code, one line
         else L.materials.push({ itemId: r.itemId, name: r.name, unit: r.unit, qty: r.qty, rate: r.rate });
       } else {
-        L.labour.push({ task: r.key, men: r.men, days: r.days });
+        var lh = L.labour.find(function (l) { return String(l.task || '').trim().toLowerCase() === String(r.key || '').trim().toLowerCase(); });
+        if (lh) { lh.men = r.men; lh.days = r.days; }
+        else L.labour.push({ task: r.key, men: r.men, days: r.days });
       }
     });
     var n = use.length, dropped = st.rows.length - n;
@@ -1983,7 +2098,7 @@ window.PrdUI = (function () {
         { h: 'LANE / JOB', cell: function (r) { return '<b>' + esc(r.name) + '</b><span class="prd-td-s">' + esc(r.sub || '') + '</span>'; } },
         { h: 'TARGET OUT', w: '130px', cell: function (r) {
           var t = r.targetOut;
-          if (!t || !t.date) return '<span class="prd-dim">not set</span>';
+          if (!t || !t.date) return '<span class="prd-dim">— not set</span>';
           return '<b>' + esc(ddmmmShort(t.date)) + '</b><span class="prd-td-s t-' + t.tone + '">' + esc(t.label) + '</span>';
         } },
         { h: '', w: '120px', right: true, cell: function (r) { return pill(r.st, r.state); } }
@@ -2409,8 +2524,8 @@ window.PrdUI = (function () {
       : pageTable(def.cols, def.rows || [], def.empty || 'Nothing here.');
     return '<div class="prd-dash prd-page">' +
       '<div class="prd-l">' +
-      '<div class="prd-page-h"><div class="prd-page-t">' + esc(PAGE_TITLES[S.page] || S.page) + '</div>' +
-      '<div class="prd-page-s">' + esc(def.sub) + '</div></div>' +
+      '<div class="prd-page-h prd-hrow"><span class="prd-page-t">' + esc(PAGE_TITLES[S.page] || S.page) + '</span>' +
+      qBadge(def.sub, 'neutral') + '</div>' +
       statsStrip(def.stats || []) +
       chipRow(def.chips || [], def.secondary, def.primary) +
       '<section class="prd-card prd-page-c">' + content + '</section>' +
@@ -2530,19 +2645,37 @@ window.PrdUI = (function () {
       if (typeof printCuttingList === 'function') printCuttingList(el.getAttribute('data-s'));
       return;
     }
+    if (a === 'qchip') {
+      // The phone's tappable badge: the text sits right after the chip.
+      var qt = el.nextElementSibling;
+      if (qt && qt.classList.contains('prd-qtext')) qt.hidden = !qt.hidden;
+      return;
+    }
     if (a === 'bom-xl-dl') { bomExcelDownload(); return; }
     if (a === 'bom-xl-apply') { bomExcelApply(); return; }
     if (a === 'bom-xl-discard') { S.bomExcel = null; paint(); return; }
+    // 22d — pull SHOWS before it DOES. The header button opens the preview;
+    // nothing goes on the form until "Bring in" is pressed.
     if (a === 'bom-pull') {
       var pd = el.getAttribute('data-d');
-      var seeded = safe(function () { return seedDepartmentBudgetLinesFromEstimate(S.formJob, pd); }, null);
-      if (seeded) {
-        // Replace, never append — pulling twice must not double the budget.
-        bomLines(pd).materials = seeded.materials.map(function (m) {
-          return { itemId: m.itemId, name: m.name, unit: m.unit, qty: m.qty, rate: m.rate };
+      S.bomPull = S.bomPull === pd ? null : pd;
+      repaintBOM(); return;
+    }
+    if (a === 'bom-pull-close') { S.bomPull = null; repaintBOM(); return; }
+    if (a === 'bom-pull-in') {
+      var pdi = el.getAttribute('data-d');
+      var pv = bomPullPreview(pdi);
+      if (pv) {
+        // A line already on the form is left alone, not doubled — only the
+        // NEW lines come in. Pulling twice therefore changes nothing.
+        var Li = bomLines(pdi);
+        pv.rows.forEach(function (r) {
+          if (!r.isNew) return;
+          if (r.kind === 'Material') Li.materials.push({ itemId: r.itemId, name: r.name, unit: r.unit, qty: r.qty, rate: r.rate });
+          else Li.labour.push({ task: r.name, men: r.men, days: r.days });
         });
-        bomLines(pd).labour = seeded.labour.slice();
       }
+      S.bomPull = null;
       repaintBOM(); return;
     }
     if (a === 'bom-add') {
@@ -2672,7 +2805,7 @@ window.PrdUI = (function () {
   }
 
   return {
-    mount: mount, render: render, paint: paint, state: S,
+    mount: mount, render: render, paint: paint, state: S, qBadge: qBadge,
     // Exposed so the suite can drive the upload without a real file picker,
     // the same reason estimator.js exposes processExcelImport().
     processBOMExcel: function (sheets) { return bomProcessExcel(sheets); },
@@ -2683,7 +2816,7 @@ window.PrdUI = (function () {
     go: function (view, key) {
       S.view = view;
       if (view === 'page') { S.page = key; S.pgChip = 0; }
-      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; S.bomExcel = null; }
+      if (view === 'form') { S.form = key; S.gate = null; S.cutRows = null; S.formJob = null; S.formCrew = null; S.allotLines = null; S.bomLines = null; S.bomSearch = ''; S.bomExcel = null; S.bomPull = null; }
       paint();
     }
   };

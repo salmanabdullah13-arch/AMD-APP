@@ -8529,3 +8529,83 @@ the network policy and not a regression. It is really a live-cloud suite that
 happens not to have "cloud" in its filename.
 
 `sw.js` CACHE_VERSION v62 → v63.
+
+### 2 Sep 2026 — The end-to-end run begins: package 20a/22 archived, Production corrected to 22b + 22d
+
+Salman asked how a full start-to-end test of the software would be run —
+enquiry through sales, estimation, production and delivery, every scenario,
+several iterations, with the dashboards audited for coherence from one role
+to the next — and then said the goal is not a report but a **ready system he
+can test live himself**, including site installation crews logging hours on a
+phone. Six decisions were taken before anything started and are recorded in
+memory (`amd-end-to-end-test-run-decisions`): seed and purge on the live
+project are granted for the run; the seeded 19a story may be purged at the
+first reset; the new **20a Upholstery** package replaces the Batch 8 wrapper
+with all three upholstery roles landing on it; **Painting folds into
+Production** and the old Joinery wrapper and its granular views retire in
+favour of the 22c pages; **Curtain is restyled into the shared shell only**,
+not rebuilt; one new **Installation Crew Lead** role serves Curtain and
+Joinery site crews; and the **crew timer becomes the only way hours are
+logged**, workshop included — create crew, add members, select job, select
+item, Start, Pause with a closed reason list, End, then photos and a 25/50/75
+progress marker, one session per crew per day, written at End to the existing
+per-person day-logs at real payroll rates. Build sequence: 22 corrections,
+20a, the crew timer, then the iterations.
+
+- **Package archived**: `docs/design-handoffs/20a-upholstery.md`,
+  `22-production.md`, `22b-badges-code.md`, `20a-22-README.md`. The 2MB
+  canvas and its runtime were not committed, same as 17a–19a.
+- **22b — five sub-lines fold into `?` badges.** New `qBadge()` in
+  `production-ui.js`: 17×17, 999px radius, 1px ring, `--card` fill, 10.5px/700
+  glyph, `cursor:help`, 7px from the heading on one flex row; wine ring on
+  the wine-tinted Asked card, neutral elsewhere. The page title, Asked of you
+  today, The week board and Teams today carry one; the topbar's day line is
+  now the title's badge (`prdTitleBadge()`, refreshed by
+  `prdRefreshSubtitle()`) rather than a line of its own. **"Waiting for a
+  lane" keeps its red sentence as text** — the two spec files disagree on
+  whether it also gets a fifth badge (the code file says four, the module
+  spec's table says five with no text given); the literal code file was
+  followed. `title=` does not open on a tap, so below 880px each badge is
+  replaced by the tappable **"? What this page is for"** chip that expands
+  the same sentence inline. Spec check confirmed by probe: at 1440×900 the
+  week board's first row sits at y=556, visible without scrolling.
+- **22c — page and form titles** carry the sub-line as a badge; the Week
+  board's Target-out column reads "— not set" in italic dim.
+- **22d — the BOM editor.** Pull now **shows before it does**: the header
+  button reads "Pull N lines from the estimate ▾" and opens an inline
+  preview — one row per incoming line with `＋` (new) or `·` (already on the
+  form), a 52px kind column, a 104px quantity — under a "What comes in — N
+  material, M labour" head, with a wine **"Bring in N lines"** or a dead
+  "Nothing to bring in", and the three-case note verbatim. While closed, an
+  italic hint under the count line says what the button would show. **Only
+  new lines come in; a line already on the form is left alone, not doubled**,
+  so pulling twice changes nothing. The upload's apply follows the same rule
+  but updates an existing line's quantity in place (the sheet was downloaded
+  to be corrected). The two **deltas moved beside the section header**, where
+  the decision is — the review found them below a 20-item scroll where nobody
+  reached them before Submit. "What the estimator allowed" renders on the
+  Joinery section only, with the coverage line in the spec's own shape
+  ("N items · BD X material and M man-days allowed in total. …"). EST is
+  blank, never a dash, where the estimator never itemised the code; it
+  reddens when the manager's quantity goes over and carries a title saying
+  what was allowed. Material rows scroll inside the section (320px) so the
+  20-item case cannot push the totals off the page. The review's action row
+  reads "Use the N rows that work" / "Discard the upload" / *"No Submit here —
+  the review owns the action row until it is resolved."* The two-sections
+  strip is wine-tinted. Labour task placeholders come from the department.
+- **Verification**: `e2e-production-flows.js` 98 → 100 (the preview puts
+  nothing on the form until Bring in; a second pull offers nothing and
+  doubles nothing), `e2e-production-bom-estimate.js` 45/45 (repointed to the
+  header deltas and the new copy), `e2e-production-19a.js` 63/63,
+  `e2e-production-pages.js` 46/46. Standing battery: `node --check` per file
+  and the 37-file load-order concatenation, duplicate top-level declaration
+  scan (none). Probe at 1440 and 390 read back: badges present with the old
+  sentences as titles, no sub-line elements left, chip expands on tap, zero
+  page errors.
+- **A tooling note worth keeping**: the working tree is CRLF (`core.autocrlf
+  true`), and a patch script written from this environment is LF, so a
+  multi-line exact-match anchor silently misses. Normalise on read, restore on
+  write, or the diff is the whole file.
+- `sw.js` CACHE_VERSION v63 → v64.
+- **Next**: the 20a Upholstery build (from scratch on the shared shell), then
+  the crew timer and progress photos, then iteration 1.

@@ -801,3 +801,90 @@
 }
 .prd-bom-rv-f{ padding:10px 13px; background:var(--sunk); border-top:1px solid var(--line2);
   font-size:10.5px; color:var(--tx2); line-height:1.5; }
+
+/* ══ 22b — the ? badge ═══════════════════════════════════════════════════
+   A heading's description of what a card IS folds into a hover badge:
+   17×17, 1px ring, --card fill, 10.5px/700 glyph, cursor:help, 7px from
+   the heading on one flex row. Ring and ink by tone. title= does not open
+   on a tap, so below 880px the badge is replaced by a tappable chip that
+   expands the same sentence inline — never a hover-only badge on a phone. */
+.prd-hrow{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-width:0; }
+.prd-q{
+  display:inline-flex; align-items:center; justify-content:center; flex:none;
+  width:17px; height:17px; border-radius:999px; background:var(--card);
+  font-size:10.5px; font-weight:700; line-height:1; cursor:help;
+  border:1px solid var(--tx3); color:var(--tx2);
+}
+.prd-q.q-wine{ border-color:var(--wine-line); color:var(--wine); }
+.prd-q.q-bad{ border-color:var(--bad); color:var(--bad); }
+.prd-qchip{
+  display:none; align-items:center; gap:4px; flex:none;
+  height:22px; padding:0 9px; border-radius:11px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:10.5px; font-weight:600;
+  font-family:inherit; cursor:pointer;
+}
+.prd-qtext{
+  display:none; flex:1 1 100%; font-size:11px; color:var(--tx2); line-height:1.45;
+  padding:6px 9px; border-radius:9px; background:var(--sunk); border:1px solid var(--line2);
+}
+.prd-qtext[hidden]{ display:none !important; }
+@media (max-width: 880px){
+  .prd-q{ display:none; }
+  .prd-qchip{ display:inline-flex; }
+  .prd-qtext{ display:block; }
+}
+/* The topbar title carries the day line as its badge; the sub-line element
+   stays as the source of that text but is not drawn twice. */
+#prd-module-wrap .xs-sub{ display:none; }
+#prd-module-wrap .xs-title-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+
+/* 22c — "— not set" is the dim cell treatment: 11.5px italic --tx3. */
+.prd-dim{ font-style:italic; }
+
+/* 22d — the BOM editor additions ─────────────────────────────────────── */
+/* Header hint while the pull preview is closed, and the deltas beside the
+   header where the decision is (moved up from the footer per the review). */
+.prd-bom-hint{ display:block; font-style:italic; font-size:10px; color:var(--warn); margin-top:2px; line-height:1.4; }
+.prd-bom-hd{ flex:0 1 auto; min-width:0; text-align:right; }
+.prd-bom-hd .prd-bom-d{ margin-top:0; }
+.prd-bom-hd .prd-bom-d + .prd-bom-d{ margin-top:2px; }
+
+/* The pull preview — shows before it does. */
+.prd-bom-pull{ background:var(--warn-bg); border-top:1px solid var(--line2); padding:10px 13px 11px; }
+.prd-bom-pull-h{ display:flex; align-items:center; justify-content:space-between; gap:9px; margin-bottom:7px; }
+.prd-bom-pull-h b{ font-size:11.5px; font-weight:700; color:var(--tx); }
+.prd-bom-pull-rows{ max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:9px; background:var(--card); }
+.prd-bom-pull-r{ display:flex; align-items:center; gap:8px; padding:6px 10px; border-top:1px solid var(--line2); font-size:11px; }
+.prd-bom-pull-r:first-child{ border-top:0; }
+.prd-bom-pull-r .m{ flex:0 0 12px; text-align:center; color:var(--ok); font-weight:700; }
+.prd-bom-pull-r.had .m{ color:var(--tx3); opacity:.5; }
+.prd-bom-pull-r .n{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.prd-bom-pull-r.had .n{ color:var(--tx2); font-weight:500; }
+.prd-bom-pull-r .k{ flex:0 0 52px; font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); }
+.prd-bom-pull-r .q{ flex:0 0 104px; text-align:right; font-variant-numeric:tabular-nums; color:var(--tx2); }
+.prd-bom-pull-f{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
+.prd-bom-pull-f i{ flex:1 1 220px; min-width:0; font-style:normal; font-size:10px; color:var(--tx2); line-height:1.4; }
+.prd-btn.dead{ background:#e6e8ec; color:#9aa1ae; cursor:not-allowed; }
+
+/* The 20-item case scrolls inside the section. */
+.prd-bom-rows{ max-height:320px; overflow-y:auto; }
+.prd-bom-sub-sp{ flex:1 1 auto; }
+
+/* EST reddens when the manager's quantity goes over. */
+.prd-bom-r .c-e.over{ color:var(--bad); font-weight:700; }
+
+/* Both sections go in together — a wine-tinted strip above the action row. */
+.prd-bom-together{
+  padding:9px 13px; background:var(--wine-tint); border:1px solid var(--wine-line);
+  border-radius:10px; font-size:10.5px; color:var(--wine); line-height:1.5;
+}
+
+/* The review owns the action row. */
+.prd-acts-h.wine{ color:var(--wine); font-style:italic; }
+
+/* On a phone the heading row takes the whole line so the expanded chip
+   text is not squeezed beside the header pill or date. */
+@media (max-width: 880px){
+  .prd-card-h, .prd-teams-h, #prd-module-wrap .xs-title-row{ flex-wrap:wrap; }
+  .prd-hrow{ flex:1 1 100%; }
+}
