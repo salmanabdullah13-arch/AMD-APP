@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="estimator.css">
 <link rel="stylesheet" href="ops-dashboard.css">
 <link rel="stylesheet" href="production.css">
+<link rel="stylesheet" href="upholstery.css">
 <link rel="stylesheet" href="purchase.css">
 
 <style>/* ── Gantt chart ─────────────────── */
@@ -1160,6 +1161,8 @@
 <script src="dept-pipeline-ui.js"></script>
 <script src="joinery.js"></script>
 <script src="upholstery.js"></script>
+<script src="upholstery-data.js"></script>
+<script src="upholstery-ui.js"></script>
 <script src="painting.js"></script>
 <script src="fleet-delivery.js"></script>
 <script src="demo-data.js"></script>
@@ -1179,7 +1182,8 @@ const NODES = [
   { id:'curtain',      label:'Curtain & Blinds', built:true, launch:()=>{ launchCurtainModule(); } },
   { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ launchPurchasingModule(); } },
   { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ launchStorekeeperModule(); } },
-  { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ launchUpholsteryModule(); } },
+  { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ launchUpholsteryModule(); } },   // 20a — upholstery-ui.js
+  { id:'upholstery-legacy', label:'Upholstery (old pipeline view)', built:true, launch:()=>{ launchLegacyUpholsteryModule(); } },
   // Superseded by the 19a Production module (id 'production'), which is what
   // every joinery user_type now lands on. The wrapper stays because the four
   // granular joinery views render inside its own module wrap — but the label

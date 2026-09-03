@@ -647,6 +647,16 @@ let execQuickOpen = false;
 // button is for; the shared planner/request items follow. Estimator's set is
 // the design package's own (6a, 8 Aug 2026).
 const EXEC_QUICK_BY_MODULE = {
+  upholstery: [
+    { ico: 'P', label: 'Return pricing input', on: "UphUI.go('form','price')" },
+    { ico: 'F', label: 'Release a fabric plan', on: "UphUI.go('form','plan')" },
+    { ico: 'R', label: 'Receive and inspect a roll', on: "UphUI.go('page','fab')" },
+    { ico: 'C', label: 'Raise a COM shortfall note', on: "UphUI.go('form','com')" },
+    { ico: 'O', label: 'Build a foam schedule', on: "UphUI.go('form','foam')" },
+    { ico: 'Q', label: 'Ask purchase for prices', on: "UphUI.go('form','quote')" },
+    { ico: 'A', label: 'Allot a stage', on: "UphUI.go('form','allot')" },
+    { ico: 'M', label: 'Move a man', on: "UphUI.go('form','lab')" }
+  ],
   sales: [
     { ico: '✓', label: 'Confirm quote', on: "qhQuickConfirm()" },
     { ico: '☎', label: 'Log a client call', on: "qhQuickFollowUp()" },
@@ -723,7 +733,7 @@ function execPushCurrent() {
   if (!cfg) return;
   const opener = { sales: 'openSalesModule', estimator: 'openEstimatorModule', approver: 'openApproverModule',
     jobs: 'openJobsModule', accounts: 'openAccountsModule', hr: 'openHRModule', joinery: 'openJoineryModule',
-    upholstery: 'openUpholsteryModule', painting: 'openPaintingModule', fleet: 'openFleetModule',
+    upholstery: 'openUphModule', 'upholstery-legacy': 'openUpholsteryModule', painting: 'openPaintingModule', fleet: 'openFleetModule',
     delivery: 'openDeliverySchedModule', storekeeper: 'openStorekeeperModule', purchasing: 'openPurchasingModule',
     curtain: 'openCurtainModule', operations: 'openOperationsModule', owner: 'openOwnerModule', admin: 'openAdminModule' }[execModuleKey];
   if (!opener) return;
@@ -1090,7 +1100,7 @@ function execWithSharedNav(groups) {
 }
 // The department a module's purchase request should default to, so a
 // Joinery manager raising one doesn't have to re-pick their own department.
-const EXEC_MODULE_DEPT = { joinery: 'carp', upholstery: 'uph', painting: 'paint', curtain: 'curt' };
+const EXEC_MODULE_DEPT = { joinery: 'carp', upholstery: 'uph', 'upholstery-legacy': 'uph', painting: 'paint', curtain: 'curt' };
 // Who can ask the storekeeper for material: the production modules and the
 // oversight ones that work a job. Everyone else just uses the chat.
 const EXEC_CAN_REQUEST_MATERIAL = ['joinery', 'upholstery', 'painting', 'curtain', 'operations', 'jobs', 'owner', 'admin'];
@@ -1228,7 +1238,8 @@ const EXEC_MODULE_NAV = {
   accounts:    { label: 'Accounts',     home: () => accountsView === 'dashboard', goHome: "accountsSetView('dashboard')" },
   hr:          { label: 'HR & Payroll', home: () => hrView === 'dashboard', goHome: "hrSetView('dashboard')" },
   joinery:     { label: 'Joinery',      home: () => joineryView === 'dashboard', goHome: "joinerySetView('dashboard')" },
-  upholstery:  { label: 'Upholstery',   home: () => upholsteryView === 'dashboard', goHome: "upholsterySetView('dashboard')" },
+  upholstery:  { label: 'Upholstery',   home: () => UphUI.state.view === 'dash', goHome: "UphUI.go('dash','board')" },
+  'upholstery-legacy': { label: 'Upholstery (old pipeline view)', home: () => upholsteryView === 'dashboard', goHome: "upholsterySetView('dashboard')" },
   painting:    { label: 'Painting',     home: () => paintingView === 'dashboard', goHome: "paintingSetView('dashboard')" },
   fleet:       { label: 'Vehicle Fleet', home: () => fleetView === 'list', goHome: "fleetView='list';renderFleetBody()" },
   delivery:    { label: 'Delivery',     home: () => deliverySchedView === 'list', goHome: "deliverySchedView='list';renderDeliverySchedBody()" },
@@ -1378,7 +1389,7 @@ const EXEC_RERENDER_OF = {
   owner: 'renderOwnerBody', admin: 'renderAdminBody', sales: 'renderSalesBody',
   estimator: 'renderEstimatorBody', approver: 'renderApproverBody', jobs: 'renderJobsBody',
   accounts: 'renderAccountsBody', hr: 'renderHRBody', joinery: 'renderJoineryBody',
-  upholstery: 'renderUpholsteryBody', painting: 'renderPaintingBody',
+  upholstery: 'renderUphBody', 'upholstery-legacy': 'renderUpholsteryBody', painting: 'renderPaintingBody',
   fleet: 'renderFleetBody', delivery: 'renderDeliverySchedBody',
   purchasing: null, storekeeper: null, curtain: null, operations: null // DOM-router modules
 };
@@ -1527,7 +1538,7 @@ const EXEC_NAV_CONFIGS = {
       nv('jn-bud', '💰', 'Budgets', "joinerySetView('budget')", nvTag(() => getOwnPendingBudgetCountForDept('carp')))
     ] }
   ]; },
-  upholstery: () => {
+  'upholstery-legacy': () => {
     if (typeof upholsteryView !== 'undefined' && !['dashboard', 'queue', 'budget'].includes(upholsteryView)) return [];
     return [
     { label: 'Workspace', items: [

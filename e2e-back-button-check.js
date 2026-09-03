@@ -58,7 +58,7 @@ let cbPass = 0, cbFail = 0;
     { id: 'hr', wrap: 'hr-module-wrap' },
     { id: 'curtain', wrap: 'curt-module-wrap' },
     { id: 'joinery', wrap: 'joinery-module-wrap' },
-    { id: 'upholstery', wrap: 'upholstery-module-wrap' },
+    { id: 'upholstery', wrap: 'uph-module-wrap' },
     { id: 'painting', wrap: 'painting-module-wrap' },
     { id: 'owner', wrap: 'owner-module-wrap' }
   ];

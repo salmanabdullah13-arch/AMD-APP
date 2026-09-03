@@ -888,3 +888,6 @@
   .prd-card-h, .prd-teams-h, #prd-module-wrap .xs-title-row{ flex-wrap:wrap; }
   .prd-hrow{ flex:1 1 100%; }
 }
+
+/* Same fix as upholstery.css: a button does not inherit colour. */
+.prd-team, .prd-crew-h{ color:inherit; }

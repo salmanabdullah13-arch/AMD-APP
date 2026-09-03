@@ -61,7 +61,7 @@ async function openNode(page, nodeId, wrapId) {
     { id: 'estimation', wrap: 'estimator-module-wrap' }, { id: 'approvals', wrap: 'approver-module-wrap' },
     { id: 'delivery', wrap: 'jobs-module-wrap' }, { id: 'hr', wrap: 'hr-module-wrap' },
     { id: 'curtain', wrap: 'curt-module-wrap' }, { id: 'joinery', wrap: 'joinery-module-wrap' },
-    { id: 'upholstery', wrap: 'upholstery-module-wrap' }, { id: 'painting', wrap: 'painting-module-wrap' }
+    { id: 'upholstery-legacy', wrap: 'upholstery-module-wrap' }, { id: 'painting', wrap: 'painting-module-wrap' }
   ];
   let allPad47 = true; const padResults = {};
   for (const m of modules) {

@@ -90,20 +90,25 @@ function openUpholsteryModule(initialView) {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'painting-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'admin-module-wrap'].forEach(id => {
+  ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'painting-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'admin-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
   upholsteryModuleWrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   upholsteryView = initialView || 'dashboard';
-  execEnsureShell(upholsteryModuleWrap, { key: 'upholstery', title: 'Upholstery', role: 'Production', navGroupsFn: EXEC_NAV_CONFIGS.upholstery, closeFn: 'closeUpholsteryModule' });
+  execEnsureShell(upholsteryModuleWrap, { key: 'upholstery-legacy', title: 'Upholstery (old pipeline view)', role: 'Production', navGroupsFn: EXEC_NAV_CONFIGS['upholstery-legacy'], closeFn: 'closeUpholsteryModule' });
   renderUpholsteryBody();
 }
 // Granular-role entry points (Milestone C) — see openUpholsteryModule()'s note.
-function launchUpholsteryTeamLeaderModule() { openUpholsteryModule('team-leader'); }
-function launchUpholsteryQCPackagingModule() { openUpholsteryModule('qc-packaging'); }
-function closeUpholsteryModule() { closeModuleWrap(upholsteryModuleWrap, 'launchUpholsteryModule'); }
-function launchUpholsteryModule() { openUpholsteryModule(); }
+// 2 Sep 2026 — the three upholstery roles land on the 20a module now
+// (upholstery-ui.js owns launchUpholsteryModule() and the two granular
+// launchers). This wrapper stays loaded as the LEGACY screen the shared
+// dept-pipeline-ui.js budget forms and a few suites still reach directly;
+// it retires with the joinery wrapper. Same "Accounts side" call 17a made.
+function launchLegacyUpholsteryTeamLeaderModule() { openUpholsteryModule('team-leader'); }
+function launchLegacyUpholsteryQCPackagingModule() { openUpholsteryModule('qc-packaging'); }
+function closeUpholsteryModule() { closeModuleWrap(upholsteryModuleWrap, 'launchLegacyUpholsteryModule'); }
+function launchLegacyUpholsteryModule() { openUpholsteryModule(); }
 
 function upholsterySetView(v) { upholsteryView = v; renderUpholsteryBody(); }
 

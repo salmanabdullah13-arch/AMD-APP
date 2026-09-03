@@ -104,6 +104,7 @@ function rerenderDashboard() {
     ['sk-module-wrap', 'renderSKBody'],
     ['joinery-module-wrap', 'renderJoineryBody'],
     ['upholstery-module-wrap', 'renderUpholsteryBody'],
+    ['uph-module-wrap', 'renderUphBody'],
     ['painting-module-wrap', 'renderPaintingBody'],
     ['ops-module-wrap', 'renderOpsDashboard']
   ];

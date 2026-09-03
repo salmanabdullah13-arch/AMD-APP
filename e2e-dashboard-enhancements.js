@@ -214,7 +214,7 @@ async function openNode(page, nodeId, wrapId) {
 
   // ── Upholstery dashboard shows the same enrichment, correctly isolated (0, not leaking Joinery's count) ──
   currentStep = 'upholstery-dashboard-budget-visibility';
-  await openNode(page, 'upholstery', 'upholstery-module-wrap');
+  await openNode(page, 'upholstery-legacy', 'upholstery-module-wrap');
   await shot(page, 'upholstery-dashboard');
   const upholsteryKpis = await page.evaluate(() => Array.from(document.querySelectorAll('#upholstery-body .sales-kpi-tile .num')).map(el => el.textContent.trim()));
   record('Upholstery\'s Budgets Pending stays 0 — correctly isolated from Joinery\'s pending budget', upholsteryKpis[4] === '0' ? 'PASS' : 'FAIL', JSON.stringify(upholsteryKpis));

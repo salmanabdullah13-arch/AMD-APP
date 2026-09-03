@@ -44,7 +44,7 @@ function goTo(p){
   const deliverySchedMod = document.getElementById('delivery-sched-module-wrap');
   if (deliverySchedMod) deliverySchedMod.style.cssText = 'display:none;';
   // Nav overhaul Phase 2 (5 Aug 2026).
-  const adminMod = document.getElementById('admin-module-wrap', 'prd-module-wrap');
+  const adminMod = document.getElementById('admin-module-wrap', 'prd-module-wrap', 'uph-module-wrap');
   if (adminMod) adminMod.style.cssText = 'display:none;';
   const opsMod = document.getElementById('ops-module-wrap');
   if (opsMod) opsMod.style.cssText = 'display:none;';

@@ -889,3 +889,115 @@ function buildCuttingListPrintHTML(sheetId) {
 function printCuttingList(sheetId) {
   printOpenHTML(buildCuttingListPrintHTML(sheetId));
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   20a — the cutting & sewing ticket at A4 (2 Sep 2026)
+   ───────────────────────────────────────────────────────────────────────
+   Modelled on buildCuttingListPrintHTML above and reusing its stylesheet:
+   the same page model (house @page, not the handoff's fixed 794×1123 box —
+   see the 25 Aug note on 19a's ticket), the same head, strip, table, issue
+   block, tick boxes and signatures. What is this ticket's own: the dye-lot
+   chip, the one-lot red line, the nap column, and "Fabric to cut" read
+   LIVE from the plan's totals — the print and the editor never disagree.
+   Not one figure of money anywhere on it.
+   ═══════════════════════════════════════════════════════════════════════ */
+function buildCuttingSewingTicketHTML(planId) {
+  const plan = (typeof fabricPlans !== 'undefined' ? fabricPlans : []).find(p => p.id === planId);
+  if (!plan) return '<!doctype html><html><body><p>No such fabric plan.</p></body></html>';
+  const job = (typeof jobCards !== 'undefined' ? jobCards : []).find(j => j.id === plan.jobCardId) || {};
+  const c = (typeof customers !== 'undefined' ? customers : []).find(x => x.id === job.customerId);
+  const roll = (typeof fabricRolls !== 'undefined' ? fabricRolls : []).find(r => r.id === plan.rollId) || {};
+  const spec = (typeof uphSpecs !== 'undefined' ? uphSpecs : []).find(s => s.id === plan.specId);
+  const t = (typeof fabricPlanTotals === 'function') ? fabricPlanTotals(plan.panels, (roll.widthCm || 140) * 10) : (plan.totals || {});
+  const dead = plan.status === 'superseded';
+  const lines = plan.panels || [];
+  const suite = (job.items || []).filter(it => (it.departmentSequence || []).indexOf('uph') !== -1)
+    .map(it => (it.qty || 1) + ' × ' + (it.product || it.name || '')).join(' + ') || (spec ? spec.pieceType : '—');
+  const fabricLabel = (f) => f === 'lining' ? 'Calico lining' : f === 'com' ? 'COM' : (roll.name || 'Main fabric');
+  const rows = lines.length ? lines.map((p, i) => {
+    const q = Math.max(1, Number(p.qty) || 1);
+    return `<tr class="cl-row">
+      <td class="n">${i + 1}</td>
+      <td>${prEsc(p.panel || '—')}${p.nap ? ' <b>↓</b>' : ''}</td>
+      <td>${prEsc(fabricLabel(p.fabric))}</td>
+      <td class="num">${q}</td>
+      <td class="num">${Number(p.length) || '—'}</td>
+      <td class="num">${Number(p.width) || '—'}</td>
+      <td class="note">${prEsc(p.note || (p.nap ? 'Nap ↓' : 'Straight'))}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7" style="height:40px;text-align:center;color:#999;">
+      No panels on this ticket. It was released empty — do not cut to it.</td></tr>`;
+  const tick = (label) => `<div><div style="width:18px;height:18px;border:1.5px solid #444;margin:0 auto 4px;"></div>${prEsc(label)}</div>`;
+  const sign = (label, sub) => `<div style="font-size:9px;color:#666;"><div style="border-top:1px dotted #999;margin-top:26px;padding-top:3px;">${prEsc(label)}${sub ? '<br><span style="color:#999;">' + prEsc(sub) + '</span>' : ''}</div></div>`;
+  const after = (typeof uphStageEnd === 'function') ? ['S', 'C', 'B', 'Q'].map(id => uphStageEnd(plan.jobCardId, id)) : [];
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Cutting & sewing ticket ${prEsc(plan.id)}</title>
+  <style>${printBaseCSS()}${cuttingListCSS()}
+    body{font-family:Arial,Helvetica,sans-serif;}
+    .cl-lot{display:inline-block;background:#600131;color:#fff;font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:5px;letter-spacing:.04em;}
+  </style></head>
+  <body>
+    <div class="print-btn"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
+    <div class="cl-head">
+      <div>
+        <div class="cl-kick">Al Maraya Decor · Upholstery</div>
+        <div class="cl-title">Cutting &amp; sewing ticket</div>
+        <div class="cl-job">${prEsc(job.id || '—')} · ${prEsc(job.projectName || '')} — ${prEsc(suite)}${plan.bay ? ' · ' + prEsc(plan.bay) : ''}</div>
+      </div>
+      <div class="cl-right">
+        <div class="cl-cut">Cut from spec</div>
+        <div><span class="cl-lot">SPEC REV ${prEsc(plan.specRev || '—')} · dye lot ${prEsc(plan.dyeLot || '—')}</span></div>
+        <div class="cl-scrap">One dye lot only. Two lots on one suite is scrap.</div>
+        <div class="cl-no">Ticket ${prEsc(plan.id)} · issued ${prEsc(plan.issuedOn || '')}</div>
+      </div>
+    </div>
+    ${dead ? `<div class="cl-rule" style="margin-top:0;margin-bottom:12px;border-top:0;border-bottom:2px solid #b42318;padding:0 0 7px;">
+      This ticket is dead. It was superseded by ${prEsc(plan.supersededBy || 'a reissue')} — take it back and collect the reissue.</div>` : ''}
+    <div class="cl-strip">
+      <div><label>Job card</label><b>${prEsc(job.id || '—')}</b></div>
+      <div><label>Suite</label><b>${prEsc(spec ? spec.pieceType : suite)}</b></div>
+      <div><label>Fabric</label><b>${prEsc(plan.fabricName || roll.name || '—')}${plan.isCOM ? ' (COM)' : ''}</b></div>
+      <div><label>Dye lot</label><b>${prEsc(plan.dyeLot || '—')} · roll ${prEsc(plan.rollId || '—')}</b></div>
+      <div><label>Bay</label><b>${prEsc(plan.bay || 'not yet in a bay')}</b></div>
+    </div>
+    <div style="font-size:9.5px;color:#444;margin:6px 0 4px;">Nap runs one way on every panel marked ↓ — check it before the knife. Repeat is matched across seat and back.</div>
+    <table class="cl">
+      <thead><tr>
+        <th style="width:30px;">#</th><th>Panel</th><th style="width:118px;">Fabric</th>
+        <th style="width:40px;text-align:right;">Qty</th>
+        <th style="width:62px;text-align:right;">Length</th>
+        <th style="width:56px;text-align:right;">Width</th>
+        <th style="width:126px;">Note</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="display:flex;gap:14px;align-items:flex-start;">
+      <div class="cl-issue" style="flex:1 1 auto;">
+        <b>Fabric and foam issued</b>
+        <div class="g">
+          <div><span>Fabric to cut</span>${t.totalM} m</div>
+          <div><span>Single lay</span>${t.layM} m</div>
+          <div><span>Nap-matched</span>${t.napCount}</div>
+          <div><span>Repeat</span>${t.repeatM} m</div>
+          <div><span>Panels</span>${t.panelCount}</div>
+        </div>
+        <div style="font-size:9px;color:#444;margin-top:6px;">Every metre on this ticket comes off roll ${prEsc(plan.rollId || '—')}, one dye lot, cut in a single lay. Any shortfall stops — do not open a second roll.</div>
+      </div>
+      <div class="cl-after" style="flex:0 0 250px;">
+        <b>After cutting</b>
+        <div class="g">
+          ${tick('Sew covers' + (after[0] ? ' ' + after[0].slice(5) : ''))}${tick('Foam cut and wrapped' + (after[1] ? ' ' + after[1].slice(5) : ''))}${tick('Cover the suite' + (after[2] ? ' ' + after[2].slice(5) : ''))}${tick('QC, wrap and label' + (after[3] ? ' ' + after[3].slice(5) : ''))}
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      ${sign('Cut by')}${sign('Sewn by')}${sign('Checked by', 'Supervisor · before the bay')}
+    </div>
+    <div class="cl-rule">If the fabric batch or the spec changes, this ticket is dead. Bring it back and take the reissue.</div>
+    ${printPageFooter()}
+  </body></html>`;
+}
+/** Entry point from the Fabric plans page. */
+function printCuttingSewingTicket(planId) {
+  printOpenHTML(buildCuttingSewingTicketHTML(planId));
+}

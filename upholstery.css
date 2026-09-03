@@ -1,0 +1,958 @@
+/* ==========================================================================
+   AMD-APP · Production manager module (design handoff 19a)
+
+   Tokens live in dashboard-tokens.css — 19a's block is byte-identical to
+   13b/17a/18a's, so `.uph` joins that selector rather than carrying a copy.
+
+   The handoff's contract is explicit: layout, spacing, radii, type sizes and
+   weights are FROZEN. Every value here is transcribed from its Design Tokens
+   and Shell Geometry tables, not rounded onto a 4/8pt scale.
+
+   What is NOT drawn here: sidebar, topbar, back control, Quick actions,
+   planner, tasks, floating chat. The exec shell owns all six app-wide — the
+   same call 17a and 13b made. 19a's rail ORDER and badges go into
+   EXEC_NAV_CONFIGS.production instead.
+   ========================================================================== */
+
+.uph{ font-family:var(--font); color:var(--tx); }
+.uph *{ box-sizing:border-box; }
+.uph button{ font-family:inherit; }
+.uph .num{ font-variant-numeric:tabular-nums; }
+
+/* ── dashboard shell ─────────────────────────────────────────────────────
+   "Dashboard padding 18px 22px 26px, gap 18px. Right column 340px." */
+.uph-dash{ display:flex; gap:18px; align-items:flex-start; padding:18px 22px 26px; }
+.uph-l{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:18px; }
+.uph-r{ flex:0 0 340px; width:340px; display:flex; flex-direction:column; gap:18px; }
+
+.uph-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sh); overflow:hidden; }
+.uph-card-h{ padding:14px 18px; border-bottom:1px solid var(--line2); display:flex; align-items:flex-start; gap:12px; }
+.uph-t{ font-size:15px; font-weight:650; letter-spacing:-.01em; }
+.uph-sub{ font-size:11px; color:var(--tx3); margin-top:3px; line-height:1.45; }
+.uph-pill{ flex:none; padding:3px 9px; border-radius:999px; font-size:10.5px; font-weight:700; white-space:nowrap; background:var(--sunk); color:var(--tx2); }
+.uph-pill.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.uph-pill.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.uph-pill.t-bad{ background:var(--bad-bg); color:var(--bad); }
+.uph-pill.t-wine{ background:var(--wine-tint); color:var(--wine); }
+.uph-pill.t-wait{ background:var(--sunk); color:var(--tx3); }
+.uph-pill.solid{ background:var(--wine); color:#fff; }
+
+/* ── 1. Asked of you today ───────────────────────────────────────────── */
+.uph-asked{ border-color:var(--wine-line); }
+.uph-asked .uph-card-h{ background:var(--wine-tint); border-bottom:1px solid var(--wine-line); }
+.uph-asked-t{ font-size:14.5px; font-weight:650; color:var(--wine); }
+.uph-ask{ display:flex; align-items:center; gap:12px; padding:12px 18px; border:0; border-bottom:1px solid var(--line2); background:var(--card); width:100%; text-align:left; }
+.uph-ask:last-child{ border-bottom:0; }
+.uph-ask.t-bad{ background:var(--bad-bg); }
+.uph-kind{ flex:none; padding:3px 8px; border-radius:6px; font-size:9.5px; font-weight:700; letter-spacing:.06em; }
+.uph-kind.k-wine{ background:var(--wine-tint); color:var(--wine); }
+.uph-kind.k-bad{ background:var(--bad-bg); color:var(--bad); }
+.uph-kind.k-warn{ background:var(--warn-bg); color:var(--warn); }
+.uph-ask-n{ flex:1 1 auto; min-width:0; }
+.uph-ask-t{ display:block; font-size:12.5px; font-weight:650; line-height:1.35; }
+.uph-ask-f{ display:block; font-size:11px; color:var(--tx2); margin-top:3px; }
+.uph-need{ display:block; font-size:11px; font-weight:650; margin-top:4px; line-height:1.4; color:var(--tx3); }
+.uph-need.t-wine{ color:var(--wine); }
+.uph-need.t-bad{ color:var(--bad); }
+.uph-need.t-warn{ color:var(--warn); }
+.uph-due{ flex:0 0 104px; text-align:right; font-size:11.5px; font-weight:700; }
+.uph-due.t-bad{ color:var(--bad); }
+.uph-due.t-warn{ color:var(--warn); }
+.uph-due.t-ok{ color:var(--ok); }
+.uph-btn-sm{ flex:none; height:32px; padding:0 13px; border-radius:9px; border:0; background:var(--wine); color:#fff; font-size:11.5px; font-weight:650; cursor:pointer; }
+
+/* ── 2. The week board ───────────────────────────────────────────────── */
+.uph-board{ box-shadow:var(--sh2); }
+.uph-step{ display:flex; align-items:center; gap:6px; flex:none; }
+.uph-step button{ width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--card); color:var(--tx2); cursor:pointer; font-size:13px; }
+.uph-step .lbl{ font-size:11.5px; font-weight:650; color:var(--tx2); padding:0 4px; white-space:nowrap; }
+.uph-days{ display:flex; align-items:center; gap:6px; background:var(--sunk); padding:8px 18px; border-bottom:1px solid var(--line2); }
+.uph-days .spacer{ flex:0 0 152px; font-size:10px; font-weight:700; letter-spacing:.05em; color:var(--tx3); }
+.uph-days .d{ flex:1; min-width:0; font-size:10px; font-weight:700; letter-spacing:.05em; color:var(--tx3); }
+.uph-days .d.today{ color:var(--wine); }
+/* align-items:stretch and NO fixed cell height — an explicit cross size
+   defeats stretch, and the grid stops reading as a grid when the label
+   column grows. The handoff flags this specifically. */
+.uph-lane{ display:flex; align-items:stretch; gap:6px; padding:10px 18px; border-bottom:1px solid var(--line2); }
+.uph-lane-l{ flex:0 0 152px; min-width:0; padding-right:8px; }
+.uph-lane-n{ font-size:12px; font-weight:700; line-height:1.3; }
+.uph-lane-cap{ font-size:10.5px; color:var(--tx3); margin-top:2px; }
+.uph-load{ display:inline-block; margin-top:4px; padding:2px 7px; border-radius:999px; font-size:9.5px; font-weight:700; }
+.uph-tgt{ display:block; font-size:10px; font-weight:700; margin-top:5px; line-height:1.3; }
+.uph-ot{ display:inline-block; font-size:9.5px; font-weight:700; margin-top:4px; white-space:nowrap; padding:2px 6px; border-radius:6px; }
+.uph-cell{ flex:1; min-width:0; align-self:stretch; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; min-height:46px; padding:5px 7px; border-radius:9px; cursor:pointer; text-align:left; background:var(--card); border:1px dashed var(--line); }
+/* Real job ids (JB26AMD01000) are longer than the prototype's JC-0338, so
+   they must clip inside the cell rather than bleed over its border. The
+   full id is on the cell's title attribute. */
+.uph-cell .j{ font-size:10.5px; font-weight:700; line-height:1.2; color:var(--tx3);
+  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uph-cell .s{ font-size:9px; font-weight:600; color:var(--tx3); line-height:1.2;
+  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uph-cell.c-full{ border:1px solid var(--wine-line); background:var(--wine-tint); }
+.uph-cell.c-full .j{ color:var(--wine); }
+.uph-cell.c-half{ border:1px solid var(--line); background:var(--sunk); }
+.uph-cell.c-half .j{ color:var(--tx2); }
+.uph-cell.c-over{ border:1px solid var(--bad); background:var(--bad-bg); }
+.uph-cell.c-over .j{ color:var(--bad); }
+.uph-cell.c-blocked{ border:1px solid var(--warn); background:var(--warn-bg); }
+.uph-cell.c-blocked .j{ color:var(--warn); }
+.uph-cell.c-pull{ border:1px dashed var(--wine); background:var(--card); }
+.uph-cell.c-pull .j{ color:var(--wine); }
+.uph-cell.c-ot{ border:1px solid var(--ok); background:var(--ok-bg); }
+.uph-cell.c-ot .j{ color:var(--ok); }
+.uph-cell.c-wknd{ border:1px solid var(--line2); background:var(--sunk); opacity:.6; }
+
+.uph-wait{ background:var(--sunk); padding:12px 18px; }
+.uph-wait-h{ font-size:12px; font-weight:700; }
+.uph-wait-rule{ font-size:11px; font-weight:650; color:var(--bad); margin-top:3px; line-height:1.4; }
+.uph-wait-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+.uph-wait-c{ flex:1 1 250px; min-width:0; text-align:left; padding:10px 12px; border-radius:12px; cursor:pointer; background:var(--card); border:1px solid var(--line); }
+.uph-wait-c.t-bad{ border-color:var(--bad); }
+.uph-wait-c.t-warn{ border-color:var(--warn); }
+.uph-wait-id{ font-size:11.5px; font-weight:700; }
+.uph-wait-t{ display:block; font-size:11px; color:var(--tx2); margin-top:2px; line-height:1.35; }
+.uph-wait-why{ display:block; font-size:10.5px; font-weight:650; margin-top:5px; line-height:1.4; }
+.uph-wait-c.t-bad .uph-wait-why{ color:var(--bad); }
+.uph-wait-c.t-warn .uph-wait-why{ color:var(--warn); }
+
+/* ── 3. Paperwork the shop is waiting on ─────────────────────────────── */
+.uph-out{ display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid var(--line2); background:var(--card); }
+.uph-out:last-child{ border-bottom:0; }
+.uph-out.t-bad{ background:var(--bad-bg); }
+.uph-out-k{ flex:0 0 132px; font-size:11.5px; font-weight:700; color:var(--tx2); }
+.uph-out-n{ flex:1 1 auto; min-width:0; }
+.uph-out-t{ display:block; font-size:12.5px; font-weight:650; line-height:1.35; }
+.uph-out-s{ display:block; font-size:11px; margin-top:2px; line-height:1.4; color:var(--tx2); }
+.uph-out.t-bad .uph-out-s{ color:var(--bad); }
+.uph-btn-o{ flex:none; height:32px; padding:0 13px; border-radius:9px; border:1px solid var(--wine); background:transparent; color:var(--wine); font-size:11.5px; font-weight:650; cursor:pointer; }
+
+/* ── right column: teams today ───────────────────────────────────────── */
+.uph-team{ padding:12px 16px; border:0; border-bottom:1px solid var(--line2); width:100%; text-align:left; background:transparent; cursor:pointer; }
+.uph-team:last-child{ border-bottom:0; }
+.uph-team-h{ display:flex; align-items:center; gap:9px; }
+.uph-team-n{ flex:1 1 auto; min-width:0; font-size:11.5px; font-weight:700; }
+.uph-team-on{ display:block; font-size:10.5px; color:var(--tx2); margin-top:3px; line-height:1.4; }
+/* Chart rule: the fill never shares a line with text and never contains a
+   label. Label above, fill in a full-width track. */
+.uph-track{ display:block; height:7px; border-radius:999px; background:var(--line2); overflow:hidden; margin-top:7px; }
+.uph-track i{ display:block; height:100%; border-radius:999px; background:var(--tx3); }
+.uph-team-f{ display:flex; align-items:center; gap:8px; margin-top:5px; }
+.uph-team-cap{ flex:1 1 auto; font-size:10px; color:var(--tx3); }
+.uph-team-tgt{ flex:none; font-size:10px; font-weight:700; }
+
+/* ── right column: KPIs ──────────────────────────────────────────────── */
+.uph-kpi{ display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid var(--line2); }
+.uph-kpi:last-child{ border-bottom:0; }
+.uph-kpi-l{ flex:1 1 auto; min-width:0; }
+.uph-kpi-l b{ display:block; font-size:11.5px; font-weight:650; }
+.uph-kpi-l span{ display:block; font-size:10px; color:var(--tx3); margin-top:2px; }
+.uph-kpi-v{ flex:none; font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; }
+.uph-kpi-v.t-ok{ color:var(--ok); }
+.uph-kpi-v.t-warn{ color:var(--warn); }
+.uph-kpi-v.t-bad{ color:var(--bad); }
+.uph-kpi-v.t-plain{ color:var(--tx); }
+
+/* ── phone ───────────────────────────────────────────────────────────── */
+@media (max-width: 880px){
+  .uph-dash{ flex-direction:column; padding:14px 14px 96px; gap:14px; }
+  .uph-r{ flex:1 1 auto; width:100%; }
+  .uph-card{ border-radius:14px; }
+  /* The board scrolls sideways rather than crushing seven days into 390px —
+     the grid IS the artefact, and a squeezed grid is not readable. */
+  /* A flex item defaults to min-width:auto, so the column refused to shrink
+     below the 640px board and the CARD grew instead of the board scrolling —
+     the copy then ran off the right edge. Same trap as the Owner grid. */
+  /* In a column flex the cross axis is width, and align-items:stretch does
+     not stop content wider than the container from pushing the card out —
+     so the card grew to the board and the copy ran off the right edge.
+     max-width pins the card; the scroller inside it does the scrolling. */
+  .uph-l, .uph-r{ min-width:0; max-width:100%; }
+  .uph-card{ min-width:0; max-width:100%; }
+  .uph-board-scroll{ max-width:100%; }
+  .uph-board-scroll{ overflow-x:auto; }
+  .uph-board-scroll .uph-days,
+  .uph-board-scroll .uph-lane{ min-width:640px; }
+  .uph-ask{ flex-wrap:wrap; padding:11px 13px; }
+  .uph-due{ flex:0 0 auto; text-align:left; }
+  .uph-btn-sm{ width:100%; height:38px; margin-top:9px; font-size:12.5px; }
+  .uph-out{ flex-wrap:wrap; }
+  .uph-out-k{ flex:0 0 auto; }
+}
+
+/* ── Phase 1: the handoff's own geometry, where it differs from the first
+   pass. Values transcribed from its prototype frame, not rounded. ────── */
+
+/* Card headers: the board and the inbox use 15px 18px; the smaller section
+   cards use 14px 16px 11px on a baseline row. */
+.uph-card-h-lg{ padding:15px 18px; }
+.uph-card-h-sm{ padding:14px 16px 11px; align-items:baseline; }
+.uph-t-sm{ font-size:13.5px; font-weight:650; letter-spacing:-.01em; }
+.uph-note{ flex:none; font-size:11px; color:var(--tx3); }
+/* Subtitles inside the two big cards are 11.5px on --tx2, not 11px on --tx3. */
+.uph-sub-lg{ font-size:11.5px; color:var(--tx2); margin-top:2px; }
+/* The count pill is bigger than a status pill: 4px 11px, 11.5px/700. */
+.uph-count{ padding:4px 11px; font-size:11.5px; }
+
+/* Empty states */
+.uph-empty{ padding:22px 18px; font-size:11.5px; color:var(--tx3); }
+.uph-empty-sm{ padding:8px 0 0; }
+
+/* An inbox row is no longer a button — the action button inside it is, so it
+   can be reached on its own. */
+.uph-ask{ cursor:default; }
+.uph-btn-sm{ cursor:pointer; }
+
+/* The waiting strip's title and rule share one baseline row. */
+.uph-wait-h-row{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:9px; }
+.uph-wait-rule{ margin-top:0; }
+.uph-wait-row{ gap:8px; margin-top:0; }
+.uph-wait-id{ font-size:12px; }
+
+/* "This week" is a control, not a label — it resets to the current week. */
+/* The label is a <button> now, so the 30px arrow width above would clip it. */
+.uph-step .lbl{ border:0; background:transparent; cursor:pointer; width:auto; height:auto; padding:0 6px; }
+.uph-step .lbl:hover{ color:var(--wine); }
+.uph-step button{ font-size:12px; }
+
+/* Paperwork's action button is a neutral outline; wine is for the primary
+   action in a flow, not for a row-level "open". */
+.uph-btn-o{ border:1px solid var(--line); color:var(--tx2); padding:0 12px; }
+.uph-btn-o:hover{ border-color:var(--wine); color:var(--wine); }
+.uph-out-t{ line-height:1.3; }
+
+/* Teams today is one padded card with no dividers, not a header plus rows. */
+.uph-teams{ padding:15px 16px; }
+.uph-teams-h{ display:flex; align-items:baseline; gap:9px; }
+.uph-teams-note{ font-size:10.5px; color:var(--tx3); line-height:1.45; margin-bottom:12px; }
+.uph-teams-list{ display:flex; flex-direction:column; gap:12px; }
+.uph-teams .uph-team{ padding:0; border-bottom:0; }
+.uph-team-on{ margin-top:0; margin-bottom:5px; }
+.uph-teams .uph-track{ margin-top:0; }
+.uph-team-f{ margin-top:4px; align-items:baseline; }
+.uph-team-tgt.t-ok{ color:var(--ok); }
+.uph-team-tgt.t-warn{ color:var(--warn); }
+.uph-team-tgt.t-bad{ color:var(--bad); }
+.uph-team-tgt.t-wine{ color:var(--wine); }
+
+/* Lane target line, by tone. Dead CSS until now. */
+.uph-tgt.t-ok{ color:var(--ok); }
+.uph-tgt.t-warn{ color:var(--warn); }
+.uph-tgt.t-bad{ color:var(--bad); }
+.uph-tgt.t-wine{ color:var(--wine); }
+
+/* KPI rows: 10px 15px, label 12px, sub 10.5px. */
+.uph-kpi{ padding:10px 15px; }
+.uph-kpi-l b{ font-size:12px; }
+.uph-kpi-l span{ font-size:10.5px; margin-top:1px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Working pages (19a Phase 2). One template — page head, stats strip, chip
+   row, content card — with a 300px rail carrying the page's rule.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.uph-page .uph-r{ flex:0 0 300px; }
+.uph-page-h{ margin-bottom:14px; }
+.uph-page-t{ font-size:20px; font-weight:650; letter-spacing:-.015em; line-height:1.2; }
+.uph-page-s{ font-size:11.5px; color:var(--tx2); line-height:1.5; margin-top:5px; max-width:760px; }
+
+/* Stats strip: four cells, hairline dividers, 21px values. */
+.uph-stats{
+  display:flex; background:var(--card); border:1px solid var(--line);
+  border-radius:var(--r); box-shadow:var(--sh2); overflow:hidden; margin-bottom:12px;
+}
+.uph-stat{ flex:1; min-width:0; padding:13px 16px; border-left:1px solid var(--line2); }
+.uph-stat:first-child{ border-left:0; }
+.uph-stat-v{ font-size:21px; font-weight:700; line-height:1.1; letter-spacing:-.02em; }
+.uph-stat-v.t-ok{ color:var(--ok); } .uph-stat-v.t-warn{ color:var(--warn); }
+.uph-stat-v.t-bad{ color:var(--bad); } .uph-stat-v.t-wine{ color:var(--wine); }
+.uph-stat-l{ font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); margin-top:4px; }
+
+/* Chip row. The spacer pushes the actions right without a second wrapper. */
+.uph-chips{ display:flex; align-items:center; gap:7px; margin-bottom:12px; flex-wrap:wrap; }
+.uph-chips-sp{ flex:1 1 auto; }
+.uph-chip{
+  height:30px; padding:0 12px; border-radius:999px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.uph-chip i{ font-style:normal; color:var(--tx3); font-weight:700; margin-left:3px; }
+.uph-chip.on{ background:var(--wine); border-color:var(--wine); color:#fff; }
+.uph-chip.on i{ color:rgba(255,255,255,.75); }
+
+/* The wine primary. It had no rule at all, so every page primary rendered
+   as a bare browser button. */
+.uph-btn{
+  flex:none; height:32px; padding:0 15px; border-radius:9px; border:0;
+  background:var(--wine); color:#fff; font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.uph-btn:hover{ background:var(--wine2); }
+/* Phase 1 made .uph-btn-o neutral for the paperwork rows, which is right
+   there — but the material page needs the wine outline back, because its
+   two purchase routes differ in whether they commit, and two identical
+   neutral outlines say they do not. */
+.uph-btn-w{
+  flex:none; height:32px; padding:0 13px; border-radius:9px;
+  border:1px solid var(--wine); background:transparent; color:var(--wine);
+  font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.uph-btn-w:hover{ background:var(--wine-tint); }
+.uph-btn-w.sm{ height:30px; font-size:11px; }
+
+.uph-page-c{ padding:0; overflow:hidden; }
+
+/* The standard table. It scrolls inside its own card rather than widening
+   the page — the same rule the week board follows. */
+.uph-tbl-scroll{ overflow-x:auto; }
+.uph-tbl{ width:100%; border-collapse:collapse; font-size:12px; }
+.uph-tbl th{
+  text-align:left; padding:9px 16px; font-size:10px; font-weight:700; letter-spacing:.05em;
+  color:var(--tx3); background:var(--sunk); border-bottom:1px solid var(--line2); white-space:nowrap;
+}
+.uph-tbl th.r, .uph-tbl td.r{ text-align:right; }
+.uph-tbl td{ padding:11px 16px; border-bottom:1px solid var(--line2); vertical-align:middle; }
+.uph-tbl tr:last-child td{ border-bottom:0; }
+.uph-tbl tr.t-bad td{ background:var(--bad-bg); }
+.uph-tbl td b{ display:block; font-size:12.5px; font-weight:700; line-height:1.3; }
+.uph-td-s{ display:block; font-size:10.5px; color:var(--tx3); margin-top:2px; line-height:1.4; }
+.uph-ref{ font-size:11px; font-weight:650; color:var(--tx2); }
+.uph-dim{ color:var(--tx3); }
+.uph-cause{ font-size:11px; font-weight:650; }
+.uph-cause.t-bad{ color:var(--bad); } .uph-cause.t-warn{ color:var(--warn); }
+
+/* Rail: the wine rule card, then one context card. */
+.uph-rail{ display:flex; flex-direction:column; gap:12px; }
+.uph-rule{
+  background:var(--wine); color:#fff; border-radius:var(--r);
+  padding:14px 16px; box-shadow:var(--sh2);
+}
+.uph-rule-h{ font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; opacity:.72; }
+.uph-rule-b{ font-size:12px; line-height:1.55; margin-top:6px; }
+.uph-ctx-r{ display:flex; align-items:baseline; gap:10px; padding:9px 16px; border-top:1px solid var(--line2); }
+.uph-ctx-l{ flex:1 1 auto; min-width:0; font-size:11.5px; color:var(--tx2); }
+.uph-ctx-v{ flex:none; font-size:11.5px; font-weight:700; }
+.uph-ctx-v.t-ok{ color:var(--ok); } .uph-ctx-v.t-warn{ color:var(--warn); }
+.uph-ctx-v.t-bad{ color:var(--bad); }
+.uph-ctx-n{ padding:10px 16px; background:var(--sunk); font-size:10.5px; color:var(--tx3); line-height:1.45; }
+
+/* ── mat: one row per material ─────────────────────────────────────────
+   A table cannot carry the consequence line or a tri-state button, and
+   both are the reason this page is not a table. */
+.uph-mat{ display:flex; align-items:flex-start; gap:14px; padding:13px 16px; border-bottom:1px solid var(--line2); }
+.uph-mat.t-bad{ background:var(--bad-bg); }
+.uph-mat-n{ flex:1 1 auto; min-width:0; }
+.uph-mat-t{ font-size:12.5px; font-weight:700; line-height:1.3; }
+.uph-mat-j{
+  display:inline-block; margin-left:7px; padding:1px 7px; border-radius:999px;
+  background:var(--sunk); font-size:10px; font-weight:650; color:var(--tx2); vertical-align:1px;
+}
+.uph-mat-d{ font-size:10.5px; color:var(--tx3); margin-top:3px; }
+.uph-mat-c{ font-size:10.5px; font-weight:650; margin-top:4px; line-height:1.4; }
+.uph-mat-c.t-ok{ color:var(--ok); } .uph-mat-c.t-warn{ color:var(--warn); }
+.uph-mat-c.t-bad{ color:var(--bad); }
+.uph-mat-f{ flex:0 0 104px; text-align:right; }
+.uph-mat-fv{ font-size:14px; font-weight:700; line-height:1.2; }
+.uph-mat-fv.t-ok{ color:var(--ok); } .uph-mat-fv.t-warn{ color:var(--warn); }
+.uph-mat-fv.t-bad{ color:var(--bad); }
+.uph-mat-fl{ font-size:9px; font-weight:700; letter-spacing:.06em; color:var(--tx3); margin-top:3px; }
+.uph-mat-a{ flex:0 0 192px; display:flex; flex-direction:column; gap:6px; }
+.uph-mat-res{
+  display:flex; align-items:center; justify-content:center;
+  height:32px; border-radius:9px; font-size:11.5px; font-weight:650; border:1px solid transparent;
+}
+.uph-mat-res.can{ background:var(--wine); color:#fff; cursor:pointer; }
+.uph-mat-res.done{ background:var(--ok-bg); color:var(--ok); cursor:default; }
+.uph-mat-res.none{ background:transparent; border-color:var(--line2); color:var(--tx3); cursor:not-allowed; }
+.uph-btn-o.sm, .uph-btn-g.sm{ height:30px; font-size:11px; }
+.uph-btn-g{
+  height:32px; border-radius:9px; border:1px solid var(--line); background:var(--card);
+  color:var(--tx2); font-size:11.5px; font-weight:650; cursor:pointer; padding:0 12px;
+}
+.uph-btn-g:hover{ border-color:var(--tx3); }
+.uph-mat-note{ padding:12px 16px; background:var(--sunk); font-size:10.5px; color:var(--tx3); line-height:1.55; }
+.uph-mat-note b{ color:var(--tx); font-weight:700; }
+
+/* ── team: expandable crew cards ───────────────────────────────────── */
+.uph-crew{ border:1px solid var(--line); border-radius:var(--r); background:var(--card); margin-bottom:10px; overflow:hidden; }
+.uph-crew.open{ border-color:var(--wine); }
+.uph-crew-h{
+  display:flex; align-items:center; gap:11px; width:100%; padding:13px 16px;
+  border:0; background:transparent; cursor:pointer; text-align:left;
+}
+.uph-mono{
+  flex:0 0 34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  background:var(--wine-tint); color:var(--wine); font-size:12px; font-weight:700; letter-spacing:.02em;
+}
+.uph-crew-n{ flex:1 1 auto; min-width:0; display:block; }
+.uph-crew-n b{ display:block; font-size:13px; font-weight:700; line-height:1.3; }
+.uph-crew-n i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx3); margin-top:1px; }
+.uph-crew-n em{ display:block; font-style:normal; font-size:10.5px; font-weight:700; margin-top:2px; }
+.uph-crew-n em.t-ok{ color:var(--ok); } .uph-crew-n em.t-warn{ color:var(--warn); }
+.uph-chev{ flex:none; color:var(--tx3); font-size:11px; }
+.uph-crew-b{ padding:0 16px 14px; }
+.uph-crew-hd{
+  display:flex; align-items:center; gap:10px; padding:7px 10px; background:var(--sunk);
+  border-radius:8px; font-size:9px; font-weight:700; letter-spacing:.06em; color:var(--tx3);
+}
+.uph-crew-hd span:first-child{ flex:1 1 auto; }
+.uph-crew-hd .on{ flex:0 0 150px; }
+.uph-crew-hd .sp{ flex:0 0 62px; }
+.uph-man{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-bottom:1px solid var(--line2); }
+.uph-man:last-of-type{ border-bottom:0; }
+.uph-man-m{
+  flex:0 0 28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; background:var(--sunk); color:var(--tx2);
+}
+.uph-man-m.t-wine{ background:var(--wine-tint); color:var(--wine); }
+.uph-man-m.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.uph-man-m.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.uph-man-m.t-bad{ background:var(--bad-bg); color:var(--bad); }
+.uph-man-n{ flex:1 1 auto; min-width:0; font-size:12px; font-weight:650; }
+.uph-man-n i{ display:block; font-style:normal; font-size:10.5px; font-weight:400; color:var(--tx3); margin-top:1px; }
+.uph-lead{
+  display:inline-block; margin-left:6px; padding:1px 6px; border-radius:999px;
+  background:var(--wine); color:#fff; font-size:9px; font-weight:700; letter-spacing:.04em; vertical-align:1px;
+}
+.uph-man-on{ flex:0 0 150px; font-size:11px; font-weight:650; }
+.uph-man-on.t-wine{ color:var(--wine); } .uph-man-on.t-ok{ color:var(--ok); }
+.uph-man-on.t-warn{ color:var(--warn); } .uph-man-on.t-bad{ color:var(--bad); }
+.uph-man-on.t-plain{ color:var(--tx2); }
+.uph-man-mv{
+  flex:0 0 62px; height:28px; border-radius:8px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:11px; font-weight:650; cursor:pointer;
+}
+.uph-crew-add{
+  width:100%; margin-top:10px; height:34px; border-radius:9px;
+  border:1px dashed var(--wine); background:transparent; color:var(--wine);
+  font-size:11.5px; font-weight:650; cursor:pointer;
+}
+.uph-loose{ border:1px dashed var(--warn); background:var(--warn-bg); border-radius:var(--r); padding:13px 16px; }
+.uph-loose-h{ font-size:13px; font-weight:700; }
+.uph-loose-n{ font-size:10.5px; color:var(--warn); font-weight:650; margin:3px 0 9px; }
+.uph-loose-r{ display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid rgba(0,0,0,.06); }
+.uph-loose-r b{ flex:0 0 auto; font-size:12px; font-weight:700; }
+.uph-loose-r i{ flex:1 1 auto; font-style:normal; font-size:10.5px; color:var(--tx3); }
+
+@media (max-width: 880px){
+  .uph-page .uph-r{ flex:1 1 auto; width:100%; }
+  .uph-stats{ flex-wrap:wrap; }
+  .uph-stat{ flex:1 1 50%; border-left:0; border-top:1px solid var(--line2); }
+  .uph-stat:nth-child(-n+2){ border-top:0; }
+  .uph-stat:nth-child(even){ border-left:1px solid var(--line2); }
+  /* Same trap as the week board: without this the card grows to the table
+     and the copy runs off the right edge instead of the table scrolling. */
+  .uph-tbl-scroll{ max-width:100%; }
+  .uph-mat{ flex-wrap:wrap; }
+  .uph-mat-f{ flex:0 0 auto; text-align:left; }
+  .uph-mat-a{ flex:1 1 100%; flex-direction:row; }
+  .uph-mat-a > *{ flex:1; }
+  .uph-crew-hd .on, .uph-man-on{ flex:0 0 96px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Create flows (19a Phase 3). Tab row, gate card, fields, banner, actions,
+   and a rail with the flow's rule plus the four real checks.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.uph-form .uph-r{ flex:0 0 300px; }
+.uph-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.uph-tab-p{
+  height:28px; padding:0 11px; border-radius:999px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:11px; font-weight:650; cursor:pointer;
+}
+.uph-tab-p.on{ background:var(--wine); border-color:var(--wine); color:#fff; }
+
+/* The gate. Wine-tinted while unanswered, then re-tinted to the tone of the
+   answer — the card itself is the state, not a label beside it. */
+.uph-gate{
+  border-radius:16px; padding:15px 17px; margin-bottom:12px;
+  background:var(--wine-tint); border:1px solid var(--wine-line);
+}
+.uph-gate.t-ok{ background:var(--ok-bg); border-color:var(--ok); }
+.uph-gate.t-warn{ background:var(--warn-bg); border-color:var(--warn); }
+.uph-gate.t-bad{ background:var(--bad-bg); border-color:var(--bad); }
+.uph-gate-h{ display:flex; align-items:flex-start; gap:11px; }
+.uph-gate-b{
+  flex:0 0 26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:var(--wine); color:#fff; font-size:13px; font-weight:700;
+}
+.uph-gate.t-ok .uph-gate-b{ background:var(--ok); }
+.uph-gate.t-warn .uph-gate-b{ background:var(--warn); }
+.uph-gate.t-bad .uph-gate-b{ background:var(--bad); }
+.uph-gate-n{ flex:1 1 auto; min-width:0; }
+.uph-gate-n b{ display:block; font-size:13px; font-weight:700; line-height:1.35; }
+.uph-gate-n i{ display:block; font-style:normal; font-size:11.5px; color:var(--tx2); line-height:1.5; margin-top:4px; }
+.uph-gate-o{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.uph-opt{
+  flex:1 1 0; min-width:150px; padding:10px 12px; border-radius:11px;
+  border:1px solid var(--line); background:var(--card); color:var(--tx);
+  font-size:11.5px; font-weight:650; cursor:pointer; text-align:left; line-height:1.35;
+}
+.uph-opt i{ display:block; font-style:normal; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--tx3); margin-top:3px; }
+.uph-opt:hover{ border-color:var(--tx3); }
+.uph-opt.on{ border-width:2px; }
+.uph-opt.on.t-ok{ border-color:var(--ok); background:var(--ok-bg); }
+.uph-opt.on.t-warn{ border-color:var(--warn); background:var(--warn-bg); }
+.uph-opt.on.t-bad{ border-color:var(--bad); background:var(--bad-bg); }
+.uph-opt.on.t-ok i{ color:var(--ok); }
+.uph-opt.on.t-warn i{ color:var(--warn); }
+.uph-opt.on.t-bad i{ color:var(--bad); }
+
+/* Fields. A label above a sunk box, wrapping at 210px. */
+.uph-fields{ padding:15px 17px; margin-bottom:12px; }
+.uph-fs{ display:flex; flex-wrap:wrap; gap:12px; }
+.uph-f{ flex:1 1 210px; min-width:0; }
+.uph-f.wide{ flex:1 1 100%; }
+.uph-f label{
+  display:block; font-size:10.5px; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--tx3); margin-bottom:5px;
+}
+.uph-in{
+  width:100%; height:38px; padding:0 11px; border-radius:9px;
+  border:1px solid var(--line); background:var(--sunk); color:var(--tx);
+  font-family:inherit; font-size:12px;
+}
+.uph-in:focus{ outline:none; border-color:var(--wine); background:var(--card); }
+.uph-f-h{ display:block; font-size:10.5px; color:var(--tx3); margin-top:4px; line-height:1.4; }
+
+/* The banner says what will happen, in the gate's own tone. */
+.uph-banner{
+  padding:11px 16px; border-radius:11px; font-size:11.5px; font-weight:650;
+  line-height:1.45; margin-bottom:12px; background:var(--sunk); color:var(--tx2);
+}
+.uph-banner.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.uph-banner.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.uph-banner.t-bad{ background:var(--bad-bg); color:var(--bad); }
+
+.uph-acts{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+/* Amber fill is "allowed, and it will show" — a different promise from wine,
+   and the button has to say so before it is pressed, not after. */
+.uph-btn.warn{ background:var(--warn); }
+.uph-btn.dead{ background:transparent; border:1px solid var(--line2); color:var(--tx3); cursor:not-allowed; }
+.uph-btn.dead:hover{ background:transparent; }
+.uph-acts-h{ flex:1 1 auto; text-align:right; font-size:10.5px; color:var(--tx3); }
+
+/* The checks panel. Real state, so it can go red. */
+.uph-chk{ display:flex; align-items:flex-start; gap:10px; padding:10px 16px; border-top:1px solid var(--line2); }
+.uph-chk-b{
+  flex:0 0 22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; background:var(--sunk); color:var(--tx3);
+}
+.uph-chk-b.t-ok{ background:var(--ok-bg); color:var(--ok); }
+.uph-chk-b.t-warn{ background:var(--warn-bg); color:var(--warn); }
+.uph-chk-b.t-bad{ background:var(--bad-bg); color:var(--bad); }
+.uph-chk-n{ flex:1 1 auto; min-width:0; }
+.uph-chk-n b{ display:block; font-size:11.5px; font-weight:700; line-height:1.3; }
+.uph-chk-n i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx3); margin-top:2px; line-height:1.4; }
+
+@media (max-width: 880px){
+  .uph-form .uph-r{ flex:1 1 auto; width:100%; }
+  .uph-opt{ flex:1 1 100%; }
+  .uph-acts .uph-btn, .uph-acts .uph-btn-g{ flex:1 1 auto; }
+  .uph-acts-h{ flex:1 1 100%; text-align:left; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   The cutting-list builder (19a Phase 4). The one flow with a real editor.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.uph-cut{ margin-top:14px; border:1px solid var(--wine-line); border-radius:12px; overflow:hidden; }
+.uph-cut-h{
+  display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  padding:11px 13px; background:var(--wine-tint);
+}
+.uph-cut-hn{ flex:1 1 auto; min-width:0; }
+.uph-cut-hn b{ display:block; font-size:12.5px; font-weight:700; }
+.uph-cut-hn i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx2); margin-top:2px; }
+.uph-btn.sm{ height:30px; font-size:11px; padding:0 12px; }
+.uph-btn[disabled], .uph-btn-w[disabled]{ opacity:.45; cursor:not-allowed; }
+
+/* Column strip — the spec's own widths. */
+.uph-cut-c, .uph-cut-r{ display:flex; align-items:center; gap:8px; }
+.uph-cut-c{
+  padding:7px 12px; background:var(--sunk); border-top:1px solid var(--line2);
+  font-size:9px; font-weight:700; letter-spacing:.05em; color:var(--tx3);
+}
+.uph-cut-c .c-n, .uph-cut-r .c-n{ flex:0 0 22px; }
+.uph-cut-c .c-p, .uph-cut-r .c-p{ flex:1 1 auto; min-width:0; }
+.uph-cut-c .c-m, .uph-cut-r .c-m{ flex:0 0 124px; }
+.uph-cut-c .c-q, .uph-cut-r .c-q{ flex:0 0 82px; }
+.uph-cut-c .c-l, .uph-cut-r .c-l{ flex:0 0 56px; }
+.uph-cut-c .c-w, .uph-cut-r .c-w{ flex:0 0 50px; }
+.uph-cut-c .c-pr, .uph-cut-r .c-pr{ flex:0 0 52px; }
+.uph-cut-c .c-x, .uph-cut-r .c-x{ flex:0 0 26px; }
+
+.uph-cut-r{ padding:8px 12px; border-top:1px solid var(--line2); }
+/* A pressed row is cut oversize, so it is worth seeing at a glance. */
+.uph-cut-r.pressed{ background:var(--wine-tint); }
+.uph-cut-r .c-n{ font-size:10.5px; color:var(--tx3); font-weight:700; }
+.uph-cin{
+  width:100%; height:28px; padding:0 8px; border-radius:7px;
+  border:1px solid transparent; background:transparent; color:var(--tx);
+  font-family:inherit; font-size:11.5px;
+}
+.uph-cin:hover{ border-color:var(--line); }
+.uph-cin:focus{ outline:none; border-color:var(--wine); background:var(--card); }
+.uph-cin.num{ text-align:right; font-variant-numeric:tabular-nums; }
+
+.uph-cut-r .c-q{ display:flex; align-items:center; gap:4px; }
+.uph-stp{
+  flex:0 0 22px; height:24px; border-radius:6px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:12px; line-height:1; cursor:pointer; padding:0;
+}
+.uph-stp:hover{ border-color:var(--wine); color:var(--wine); }
+.uph-cut-r .c-q b{ flex:1 1 auto; text-align:center; font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; }
+.uph-prs{
+  width:100%; height:24px; border-radius:6px; cursor:pointer;
+  font-size:9px; font-weight:700; letter-spacing:.04em;
+  border:1px dashed var(--line); background:transparent; color:var(--tx3);
+}
+.uph-prs.on{ border:1px solid var(--wine); background:var(--wine); color:#fff; }
+.uph-cx{
+  width:26px; height:26px; border-radius:7px; border:0; background:transparent;
+  color:var(--tx3); font-size:12px; cursor:pointer;
+}
+.uph-cx:hover{ background:var(--bad-bg); color:var(--bad); }
+
+.uph-cut-e{ padding:20px 14px; font-size:11.5px; color:var(--tx3); line-height:1.55; border-top:1px solid var(--line2); }
+
+/* Totals, recomputed on every edit. */
+.uph-cut-f{ display:flex; background:var(--sunk); border-top:1px solid var(--line2); }
+.uph-cut-t{ flex:1; min-width:0; padding:10px 12px; border-left:1px solid var(--line2); }
+.uph-cut-t:first-child{ border-left:0; }
+.uph-cut-t .l{ display:block; font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); }
+.uph-cut-t b{ display:block; font-size:14px; font-weight:700; line-height:1.2; margin-top:3px; }
+.uph-cut-t .n{ display:block; font-size:9.5px; color:var(--tx3); margin-top:2px; line-height:1.35; }
+
+@media (max-width: 880px){
+  /* Eight columns will not fit a phone; the strip scrolls rather than
+     crushing the dimensions into unreadable slivers. */
+  .uph-cut{ overflow-x:auto; }
+  .uph-cut-c, .uph-cut-r{ min-width:660px; }
+  .uph-cut-f{ min-width:660px; }
+}
+
+/* ── The allot flow's item picker ───────────────────────────────────────
+   A crew takes several of a job's items on a day. A line already started
+   is greyed WITH its stage named — greying without saying why is what
+   makes people think the app is broken. */
+.uph-allot{ margin-top:14px; border:1px solid var(--wine-line); border-radius:12px; overflow:hidden; }
+.uph-allot-h{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:11px 13px; background:var(--wine-tint); }
+.uph-allot-hn{ flex:1 1 auto; min-width:0; }
+.uph-allot-hn b{ display:block; font-size:12.5px; font-weight:700; }
+.uph-allot-hn i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx2); margin-top:2px; }
+.uph-allot-c, .uph-allot-r{ display:flex; align-items:center; gap:10px; }
+.uph-allot-c{
+  padding:7px 13px; background:var(--sunk); border-top:1px solid var(--line2);
+  font-size:9px; font-weight:700; letter-spacing:.05em; color:var(--tx3);
+}
+.uph-allot-c .c-t, .uph-allot-r .c-t{ flex:0 0 26px; }
+.uph-allot-c .c-n, .uph-allot-r .c-n{ flex:0 0 28px; font-size:10.5px; color:var(--tx3); font-weight:700; }
+.uph-allot-c .c-p, .uph-allot-r .c-p{ flex:1 1 auto; min-width:0; }
+.uph-allot-c .c-s, .uph-allot-r .c-s{ flex:0 0 150px; font-size:11px; font-weight:650; }
+.uph-allot-r{ padding:9px 13px; border-top:1px solid var(--line2); }
+.uph-allot-r.on{ background:var(--wine-tint); }
+.uph-allot-r.off{ opacity:.55; }
+.uph-allot-r .c-p b{ display:block; font-size:12px; font-weight:700; line-height:1.3; }
+.uph-allot-r .c-p i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx3); margin-top:1px; }
+.uph-allot-r .c-s.dim{ color:var(--tx3); font-weight:400; }
+.uph-tick{
+  width:22px; height:22px; border-radius:6px; border:1px solid var(--line);
+  background:var(--card); color:#fff; font-size:11px; line-height:1; cursor:pointer; padding:0;
+}
+.uph-tick:hover{ border-color:var(--wine); }
+.uph-tick.on{ background:var(--wine); border-color:var(--wine); }
+.uph-tick.off{
+  display:flex; align-items:center; justify-content:center;
+  color:var(--tx3); cursor:not-allowed; background:transparent; border-style:dashed;
+}
+.uph-allot-e{ padding:20px 14px; font-size:11.5px; color:var(--tx3); line-height:1.55; border-top:1px solid var(--line2); }
+.uph-allot-note{ padding:11px 13px; background:var(--sunk); font-size:10.5px; color:var(--tx3); line-height:1.5; }
+
+@media (max-width: 880px){
+  .uph-allot-c .c-s, .uph-allot-r .c-s{ flex:0 0 100px; }
+}
+
+/* ── The job BOM for budgeting ──────────────────────────────────────────
+   Materials carry a cost (Item Master, what we pay). Labour carries
+   man-days and no rate — the rate is applied at submit from the
+   department's payroll average and never reaches this screen. */
+.uph-bom{ margin-top:14px; display:flex; flex-direction:column; gap:12px; }
+.uph-bom-sec{ border:1px solid var(--wine-line); border-radius:12px; overflow:hidden; }
+.uph-bom-h{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:11px 13px; background:var(--wine-tint); }
+.uph-bom-hn{ flex:1 1 auto; min-width:0; }
+.uph-bom-hn b{ display:block; font-size:12.5px; font-weight:700; }
+.uph-bom-hn i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx2); margin-top:2px; }
+.uph-bom-sub{
+  display:flex; align-items:center; gap:9px;
+  padding:9px 13px 7px; font-size:11px; font-weight:700; color:var(--tx2);
+  border-top:1px solid var(--line2);
+}
+.uph-bom-search{ padding:0 13px 9px; position:relative; }
+.uph-bom-res{ border:1px solid var(--line); border-radius:9px; margin-top:5px; overflow:hidden; }
+.uph-bom-hit{
+  display:block; width:100%; text-align:left; padding:8px 11px; border:0;
+  border-bottom:1px solid var(--line2); background:var(--card); cursor:pointer;
+}
+.uph-bom-hit:last-child{ border-bottom:0; }
+.uph-bom-hit:hover{ background:var(--wine-tint); }
+.uph-bom-hit b{ display:block; font-size:11.5px; font-weight:650; }
+.uph-bom-hit i{ display:block; font-style:normal; font-size:10px; color:var(--tx3); margin-top:1px; }
+.uph-bom-none{ margin-top:5px; font-size:10.5px; color:var(--bad); line-height:1.45; }
+.uph-bom-c, .uph-bom-r{ display:flex; align-items:center; gap:8px; }
+.uph-bom-c{
+  padding:6px 13px; background:var(--sunk); border-top:1px solid var(--line2);
+  font-size:9px; font-weight:700; letter-spacing:.05em; color:var(--tx3);
+}
+.uph-bom-c .c-n, .uph-bom-r .c-n{ flex:0 0 22px; font-size:10.5px; color:var(--tx3); font-weight:700; }
+.uph-bom-c .c-p, .uph-bom-r .c-p{ flex:1 1 auto; min-width:0; }
+.uph-bom-c .c-q, .uph-bom-r .c-q{ flex:0 0 82px; display:flex; align-items:center; gap:4px; }
+.uph-bom-c .c-u, .uph-bom-r .c-u{ flex:0 0 60px; font-size:10.5px; color:var(--tx3); }
+.uph-bom-c .c-r, .uph-bom-r .c-r{ flex:0 0 92px; text-align:right; font-variant-numeric:tabular-nums; font-size:11px; }
+.uph-bom-c .c-a, .uph-bom-r .c-a{ flex:0 0 104px; text-align:right; font-variant-numeric:tabular-nums; font-size:11.5px; font-weight:650; }
+.uph-bom-c .c-x, .uph-bom-r .c-x{ flex:0 0 26px; }
+.uph-bom-r{ padding:7px 13px; border-top:1px solid var(--line2); }
+.uph-bom-r .c-p b{ font-size:11.5px; font-weight:650; }
+.uph-bom-r .c-q b{ flex:1 1 auto; text-align:center; font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; }
+.uph-bom-e{ padding:16px 13px; font-size:11px; color:var(--tx3); line-height:1.5; border-top:1px solid var(--line2); }
+.uph-bom-note{ padding:9px 13px; background:var(--warn-bg); font-size:10.5px; color:var(--warn); line-height:1.5; }
+.uph-bom-f{ display:flex; background:var(--sunk); border-top:1px solid var(--line2); }
+.uph-bom-t{ flex:1; min-width:0; padding:10px 13px; border-left:1px solid var(--line2); }
+.uph-bom-t:first-child{ border-left:0; }
+.uph-bom-t .l{ display:block; font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); }
+.uph-bom-t b{ display:block; font-size:14px; font-weight:700; line-height:1.2; margin-top:3px; }
+.uph-bom-t .n{ display:block; font-size:9.5px; color:var(--tx3); margin-top:2px; line-height:1.35; }
+
+@media (max-width: 880px){
+  .uph-bom-sec{ overflow-x:auto; }
+  .uph-bom-c, .uph-bom-r, .uph-bom-f{ min-width:672px; }
+}
+
+/* ── What the estimator allowed, and the Excel round-trip ────────────── */
+.uph-bom-xl{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:10px 12px; border:1px dashed var(--line); border-radius:11px;
+  background:var(--sunk);
+}
+.uph-bom-xl i{
+  flex:1 1 220px; min-width:0; font-style:normal;
+  font-size:10px; color:var(--tx3); line-height:1.45;
+}
+.uph-btn-g.as-lbl{ display:inline-flex; align-items:center; cursor:pointer; }
+
+.uph-bom-strip{ border-top:1px solid var(--line2); background:var(--sunk); }
+.uph-bom-strip-h{ padding:9px 13px 0; font-size:9px; font-weight:700;
+  letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); }
+.uph-bom-strip-h i{ display:block; font-style:normal; font-size:10px;
+  font-weight:400; letter-spacing:0; text-transform:none;
+  color:var(--tx2); margin-top:3px; line-height:1.45; }
+.uph-bom-cards{ display:flex; gap:9px; padding:9px 13px 11px; overflow-x:auto; }
+.uph-bom-card{
+  flex:0 0 232px; display:flex; gap:9px; padding:8px;
+  border:1px solid var(--line); border-radius:10px; background:var(--card);
+}
+.uph-bom-card.none{ opacity:.62; }
+.uph-bom-ph{
+  flex:0 0 46px; width:46px; height:46px; border-radius:7px;
+  object-fit:cover; background:var(--sunk); border:1px solid var(--line2);
+}
+.uph-bom-ph.is-none{
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  font-size:8px; color:var(--tx3); line-height:1.2;
+}
+.uph-bom-cn{ flex:1 1 auto; min-width:0; }
+.uph-bom-cn b{ display:block; font-size:11px; font-weight:650; line-height:1.3; }
+.uph-bom-cn i{ display:block; font-style:normal; font-size:9.5px; color:var(--tx3); margin-top:1px; }
+.uph-bom-cn em{ display:block; font-style:normal; font-size:10px; color:var(--tx2); margin-top:3px; line-height:1.4; }
+.uph-bom-cn u{ display:block; text-decoration:none; font-size:9.5px; color:var(--warn); margin-top:3px; line-height:1.4; }
+
+/* The estimator's own quantity for a code, beside yours. */
+.uph-bom-c .c-e, .uph-bom-r .c-e{
+  flex:0 0 46px; text-align:right; font-variant-numeric:tabular-nums;
+  font-size:11px; color:var(--tx3);
+}
+.uph-bom-r .c-e.over{ color:var(--warn); font-weight:700; }
+.uph-bom-d{ display:block; font-size:9.5px; margin-top:3px; color:var(--ok); line-height:1.35; }
+.uph-bom-d.over{ color:var(--warn); font-weight:650; }
+
+/* The review, between the upload and the form. */
+.uph-bom-rv{ border:1px solid var(--wine-line); border-radius:12px; overflow:hidden; }
+.uph-bom-rv-h{ padding:11px 13px; background:var(--wine-tint); }
+.uph-bom-rv-h b{ display:block; font-size:12.5px; font-weight:700; }
+.uph-bom-rv-h i{ display:block; font-style:normal; font-size:10.5px; color:var(--tx2); margin-top:2px; line-height:1.45; }
+.uph-bom-rv-c, .uph-bom-rv-r{ display:flex; align-items:flex-start; gap:8px; padding:7px 13px; }
+.uph-bom-rv-c{
+  font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--tx3); background:var(--sunk); border-top:1px solid var(--line2);
+}
+.uph-bom-rv-r{ border-top:1px solid var(--line2); }
+.uph-bom-rv-r.bad{ background:var(--bad-bg); }
+.uph-bom-rv-c .c-s, .uph-bom-rv-r .c-s{ flex:0 0 16px; font-size:11px; }
+.uph-bom-rv-r .c-s{ color:var(--ok); font-weight:700; }
+.uph-bom-rv-r.bad .c-s{ color:var(--bad); }
+.uph-bom-rv-c .c-d, .uph-bom-rv-r .c-d{ flex:0 0 86px; font-size:10.5px; color:var(--tx2); }
+.uph-bom-rv-c .c-t, .uph-bom-rv-r .c-t{ flex:0 0 66px; font-size:10.5px; color:var(--tx2); }
+.uph-bom-rv-c .c-p, .uph-bom-rv-r .c-p{ flex:1 1 auto; min-width:0; }
+.uph-bom-rv-r .c-p b{ display:block; font-size:11.5px; font-weight:650; }
+.uph-bom-rv-r .c-p i{ display:block; font-style:normal; font-size:10px; color:var(--bad); margin-top:2px; line-height:1.4; }
+.uph-bom-rv-c .c-a, .uph-bom-rv-r .c-a{
+  flex:0 0 100px; text-align:right; font-variant-numeric:tabular-nums; font-size:11px;
+}
+.uph-bom-rv-f{ padding:10px 13px; background:var(--sunk); border-top:1px solid var(--line2);
+  font-size:10.5px; color:var(--tx2); line-height:1.5; }
+
+/* ══ 22b — the ? badge ═══════════════════════════════════════════════════
+   A heading's description of what a card IS folds into a hover badge:
+   17×17, 1px ring, --card fill, 10.5px/700 glyph, cursor:help, 7px from
+   the heading on one flex row. Ring and ink by tone. title= does not open
+   on a tap, so below 880px the badge is replaced by a tappable chip that
+   expands the same sentence inline — never a hover-only badge on a phone. */
+.uph-hrow{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-width:0; }
+.uph-q{
+  display:inline-flex; align-items:center; justify-content:center; flex:none;
+  width:17px; height:17px; border-radius:999px; background:var(--card);
+  font-size:10.5px; font-weight:700; line-height:1; cursor:help;
+  border:1px solid var(--tx3); color:var(--tx2);
+}
+.uph-q.q-wine{ border-color:var(--wine-line); color:var(--wine); }
+.uph-q.q-bad{ border-color:var(--bad); color:var(--bad); }
+.uph-qchip{
+  display:none; align-items:center; gap:4px; flex:none;
+  height:22px; padding:0 9px; border-radius:11px; border:1px solid var(--line);
+  background:var(--card); color:var(--tx2); font-size:10.5px; font-weight:600;
+  font-family:inherit; cursor:pointer;
+}
+.uph-qtext{
+  display:none; flex:1 1 100%; font-size:11px; color:var(--tx2); line-height:1.45;
+  padding:6px 9px; border-radius:9px; background:var(--sunk); border:1px solid var(--line2);
+}
+.uph-qtext[hidden]{ display:none !important; }
+@media (max-width: 880px){
+  .uph-q{ display:none; }
+  .uph-qchip{ display:inline-flex; }
+  .uph-qtext{ display:block; }
+}
+/* The topbar title carries the day line as its badge; the sub-line element
+   stays as the source of that text but is not drawn twice. */
+#uph-module-wrap .xs-sub{ display:none; }
+#uph-module-wrap .xs-title-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+
+/* 22c — "— not set" is the dim cell treatment: 11.5px italic --tx3. */
+.uph-dim{ font-style:italic; }
+
+/* 22d — the BOM editor additions ─────────────────────────────────────── */
+/* Header hint while the pull preview is closed, and the deltas beside the
+   header where the decision is (moved up from the footer per the review). */
+.uph-bom-hint{ display:block; font-style:italic; font-size:10px; color:var(--warn); margin-top:2px; line-height:1.4; }
+.uph-bom-hd{ flex:0 1 auto; min-width:0; text-align:right; }
+.uph-bom-hd .uph-bom-d{ margin-top:0; }
+.uph-bom-hd .uph-bom-d + .uph-bom-d{ margin-top:2px; }
+
+/* The pull preview — shows before it does. */
+.uph-bom-pull{ background:var(--warn-bg); border-top:1px solid var(--line2); padding:10px 13px 11px; }
+.uph-bom-pull-h{ display:flex; align-items:center; justify-content:space-between; gap:9px; margin-bottom:7px; }
+.uph-bom-pull-h b{ font-size:11.5px; font-weight:700; color:var(--tx); }
+.uph-bom-pull-rows{ max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:9px; background:var(--card); }
+.uph-bom-pull-r{ display:flex; align-items:center; gap:8px; padding:6px 10px; border-top:1px solid var(--line2); font-size:11px; }
+.uph-bom-pull-r:first-child{ border-top:0; }
+.uph-bom-pull-r .m{ flex:0 0 12px; text-align:center; color:var(--ok); font-weight:700; }
+.uph-bom-pull-r.had .m{ color:var(--tx3); opacity:.5; }
+.uph-bom-pull-r .n{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.uph-bom-pull-r.had .n{ color:var(--tx2); font-weight:500; }
+.uph-bom-pull-r .k{ flex:0 0 52px; font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); }
+.uph-bom-pull-r .q{ flex:0 0 104px; text-align:right; font-variant-numeric:tabular-nums; color:var(--tx2); }
+.uph-bom-pull-f{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
+.uph-bom-pull-f i{ flex:1 1 220px; min-width:0; font-style:normal; font-size:10px; color:var(--tx2); line-height:1.4; }
+.uph-btn.dead{ background:#e6e8ec; color:#9aa1ae; cursor:not-allowed; }
+
+/* The 20-item case scrolls inside the section. */
+.uph-bom-rows{ max-height:320px; overflow-y:auto; }
+.uph-bom-sub-sp{ flex:1 1 auto; }
+
+/* EST reddens when the manager's quantity goes over. */
+.uph-bom-r .c-e.over{ color:var(--bad); font-weight:700; }
+
+/* Both sections go in together — a wine-tinted strip above the action row. */
+.uph-bom-together{
+  padding:9px 13px; background:var(--wine-tint); border:1px solid var(--wine-line);
+  border-radius:10px; font-size:10.5px; color:var(--wine); line-height:1.5;
+}
+
+/* The review owns the action row. */
+.uph-acts-h.wine{ color:var(--wine); font-style:italic; }
+
+/* On a phone the heading row takes the whole line so the expanded chip
+   text is not squeezed beside the header pill or date. */
+@media (max-width: 880px){
+  .uph-card-h, .uph-teams-h, #uph-module-wrap .xs-title-row{ flex-wrap:wrap; }
+  .uph-hrow{ flex:1 1 100%; }
+}
+
+/* ══ 20a — what upholstery has that production does not ═══════════════ */
+/* KPI rows are tappable — every one leads to the page that owns the number. */
+.uph-kpi-r{ display:flex; align-items:center; gap:12px; width:100%; padding:11px 16px; border:0; border-bottom:1px solid var(--line2); background:transparent; text-align:left; cursor:pointer; font-family:inherit; color:inherit; }
+.uph-kpi-r:last-child{ border-bottom:0; }
+.uph-kpi-r:hover{ background:var(--sunk); }
+.uph-kpi-r .uph-kpi-l i{ display:block; font-style:normal; font-size:10px; color:var(--tx3); margin-top:2px; }
+
+/* The pricing flow's lines table — five stages, and a Rate column that is
+   "—" on every row. The empty column is the point. */
+.uph-lines{ flex:1 1 100%; border:1px solid var(--line2); border-radius:12px; overflow:hidden; margin-top:4px; }
+.uph-lines-c, .uph-lines-r{ display:flex; align-items:center; gap:8px; padding:7px 12px; }
+.uph-lines-c{ background:var(--sunk); font-size:9.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--tx3); }
+.uph-lines-r{ border-top:1px solid var(--line2); font-size:11.5px; }
+.uph-lines-c .c-s, .uph-lines-r .c-s{ flex:1 1 auto; min-width:0; font-weight:650; }
+.uph-lines-c .c-c, .uph-lines-r .c-c{ flex:0 0 190px; font-size:10.5px; color:var(--tx2); }
+.uph-lines-c .c-h, .uph-lines-r .c-h{ flex:0 0 90px; text-align:right; font-variant-numeric:tabular-nums; }
+.uph-lines-r .c-h .uph-cin{ width:70px; text-align:right; }
+.uph-lines-c .c-r, .uph-lines-r .c-r{ flex:0 0 90px; text-align:right; color:var(--tx3); font-variant-numeric:tabular-nums; }
+.uph-lines-f{ padding:8px 12px; background:var(--sunk); border-top:1px solid var(--line2); font-size:10px; color:var(--tx3); font-style:italic; }
+.uph-lines-r .c-h.t-ok{ color:var(--ok); } .uph-lines-r .c-h.t-warn{ color:var(--warn); }
+
+/* The fabric-plan builder: the handoff's own column strip.
+   # 22 · Panel flex · Fabric 132 · Qty 74 · Length 56 · Width 50 · Nap 96 */
+.uph-plan-c .c-m, .uph-plan-r .c-m{ flex:0 0 132px; }
+.uph-plan-c .c-q, .uph-plan-r .c-q{ flex:0 0 74px; }
+.uph-plan-c .c-l, .uph-plan-r .c-l{ flex:0 0 56px; }
+.uph-plan-c .c-w, .uph-plan-r .c-w{ flex:0 0 50px; }
+.uph-plan-c .c-pr, .uph-plan-r .c-pr{ flex:0 0 96px; }
+.uph-plan-r.napped{ background:var(--wine-tint); }
+.uph-plan-r .c-m .uph-cin{ font-size:10.5px; }
+.uph-plan-r .c-m .uph-cin.t-wine{ color:var(--wine); font-weight:650; }
+.uph-plan-r .c-m .uph-cin.t-warn{ color:var(--warn); font-weight:650; }
+.uph-plan-r .c-m .uph-cin.t-plain{ color:var(--tx2); }
+.uph-nap{ min-width:64px; }
+.uph-nap.on{ background:var(--wine); color:#fff; border-color:var(--wine); }
+.uph-cut-t.t-wine b{ color:var(--wine); }
+.uph-cut-t.t-warn b{ color:var(--warn); }
+.uph-cut-t.t-bad b, .uph-cut-t.t-bad .n{ color:var(--bad); }
+.uph-cut-t.t-bad{ background:var(--bad-bg); }
+
+/* Foam schedule lines reuse the builder strip; stock column widths. */
+.uph-foam .uph-cut-c .c-m, .uph-foam .uph-cut-r .c-m{ flex:0 0 150px; font-size:11px; color:var(--tx2); }
+.uph-foam .uph-cut-c .c-l, .uph-foam .uph-cut-r .c-l{ flex:0 0 220px; }
+.uph-foam .uph-cut-c .c-w, .uph-foam .uph-cut-r .c-w{ flex:0 0 50px; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
+.uph-foam .c-w.t-ok{ color:var(--ok); } .uph-foam .c-w.t-bad{ color:var(--bad); } .uph-foam .c-w.t-plain{ color:var(--tx3); }
+
+/* The quotes strip folded into the register. */
+.uph-qstrip{ margin-top:14px; }
+.uph-qrow{ display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:1px solid var(--line2); }
+.uph-qrow-n{ flex:1 1 auto; min-width:0; }
+.uph-qrow-n b{ display:block; font-size:12px; font-weight:700; }
+.uph-qrow-n i{ display:block; font-style:normal; font-size:11px; color:var(--tx2); margin-top:1px; }
+.uph-qrow-n em{ display:block; font-style:normal; font-size:10.5px; font-weight:650; margin-top:2px; line-height:1.4; }
+.uph-qrow-n em.t-ok{ color:var(--ok); } .uph-qrow-n em.t-warn{ color:var(--warn); } .uph-qrow-n em.t-plain{ color:var(--tx2); }
+.uph-qrow-l{ flex:0 0 74px; font-size:11.5px; font-weight:700; text-align:right; }
+.uph-qrow-l.t-ok{ color:var(--ok); } .uph-qrow-l.t-warn{ color:var(--warn); } .uph-qrow-l.t-plain{ color:var(--tx2); }
+.uph-qrow-c{ flex:0 0 92px; text-align:right; font-size:11.5px; font-variant-numeric:tabular-nums; }
+.uph-mat-res.can{ cursor:pointer; }
+.uph-card-h .uph-note{ font-size:10.5px; color:var(--tx3); }
+@media (max-width: 880px){
+  .uph-qrow{ flex-wrap:wrap; }
+  .uph-lines-c .c-c, .uph-lines-r .c-c{ flex:0 0 120px; }
+}
+
+/* Buttons do not inherit colour — without this the stage names in Stages
+   today and the crew card headers go dark-on-dark in dark mode. */
+.uph-team, .uph-crew-h, .uph-kpi-r{ color:inherit; }

@@ -199,7 +199,7 @@ async function openNode(page, nodeId, wrapId) {
 
   // ── Upholstery module: fully independent flow (own approver) ──
   currentStep = 'upholstery-module';
-  await openNode(page, 'upholstery', 'upholstery-module-wrap');
+  await openNode(page, 'upholstery-legacy', 'upholstery-module-wrap');
   await page.evaluate(() => upholsterySetView('queue'));
   await page.waitForTimeout(200);
   await shot(page, 'upholstery-queue');
@@ -223,7 +223,7 @@ async function openNode(page, nodeId, wrapId) {
   await page.waitForTimeout(300);
   await page.click('#ops-budget-approvals-body .sales-card:has-text("Upholstery") button:has-text("Approve")');
   await page.waitForTimeout(200);
-  await openNode(page, 'upholstery', 'upholstery-module-wrap');
+  await openNode(page, 'upholstery-legacy', 'upholstery-module-wrap');
   await page.evaluate(() => upholsterySetView('queue'));
   await page.waitForTimeout(200);
   await page.click('#upholstery-body button:has-text("Start Production")');

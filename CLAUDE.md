@@ -8609,3 +8609,88 @@ per-person day-logs at real payroll rates. Build sequence: 22 corrections,
 - `sw.js` CACHE_VERSION v63 → v64.
 - **Next**: the 20a Upholstery build (from scratch on the shared shell), then
   the crew timer and progress photos, then iteration 1.
+
+### 2 Sep 2026 (later) — 20a Upholstery supervisor: built from scratch on the shared shell
+
+The second build in the run's sequence. Two new files, `upholstery-data.js`
+and `upholstery-ui.js` (`window.UphUI`), plus `upholstery.css` derived from
+`production.css` by prefix — the shell, page and form templates are shared
+by spec, so the sheet is the same sheet. Nine tables live on the project.
+
+- **The five commitments live in the data layer.** *Nothing overtakes* —
+  five stages in one fixed order; `allotUphStageSlot()` refuses a stage
+  whose predecessor has no end date, and refuses a date on or before that
+  end; downstream stages take `pull` slots whose date is COMPUTED from the
+  upstream slot, so moving cutting moves the bays. *One suite, one dye lot,
+  one lay* — fabric is modelled as the roll (id, dye lot, metres, COM flag),
+  never a quantity, and `releaseFabricPlan()` refuses unless every metre
+  comes off ONE inspected roll's free metres; releasing supersedes the old
+  ticket, which stays on the table (and blocks the saw) until confirmed off.
+  *COM shortfall is the client's risk, in writing* — `comBlockReason()`
+  stops the cutting table until a note carries both the client's signature
+  and Sales' countersignature; nothing overrides it, and a note cannot be
+  raised on our own fabric. *Metres, grades and hours, never a price* — the
+  pricing flow's lines table carries a Rate column that is "—" on every
+  row, and an answer with a money-shaped key is refused (the whitelist
+  gained `metres`/`metresPerSeat`/`foamGrades`/`sewingHours`/`bayHours`).
+  *Overtime buys hours, not material* — a shift on a stage with nothing to
+  work on is refused AND recorded, so "nothing recoverable" is countable.
+- **Density is a spec, not a preference.** `createFoamSchedule()` refuses a
+  grade that differs from the piece's spec. Eight standing specs seed as
+  masters (sofa, armchair, dining chair, headboard, bench, majlis, ottoman,
+  cushions) with panel lists, foam by part and metres per piece — a spec is
+  the standard, a plan is the job, and revising the standard notifies
+  Operations rather than asking.
+- **The fabric-plan builder** carries the handoff's arithmetic verbatim
+  (1400mm usable, ceil(qty/across) × length, 320mm per nap line, 6%
+  wastage) and the suite asserts it against the sum worked out
+  independently. "Fabric to cut" flips to bad the moment the suite no
+  longer comes off the roll. The **A4 cutting & sewing ticket** is in
+  `print.js`, reading "Fabric to cut" LIVE from the same function.
+- **The roster is real people.** `buildUphRoster()` takes the ten
+  Upholstery-department production staff off the payroll and stands them at
+  the five stages by trade (carpenters at frames, the tailor in the sewing
+  room, the upholsterer in the bays). No pay figure is read. The handoff's
+  seventeen invented names were not used — the 23 Aug precedent.
+- **Shared with 19a rather than duplicated**: pricing requests are
+  `inputRequests` tagged `dept:'uph'`, and each shop reads only its own;
+  foam and fibre are 18a stock via `stockFree()`; quotes are 17a's `rfqs`
+  (the register's "Quotes back on the short rows" strip picks the fastest,
+  names the cheaper one's cost in days); Finishing & QC drives the real
+  pipeline, with a pass recorded under the department's QC authority.
+- **Roles**: all three upholstery `user_types` land here — the manager on
+  the dashboard, Team Leader and QC/Packaging on a slice of the rail in
+  their own order with no Create… and no Dashboard. The Batch 8 wrapper
+  stays loaded as **"Upholstery (old pipeline view)"** under a
+  `upholstery-legacy` shell key, because `dept-pipeline-ui.js`'s budget
+  forms still reach into it; it retires with the joinery wrapper.
+- **Live**: `supabase/20a-upholstery.sql` (also appended to `schema.sql`)
+  — nine jsonb tables, `is_upholstery_side()` for writes (manager, team
+  leader, operations, owner, admin), any approved user reads; the shared
+  `production_input_requests` write policy widened to either shop so the
+  supervisor can answer his own; a COM trigger refusing a sales
+  countersignature with no client signature. Applied and verified against
+  `information_schema` (9 tables × 4 policies). Registered in
+  `CLOUD_JSON_COLLECTIONS` with prefixes checked unique across all 48.
+- **Verification**: new `e2e-upholstery-20a.js` (63/63) — every commitment
+  through the real data layer and the real DOM, the builder's arithmetic,
+  the exhaustive gate table (every option of all ten flows → live / amber /
+  dead-and-labelled-Blocked), all twelve pages with a money sweep, the
+  register's tri-state Reserve, the crew cards, QC fail-with-reason and pass
+  under authority, the three role landings, the legacy screen, dark mode by
+  computed style and the phone. Two bugs found by the probe screenshots
+  rather than the suite: the KPI card reused the row's class name and laid
+  out as one row, and a "3-seater sofa + 2 armchairs" resolved to the
+  armchair spec because that keyword was tested first. Buttons don't
+  inherit colour, so stage names went dark-on-dark in dark mode — fixed for
+  Production's identical card too.
+- **Full offline sweep**: five suites failed on the first run, all because
+  the "upholstery" node now opens the new module. Two that test the old
+  wrapper's own queue and budget tile (`batch8-phase2-4`,
+  `dashboard-enhancements`) and the one that measures its `.ops-header`
+  padding (`bugfixes-iphone`) were repointed at the legacy node;
+  `back-button-check` closes the new wrap; and
+  `e2e-upholstery-granular-dashboards.js` was retired — it asserted the old
+  wrapper's tab bar for roles that no longer land there, and the new suite
+  covers those landings. All four re-run green; sweep otherwise clean.
+- `sw.js` CACHE_VERSION v64 → v65.

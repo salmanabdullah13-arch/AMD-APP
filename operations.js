@@ -778,7 +778,7 @@ function buildHeat(){
 const OPS_OTHER_WRAPS = ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap',
   'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap',
   'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap',
-  'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'admin-module-wrap'];
+  'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'admin-module-wrap'];
 function openOperationsModule() {
   OPS_OTHER_WRAPS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
   const wrap = document.getElementById('ops-module-wrap');

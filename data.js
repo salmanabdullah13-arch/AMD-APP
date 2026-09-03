@@ -4301,6 +4301,19 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "overtime_shifts", arr: () => overtimeShifts, prefix: "otsh:" },
   { table: "production_input_requests", arr: () => inputRequests, prefix: "ireq:" },
   { table: "crew_members", arr: () => crewMembers, prefix: "man:" },
+  // 20a Upholstery (tables applied 2 Sep 2026). fabric_rolls IS the record:
+  // a roll with a dye lot, never a metre count. Prefixes checked against
+  // every other collection — two sharing one is the task_lists/tool_loans
+  // churn bug from 19 Aug.
+  { table: "uph_stage_slots", arr: () => uphStageSlots, prefix: "uslot:" },
+  { table: "uph_overtime", arr: () => uphOvertime, prefix: "uot:" },
+  { table: "uph_specs", arr: () => uphSpecs, prefix: "uspec:" },
+  { table: "fabric_rolls", arr: () => fabricRolls, prefix: "roll:" },
+  { table: "fabric_holds", arr: () => fabricHolds, prefix: "hold:" },
+  { table: "fabric_plans", arr: () => fabricPlans, prefix: "plan:" },
+  { table: "foam_schedules", arr: () => foamSchedules, prefix: "foam:" },
+  { table: "com_notes", arr: () => comNotes, prefix: "com:" },
+  { table: "uph_stage_members", arr: () => uphStageMembers, prefix: "uman:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.

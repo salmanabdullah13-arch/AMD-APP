@@ -562,9 +562,16 @@ function getOvertimeByCause(daysBack) {
 //                      answer payload.
 const INPUT_REQUEST_TYPES = {
   pricing_input: { raiserRole: "estimator", label: "Pricing input" },
-  bom_budget_input: { raiserRole: "operations_manager", label: "Job BOM for budgeting" }
+  bom_budget_input: { raiserRole: "operations_manager", label: "Job BOM for budgeting" },
+  // 20a: a released spec changing, and a client changing the fabric. Typed
+  // and carrying their raiser so they are distinguishable server-side.
+  spec_revision: { raiserRole: "operations_manager", label: "Spec revision" },
+  fabric_change: { raiserRole: "sales", label: "Fabric change" }
 };
-function raiseInputRequest({ type, raisedBy, raiserRole, jobCardId = null, question, neededBy = null } = {}) {
+// `dept` says which shop is being asked — "carp" (the production manager,
+// the default every existing caller relies on) or "uph" (the upholstery
+// supervisor, 20a). Each module reads only its own.
+function raiseInputRequest({ type, raisedBy, raiserRole, jobCardId = null, question, neededBy = null, dept = "carp" } = {}) {
   const def = INPUT_REQUEST_TYPES[type];
   if (!def) return { error: "Unknown request type." };
   if (!question || !question.trim()) return { error: "What is being asked?" };
@@ -573,7 +580,7 @@ function raiseInputRequest({ type, raisedBy, raiserRole, jobCardId = null, quest
   }
   const r = {
     id: nextPrdId("REQ", inputRequests),
-    type, raisedBy, jobCardId, question: question.trim(),
+    type, raisedBy, jobCardId, question: question.trim(), dept: dept || "carp",
     neededBy, date: prdToday(),
     status: "open",   // open | answered
     answer: null
@@ -589,7 +596,9 @@ function raiseInputRequest({ type, raisedBy, raiserRole, jobCardId = null, quest
 // (rate|price|cost|amount|margin|total|bd|money|value), so a name like
 // "bdCount" would be refused by the database and by nothing else here.
 const INPUT_ANSWER_FIELDS = ["manHours", "men", "days", "quantity", "machineHours",
-  "boards", "veneerSheets", "processDays", "wastagePct", "isEstimate", "note"];
+  "boards", "veneerSheets", "processDays", "wastagePct", "isEstimate", "note",
+  // 20a — metres, grades and hours. Grades are strings, never money.
+  "metres", "metresPerSeat", "foamGrades", "sewingHours", "bayHours"];
 function answerInputRequest(reqId, payload, byWhom = "Production Manager") {
   const r = inputRequests.find(x => x.id === reqId);
   if (!r) return { error: "Request not found." };
@@ -835,7 +844,8 @@ function estimateIsLumpSum(cmp) {
 // supplier quotes back from purchase (17a).
 function getAskedOfYouToday() {
   const rows = [];
-  inputRequests.filter(r => r.status === "open").forEach(r => rows.push({
+  // Only what is asked of THIS shop — upholstery reads its own (20a).
+  inputRequests.filter(r => r.status === "open" && r.dept !== "uph").forEach(r => rows.push({
     kind: INPUT_REQUEST_TYPES[r.type].label, from: r.raisedBy,
     detail: r.question, ref: r.id, due: r.neededBy
   }));
@@ -1117,7 +1127,7 @@ function getBoardPageRows(weekDates) {
 
 /** Requests, split by who may raise them. The page never mixes the two. */
 function getInputRequestsOfType(type) {
-  return inputRequests.filter(r => r.type === type)
+  return inputRequests.filter(r => r.type === type && r.dept !== "uph")
     .sort((a, b) => String(a.neededBy || "9999").localeCompare(String(b.neededBy || "9999")));
 }
 
