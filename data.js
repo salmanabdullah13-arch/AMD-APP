@@ -4314,6 +4314,11 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "foam_schedules", arr: () => foamSchedules, prefix: "foam:" },
   { table: "com_notes", arr: () => comNotes, prefix: "com:" },
   { table: "uph_stage_members", arr: () => uphStageMembers, prefix: "uman:" },
+  // The crew clock (2 Sep 2026). A running session is a ROW, so it survives
+  // the phone locking; photos are URLs into the progress-photos bucket.
+  { table: "crew_sessions", arr: () => crewSessions, prefix: "csess:" },
+  { table: "timer_crews", arr: () => timerCrews, prefix: "tcrew:" },
+  { table: "progress_photos", arr: () => progressPhotos, prefix: "photo:" },
 ];
 
 // Tables that exist in this code but not yet on the live Supabase project.

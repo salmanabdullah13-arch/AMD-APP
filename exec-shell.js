@@ -678,6 +678,11 @@ const EXEC_QUICK_BY_MODULE = {
     { ico: '𝄜', label: 'Estimated vs actual', on: "EstimatorUI.setView('actuals')" }
   ]
 };
+// The crew clock is the ONE way hours are logged (2 Sep 2026): it leads the
+// quick actions of every module that used to carry its own day-log form.
+[['production', 'carp'], ['joinery', 'carp'], ['upholstery', 'uph'], ['painting', 'paint'], ['curtain', 'curt']].forEach(([k, dept]) => {
+  (EXEC_QUICK_BY_MODULE[k] = EXEC_QUICK_BY_MODULE[k] || []).unshift({ ico: '⏱', label: 'Start the clock', on: "openCrewTimerFor('" + dept + "')" });
+});
 function execQuickItems() {
   const own = (EXEC_QUICK_BY_MODULE[execModuleKey] || []).slice();
   const items = own.concat([
@@ -733,7 +738,7 @@ function execPushCurrent() {
   if (!cfg) return;
   const opener = { sales: 'openSalesModule', estimator: 'openEstimatorModule', approver: 'openApproverModule',
     jobs: 'openJobsModule', accounts: 'openAccountsModule', hr: 'openHRModule', joinery: 'openJoineryModule',
-    upholstery: 'openUphModule', 'upholstery-legacy': 'openUpholsteryModule', painting: 'openPaintingModule', fleet: 'openFleetModule',
+    upholstery: 'openUphModule', 'upholstery-legacy': 'openUpholsteryModule', 'crew-timer': 'openCrewTimerModule', painting: 'openPaintingModule', fleet: 'openFleetModule',
     delivery: 'openDeliverySchedModule', storekeeper: 'openStorekeeperModule', purchasing: 'openPurchasingModule',
     curtain: 'openCurtainModule', operations: 'openOperationsModule', owner: 'openOwnerModule', admin: 'openAdminModule' }[execModuleKey];
   if (!opener) return;
@@ -1239,6 +1244,7 @@ const EXEC_MODULE_NAV = {
   hr:          { label: 'HR & Payroll', home: () => hrView === 'dashboard', goHome: "hrSetView('dashboard')" },
   joinery:     { label: 'Joinery',      home: () => joineryView === 'dashboard', goHome: "joinerySetView('dashboard')" },
   upholstery:  { label: 'Upholstery',   home: () => UphUI.state.view === 'dash', goHome: "UphUI.go('dash','board')" },
+  'crew-timer': { label: 'Crew clock', home: () => TimerUI.state.view === 'today', goHome: "TimerUI.go('today')" },
   'upholstery-legacy': { label: 'Upholstery (old pipeline view)', home: () => upholsteryView === 'dashboard', goHome: "upholsterySetView('dashboard')" },
   painting:    { label: 'Painting',     home: () => paintingView === 'dashboard', goHome: "paintingSetView('dashboard')" },
   fleet:       { label: 'Vehicle Fleet', home: () => fleetView === 'list', goHome: "fleetView='list';renderFleetBody()" },
@@ -1389,7 +1395,7 @@ const EXEC_RERENDER_OF = {
   owner: 'renderOwnerBody', admin: 'renderAdminBody', sales: 'renderSalesBody',
   estimator: 'renderEstimatorBody', approver: 'renderApproverBody', jobs: 'renderJobsBody',
   accounts: 'renderAccountsBody', hr: 'renderHRBody', joinery: 'renderJoineryBody',
-  upholstery: 'renderUphBody', 'upholstery-legacy': 'renderUpholsteryBody', painting: 'renderPaintingBody',
+  upholstery: 'renderUphBody', 'upholstery-legacy': 'renderUpholsteryBody', 'crew-timer': 'renderCrewTimerBody', painting: 'renderPaintingBody',
   fleet: 'renderFleetBody', delivery: 'renderDeliverySchedBody',
   purchasing: null, storekeeper: null, curtain: null, operations: null // DOM-router modules
 };

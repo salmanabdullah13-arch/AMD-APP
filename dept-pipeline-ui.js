@@ -53,8 +53,8 @@ function renderDeptQueue(deptKey, currentUser, modPrefix, statusFilter) {
         <td>${deptEsc(r.item.product)}${r.entry.reworkCount ? ` <span style="color:#b91c1c;font-size:9.5px;">(rework ×${r.entry.reworkCount})</span>` : ''}${r.entry.rejectReason ? `<br><span style="color:#b91c1c;font-size:9.5px;">✕ ${deptEsc(r.entry.rejectReason)}</span>` : ''}</td>
         <td>${r.item.qty} ${deptEsc(r.item.unit)}</td>
         <td><span class="stage-pill ${r.entry.status}">${DEPT_QUEUE_STAGE_LABEL[r.entry.status] || r.entry.status}</span>${deptProgressCell(r, modPrefix, deptKey)}</td>
-        <td>${action}<br><span style="font-size:10px;color:var(--biz-primary);cursor:pointer;" onclick="deptToggleWorkLog('${modPrefix}','${r.job.id}',${r.item.lineId})">⏱ Log work</span></td>
-      </tr>${deptWorkLogRow(r, modPrefix, deptKey)}`;
+        <td>${action}<br><span style="font-size:10px;color:var(--biz-primary);cursor:pointer;" onclick="openCrewTimerFor('${deptKey}','${r.job.id}',${r.item.lineId})">⏱ Start the clock</span></td>
+      </tr>`;
     }).join('')}
     </table>
   </div>`;
@@ -68,7 +68,6 @@ function renderDeptQueue(deptKey, currentUser, modPrefix, statusFilter) {
 // roster, one labourDayLogs entry per person per day, costed at the real
 // per-person rate. This is what feeds the item's derived actual cost
 // (the real Q-Pro MATERIAL COST document's Labour Cost table).
-let deptWorkLogOpenKey = null;
 function deptProgressCell(r, modPrefix, deptKey) {
   const pct = r.entry.progressPct || 0;
   const inFlight = ['queued', 'in-production', 'rework'].includes(r.entry.status);
@@ -81,43 +80,9 @@ function deptSetProgress(modPrefix, jobId, lineId, deptKey, pct) {
   if (res && res.error) { alertFn(res.error); return; }
   if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
 }
-function deptToggleWorkLog(modPrefix, jobId, lineId) {
-  const key = jobId + ':' + lineId;
-  deptWorkLogOpenKey = deptWorkLogOpenKey === key ? null : key;
-  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
-}
-function deptWorkLogRow(r, modPrefix, deptKey) {
-  const key = r.job.id + ':' + r.item.lineId;
-  if (deptWorkLogOpenKey !== key) return '';
-  const logged = getLabourLogsForLine(r.job.id, r.item.lineId);
-  return `<tr><td colspan="5" style="background:#faf7f9;">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:4px 0;">
-      <label style="font-size:10.5px;color:#64748b;">Who worked on this<br>
-        <select id="wl-emps-${r.item.lineId}" multiple size="4" style="min-width:170px;font-size:11px;">${getDeptRoster(deptKey).map(n => `<option value="${deptEsc(n)}">${deptEsc(n)}</option>`).join('')}</select></label>
-      <label style="font-size:10.5px;color:#64748b;">Hours each<br><input id="wl-hours-${r.item.lineId}" type="number" step="0.5" min="0.5" max="12" value="8" style="width:70px;"></label>
-      <label style="font-size:10.5px;color:#64748b;">Date<br><input id="wl-date-${r.item.lineId}" type="date" value="${todayISO()}" style="width:130px;"></label>
-      <button class="primary" style="font-size:11px;padding:6px 10px;" onclick="deptSaveWorkLog('${modPrefix}','${r.job.id}',${r.item.lineId},'${deptKey}')">Save day log</button>
-    </div>
-    ${logged.length ? `<p style="font-size:10px;color:#94a3b8;">Logged so far: ${logged.length} day-entries · BD ${logged.reduce((s, l) => s + l.cost, 0).toFixed(3)}</p>` : ''}
-  </td></tr>`;
-}
-function deptSaveWorkLog(modPrefix, jobId, lineId, deptKey) {
-  const sel = document.getElementById('wl-emps-' + lineId);
-  const names = Array.from(sel.selectedOptions).map(o => o.value);
-  const hours = Number(document.getElementById('wl-hours-' + lineId).value);
-  const date = document.getElementById('wl-date-' + lineId).value;
-  const alertFn = modPrefix === 'upholstery' ? upholsteryAlert : joineryAlert;
-  if (!names.length) { alertFn('Pick at least one employee.'); return; }
-  const currentUser = modPrefix === 'upholstery' ? upholsteryCurrentUser : joineryCurrentUser;
-  let ok = 0, err = null;
-  names.forEach(n => {
-    const res = logLabourDay({ jobId, lineId, date, employeeName: n, hours, loggedBy: currentUser });
-    if (res && res.error) err = res.error; else ok++;
-  });
-  if (err) { alertFn(err); return; }
-  alertFn(`✓ Logged ${ok} day-entr${ok === 1 ? 'y' : 'ies'}.`);
-  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
-}
+// The per-person day-log form that used to sit here is gone (2 Sep 2026):
+// the crew clock is the ONE way hours are logged, workshop included. The
+// "Start the clock" link above opens it with the crew, job and item preset.
 
 // Routes to the right data.js pipeline function, alerts and re-renders
 // whichever of the two modules is actually open.

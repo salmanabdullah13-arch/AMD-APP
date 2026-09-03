@@ -43,7 +43,7 @@ const PRD_OTHER_WRAPS = ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wr
   'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap',
   'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap',
   'painting-module-wrap', 'owner-module-wrap', 'admin-module-wrap', 'fleet-module-wrap',
-  'delivery-sched-module-wrap', 'uph-module-wrap'];
+  'delivery-sched-module-wrap', 'uph-module-wrap', 'timer-module-wrap'];
 
 /**
  * The topbar sub-line, which the prototype frame carries and which reads as

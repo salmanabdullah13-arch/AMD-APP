@@ -124,20 +124,25 @@ function printReport() {
   record('100% cannot be set manually — only a QC pass grants it', direct100 && direct100.error ? 'PASS' : 'FAIL', JSON.stringify(direct100));
 
   currentStep = 'worklog-ui';
-  await page.click('#joinery-module-wrap [onclick*="deptToggleWorkLog"]');
+  // The per-person form is gone (2 Sep 2026): the queue links to the crew
+  // clock, preset on this line, and a day ended on the clock writes the
+  // same per-person entries the form used to.
+  await page.click('#joinery-module-wrap [onclick*="openCrewTimerFor"]');
   await page.waitForTimeout(400);
-  const logged = await page.evaluate(({ lineId }) => {
-    const sel = document.getElementById('wl-emps-' + lineId);
-    if (!sel) return { error: 'no form' };
-    sel.options[0].selected = true;
-    sel.options[1].selected = true;
-    document.getElementById('wl-hours-' + lineId).value = '6';
-    return { ok: true, first: sel.options[0].value };
+  const logged = await page.evaluate(async ({ jobId, lineId }) => {
+    const st = TimerUI.state;
+    const preset = st.view === 'start' && st.jobId === jobId && st.lineIds[0] === lineId;
+    const crew = timerCrewsAll().find(c => c.id === st.crewId);
+    const present = crew.members.slice(0, 2);
+    const r = startCrewSession({ crewId: crew.id, jobCardId: jobId, lineIds: [lineId], present });
+    r.startedAt = new Date(Date.now() - 6 * 3600000).toISOString();
+    const e = endCrewSession(r.id, {});
+    return { preset, ended: e.status === 'ended', hours: e.hours, first: present[0] };
   }, seed);
-  await page.click('#joinery-module-wrap [onclick*="deptSaveWorkLog"]');
-  await page.waitForTimeout(400);
   const logCount = await page.evaluate(({ jobId, lineId }) => getLabourLogsForLine(jobId, lineId).length, seed);
-  record('Team-leader work-log form logs a day-entry per selected employee', !logged.error && logCount === 4 ? 'PASS' : 'FAIL', `entries: ${logCount}`);
+  record('The queue opens the crew clock preset on the line, and an ended day logs an entry per man present', logged.preset && logged.ended && logged.hours === 6 && logCount === 4 ? 'PASS' : 'FAIL', JSON.stringify({ logged, logCount }));
+  await page.evaluate(() => { hideModuleWrap(document.getElementById('timer-module-wrap')); launchJoineryModule(); });
+  await page.waitForTimeout(300);
 
   currentStep = 'qc-pass-100';
   const qc = await page.evaluate(({ jobId, lineId }) => {

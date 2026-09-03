@@ -91,7 +91,7 @@ function openPaintingModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'admin-module-wrap'].forEach(id => {
+  ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'timer-module-wrap', 'admin-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -336,8 +336,8 @@ function renderPaintingQueue() {
         <td>${r.item.qty} ${ptEsc(r.item.unit)}</td>
         <td>${matCell}</td>
         <td><span class="stage-pill ${r.entry.status}">${PAINT_STAGE_LABEL[r.entry.status] || r.entry.status}</span>${paintingProgressCell(r)}</td>
-        <td>${action}<br><span style="font-size:10px;color:var(--biz-primary);cursor:pointer;" onclick="paintingToggleWorkLog('${r.job.id}',${r.item.lineId})">⏱ Log work</span></td>
-      </tr>${paintingWorkLogRow(r)}`;
+        <td>${action}<br><span style="font-size:10px;color:var(--biz-primary);cursor:pointer;" onclick="openCrewTimerFor('paint','${r.job.id}',${r.item.lineId})">⏱ Start the clock</span></td>
+      </tr>`;
     }).join('')}
     </table>
   </div>`;
@@ -347,7 +347,6 @@ function renderPaintingQueue() {
 // Painting deliberately doesn't consume dept-pipeline-ui.js (standing
 // design rule — see this file's header), so it carries its own
 // near-identical versions of the shared helpers.
-let paintingWorkLogOpenKey = null;
 function paintingProgressCell(r) {
   const pct = r.entry.progressPct || 0;
   const inFlight = ['queued', 'in-production', 'rework'].includes(r.entry.status);
@@ -359,41 +358,8 @@ function paintingSetProgress(jobId, lineId, pct) {
   if (res && res.error) { paintingAlert(res.error); return; }
   renderPaintingBody();
 }
-function paintingToggleWorkLog(jobId, lineId) {
-  const key = jobId + ':' + lineId;
-  paintingWorkLogOpenKey = paintingWorkLogOpenKey === key ? null : key;
-  renderPaintingBody();
-}
-function paintingWorkLogRow(r) {
-  const key = r.job.id + ':' + r.item.lineId;
-  if (paintingWorkLogOpenKey !== key) return '';
-  const logged = getLabourLogsForLine(r.job.id, r.item.lineId);
-  return `<tr><td colspan="6" style="background:#faf7f9;">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:4px 0;">
-      <label style="font-size:10.5px;color:#64748b;">Who worked on this<br>
-        <select id="pwl-emps-${r.item.lineId}" multiple size="4" style="min-width:170px;font-size:11px;">${getDeptRoster('paint').map(n => `<option value="${ptEsc(n)}">${ptEsc(n)}</option>`).join('')}</select></label>
-      <label style="font-size:10.5px;color:#64748b;">Hours each<br><input id="pwl-hours-${r.item.lineId}" type="number" step="0.5" min="0.5" max="12" value="8" style="width:70px;"></label>
-      <label style="font-size:10.5px;color:#64748b;">Date<br><input id="pwl-date-${r.item.lineId}" type="date" value="${todayISO()}" style="width:130px;"></label>
-      <button class="primary" style="font-size:11px;padding:6px 10px;" onclick="paintingSaveWorkLog('${r.job.id}',${r.item.lineId})">Save day log</button>
-    </div>
-    ${logged.length ? `<p style="font-size:10px;color:#94a3b8;">Logged so far: ${logged.length} day-entries · BD ${logged.reduce((s, l) => s + l.cost, 0).toFixed(3)}</p>` : ''}
-  </td></tr>`;
-}
-function paintingSaveWorkLog(jobId, lineId) {
-  const sel = document.getElementById('pwl-emps-' + lineId);
-  const names = Array.from(sel.selectedOptions).map(o => o.value);
-  const hours = Number(document.getElementById('pwl-hours-' + lineId).value);
-  const date = document.getElementById('pwl-date-' + lineId).value;
-  if (!names.length) { paintingAlert('Pick at least one employee.'); return; }
-  let ok = 0, err = null;
-  names.forEach(n => {
-    const res = logLabourDay({ jobId, lineId, date, employeeName: n, hours, loggedBy: paintingCurrentUser });
-    if (res && res.error) err = res.error; else ok++;
-  });
-  if (err) { paintingAlert(err); return; }
-  paintingAlert(`✓ Logged ${ok} day-entr${ok === 1 ? 'y' : 'ies'}.`);
-  renderPaintingBody();
-}
+// Painting's own day-log form is gone too (2 Sep 2026) — the crew clock
+// is the one way hours are logged. "Start the clock" opens it preset.
 
 function paintingSetMaterial(jobId, lineId, materialStatus) {
   setPaintingMaterialStatus(jobId, lineId, materialStatus);

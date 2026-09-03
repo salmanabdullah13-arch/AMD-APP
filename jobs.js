@@ -199,7 +199,7 @@ function openJobsModule(jumpToJobId) {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'admin-module-wrap'].forEach(id => {
+  ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap', 'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'timer-module-wrap', 'admin-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -408,6 +408,7 @@ function renderJobHub() {
     ${sales ? '' : renderJobCostedItems(job)}
     ${sales ? '' : renderJobPoVendor(job)}
     ${renderJobDocumentsCard(job, docCounts, docTotal, sales, routed, cancelled)}
+    ${renderJobPhotosCard(job)}
     ${sales ? '' : renderJobCostComparison(job)}
     ${renderJobVariations(job)}
     ${renderJobTasksAndActivity(job)}`;
@@ -1304,4 +1305,20 @@ function renderJobTasksAndActivity(job) {
       ${activity.length === 0 ? `<p style="font-size:11.5px;color:#94a3b8;">No activity logged yet.</p>` :
         activity.map(a => `<p style="font-size:11.5px;color:#334155;margin:4px 0;">${a.date} · <b>${jEsc(a.user)}</b> — ${jEsc(a.message)}</p>`).join('')}
     </div>`;
+}
+
+// ── Progress photos (the crew clock, 2 Sep 2026) ───────────────────────
+// What the job looks like right now, sent by the crew at the end of each
+// day. Sales sees the photo, never the hours — so this card carries no
+// session times, no man-counts, no rate.
+function renderJobPhotosCard(job) {
+  const photos = (typeof getJobPhotos === 'function') ? getJobPhotos(job.id) : [];
+  if (!photos.length) return '';
+  const esc = s => String(s == null ? '' : s).replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  return `<div class="sales-card">
+    <p style="font-weight:700;font-size:13px;">Progress photos <span style="font-weight:400;color:#94a3b8;">· ${photos.length}</span></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      ${photos.slice(0, 12).map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener" style="display:block;width:96px;height:96px;border-radius:10px;overflow:hidden;border:1px solid var(--biz-border-light);background:var(--biz-input-bg);" title="${esc(p.date)}${p.note ? ' — ' + esc(p.note) : ''}"><img src="${esc(p.url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></a>`).join('')}
+    </div>
+  </div>`;
 }

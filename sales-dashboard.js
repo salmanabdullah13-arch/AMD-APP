@@ -744,6 +744,13 @@ window.SalesDashboard = (function () {
           '</span>' +
         '</span></div>';
     }).join('');
+    // Progress photos from the crew clock — Sales sees the photo, never
+    // the hours behind it.
+    var photos = (typeof getJobPhotos === 'function') ? getJobPhotos(j.id) : [];
+    var photosHTML = photos.length ? '<div class="sd-facts" style="grid-template-columns:1fr"><div class="sd-fact"><span class="sd-fact-l">Progress photos · ' + photos.length + '</span>' +
+      '<span style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + photos.slice(0, 8).map(function (p) {
+        return '<a href="' + esc(p.url) + '" target="_blank" rel="noopener" style="display:block;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--line)"><img src="' + esc(p.url) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></a>';
+      }).join('') + '</span></div></div>' : '';
 
     return '<div class="sd-backdrop" data-act="closejob"></div>' +
       '<div class="sd-sheet">' +
@@ -768,7 +775,7 @@ window.SalesDashboard = (function () {
               '<span class="sd-title">Items in this job</span>' +
               '<span style="font-size:11px;font-weight:650;color:var(--wine)">' + j.items.length + '</span></div>' +
             '<div class="sd-sub" style="margin-bottom:9px">' + ready + ' of ' + j.items.length + ' ready · ' + pieces + ' pieces</div>' +
-            '<div class="sd-scroll">' + items + '</div>' +
+            '<div class="sd-scroll">' + items + photosHTML + '</div>' +
           '</div>' +
           '<div class="sd-card"><div class="sd-title" style="margin-bottom:7px">Client contact</div>' +
             '<div style="font-size:12.5px;color:var(--tx2)">' + esc(j.contact) + '</div>' +

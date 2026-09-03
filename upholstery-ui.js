@@ -20,7 +20,7 @@
    ========================================================================== */
 
 const uphModuleWrap = document.createElement('div');
-uphModuleWrap.id = 'uph-module-wrap';
+uphModuleWrap.id = 'uph-module-wrap', 'timer-module-wrap';
 uphModuleWrap.className = 'xshell';
 uphModuleWrap.style.cssText = 'display:none;';
 document.body.appendChild(uphModuleWrap);
@@ -1290,7 +1290,7 @@ window.UphUI = (function () {
     root.addEventListener('change', onChange);
     if (typeof registerLiveUpdate === 'function') {
       registerLiveUpdate(function () {
-        var w = document.getElementById('uph-module-wrap');
+        var w = document.getElementById('uph-module-wrap', 'timer-module-wrap');
         if (!w || getComputedStyle(w).display === 'none') return;
         if (S.view === 'form') return;
         paint();

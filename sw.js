@@ -18,7 +18,7 @@
 // successful online fetch refreshes it.
 // ══════════════════════════════════════════
 
-const CACHE_VERSION = "amd-app-v65"; // v65: 20a Upholstery supervisor module
+const CACHE_VERSION = "amd-app-v66"; // v66: the crew clock — the one way hours are logged
 const CORE_ASSETS = [
   "./", "./index.html", "./styles.css", "./dashboard-tokens.css", "./owner-dashboard.css", "./sales-dashboard.css", "./estimator.css", "./ops-dashboard.css", "./purchase.css", "./production.css", "./manifest.json", "./logo.jpeg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
@@ -26,7 +26,7 @@ const CORE_ASSETS = [
   "./operations.js", "./curtain.js",
   "./purchasing.js", "./storekeeper.js", "./sales-dashboard.js", "./sales.js", "./estimator-dashboard.js", "./estimator.js",
   "./approver.js", "./jobs.js", "./accounts.js", "./hr.js", "./exec-shell.js", "./owner-dashboard.js", "./owner.js", "./admin.js",
-  "./dept-pipeline-ui.js", "./joinery.js", "./upholstery.js", "./upholstery-data.js", "./upholstery-ui.js", "./upholstery.css", "./painting.js",
+  "./dept-pipeline-ui.js", "./joinery.js", "./upholstery.js", "./upholstery-data.js", "./upholstery-ui.js", "./upholstery.css", "./crew-timer-data.js", "./crew-timer.js", "./crew-timer.css", "./painting.js",
   "./fleet-delivery.js", "./demo-data.js"
 ];
 

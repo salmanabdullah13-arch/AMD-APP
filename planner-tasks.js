@@ -105,6 +105,7 @@ function rerenderDashboard() {
     ['joinery-module-wrap', 'renderJoineryBody'],
     ['upholstery-module-wrap', 'renderUpholsteryBody'],
     ['uph-module-wrap', 'renderUphBody'],
+    ['timer-module-wrap', 'renderCrewTimerBody'],
     ['painting-module-wrap', 'renderPaintingBody'],
     ['ops-module-wrap', 'renderOpsDashboard']
   ];

@@ -8694,3 +8694,86 @@ by spec, so the sheet is the same sheet. Nine tables live on the project.
   wrapper's tab bar for roles that no longer land there, and the new suite
   covers those landings. All four re-run green; sweep otherwise clean.
 - `sw.js` CACHE_VERSION v64 → v65.
+
+### 3 Sep 2026 — The crew clock: the one way hours are logged
+
+Third build in the run's sequence, and the piece Salman named first when he
+described what "ready to test live" meant: site installation crews logging
+hours on a phone. His flow, verbatim — create crew, add members, select
+job, select item, Start, Pause with a reason, End, photos — and his call
+that this replaces the workshop's per-person forms too: "one mechanism
+everywhere and the forms go."
+
+- **`crew-timer-data.js`** — `timerCrewsAll()` puts every crew the clock can
+  run for in one shape: Production's five (19a), Upholstery's five stages
+  (20a), and crews made in the timer itself (`createTimerCrew()`, names
+  from the payroll roster only; the two existing families are edited on
+  their own labour pages, not here). `startCrewSession()` refuses a crew
+  already on the clock, a job the crew cannot clock on to, nobody present,
+  and no item ticked when the job has items. `pauseCrewSession()` takes a
+  reason from a closed list (waiting on material, client not on site, no
+  power, weather, break, other) — the same rule as overtime causes: free
+  text cannot be counted. **The start time is a record, not a browser
+  timer**: a running session is a row in `crew_sessions`, so it survives
+  the phone locking, the app closing and a reload, and reopening shows it
+  still running.
+- **At End, the ledger is written — nothing new is invented.**
+  `endCrewSession()` takes the elapsed hours minus every pause, to the
+  nearest quarter, and writes them through the EXISTING `logLabourDay()`
+  for every member present, split evenly across the items the crew was on,
+  each at his own real payroll rate. So the cost ledger, the capacity page,
+  the payroll run and estimate-vs-actual keep working unchanged; the clock
+  is a faster way of writing the same records. The 25/50/75 marker goes
+  through `setLineProgress()` — 100 still only comes from QC.
+- **Photos** go to a new public-read `progress-photos` bucket in a real
+  session (a data URL offline, so the whole flow runs without the network),
+  against job, item and session. They show on the **Job Card record page**
+  and the **Sales job sheet** — Sales sees the photo, never the hours. The
+  clock's activity-feed message carries the head-count and the progress
+  marker but not the hours, for the same reason.
+- **`crew-timer.js` / `crew-timer.css`** — built at 390px first: Today (what
+  is on the clock now, with a ticking face per card; days ended today),
+  Start (crew cards, tick who is here with everyone ticked by default, job,
+  items greyed when finished, kind of work), Run (a 64px clock, Pause →
+  reason chips inline, Resume, End), End (what will be logged, the progress
+  chips, "Take or add photos" through the phone camera, a line for
+  tomorrow), Crews (with New crew) and History (per job, with the photos).
+  Every control a lead taps is 44px or more. The clock face updates every
+  second WITHOUT repainting the screen — repainting would wipe the pause
+  chips and the note being typed.
+- **One mechanism everywhere.** The per-person day-log forms in the shared
+  Joinery/Upholstery queue, in Painting's own queue and on Curtain's Install
+  Crew dashboard are **deleted**, and each spot links to "Start the clock",
+  which opens the timer with the crew, job and item preset
+  (`openCrewTimerFor()`, leaving a return ticket like every other hop). It
+  also leads the quick actions of Production, Joinery, Upholstery, Painting
+  and Curtain.
+- **The role**: a new `installation_crew_lead` user type lands on the new
+  `crew-timer` node; `is_floor_side()` (every floor and site lead, plus
+  operations, owner, admin) governs writes to the three new tables and the
+  bucket; any approved user reads. Applied live and verified.
+- **Verification**: new `e2e-crew-timer.js` (31/31), driven at 390px through
+  the real screens: crew creation and its refusals, everyone present by
+  default and one man unticked, Start dead until a job and an item are
+  picked, the session record, one clock per crew, the reason chips and an
+  off-list reason refused, elapsed excluding a pause (4 h − 1.5 h = 2.5 h),
+  a photo through the real file input, End writing exactly `present × items`
+  day-logs at 1.25 h each against real payroll names, progress on both
+  items, the photo on the job with its note, 100% refused, a running clock
+  surviving a re-open, the three forms gone and the queue's link preset on
+  the hop, and the photo reaching a Sales-role Job Card with no hours
+  beside it. Two of the suite's own first-draft checks were wrong: the end
+  screen SAYS "at his own rate" (the regex has to look for a figure, not
+  the word), and the hub had been rendered as Owner, who legitimately sees
+  labour. The second one turned up a real leak on the way: the clock's
+  activity message carried the hours into a feed Sales reads. Fixed in the
+  data layer.
+- **Full offline sweep**: one suite, `e2e-cost-ledger.js`, drove the deleted
+  workshop form; its block now clicks the queue's "Start the clock" link,
+  asserts the preset, and ends a day on the clock to prove the same
+  per-person entries land. Sweep otherwise clean.
+- `sw.js` CACHE_VERSION v65 → v66.
+- **Left for Salman**: a real-device pass on the camera input (headless
+  browsers cannot drive the phone camera), and the first real site day —
+  whether a crew of four wants the split-across-items rule or one item per
+  session.
