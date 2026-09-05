@@ -809,7 +809,7 @@ renderReminders();
 const purchaseRequests = [];
 
 function nextPRId() {
-  return "PR-" + String(purchaseRequests.length + 1).padStart(4, "0") + "-AMD";
+  return "PR-" + String(nextSeqFrom(purchaseRequests, /^PR-(\d+)-AMD$/)).padStart(4, "0") + "-AMD";
 }
 
 // Matches Q-Pro's own three-way split (Inventory / Job / Others) across
@@ -859,7 +859,7 @@ const SUPPLIER_TAX_PERCENTS = [0, 5, 10];
 const CASH_LEDGERS = ["Cash", "Bank - BBK Current", "Bank - NBB Current", "Petty Cash"];
 
 function nextSupplierId() {
-  return "SUP-" + String(suppliers.length + 1).padStart(4, "0");
+  return "SUP-" + String(nextSeqFrom(suppliers, /^SUP-(\d+)$/)).padStart(4, "0");
 }
 
 function createSupplier({
@@ -896,7 +896,7 @@ function updateSupplier(supplierId, patch) {
 const purchaseOrders = [];
 
 function nextPOId() {
-  return "PO-" + String(purchaseOrders.length + 1).padStart(4, "0") + "-AMD";
+  return "PO-" + String(nextSeqFrom(purchaseOrders, /^PO-(\d+)-AMD$/)).padStart(4, "0") + "-AMD";
 }
 
 // Converts a Purchase Request into a Purchase Order. Carries the items and
@@ -1030,7 +1030,7 @@ function getPendingPOApprovals() {
 const purchaseInvoices = [];
 
 function nextInvoiceId() {
-  return "INV-" + String(purchaseInvoices.length + 1).padStart(4, "0") + "-AMD";
+  return "INV-" + String(nextSeqFrom(purchaseInvoices, /^INV-(\d+)-AMD$/)).padStart(4, "0") + "-AMD";
 }
 
 // Converts an APPROVED Purchase Order into a Purchase Invoice on goods
@@ -1239,7 +1239,7 @@ function getDraftInvoices() {
 const payments = [];
 
 function nextPaymentId() {
-  return "PAY-" + String(payments.length + 1).padStart(4, "0") + "-AMD";
+  return "PAY-" + String(nextSeqFrom(payments, /^PAY-(\d+)-AMD$/)).padStart(4, "0") + "-AMD";
 }
 
 // Returns { invoiceId, invoiceDate, invoiceAmount, paidAmount, balanceAmount }
@@ -1295,7 +1295,7 @@ const debitNotes = [];
 const DEBIT_NOTE_TAXABLE_TYPES = ["Taxable", "Non-Taxable", "Zero-Rated"];
 
 function nextDebitNoteId() {
-  return "DN-" + String(debitNotes.length + 1).padStart(4, "0") + "-AMD";
+  return "DN-" + String(nextSeqFrom(debitNotes, /^DN-(\d+)-AMD$/)).padStart(4, "0") + "-AMD";
 }
 
 function createDebitNote({
@@ -1447,7 +1447,7 @@ const stockAdjustments = [];
 const STOCK_ADJUSTMENT_REASONS = ["Not Applicable", "Issue"];
 
 function nextSANumber() {
-  return "SA-" + String(stockAdjustments.length + 1).padStart(4, "0") + "-AMD";
+  return "SA-" + String(nextSeqFrom(stockAdjustments, /^SA-(\d+)-AMD$/)).padStart(4, "0") + "-AMD";
 }
 
 function createStockAdjustment({ date = null, reason = "Not Applicable", items = [] } = {}) {
@@ -2071,7 +2071,7 @@ let employees = Object.entries(EMPLOYEE_RATES).map(([name, r], i) => ({
   });
 })();
 
-function nextEmployeeId() { return "E" + String(10001 + employees.length); }
+function nextEmployeeId() { return "E" + nextSeqFrom(employees, /^E(\d+)$/, 10001); }
 function getEmployee(id) { return employees.find(e => e.id === id); }
 function createEmployee({ name, designation = "", department = "Administration", doj = "", machineId = "", workingHours = 8, notes1 = "" } = {}) {
   if (!name || !name.trim()) return { error: "Employee Name is required." };
@@ -2232,7 +2232,18 @@ const customers = [
     status: "approved", approvedBy: "Salman Abdullah", approvalDate: "2026-07-24", rejectionComment: null, possibleDuplicateOf: null
   }
 ];
-function nextCustomerCode() { return "C" + (1508 + customers.length); }
+// ── Sequence ids are MAX-based, never length-based (3 Sep 2026) ────────
+// The first live step of the end-to-end run collided a brand-new quotation
+// with an existing one: every minter below read `array.length`, and once
+// rows can be deleted (two purges by then) the array has gaps, so length no
+// longer tracks the highest id. The collision is silent locally (find()
+// returns the OLD record) and only fails at the primary key. Same fix
+// nextJobCardNo(), nextItemStockCode() and nextPIId() already carried.
+function nextSeqFrom(arr, re, floor) {
+  const max = (arr || []).reduce((m, r) => { const x = re.exec(String(r && r.id || "")); return x ? Math.max(m, parseInt(x[1], 10)) : m; }, 0);
+  return Math.max(max + 1, floor || 1);
+}
+function nextCustomerCode() { return "C" + nextSeqFrom(customers, /^C(\d+)$/, 1508); }
 function customerTelExists(tel, excludeId = null) {
   return customers.some(c => c.id !== excludeId && c.tel === tel);
 }
@@ -2503,7 +2514,7 @@ function persistEnquiryDelete(id) {
 }
 
 // Enq No format matches the live reference (ENQ04061AMD).
-function nextEnquiryNo() { return "ENQ" + String(4061 + enquiries.length).padStart(5, "0") + "AMD"; }
+function nextEnquiryNo() { return "ENQ" + String(nextSeqFrom(enquiries, /^ENQ(\d+)AMD$/, 4061)).padStart(5, "0") + "AMD"; }
 // "Basic" tab (all fields below except followUps) is editable only by the
 // assigned salesPerson in the live system — other roles see it locked with a
 // banner. Enforced in the UI layer (sales.js), not here.
@@ -2618,7 +2629,7 @@ function persistQuotationUpdate(q) {
 // ── QUOTATIONS ──
 // Qtn No format matches the live reference (AMD-15350-0) — "-0" is revision 0.
 const quotations = [];
-function nextQtnNo() { return "AMD-" + (15350 + quotations.length) + "-0"; }
+function nextQtnNo() { return "AMD-" + nextSeqFrom(quotations, /^AMD-(\d+)-\d+$/, 15350) + "-0"; }
 
 // ═══ REVISIONS, VALIDITY AND AUTO-CLOSE (Manage Quote package, 9 Aug 2026) ═══
 //
@@ -3095,7 +3106,7 @@ function addStockCategory(name) {
 // supplier, e.g. a manufacturer's fabric collection. Empty seed; grows as
 // items get catalogued through the Inventory module.
 const catelogs = [];
-function nextCatelogId() { return "CAT-" + String(catelogs.length + 1).padStart(3, "0"); }
+function nextCatelogId() { return "CAT-" + String(nextSeqFrom(catelogs, /^CAT-(\d+)$/)).padStart(3, "0"); }
 function createCatelog({ name, vendorId = null } = {}) {
   if (!name || !name.trim()) return { error: "Name is required." };
   const cat = { id: nextCatelogId(), name: name.trim(), vendorId };
@@ -6016,7 +6027,7 @@ function getJobCardKPIs() {
 // ═══════════════════════════════════════
 
 const vehicles = [];
-function nextVehicleId() { return "VEH" + String(1000 + vehicles.length); }
+function nextVehicleId() { return "VEH" + nextSeqFrom(vehicles, /^VEH(\d+)$/, 1000); }
 function addVehicle({ plateNumber, make, model, type }) {
   if (!plateNumber || !plateNumber.trim()) return { error: "Plate number is required." };
   const v = { id: nextVehicleId(), plateNumber: plateNumber.trim(), make: make || "", model: model || "", type: type || "Van", status: "active" };
@@ -6172,7 +6183,7 @@ const taxInvoices = [];
 // elsewhere) since the real per-division code list hasn't been captured.
 function nextInvoiceNo() {
   const yy = new Date().getFullYear().toString().slice(-2);
-  return "IN" + yy + "AMD" + String(1000 + taxInvoices.length).padStart(5, "0");
+  return "IN" + yy + "AMD" + String(nextSeqFrom(taxInvoices, /^IN\d\dAMD(\d+)$/, 1000)).padStart(5, "0");
 }
 
 function getInvoicesForJob(jobId) { return taxInvoices.filter(inv => inv.jobId === jobId); }
@@ -6264,7 +6275,7 @@ function invoiceBalance(inv) {
 const salesReceipts = [];
 function nextReceiptId() {
   const yy = new Date().getFullYear().toString().slice(-2);
-  return "RC" + yy + "AMD" + String(1000 + salesReceipts.length).padStart(5, "0");
+  return "RC" + yy + "AMD" + String(nextSeqFrom(salesReceipts, /^RC\d\dAMD(\d+)$/, 1000)).padStart(5, "0");
 }
 
 // Returns { invoiceId, invoiceDate, invoiceAmount, paidAmount, balanceAmount }
@@ -6310,7 +6321,7 @@ function getReceiptsForJob(jobId) {
 const salesCreditNotes = [];
 function nextCreditNoteId() {
   const yy = new Date().getFullYear().toString().slice(-2);
-  return "CN" + yy + "AMD" + String(1000 + salesCreditNotes.length).padStart(5, "0");
+  return "CN" + yy + "AMD" + String(nextSeqFrom(salesCreditNotes, /^CN\d\dAMD(\d+)$/, 1000)).padStart(5, "0");
 }
 
 function createSalesCreditNote({ customerId, division = null, creditNoteDate = null, amount, allocations = [], reason = "" }) {

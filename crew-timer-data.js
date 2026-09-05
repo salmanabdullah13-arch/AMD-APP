@@ -154,7 +154,11 @@ function startCrewSession({ crewId, jobCardId, lineIds = [], present = null, act
   if (!who.length) return { error: "Nobody present? Tick at least one man, or the day logs against nobody." };
   const lines = jb.kind === "job" ? timerLinesForJob(jobCardId, crewId) : [];
   const picked = [...new Set((lineIds || []).map(Number))];
-  if (lines.length && !picked.length) return { error: "Which items? Tick at least one, or the hours land on nothing." };
+  // A curtain or site crew clocks on to the job as a whole — its hours land on
+  // the job, never on a line (the ledger allows lineId null). Found by the
+  // end-to-end run: a curtain crew was asked to tick items it never has.
+  const wholeJob = crew.dept === "curt" || crew.dept === "install";
+  if (lines.length && !picked.length && !wholeJob) return { error: "Which items? Tick at least one, or the hours land on nothing." };
   const stray = picked.filter(id => !lines.some(l => Number(l.lineId) === id));
   if (stray.length) return { error: "Item " + stray[0] + " is not on that job for " + crew.name + "." };
   const finished = picked.filter(id => (lines.find(l => Number(l.lineId) === id) || {}).done);

@@ -8777,3 +8777,60 @@ everywhere and the forms go."
   browsers cannot drive the phone camera), and the first real site day —
   whether a crew of four wants the split-across-items rule or one item per
   session.
+
+### 3 Sep 2026 — The end-to-end run, iteration 1: fourteen real logins, five suites, seven findings
+
+The run itself begins. `docs/test-run/scenarios.md` holds the matrix
+written before the first pass — five happy-path suites (Joinery,
+Joinery + Paint, Upholstery, Curtain, the mixed quotation), fifteen
+exception branches for iteration 2, ten adversarial attacks for iteration 3
+— so every step is checked against a prediction. `create-role-fixtures.js`
+made one live fixture login per role through the real sign-up form and
+approved them over the Management API: **eighteen roles**, every one used.
+
+- **`run-iteration-1.js`** signs each role in to its own browser context
+  against the live project and runs every step AS the role that does it, in
+  the real data layer: Sales → Estimator → Approver → Sales confirms →
+  Operations routes → Production/Upholstery/Painting/Curtain → the crew
+  clock → the store → Delivery → Accounts → Owner. Each cloud-backed record
+  is checked three ways: the data layer has it, the live table has it
+  (Management API SQL, comparing the row's OWN name or project, after the
+  first pass showed "row exists" passing on an older row under the same
+  id), and the next role's session sees it arrive through realtime before
+  it acts. Screenshots per hand-off in `test-run/iter1/`; a manifest of
+  every id created, diffed from the Owner's session before and after, for
+  `clear-run-manifest.js`. The generated step table is
+  `docs/test-run/iteration-1-report.md`; the diagnosis is
+  `docs/test-run/iteration-1-findings.md`.
+- **F1, the first step, before the flow left Sales**: every sequence id was
+  length-based — sixteen minters — and after two purges the arrays have
+  gaps, so a new quotation collided with an existing one and the app
+  refused to transfer "a quote already confirmed into another job". Fixed
+  with one max-based `nextSeqFrom()`; the deeper risk (client-side minting
+  before the cache hydrates, about three seconds after login) is recorded
+  as design-level. **F2**: an Estimator's pricing request was refused by RLS
+  and existed in one browser only — the write policy named only the
+  production and upholstery sides; widened to any approved user. **F3**: the
+  eight standing upholstery specs vanished in every live session because
+  hydration replaces the seeded array with an empty table; rows seeded on
+  the project, re-seed after hydration if it ever comes back empty. **F4**: a
+  curtain crew was asked to tick items it never has. **F5** (open, minor): a
+  delivery note with no `requiredQty` delivers nothing rather than refusing.
+  **F6** (open, data-loss class): windows authored on a freshly bridged
+  curtain job did not persist in two of two runs, while the same edit on an
+  older job persists in three seconds — a login's `bridgeAllJobCards()`
+  re-upserts every bridged curtain row and can overwrite a concurrent edit.
+  **F7**: an empty store honestly blocks every workshop at the first
+  material gate; the scenario now stocks foam as the storekeeper first.
+- **Two of my own mistakes worth recording**: my regex patch lost its
+  backslashes passing through the shell (`(d+)` for `(\d+)`), so the fixed
+  minters returned the floor and collided again — caught by the run's own
+  next pass; and the driver read three signatures wrong (the budget gate
+  takes the job object, a delivery entry is `requiredQty`, the invoice net
+  is under `totals`). The driver was wrong, the app was not.
+- **Result after the fixes**: the full five-suite pass ran green, **155/155 in 297 seconds**, fourteen roles, every hand-off carried by realtime within its window; F6 reproduced in two of three passes and stays open, and F8 (a production role's session logging refused writes during a mixed run) was added from the report's own error section. Two purges of the run's own
+  residue (`purge-run-residue.js`, by the run's own customer names) leave
+  the project as it was.
+- **Next**: fix F6 first (data loss), then F5, then iteration 2 (the
+  exception branches) and iteration 3 (adversarial), then the design
+  scorecard.

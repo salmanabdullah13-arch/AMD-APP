@@ -1038,3 +1038,9 @@ function seedUphSpecs() {
   UPH_SPEC_SEEDS.forEach(s => createUphSpec(Object.assign({}, s, { byWhom: "Upholstery Supervisor", note: "Standing spec" })));
 }
 seedUphSpecs();
+// Hydration REPLACES the array with the table's rows (a clean replace, like
+// every json collection). Found by the end-to-end run: in a live session
+// the eight standing specs vanished, because the table was empty. The rows
+// are seeded on the project now; this re-seeds if a fresh project ever
+// comes back empty, so a piece always resolves to a recipe.
+if (typeof registerLiveUpdate === "function") registerLiveUpdate(function () { if (!uphSpecs.length) seedUphSpecs(); });
