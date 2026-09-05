@@ -9071,3 +9071,35 @@ delivery and completion depend on lines reaching `done`.
   `dept-quality-rings`, the 19a rail count → seventeen); `owner-dashboard`
   45/45 unchanged because its coverage check reads the registry. Full offline sweep all green.
   `sw.js` v69 → v70.
+
+### 5 Sep 2026 — Design scorecard: 28 screens, four outliers, one gap nobody had noticed
+
+Item 2 in Salman's order. `design-scorecard.js` opens every built
+dashboard (23 nodes plus the five role-scoped landings) at 1440 and 390,
+light and dark, screenshots each, and measures what a script can: shell
+chrome present, no horizontal overflow, dark surface actually dark, no
+label inside a bar fill, the money rule on the five landings that must
+never see a figure, empty-state copy. The judgement on the screenshots is
+in `docs/test-run/design-scorecard-findings.md`; the table in
+`design-scorecard.md`; shots in `test-run/scorecard/`.
+
+- **Measured**: 28 screens, 4 flagged — the four Curtain granular
+  dashboards (Tracks, QC, Site Installer, Team Leader), the pre-shell
+  overlays with no sidebar and no dark mode. That is item 4 (Curtain
+  restyle), confirmed as the last family outside the shell.
+- **The gap**: the Storekeeper still lands on the legacy stock-pool
+  dashboard. **The 18a Store Keeper interface was never built** — only
+  its data layer (19 Aug), live with server-side gates, unreachable from
+  any screen. Added to the pending list as a build of 17a/20a's shape.
+- **Approver's landing fails the first-five-seconds test**: six counts
+  and a chart of three zeros; the queue is a nav item away. Small rework,
+  pending.
+- **Fixed now**: the bell's pulse ring scaled 5px past the topbar edge
+  at 390 in every module (flagged on Operations) — the topbar row clips
+  horizontally. A half-open drawer in several phone shots was the
+  harness catching the sidebar mid-slide after a resize; a settle wait
+  removed it, and a direct open at 390 shows it closed.
+- Consistency notes, no package broken: Accounts' ungrouped `BD 1408.407`,
+  categorical colours on the HR and Fleet mini-bars, two zero-data charts
+  drawing hairlines instead of the empty state, Jobs' pre-package list.
+- `sw.js` v70 → v71.

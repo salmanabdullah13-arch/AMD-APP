@@ -41,6 +41,7 @@ const MONEY_RE = /\bBD\s?\d|\d\.\d{3}\b|\bprofit\b|\bmargin\b|selling price/i;
     const row = { label: t.label, id: t.id, role: t.role, checks: {}, notes: [] };
     for (const [w, h, name] of [[1440, 950, 'desktop'], [390, 844, 'phone']]) {
       await page.setViewportSize({ width: w, height: h });
+      await page.waitForTimeout(700);   // the sidebar slides to its drawer position on resize — a shot mid-transition shows a half-open drawer that is not real
       for (const theme of ['light', 'dark']) {
         const r = await page.evaluate(({ id, role, theme }) => {
           window.cloudUserType = role; window.cloudIdentity = 'Scorecard ' + role;

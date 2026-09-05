@@ -170,7 +170,7 @@ execStyleTag.textContent = `
   padding:calc(11px + var(--safe-top,0px)) 18px 11px;
   background:var(--x-surface);border-bottom:1px solid var(--x-hairline);flex:none;
 }
-.xs-toprow{display:flex;align-items:center;gap:9px;}
+.xs-toprow{display:flex;align-items:center;gap:9px;overflow-x:clip;}   /* the bell's pulse ring scales past the edge by 5px at 390 — clip it, never scroll for it (design scorecard, 5 Sep 2026) */
 /* Desktop keeps the compact pill the reference shows at top-left; on a phone
    Quick actions takes the width left over, so the row reads as one control bar
    rather than a pill adrift between two icon clusters. */
