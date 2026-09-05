@@ -508,6 +508,10 @@ function finishCloudLogin(displayName, isRealSession = true, userType = 'owner')
     // notifyLiveUpdateListeners() (data.js) once ready.
     if (typeof initCloudMessagesCache === 'function') initCloudMessagesCache();
     if (typeof initPresence === 'function') initPresence();
+    // Who holds which role — resolves a notification addressed to a role
+    // name to the people who actually sign in under it (F17). Small, read
+    // fresh every login like the dashboard map.
+    sb.from('profiles').select('display_name, user_type, approval_status').eq('approval_status', 'approved').then(({ data }) => { window.__profiles = data || []; });
     // All four business-data caches load in parallel, same timing as
     // before jobCards existed — jobCards[] deliberately is NOT sequenced
     // behind the others (see initCloudJobCardsCache()'s own note in

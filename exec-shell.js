@@ -1399,6 +1399,25 @@ const EXEC_RERENDER_OF = {
   fleet: 'renderFleetBody', delivery: 'renderDeliverySchedBody',
   purchasing: null, storekeeper: null, curtain: null, operations: null // DOM-router modules
 };
+// A role lands on its dashboard BEFORE the caches hydrate (about three
+// seconds after login, longer on a reload). Production registered its own
+// redraw on 25 Aug; the end-to-end run's A7 found Sales still showing an
+// empty landing screen after a reload (F19). One listener for every
+// module: redraw whichever is on screen when the data lands — never over
+// a field being typed in, and never a module with its own listener.
+const EXEC_HYDRATE_REFRESH_OF = Object.assign({}, EXEC_RERENDER_OF, { operations: 'renderOpsDashboard', curtain: 'renderCurtDashboard', production: null });
+if (typeof registerLiveUpdate === 'function') {
+  registerLiveUpdate(function () {
+    const key = execModuleKey; if (!key) return;
+    // Visibility by computed display — a module wrap is position:fixed, so
+    // offsetParent (what execVisibleShell tests) is null even when shown.
+    const wrap = [...document.querySelectorAll('.xshell')].find(w => /-module-wrap$/.test(w.id) && getComputedStyle(w).display !== 'none');
+    if (!wrap) return;
+    const ae = document.activeElement; if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    const fn = EXEC_HYDRATE_REFRESH_OF[key]; if (!fn || typeof window[fn] !== 'function') return;
+    try { window[fn](); window.__hydrateRedraws = (window.__hydrateRedraws || 0) + 1; } catch (e) { /* a redraw must never break the data landing */ }
+  });
+}
 
 function execEnsureShell(wrap, { key, title, role, navGroupsFn, closeFn }) {
   if (!wrap) return;

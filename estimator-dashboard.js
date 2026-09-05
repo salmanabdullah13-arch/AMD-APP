@@ -114,7 +114,18 @@ window.EstimatorUI = (function () {
     rateSearch: ''
   };
   var root = null;
-  function paint() { if (root) root.innerHTML = render(); }
+  // Replacing the DOM can fire a synchronous change on the input being
+  // removed (a focused field whose value moved), which lands back here
+  // mid-replacement. Paint once; if a repaint was asked for meanwhile, do
+  // it after, not inside.
+  var painting = false, paintAgain = false;
+  function paint() {
+    if (!root) return;
+    if (painting) { paintAgain = true; return; }
+    painting = true;
+    try { root.innerHTML = render(); } finally { painting = false; }
+    if (paintAgain) { paintAgain = false; paint(); }
+  }
   function go(view) { S.view = view; paint(); }
 
   /* ================================================================= QUEUE */
@@ -288,7 +299,10 @@ window.EstimatorUI = (function () {
     }).join('') + '</div>';
   }
 
-  var DISCOUNT_LIMIT = 30;   // Estimator's ceiling, from the User Groups master
+  // The ceiling is the signed-in role's tier from the discount-limits
+  // master (Admin → Discount Limits); the data layer enforces it, this
+  // screen only shows it.
+  function myDiscountLimit() { return typeof discountLimitFor === 'function' ? discountLimitFor((window.cloudUserType || 'estimator'), window.cloudIdentity) : 20; }
 
   /* A confirmed quote is frozen (quotationLock, data.js). Estimation is the
      one screen where the money is actually set, so every control that writes
@@ -315,9 +329,11 @@ window.EstimatorUI = (function () {
     var lock = lockOf(q);
     var totals = safe(function () { return computeQuotationTotals(q); }, { netTotal: 0, subtotal: 0 });
     var gross = (q.items || []).reduce(function (s, it) { return s + lineAmount(q, it); }, 0);
-    var discPct = q.discountPercent || 0;
-    var discBd = gross * discPct / 100;
-    var over = discPct > DISCOUNT_LIMIT;
+    var DISCOUNT_LIMIT = myDiscountLimit();
+    var discBd = Number(q.quoteDiscount) || 0;          // the real per-item discount, as Sales and the print documents see it
+    var recBase = (q.items || []).reduce(function (s, x) { return s + (Number(x.amount) || 0); }, 0);
+    var discPct = recBase ? discBd / recBase * 100 : 0;  // judged against the record's amounts, like setQuoteDiscount()
+    var over = discPct > DISCOUNT_LIMIT + 1e-6;
 
     return '<section class="ed-card">' +
       '<div class="ed-title" style="font-size:16px">' + esc(q.id) + ' — ' + esc(clientOf(q)) + ' · ' + esc(q.projectName || '') + '</div>' +
@@ -354,8 +370,8 @@ window.EstimatorUI = (function () {
           (lock ? ' disabled title="' + esc(lock.reason) + '"' : ' data-act-input="disc"') + '>' +
         '<span class="ed-micro">' + (S.discMode === '%' ? esc(bd(discBd)) : discPct.toFixed(1) + '%') + '</span>' +
       '</div>' +
-      (over ? '<p class="ed-bad">Above your ' + DISCOUNT_LIMIT + '% limit — the Approver must release this.</p>'
-            : '<p class="ed-micro" style="margin-top:7px">Your limit is ' + DISCOUNT_LIMIT + '%. Record what the client asked for; anything past the limit routes to the Approver.</p>') +
+      (over ? '<p class="ed-bad">Above your ' + DISCOUNT_LIMIT + '% limit — a higher tier has to apply this.</p>'
+            : '<p class="ed-micro" style="margin-top:7px">Your limit is ' + DISCOUNT_LIMIT + '%. Anything past it is refused; a higher tier (Estimator 20%, Owner 30% by default) applies it.</p>') +
     '</section>' +
 
     '<section class="ed-card"><div class="ed-title" style="margin-bottom:10px">Move this quote</div>' +
@@ -916,8 +932,14 @@ window.EstimatorUI = (function () {
     else if (kind === 'rate' && it && !isNaN(num)) setRate(q, it, num);
     else if (kind === 'margin' && it && !isNaN(num)) setMargin(q, it, num);
     else if (kind === 'disc' && !isNaN(num)) {
-      var gross = (q.items || []).reduce(function (s, x) { return s + lineAmount(q, x); }, 0);
-      q.discountPercent = S.discMode === '%' ? num : (gross ? num / gross * 100 : 0);
+      /* One discount, not a screen-only figure: the same setQuoteDiscount()
+         Sales uses, which refuses anything above this role's tier. */
+      /* The percentage is of the RECORD's item amounts — the base setQuoteDiscount()
+         judges — not of the screen's live working figure, which carries unsaved overrides. */
+      var recBase = (q.items || []).reduce(function (s, x) { return s + (Number(x.amount) || 0); }, 0);
+      var amount = S.discMode === '%' ? recBase * num / 100 : num;
+      var dr = safe(function () { return setQuoteDiscount(q.id, amount); }, null);
+      if (dr && dr.error && typeof estimatorAlert === 'function') estimatorAlert(dr.error);
     }
     else if (kind === 'wastage' && !isNaN(num)) q.wastagePercent = num;
     else if (kind === 'overhead' && !isNaN(num)) q.overheadPercent = num;

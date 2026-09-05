@@ -50,6 +50,7 @@ function adminBuildShell() {
         label: 'Administration', items: [
           { id: 'admin-approvals', ico: '✔', label: 'Sign-up Approvals', tag: signups || null, onclick: "adminSetView('approvals')" },
           { id: 'admin-users', ico: '☰', label: 'User & Role Management', onclick: "adminSetView('users')" },
+          { id: 'admin-discounts', ico: '%', label: 'Discount Limits', onclick: "adminSetView('discounts')" },
           { id: 'admin-devpreview', ico: '⚙', label: 'Developer Preview', onclick: "adminSetView('devpreview')" }
         ]
       },
@@ -108,6 +109,11 @@ function renderAdminBody() {
   if (adminView === 'users') {
     body.innerHTML = `<div id="admin-users-body"></div>`;
     renderAdminUsersTab();
+    return;
+  }
+  if (adminView === 'discounts') {
+    body.innerHTML = `<div id="admin-discounts-body"></div>`;
+    renderAdminDiscountsTab();
     return;
   }
   // Approvals — shared screen with Owner/HR, see approval-queue.js.
@@ -221,6 +227,55 @@ function renderAdminUsersInto() {
     }).join('')}
   </div>`;
 }
+// ── Discount Limits master (F9, Salman 5 Sep 2026): a ceiling per role,
+// and a per-person override that wins over the role. Enforced by
+// setQuoteDiscount() and by the database trigger — this page only sets
+// the numbers.
+const ADMIN_DISCOUNT_ROLES = [['sales', 'Sales'], ['estimator', 'Estimator'], ['approver', 'Approver'], ['operations_manager', 'Operations Manager'], ['owner', 'Owner'], ['admin', 'Admin']];
+async function renderAdminDiscountsTab() {
+  const el = document.getElementById('admin-discounts-body'); if (!el) return;
+  if (window.__realCloudSession && !adminUserRoster.length) await loadAdminUserRoster();
+  const people = window.__realCloudSession ? adminUserRoster.filter(p => p.approval_status === 'approved') : (typeof REACHABLE_PEOPLE !== 'undefined' ? REACHABLE_PEOPLE.map(n => ({ display_name: n, user_type: '' })) : []);
+  const userRows = discountLimits.filter(d => d.kind === 'user');
+  el.innerHTML = `
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Discount limits by role</p>
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px;">The most a role may take off a quotation, as a percentage of the items total. Anything above it is refused — a higher tier applies it. Defaults: Sales 10, Estimator 20, Owner 30.</p>
+      ${ADMIN_DISCOUNT_ROLES.map(([k, label]) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--biz-border-light);">
+          <span style="flex:1;font-size:12.5px;font-weight:600;">${adminEsc(label)}</span>
+          <input id="admin-dl-role-${k}" type="number" min="0" max="100" step="1" value="${discountLimitFor(k, null)}" style="width:76px;padding:7px 8px;border:1px solid var(--biz-border-light);border-radius:8px;font-size:12.5px;text-align:right;"> <span style="font-size:12px;color:#64748b;">%</span>
+          <button class="primary" style="font-size:11.5px;" onclick="adminSaveDiscountLimit('role','${k}')">Save</button>
+        </div>`).join('')}
+    </div>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Per-person overrides</p>
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px;">A person's own limit wins over their role's.</p>
+      ${userRows.length ? userRows.map(d => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--biz-border-light);">
+          <span style="flex:1;font-size:12.5px;">${adminEsc(d.key)} <span style="color:#94a3b8;font-size:11px;">· set ${adminEsc(d.setOn || '')}</span></span>
+          <span style="font-weight:650;font-size:12.5px;">${adminEsc(String(d.maxPct))}%</span>
+          <button class="secondary" style="font-size:11.5px;color:#b91c1c;" onclick="adminClearDiscountLimit('${adminEsc(d.id)}')">Remove</button>
+        </div>`).join('') : '<p style="font-size:12px;color:#94a3b8;margin-bottom:8px;">No overrides yet.</p>'}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <select id="admin-dl-user" style="flex:1;min-width:160px;padding:8px 10px;border:1px solid var(--biz-border-light);border-radius:8px;font-size:12.5px;">
+          <option value="">Choose a person…</option>
+          ${people.map(p => `<option value="${adminEsc(p.display_name)}">${adminEsc(p.display_name)}${p.user_type ? ' · ' + adminEsc(roleLabel(p.user_type)) : ''}</option>`).join('')}
+        </select>
+        <input id="admin-dl-user-pct" type="number" min="0" max="100" step="1" placeholder="%" style="width:76px;padding:7px 8px;border:1px solid var(--biz-border-light);border-radius:8px;font-size:12.5px;text-align:right;">
+        <button class="primary" style="font-size:11.5px;" onclick="adminSaveDiscountLimit('user')">Set</button>
+      </div>
+    </div>`;
+}
+function adminSaveDiscountLimit(kind, key) {
+  const pct = document.getElementById(kind === 'role' ? 'admin-dl-role-' + key : 'admin-dl-user-pct').value;
+  const k = kind === 'role' ? key : document.getElementById('admin-dl-user').value;
+  const r = setDiscountLimit({ kind, key: k, maxPct: pct, setBy: window.cloudIdentity || 'Admin' });
+  if (r && r.error) { alert(r.error); return; }
+  if (typeof logActivity === 'function') logActivity({ type: 'discount-limit-set', linkedType: 'master', linkedId: r.id, user: window.cloudIdentity || 'Admin', message: 'Discount limit for ' + k + ' set to ' + r.maxPct + '%' });
+  renderAdminDiscountsTab();
+}
+function adminClearDiscountLimit(id) { clearDiscountLimit(id); renderAdminDiscountsTab(); }
 function adminToggleUserRow(profileId) {
   adminUserExpandedId = adminUserExpandedId === profileId ? null : profileId;
   renderAdminUsersInto();

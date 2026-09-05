@@ -8944,3 +8944,69 @@ a pass can never be told apart from its predecessor by id alone. A material
 put-away is real stock a name-based purge never touches.
 
 `sw.js` v66 → v67. Residue purged after every pass (`purge-run-residue.js`).
+
+### 5 Sep 2026 — Iteration 3 (adversarial): the gates held; three decisions built; a stale landing screen fixed
+
+Salman answered iteration 2's three open questions and said "lets do
+iteration 3": **F9** — Sales may discount up to 10%, the Estimator 20%,
+the Owner 30%, with a masters page; **F17** — notifications by role name;
+**F13** — delegation reason stays optional. `run-iteration-3.js` drives the
+ten attacks in the matrix plus two written from those decisions, as the
+real roles against the live project. Four passes, the last **180/180**. Findings in
+`docs/test-run/iteration-3-findings.md`.
+
+- **What held, untouched**: the pricing-lock trigger against a raw rate
+  change, a 40% discount written into the items and a smuggled priced
+  line; supplier prices and bank details returning zero rows to Sales; a
+  joinery login seeing zero rows of a curtain job and refused on
+  upholstery's slots; a pending account authenticating and then reading
+  nothing; a second Job Card, a re-approval and a draft approval all
+  refused; a Job Card reaching a second device in under a second; a
+  money-shaped pricing answer refused by the client and the database.
+- **F9 built in three places.** `setQuoteDiscount()` judges the caller's
+  tier (`discountLimitFor`: per-person override, then role, then the
+  defaults) and names who could apply it. The Estimator screen's discount
+  was a **phantom** — `q.discountPercent`, read nowhere else, never
+  persisted — and now goes through the same function, with its percentage
+  taken of the record's item amounts rather than the screen's live working
+  figure (the first cut landed 15% on screen as 8% on the record). Admin →
+  **Discount Limits** sets a ceiling per role and per person, persisted as
+  the `discount_limits` cloud collection and logged. A database trigger
+  (`quotation_discount_limit`) refuses any line whose discount RISES past
+  the caller's ceiling, so the raw API is held to the same tiers; a caller
+  with no `auth.uid()` is the administrator, not a role. One real tolerance
+  bug caught by the run: a 3-decimal BD figure of exactly 20% judged as
+  above 20% — judged at two decimals now, like the trigger.
+- **F17 built.** In a real session `sendMessage()` resolves a role name to
+  every approved profile holding that role (`window.__profiles`, fetched
+  at login) and surfaces a refused send as a toast; the Estimator's
+  delegate list is the people who sign in as an Estimator. A11 proves the
+  routing ping reaches the joinery manager's own inbox.
+- **F19 — a landing screen stayed empty after a reload.** A7 reloads every
+  role mid-step: each signed back in and hydrated 36 job cards, yet Sales'
+  screen never showed them; a manual re-render did. The 25 Aug fix for
+  this class only reached Production. One hydration listener in
+  `exec-shell.js` now redraws whichever dashboard is on screen through the
+  existing per-module render map — never over a focused field — and
+  `bridgeAllJobCards()` notifies when the job cards are usable. The first
+  cut fired four times and drew nothing: it asked `execVisibleShell()`
+  which module is on screen, and that helper tests `offsetParent`, which
+  is always null for a `position:fixed` wrap. Visibility is by computed
+  display now.
+- **The driver's own mistakes, recorded so the next pass does not repeat
+  them**: `frontHalf` already routes the job it confirms, so a "route
+  twice" attack was a third call; a budget awaiting approval is `pending`,
+  an invoice carries `jobId`, a pricing request is `pricing_input`; a
+  raw 30% write is not a RISE once the Owner has legitimately put 30% on
+  the row, so the attack has to come before it; and a helper that checked
+  `.error` on objects carrying `.err` read four correct refusals as
+  failures. Operations and Production do not print a project name on their
+  landing screens — the reload check now looks for what each screen shows.
+- **Verification**: `e2e-discount-tiers.js` (new, 23/23 offline — the
+  tiers, the master, the page, and the Estimator screen driven by real
+  typing, since `fill()` on a number input does not fire `change`);
+  `e2e-estimator-6a.js` repointed from the package's screen-only 30% to
+  the tier rule (22/22); estimator-fasttrack, admin-dashboard,
+  real-quote-ewan, team-comms, quote-confirmed-lock and the live messages
+  suite all green after the changes. Full offline sweep all green; live regression green on jobcard-merge, cloud-jobcards, cloud-financial and cloud-production. `sw.js` v67 → v68.
+  Residue purged after every pass.

@@ -4210,6 +4210,10 @@ async function initCloudJobCardsCache() {
 // no-op.
 function bridgeAllJobCards() {
   jobCards.forEach(job => bridgeJobToOperationsAndCurtain(job));
+  // The job cards are the last of the business data to be usable (they
+  // wait on customers/enquiries/quotations to bridge) — tell every landing
+  // screen the data is in (F19).
+  if (typeof notifyLiveUpdateListeners === 'function') notifyLiveUpdateListeners();
 }
 // ── Column-level cloud sync for the two columnar tables two roles write at
 // once (job_cards, quotations). Finding F10 of the end-to-end run (5 Sep
@@ -4357,6 +4361,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "app_events", arr: () => events, prefix: "evt:" },
   { table: "material_requests", arr: () => materialRequests, prefix: "mrq:" },
   { table: "task_lists", arr: () => taskLists, prefix: "tl:" },
+  { table: "discount_limits", arr: () => discountLimits, prefix: "dl:" },   // F9 — the tiers master
   // 17a Purchase (16 Aug 2026). Whole-object payloads: these are mutated
   // inline all over purchase-data.js (a quotes array grows, a claim state
   // changes), which is exactly what the snapshot-diff scanner is for.
@@ -7444,7 +7449,41 @@ function applyBOMTemplate(templateId, qtnId, lineId) {
 // the moment it is set — every existing consumer (netAmount, invoice
 // billing net of discPercent, prints summing discAmt into the single
 // Discount line) keeps working unchanged.
-function setQuoteDiscount(qtnId, totalDiscount) {
+// ── Discount tiers (Salman, 5 Sep 2026): Sales up to 10%, Estimator up to
+// 20%, Owner up to 30%, configurable per role and per person from the
+// Admin masters page. The rule lives HERE — a screen-only ceiling is what
+// the end-to-end run walked straight past (F9) — and again in a database
+// trigger, so the raw API cannot walk past it either.
+const DISCOUNT_TIER_DEFAULTS = { sales: 10, estimator: 20, owner: 30, admin: 30 };
+const discountLimits = [];   // cloud collection discount_limits: { id, kind: 'role'|'user', key, maxPct, setBy, setOn }
+function discountLimitFor(userType, identity) {
+  const u = identity && discountLimits.find(d => d.kind === "user" && d.key === identity);
+  if (u) return Number(u.maxPct) || 0;
+  const r = userType && discountLimits.find(d => d.kind === "role" && d.key === userType);
+  if (r) return Number(r.maxPct) || 0;
+  return DISCOUNT_TIER_DEFAULTS[userType] || 0;
+}
+function setDiscountLimit({ kind, key, maxPct, setBy } = {}) {
+  if (kind !== "role" && kind !== "user") return { error: "A limit is set for a role or for a person." };
+  if (!key) return { error: kind === "role" ? "Which role?" : "Which person?" };
+  const pct = Number(maxPct);
+  if (isNaN(pct) || pct < 0 || pct > 100) return { error: "The limit is a percentage between 0 and 100." };
+  const id = kind + ":" + key;
+  let row = discountLimits.find(d => d.id === id);
+  if (!row) { row = { id, kind, key }; discountLimits.push(row); }
+  row.maxPct = pct; row.setBy = setBy || null; row.setOn = todayISO();
+  return row;
+}
+function clearDiscountLimit(id) { const i = discountLimits.findIndex(d => d.id === id); if (i < 0) return { error: "No such limit." }; discountLimits.splice(i, 1); return { ok: true }; }
+function discountRoleAllowing(pct) {
+  // Who could sign this off — for the refusal message.
+  const roles = ["sales", "estimator", "owner"].filter(r => discountLimitFor(r) >= pct);
+  return roles.length ? roles.map(r => r === "owner" ? "the Owner" : "the " + r.charAt(0).toUpperCase() + r.slice(1)).join(" or ") : "nobody — the top tier is " + Math.max(discountLimitFor("owner"), discountLimitFor("estimator"), discountLimitFor("sales")) + "%";
+}
+// by: { userType, identity } — defaults to the signed-in session. The
+// offline e2e bypass signs in as an owner, so existing suites keep their
+// 30% headroom.
+function setQuoteDiscount(qtnId, totalDiscount, by) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
   const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
@@ -7452,6 +7491,12 @@ function setQuoteDiscount(qtnId, totalDiscount) {
   const base = qtn.items.reduce((s, it) => s + it.amount, 0);
   if (amt < 0) return { error: "Discount cannot be negative." };
   if (amt > base) return { error: "Discount cannot exceed the items total (BD " + base.toFixed(3) + ")." };
+  const who = by || { userType: currentUserType(), identity: (typeof window !== "undefined" && window.cloudIdentity) || null };
+  const pct = base > 0 ? (amt / base) * 100 : 0;
+  const limit = discountLimitFor(who.userType, who.identity);
+  if (Math.round(pct * 100) / 100 > limit) {   // judged at two decimals, like the trigger — a 3-decimal BD figure of exactly the tier must pass
+    return { error: "A " + (Math.round(pct * 10) / 10) + "% discount is above your limit of " + limit + "% — it needs " + discountRoleAllowing(pct) + "." };
+  }
   qtn.items.forEach(it => {
     const share = base > 0 ? amt * (it.amount / base) : 0;
     it.discAmt = Math.round(share * 1000) / 1000;
@@ -8431,15 +8476,42 @@ async function initCloudMessagesCache() {
 // their only real call sites are button clicks / onclick handlers
 // (teamcomms.js), already fine to await, unlike the render functions
 // above.
+// ── Recipients by ROLE (Salman, 5 Sep 2026, F17). A hand-off pings
+// "Joinery Production Manager" — nobody signs in under that name. In a
+// real session the name is resolved to every approved person holding the
+// role (window.__profiles, fetched at login), and a refused send is
+// surfaced as a toast rather than swallowed.
+const ROLE_RECIPIENT_TYPES = {
+  "Operations Manager": ["operations_manager"], "Joinery Production Manager": ["joinery_production_manager"],
+  "Upholstery Manager": ["upholstery_manager"], "Painting Lead / Work Supervisor": ["painting_lead"],
+  "Storekeeper": ["storekeeper"], "Accounts": ["accounts"], "HR": ["hr"], "Owner": ["owner"], "Purchaser": ["purchaser"], "Estimator": ["estimator"]
+};
+function profilesHoldingRole(userTypes) {
+  const list = (typeof window !== "undefined" && window.__profiles) || [];
+  return list.filter(p => userTypes.includes(p.user_type) && p.approval_status === "approved").map(p => p.display_name);
+}
+function resolveMessageRecipients(to) {
+  const types = ROLE_RECIPIENT_TYPES[to];
+  if (!types || !window.__realCloudSession) return [to];
+  const people = profilesHoldingRole(types);
+  return people.length ? people : [to];
+}
 async function sendMessage({ from, to, body, linkedType = null, linkedId = null }) {
   if (!to) return { error: "Choose who to send this to." };
   if (!body || !body.trim()) return { error: "Message can't be empty." };
   if (window.__realCloudSession && sb) {
-    const { data, error } = await sb.from("messages")
-      .insert({ sender_name: window.cloudIdentity, recipient_name: to, body: body.trim(), linked_type: linkedType, linked_id: linkedId })
-      .select().single();
-    if (error) return { error: error.message };
-    return cloudRowToMessage(data);
+    const recipients = resolveMessageRecipients(to);
+    let first = null, failed = null;
+    for (const r of recipients) {
+      const { data, error } = await sb.from("messages")
+        .insert({ sender_name: window.cloudIdentity, recipient_name: r, body: body.trim(), linked_type: linkedType, linked_id: linkedId })
+        .select().single();
+      if (error) { failed = r + ": " + error.message; continue; }
+      if (!first) first = cloudRowToMessage(data);
+    }
+    if (failed && typeof commsToast === "function") commsToast("Couldn't notify " + failed);
+    if (!first) return { error: failed || "Nobody holds that role yet." };
+    return first;
   }
   const msg = {
     id: nextMessageId(), from, to, body: body.trim(),

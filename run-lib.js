@@ -101,6 +101,14 @@ module.exports = function createRun({ label, dir, report }) {
     for (const role of Object.keys(sessions)) { out[role] = await sessions[role].page.evaluate((id) => (window.__qwrites || []).filter(w => w.id === id), id).catch(() => 'n/a'); }
     return out;
   }
+  // A page at the app URL with NO login — for attacks that sign in through the API as an account the UI would turn away.
+  async function rawPage() {
+    if (!browser) browser = await chromium.launch({ headless: true });
+    const ctx = await browser.newContext(); const page = await ctx.newPage();
+    await page.goto(fileUrl);
+    await page.waitForFunction(() => typeof sb !== 'undefined' && !!sb, { timeout: 20000 });
+    return page;
+  }
   async function shot(role, name) { const page = await session(role); await page.screenshot({ path: path.join(OUT, name + '.png') }).catch(() => null); }
   async function snapshotIds() {
     return act('owner', () => {
@@ -198,5 +206,5 @@ module.exports = function createRun({ label, dir, report }) {
     return { passN, total: results.length };
   }
 
-  return { PAT, DAYS, STAMP, ROLES, quotationWrites, sql, liveRow, livePayload, liveCol, setScenario, record, note, session, act, seen, fresh, shot, snapshotIds, frontHalf, approveBudgets, finish, addDays, localISO };
+  return { PAT, DAYS, STAMP, ROLES, quotationWrites, rawPage, sql, liveRow, livePayload, liveCol, setScenario, record, note, session, act, seen, fresh, shot, snapshotIds, frontHalf, approveBudgets, finish, addDays, localISO };
 };

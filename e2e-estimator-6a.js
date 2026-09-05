@@ -163,15 +163,21 @@ const check = (name, ok, extra) => {
 
   console.log('\n— discount ceiling —');
   const disc = await page.evaluate(() => {
-    const q = quotations.find(x => (x.items || []).length) || quotations[0];
+    // 5 Sep 2026: the ceiling is the signed-in role's TIER (Estimator 20%),
+    // enforced by setQuoteDiscount() — not a screen-only 30% that routes to
+    // the Approver. The screen names the tier; the data layer refuses.
+    // A PRICED, unfrozen quotation — a zero-amount draft has nothing to discount, so nothing to refuse.
+    const q = quotations.find(x => (x.items || []).some(it => it.amount > 0) && !quotationFrozen(x.id)) || quotations[0];
     EstimatorUI.state.qtnId = q.id;
-    q.discountPercent = 45;                    // past the estimator's 30% limit
+    const was = window.cloudUserType; window.cloudUserType = 'estimator';
+    const base = q.items.reduce((s, it) => s + it.amount, 0);
+    const r = setQuoteDiscount(q.id, base * 0.45);
     EstimatorUI.setView('quote');
     const t = document.getElementById('estimator-body').textContent;
-    q.discountPercent = 0;
-    return { warned: /Approver must release/.test(t) };
+    window.cloudUserType = was;
+    return { refused: /limit of 20%/.test((r && r.error) || ''), named: /Your limit is 20%/.test(t) };
   });
-  check('a discount past the 30% limit says the Approver must release it', disc.warned, disc);
+  check('a discount past the Estimator tier (20%) is refused by the data layer, and the screen names the tier', disc.refused && disc.named, disc);
 
   console.log('\n— task lists —');
   // The Estimator's own task card was replaced by the SHARED My-tasks widget

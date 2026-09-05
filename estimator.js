@@ -60,6 +60,13 @@ document.head.appendChild(estimatorStyleTag);
 // Sales identity, since Estimator is meant to simulate a different logged-in
 // user/role in Q-Pro (no real multi-user auth in this app yet).
 const ESTIMATOR_USERS = STAFF.filter(s => s !== 'Operations');
+// In a real session the delegate list is the people who sign in as an
+// Estimator (F17) — a payroll spelling that is not a login cannot be
+// notified. Offline it stays the simulated roster.
+function estimatorDelegateCandidates() {
+  if (window.__realCloudSession && typeof profilesHoldingRole === 'function') { const p = profilesHoldingRole(['estimator']); if (p.length) return p; }
+  return ESTIMATOR_USERS;
+}
 let estimatorCurrentUser = ESTIMATOR_USERS[1] || ESTIMATOR_USERS[0];
 
 // ── Module shell ──
@@ -310,7 +317,7 @@ function renderEstimatorQuoteHub() {
       <div class="lbl" style="margin:10px 0 6px;">Delegate to another estimator</div>
       <select onchange="if(this.value){estimatorDelegate('${q.id}',this.value);this.value='';}" style="width:100%;padding:9px 10px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--biz-text);background:var(--biz-card-bg);">
         <option value="">Select…</option>
-        ${ESTIMATOR_USERS.filter(u => u !== estimatorCurrentUser).map(u => `<option value="${eEsc(u)}">${eEsc(u)}</option>`).join('')}
+        ${estimatorDelegateCandidates().filter(u => u !== estimatorCurrentUser).map(u => `<option value="${eEsc(u)}">${eEsc(u)}</option>`).join('')}
       </select>
     </div>
     <div class="sales-card">
