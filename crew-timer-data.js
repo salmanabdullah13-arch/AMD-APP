@@ -220,6 +220,11 @@ function endCrewSession(sessionId, { progressPct = null, note = "", byWhom = nul
   const s = crewSessions.find(x => x.id === sessionId);
   if (!s) return { error: "Which session?" };
   if (s.status === "ended") return { error: "That day is already ended." };
+  // 100 only ever comes from QC. Refuse it here, before the day ends — an
+  // ignored marker on an ended day cannot be corrected.
+  if (progressPct !== null && progressPct !== undefined && [25, 50, 75].indexOf(Number(progressPct)) === -1) {
+    return { error: "Progress is 25, 50 or 75 — 100% comes from QC." };
+  }
   if (s.status === "paused") resumeCrewSession(sessionId);
   s.endedAt = timerNow();
   const raw = sessionElapsedHours(s);

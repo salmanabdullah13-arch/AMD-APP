@@ -2601,30 +2601,22 @@ async function initCloudQuotationsCache() {
   if (!window.__realCloudSession || !sb || cloudQuotationsCacheInitialized) return;
   cloudQuotationsCacheInitialized = true;
   const { data, error } = await sb.from("quotations").select("*").order("created_at", { ascending: true });
-  if (!error && data) { quotations.length = 0; data.forEach(row => quotations.push(quotationRowToObj(row))); }
+  if (!error && data) quotationSync.hydrate(data);
   sb.channel("quotations-sync")
     .on("postgres_changes", { event: "*", schema: "public", table: "quotations" }, (payload) => {
       const row = payload.new; if (!row) return;
-      const mapped = quotationRowToObj(row);
-      const idx = quotations.findIndex(q => String(q.id) === String(row.id));
-      if (payload.eventType === "INSERT") { if (idx < 0) quotations.push(mapped); else quotations[idx] = mapped; }
-      else if (payload.eventType === "UPDATE") { if (idx >= 0) quotations[idx] = mapped; }
+      // F10 on quotations: the Estimator's queued writes must not drain over
+      // the Approver's approval. Same column-level sync as job cards.
+      quotationSync.remote(row, payload.eventType === "INSERT");
       notifyLiveUpdateListeners();
     })
     .subscribe();
 }
-function persistNewQuotation(q) {
-  if (!window.__realCloudSession || !sb) return;
-  serializedPersist("quotations:" + q.id, () => sb.from("quotations").insert(quotationObjToRow(q)).then(({ error }) => {
-    if (error && typeof commsToast === "function") commsToast(`Couldn't save quotation ${q.id} to the cloud: ${error.message}`);
-  }));
-}
-function persistQuotationUpdate(q) {
-  if (!window.__realCloudSession || !sb) return;
-  serializedPersist("quotations:" + q.id, () => sb.from("quotations").update(quotationObjToRow(q)).eq("id", q.id).then(({ error }) => {
-    if (error && typeof commsToast === "function") commsToast(`Couldn't sync quotation ${q.id} to the cloud: ${error.message}`);
-  }));
-}
+// quotationSync is defined next to jobCardSync (the shared machinery lives
+// with the job-card code, which loads later in this file; both are only
+// ever called after login, so order of definition does not matter).
+function persistNewQuotation(q) { quotationSync.insert(q); }
+function persistQuotationUpdate(q) { quotationSync.update(q); }
 
 // ── QUOTATIONS ──
 // Qtn No format matches the live reference (AMD-15350-0) — "-0" is revision 0.
@@ -4145,7 +4137,11 @@ function jobCardRowToObj(row) {
     materialsReturns: row.materials_returns || [], labourCostEntries: row.labour_cost_entries || [],
     linkedInvoiceIds: row.linked_invoice_ids || [], variationIds: row.variation_ids || [],
     routingConfirmed: row.routing_confirmed, routingConfirmedBy: row.routing_confirmed_by,
-    routingConfirmedDate: row.routing_confirmed_date, departmentBudgets: row.department_budgets || {}
+    routingConfirmedDate: row.routing_confirmed_date, departmentBudgets: row.department_budgets || {},
+    // Set by Operations (urgent/promised at routing, target date, notes) —
+    // none of the four had a column or a mapping until the end-to-end run
+    // (F14, 5 Sep 2026): every one of them vanished on reload.
+    urgent: !!row.urgent, promisedDate: row.promised_date || null, targetDate: row.target_date || null, notes: row.notes || ""
   };
 }
 function jobCardObjToRow(job) {
@@ -4157,7 +4153,8 @@ function jobCardObjToRow(job) {
     materials_returns: job.materialsReturns || [], labour_cost_entries: job.labourCostEntries || [],
     linked_invoice_ids: job.linkedInvoiceIds || [], variation_ids: job.variationIds || [],
     routing_confirmed: !!job.routingConfirmed, routing_confirmed_by: job.routingConfirmedBy || null,
-    routing_confirmed_date: job.routingConfirmedDate || null, department_budgets: job.departmentBudgets || {}
+    routing_confirmed_date: job.routingConfirmedDate || null, department_budgets: job.departmentBudgets || {},
+    urgent: !!job.urgent, promised_date: job.promisedDate || null, target_date: job.targetDate || null, notes: job.notes || ""
   };
 }
 let cloudJobCardsCacheInitialized = false;
@@ -4176,11 +4173,10 @@ async function initCloudJobCardsCache() {
   if (!window.__realCloudSession || !sb || cloudJobCardsCacheInitialized) return;
   cloudJobCardsCacheInitialized = true;
   const { data, error } = await sb.from("job_cards").select("*").order("created_at", { ascending: true });
-  if (!error && data) { jobCards.length = 0; data.forEach(row => jobCards.push(jobCardRowToObj(row))); }
+  if (!error && data) jobCardSync.hydrate(data);
   sb.channel("job-cards-sync")
     .on("postgres_changes", { event: "*", schema: "public", table: "job_cards" }, (payload) => {
       const row = payload.new; if (!row) return;
-      const mapped = jobCardRowToObj(row);
       const idx = jobCards.findIndex(j => String(j.id) === String(row.id));
       // Same reasoning as the initial hydration above, but for a job
       // created on ANOTHER device after this one is already logged in —
@@ -4191,8 +4187,9 @@ async function initCloudJobCardsCache() {
       // upsert it; a second fresh copy from this session raced that write and
       // clobbered the curtain manager's first edits. Only the local-only
       // projects[] rollup is bridged for a job that arrives from elsewhere.
-      if (payload.eventType === "INSERT") { if (idx < 0) { jobCards.push(mapped); bridgeJobToOperationsAndCurtain(mapped, { fromRemote: true }); } else jobCards[idx] = mapped; }
-      else if (payload.eventType === "UPDATE") { if (idx >= 0) jobCards[idx] = mapped; }
+      // F10: applied unless this session holds unsent edits to the same card
+      // (then held in jobCardSync.pending and merged after our write lands).
+      jobCardSync.remote(row, payload.eventType === "INSERT", (mapped) => bridgeJobToOperationsAndCurtain(mapped, { fromRemote: true }));
       notifyLiveUpdateListeners();
     })
     .subscribe();
@@ -4214,18 +4211,90 @@ async function initCloudJobCardsCache() {
 function bridgeAllJobCards() {
   jobCards.forEach(job => bridgeJobToOperationsAndCurtain(job));
 }
-function persistNewJobCard(job) {
-  if (!window.__realCloudSession || !sb) return;
-  serializedPersist("jobcards:" + job.id, () => sb.from("job_cards").insert(jobCardObjToRow(job)).then(({ error }) => {
-    if (error && typeof commsToast === "function") commsToast(`Couldn't save Job Card ${job.id} to the cloud: ${error.message}`);
-  }));
+// ── Column-level cloud sync for the two columnar tables two roles write at
+// once (job_cards, quotations). Finding F10 of the end-to-end run (5 Sep
+// 2026): Accounts invoiced from a stale copy and its whole-row write put
+// Operations' delivered quantity back to zero; the Estimator's queue of five
+// whole-row writes drained after the Approver approved and put a variation
+// back to draft. Three rules, one store per table:
+//   base[id]    — the row as this session last KNEW the server to hold it,
+//                 moved only when the local record moves (hydration, an
+//                 applied remote row, or our own successful write). Always a
+//                 deep copy: the local object shares the row's arrays.
+//   a write sends only the columns that differ from base (what WE changed
+//                 and have not yet sent) — a queued write whose changes have
+//                 already gone sends nothing.
+//   pending[id] — a remote row that arrived while local had unsent changes.
+//                 Not applied, and base does NOT move (or the next queued
+//                 write would re-send stale columns over it). Once our write
+//                 lands, the columns the other role changed and we did not
+//                 are merged onto the local record, and base catches up.
+function cloudRowClone(row) { return JSON.parse(JSON.stringify(row)); }
+function cloudRowDiff(row, base) {
+  const patch = {};
+  Object.keys(row).forEach(c => { if (c === "id") return; if (stableStringify(row[c] === undefined ? null : row[c]) !== stableStringify(base[c] === undefined ? null : base[c])) patch[c] = row[c]; });
+  return patch;
 }
-function persistJobCardUpdate(job) {
-  if (!window.__realCloudSession || !sb) return;
-  serializedPersist("jobcards:" + job.id, () => sb.from("job_cards").update(jobCardObjToRow(job)).eq("id", job.id).then(({ error }) => {
-    if (error && typeof commsToast === "function") commsToast(`Couldn't sync Job Card ${job.id} to the cloud: ${error.message}`);
-  }));
+function cloudRowSync(table, arr, toRow, toObj, label) {
+  const base = {}, pending = {};
+  const find = id => arr.findIndex(x => String(x.id) === String(id));
+  const dirty = (rec) => { const b = base[rec.id]; return !!b && Object.keys(cloudRowDiff(toRow(rec), b)).length > 0; };
+  return {
+    base, pending,
+    hydrate(rows) { arr.length = 0; rows.forEach(row => { arr.push(toObj(row)); base[row.id] = cloudRowClone(row); }); },
+    // A realtime row. Applied unless the local record has unsent changes.
+    remote(row, isInsert, onInsert) {
+      const idx = find(row.id);
+      if (idx >= 0 && dirty(arr[idx])) { pending[row.id] = cloudRowClone(row); return false; }
+      base[row.id] = cloudRowClone(row); delete pending[row.id];
+      const mapped = toObj(row);
+      if (idx < 0) { if (isInsert) { arr.push(mapped); if (onInsert) onInsert(mapped); } }
+      else arr[idx] = mapped;
+      return true;
+    },
+    insert(rec) {
+      if (!window.__realCloudSession || !sb) return;
+      const row = toRow(rec);
+      serializedPersist(table + ":" + rec.id, () => sb.from(table).insert(row).then(({ error }) => {
+        if (error) { if (typeof commsToast === "function") commsToast(`Couldn't save ${label} ${rec.id} to the cloud: ${error.message}`); return; }
+        base[rec.id] = cloudRowClone(row);
+      }));
+    },
+    update(rec) {
+      if (!window.__realCloudSession || !sb) return;
+      serializedPersist(table + ":" + rec.id, () => {
+        const row = toRow(rec); const b = base[rec.id];
+        const patch = b ? cloudRowDiff(row, b) : row;
+        if (b && !Object.keys(patch).length) {
+          // Nothing of ours left to send. A remote row held while we were dirty can land now.
+          const p = pending[rec.id]; if (p) { delete pending[rec.id]; this.remote(p, false); }
+          return Promise.resolve();
+        }
+        return sb.from(table).update(patch).eq("id", rec.id).then(({ error }) => {
+          if (error) { if (typeof commsToast === "function") commsToast(`Couldn't sync ${label} ${rec.id} to the cloud: ${error.message}`); return; }
+          const p = pending[rec.id]; delete pending[rec.id];
+          let merged = Object.assign({}, b || {}, patch, { id: rec.id });
+          if (p && b) {
+            const theirs = toObj(p), ours = toObj(row), was = toObj(b);
+            Object.keys(theirs).forEach(k => {
+              const remoteChanged = stableStringify(theirs[k]) !== stableStringify(was[k]);
+              const weChanged = stableStringify(ours[k]) !== stableStringify(was[k]);
+              if (remoteChanged && !weChanged) rec[k] = theirs[k];
+            });
+            merged = Object.assign({}, p, patch, { id: rec.id });
+          }
+          base[rec.id] = cloudRowClone(merged);
+        });
+      });
+    }
+  };
 }
+const jobCardSync = cloudRowSync("job_cards", jobCards, (j) => jobCardObjToRow(j), (r) => jobCardRowToObj(r), "Job Card");
+const quotationSync = cloudRowSync("quotations", quotations, (q) => quotationObjToRow(q), (r) => quotationRowToObj(r), "quotation");
+const cloudJobCardRows = jobCardSync.base; // kept as a name: the live suites read it
+function jobCardRowDiff(row, base) { return base ? cloudRowDiff(row, base) : null; }
+function persistNewJobCard(job) { jobCardSync.insert(job); }
+function persistJobCardUpdate(job) { jobCardSync.update(job); }
 
 // ═══════════════════════════════════════
 // GENERIC CLOUD JSON-COLLECTION SYNC — snapshot-diff autosave
@@ -5851,6 +5920,10 @@ function addDeliveryNote(jobId, entries) {
   if (incomplete.length) {
     return { error: `Can't deliver — production isn't finished for: ${incomplete.map(it => it.product).join(', ')}.` };
   }
+  // Nothing to move means no note (end-to-end run, F12): a third note on a
+  // line already at 2 of 2 used to record a delivery of zero.
+  const movable = entries.filter(e => { const it = job.items.find(x => x.lineId === e.lineId); return it && Math.min(e.requiredQty || 0, it.qty - it.deliveredQty) > 0; });
+  if (!movable.length) return { error: "Nothing on this note is left to deliver — every line is already delivered in full." };
   const lines = entries.map(e => {
     const item = job.items.find(it => it.lineId === e.lineId);
     if (!item) return null;

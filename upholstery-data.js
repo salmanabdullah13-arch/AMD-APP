@@ -219,8 +219,14 @@ function jobFabricRolls(jobId) { return fabricRolls.filter(r => r.jobCardId === 
 function jobFabricNeed(jobId) {
   const plan = jobLiveFabricPlan(jobId);
   if (plan) return plan.totalM;
+  // The same arithmetic the plan will use — the spec's metresPerPiece is a
+  // standing allowance and disagreed with its own panel list (end-to-end
+  // run, X13: eight chairs "needed" 9.6 m and came off a 5 m roll).
   const spec = uphSpecForJob(jobId);
-  return spec && spec.metresPerPiece ? Math.round(spec.metresPerPiece * uphJobPieceCount(jobId) * 10) / 10 : null;
+  if (!spec) return null;
+  const pieces = uphJobPieceCount(jobId);
+  if (spec.panels && spec.panels.length) return fabricPlanTotals(spec.panels.map(p => Object.assign({}, p, { qty: (p.qty || 1) * pieces }))).totalM;
+  return spec.metresPerPiece ? Math.round(spec.metresPerPiece * pieces * 10) / 10 : null;
 }
 
 // ═══ COM — the flag with teeth ═════════════════════════════════════════
@@ -388,7 +394,11 @@ function releaseFabricPlan({ jobCardId, rollId, panels = [], byWhom = "Upholster
   if (roll.jobCardId && roll.jobCardId !== jobCardId) return { error: roll.id + " is held for " + roll.jobCardId + "." };
   const spec = uphSpecForJob(jobCardId);
   if (!spec) return { error: "Cannot release — no spec released for this piece. Operations still has it." };
-  const rows = (panels && panels.length ? panels : spec.panels).map(uphNormPanel);
+  // A spec is written per PIECE; the ticket is for the whole job — every
+  // panel × the pieces on the job card (end-to-end run, X13: the per-piece
+  // ticket for eight chairs was released off a roll that held one chair).
+  const pieces = uphJobPieceCount(jobCardId) || 1;
+  const rows = (panels && panels.length ? panels : spec.panels.map(p => Object.assign({}, p, { qty: (Number(p.qty) || 1) * pieces }))).map(uphNormPanel);
   if (!rows.length) return { error: "Nobody cuts to an empty ticket." };
   const t = fabricPlanTotals(rows, roll.widthCm * 10);
   const com = comBlockReason(jobCardId);

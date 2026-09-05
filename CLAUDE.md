@@ -8872,3 +8872,75 @@ pushed back — the new live suite caught it on its last check.
   regression: cloud-curtain 11/11, cloud-financial 11/11, cloud-events,
   cloud-production, cloud-customers, cloud-jobcards — 7/7, 20/20, 9/9, 8/8. Offline
   sweep: all green.
+
+### 5 Sep 2026 — Iteration 2: fifteen exception branches, eighteen roles, ten findings
+
+Salman: "lets go with iteration2." `run-iteration-2.js` drives the branches
+a job takes when something goes wrong — sent back for re-costing, over the
+BD 8,000 line, a discount over the ceiling, a variation on a live job, a BOM
+revision mid-cut, material short at the lane, overtime with nothing to work
+on, QC failing twice, cancel and un-cancel, partial delivery and invoicing,
+a near-duplicate customer, COM fabric short, a suite that will not come off
+one roll, a crew's day paused and ended, a delegated estimate. Same
+discipline as iteration 1: every step as the role that does it, three-way
+checked (data layer, live table, the next role's session). Seven passes, the last **220/221** — the one failure is F9, left for a decision.
+Findings F9–F18 are in `docs/test-run/iteration-2-findings.md`; the ones
+that changed code:
+
+- **F10 — two roles writing one job card lost each other's columns.** The
+  run's clearest data loss: Accounts invoiced off a copy a few hundred
+  milliseconds stale, its whole-row write put Operations' delivered
+  quantity back to zero, and the realtime handler replaced a local job
+  card unconditionally. Fixed the way F6 was: `cloudJobCardRows` holds each
+  card as the SERVER last held it, a write sends only the columns that
+  changed against it, a remote row never replaces a card with unpersisted
+  edits, and the other role's columns merge back once a write completes.
+  **My first cut was itself wrong**: the base shared the local job's arrays
+  (`jobCardRowToObj` hands them straight through), so every nested edit
+  read as "no change" — routing persisted its three flags and dropped the
+  routed lines and the budget slots, and production could never submit.
+  A three-session diagnostic reading local copy, base and live row side by
+  side found it in one run. **And quotations had the same disease**: the
+  variation in X4 kept coming back `approver/draft` inside the run while
+  passing in isolation; a per-session log of every quotation write
+  attributed it to the Estimator's burst of five queued whole-row writes
+  draining AFTER the Approver approved 1.5 s later. The second cut still
+  moved the base to a remote row it had skipped, so the next queued write
+  re-sent stale columns over it. The sync is one shared piece now
+  (`cloudRowSync`) for both columnar tables: the base moves only when the
+  local record moves, a remote row arriving during unsent edits is held
+  aside and merged after the write lands. `e2e-cloud-jobcard-merge.js`
+  17/17 live, both races.
+- **F11 — the fabric ticket was per piece.** A spec is written per piece;
+  `releaseFabricPlan()` planned it as written, so eight chairs came off a
+  roll that held one chair's metres, and `jobFabricNeed()` used a standing
+  allowance that disagreed with the panel arithmetic. Ticket and need are
+  both panels × pieces now; two 60% rolls are both refused.
+- **F14 — four job-card fields never had a column.** `urgent`,
+  `promisedDate`, `targetDate`, `notes` — set at routing and on the job hub
+  since August — were dropped by the mapper. Found reading it during F10,
+  not by a scenario. Columns applied live (`supabase/fixes-2026-09-05.sql`).
+- **F16 — every lane slot's material claim was refused server-side.** The
+  production manager reserves boards when allotting a lane (26 Aug), and
+  `stock_reservations` accepted writes from the store side only: 403 on
+  every claim, held only in that session. Invisible in the UI; found because
+  the driver captures refused writes per role. Production may reserve now.
+- **F12, F15** — a delivery note with nothing left to deliver, and a 100%
+  progress marker on the clock, are refused rather than silently dropped.
+- **Open, needing Salman**: F9 (the 30% discount ceiling is client-only),
+  F13 (delegation needs no reason), **F17** (notifications addressed to a
+  role name reach nobody — "Joinery Production Manager" is an inbox nobody
+  signs in as — or fail outright with a 409 when the name is not on the
+  roster at all: `"Owner"`, `"Arun Kumar A"`; resolve by `user_type`).
+
+**What the harness learned, worth more than the tally.** A failed persist
+is only a toast, so the driver now captures toasts and every 4xx response
+URL per role — F16 and both halves of F17 came from that section, not from
+a failing step. DNS in this environment blips (`ENOTFOUND api.supabase.com`
+twice), and a write lost that way is the same toast. Ids recur across
+passes because the minters are max-based and the purge removes the max, so
+a pass can never be told apart from its predecessor by id alone. A material
+"the store does not hold" has to be chosen at run time — a previous pass's
+put-away is real stock a name-based purge never touches.
+
+`sw.js` v66 → v67. Residue purged after every pass (`purge-run-residue.js`).
