@@ -9146,3 +9146,29 @@ sidebar, no dark mode. The design scorecard flagged all four; nothing else.
   dashboards, direct landing, back button, shell rollout, nav, bridge fix,
   batch7, role gating, batch9); `e2e-cloud-curtain.js` 11/11 live. Full offline sweep all green; the design scorecard re-run reads 28 screens, 0 flagged.
   `sw.js` v71 → v72.
+
+### 5 Sep 2026 — Iteration 4 (regression): the run closes
+
+The last of Salman's ordered items. Iterations 1 and 2 re-driven on the
+build as it stands after everything the run changed, then every live
+suite and the sweep. Report: `docs/test-run/iteration-4-findings.md`.
+
+- **Iteration 1: 155/155**, clean error section — no refused write, no
+  console error, no toast in any of the fourteen roles' sessions.
+- **Iteration 2: 221/221** — the one check its own build could not pass
+  (F9, a 40% discount at the data layer) passes on the tiers. Its single
+  error-section entry is the driver delegating to a payroll spelling that
+  is not a login; the app refuses the notification and says so, which is
+  F17 doing its job.
+- **Live suites (17)**: all green (login's one miss inside the batch was a network flake, 6/6 standalone). **Offline sweep**: all green. **Design
+  scorecard**: 28 screens, 0 flagged.
+- Residue purged after each pass; the older seeded rows Salman asked to
+  keep are untouched.
+
+**Where the end-to-end run stands.** Three iterations found nineteen
+findings; sixteen are fixed and re-verified under the flows that found
+them, three were closed by Salman's decisions (built the same day). The
+Production fold, the Curtain restyle and the scorecard's own fixes are in.
+Open: the 18a Store Keeper interface (never built), the Approver's landing
+(counts, not the queue), F1 at the design level, the real-device camera
+check Salman wants last, and the PAT to revoke when he is done.
