@@ -988,7 +988,7 @@ function poRegisterCustomerForJob(linkedJobId) {
   return '—';
 }
 
-function poRegisterFilterChanged(key, val) { poRegisterFilters[key] = val; renderPORegister(); }
+function poRegisterFilterChanged(key, val) { poRegisterFilters[key] = val; renderKeepingFocus(renderPORegister); }
 
 function renderPORegister() {
   const f = poRegisterFilters;
@@ -1748,7 +1748,7 @@ function closeDebitNoteForm() {
 // mislabel on this vendor-side report (a confirmed copy-paste-without-
 // relabeling bug) is fixed here, not reproduced.
 // ═══════════════════════════════════════
-function purchBillOSFilterChanged(key, val) { purchBillOSFilters[key] = val; renderPurchaseBillOutstanding(); }
+function purchBillOSFilterChanged(key, val) { purchBillOSFilters[key] = val; renderKeepingFocus(renderPurchaseBillOutstanding); }
 function purchBillPillClass(status) {
   return status === 'Fully Paid' ? 'full' : status === 'Partially Paid' ? 'partial' : status === 'Advance' ? 'advance' : status === 'Cancelled' ? 'cancelled' : 'unpaid';
 }

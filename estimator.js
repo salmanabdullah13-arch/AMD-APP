@@ -654,7 +654,7 @@ function renderBomMaterialsTab(item) {
             <span style="flex:1;font-size:13px;">${eEsc(selected.name)}</span>
             <span style="cursor:pointer;color:var(--biz-primary);font-size:11.5px;font-weight:600;" onclick="estimatorClearMaterialSelection()">Change</span>
           </div>`
-        : `<input type="text" id="mat-search" placeholder="Search inventory item…" value="${eEsc(estimatorMatSearch)}" oninput="estimatorMatSearch=this.value;renderEstimatorBody();" autocomplete="off">`}
+        : `<input type="text" id="mat-search" placeholder="Search inventory item…" value="${eEsc(estimatorMatSearch)}" oninput="estimatorMatSearch=this.value;renderKeepingFocus(renderEstimatorBody);" autocomplete="off">`}
     </div>
     ${!selected && q
       ? (matches.length === 0

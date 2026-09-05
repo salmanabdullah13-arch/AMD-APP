@@ -171,6 +171,38 @@ function setHubBadge(groupId, count){
 // triggered a Sign-Out confirm instead of just hiding the wrap and
 // continuing the jump. Use this instead of close*Module() anywhere a
 // call is a means to navigate elsewhere, not a real close.
+// ── Re-render without losing the field being typed in (Salman, 5 Sep 2026:
+// "typing one letter exits the text box"). Sixteen keystroke handlers across
+// Sales, Jobs, Purchasing, Accounts, Storekeeper, Estimator and HR redraw
+// their whole body on every oninput, which replaces the input under the
+// cursor. This runs the redraw, then finds the same field in the new DOM —
+// by id, else by its own oninput attribute and placeholder, which are unique
+// per field — and puts focus and the caret back where they were.
+function renderKeepingFocus(fn) {
+  const el = document.activeElement;
+  const typing = el && /^(INPUT|TEXTAREA)$/.test(el.tagName);
+  let key = null;
+  if (typing) {
+    const sib = [...document.querySelectorAll(el.tagName)].filter(x => x.getAttribute('oninput') === el.getAttribute('oninput') && (x.getAttribute('placeholder') || '') === (el.getAttribute('placeholder') || ''));
+    key = { tag: el.tagName, id: el.id, oninput: el.getAttribute('oninput'), ph: el.getAttribute('placeholder') || '', idx: Math.max(0, sib.indexOf(el)), start: null, end: null };
+    try { key.start = el.selectionStart; key.end = el.selectionEnd; } catch (e) { /* number/email inputs have no selection */ }
+  }
+  const out = typeof fn === 'function' ? fn() : undefined;
+  if (key) {
+    let target = key.id ? document.getElementById(key.id) : null;
+    if (!target || target.tagName !== key.tag) {
+      const cands = [...document.querySelectorAll(key.tag)].filter(x => x.getAttribute('oninput') === key.oninput && (x.getAttribute('placeholder') || '') === key.ph);
+      target = cands[key.idx] || cands[0] || null;
+    }
+    if (target && target !== document.activeElement) {
+      target.focus();
+      if (key.start !== null) { try { target.setSelectionRange(key.start, key.end); } catch (e) { /* not selectable */ } }
+      else { const v = target.value; target.value = ''; target.value = v; }   // email/number inputs: no selection API — re-setting the value parks the caret at the end
+    }
+  }
+  return out;
+}
+
 function hideModuleWrap(wrapEl) {
   if (wrapEl) wrapEl.style.display = 'none';
   const scroll = document.getElementById('scroll');

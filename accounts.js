@@ -868,7 +868,7 @@ function renderBalanceSheetView() {
 // form exists there, Proforma is generated from the Job Card Management
 // hub's own action (see createProformaFromJob() in data.js). ──
 let acProformaJobSearch = '';
-function acProformaSearchChanged(v) { acProformaJobSearch = v; renderAccountsBody(); }
+function acProformaSearchChanged(v) { acProformaJobSearch = v; renderKeepingFocus(renderAccountsBody); }
 // Proforma generation moved here from the Job Card hub (was
 // jobsGenerateProforma() in jobs.js) — Salman's call, 3 Aug 2026: Jobs/
 // Sales shouldn't be able to trigger creation of a financial document,
@@ -1136,7 +1136,7 @@ function renderCustomerUpdateTool() {
         <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Customer Update</p>
         <p style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Select Quotation, then correct Customer, Salesman or VAT% against it — without re-keying the whole quotation.</p>
         <input type="text" placeholder="Search Qtn No or Customer…" value="${acEsc(custUpdateSearch)}"
-          oninput="custUpdateSearch=this.value;renderAccountsBody();"
+          oninput="custUpdateSearch=this.value;renderKeepingFocus(renderAccountsBody);"
           style="width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;">
       </div>
       ${rows.length === 0 ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No matching quotations.</p></div>` :
@@ -1204,7 +1204,7 @@ function renderCustomerBankingTool() {
         <p style="font-weight:700;font-size:13px;margin-bottom:4px;">Customer Banking Details</p>
         <p style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Select a customer to view or update their bank account details.</p>
         <input type="text" placeholder="Search Customer Name or Code…" value="${acEsc(custBankingSearch)}"
-          oninput="custBankingSearch=this.value;renderAccountsBody();"
+          oninput="custBankingSearch=this.value;renderKeepingFocus(renderAccountsBody);"
           style="width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;">
       </div>
       ${rows.length === 0 ? `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No matching customers.</p></div>` :
@@ -1278,7 +1278,7 @@ function custUpdateApplyVat() {
 function billPillClass(status) {
   return status === 'Fully Paid' ? 'full' : status === 'Partially Paid' ? 'partial' : status === 'Advance' ? 'advance' : status === 'Cancelled' ? 'cancelled' : 'unpaid';
 }
-function salesBillOSFilterChanged(key, val) { salesBillOSFilters[key] = val; renderAccountsBody(); }
+function salesBillOSFilterChanged(key, val) { salesBillOSFilters[key] = val; renderKeepingFocus(renderAccountsBody); }
 function billOSLegendHtml() {
   return `<p style="font-size:10.5px;color:#94a3b8;margin-top:8px;">Legend:
     <span class="bill-pill advance">Advance</span> <span class="bill-pill unpaid">Unpaid</span>

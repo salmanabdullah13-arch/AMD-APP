@@ -162,7 +162,7 @@ function renderEmployeeList() {
   return `
     <div class="sales-card">
       <input type="text" placeholder="Search employee name, number or designation…" value="${hrEsc(hrEmpSearch)}"
-        oninput="hrEmpSearch=this.value;renderHRBody();"
+        oninput="hrEmpSearch=this.value;renderKeepingFocus(renderHRBody);"
         style="width:100%;padding:9px 12px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;">
     </div>
     <table class="sales-items">

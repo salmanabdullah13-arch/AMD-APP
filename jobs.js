@@ -247,7 +247,7 @@ function jobsToggleStatusFilter(status) {
   jobsListStatusFilter = jobsListStatusFilter === status ? null : status;
   renderJobsBody();
 }
-function jobsFilterChanged(key, val) { jobsFilters[key] = val; renderJobsBody(); }
+function jobsFilterChanged(key, val) { jobsFilters[key] = val; renderKeepingFocus(renderJobsBody); }
 
 function jobMatchesFilters(job) {
   const f = jobsFilters;
@@ -1119,7 +1119,7 @@ function renderInvoicePrint() {
 // ══════════════════════════════════════════
 
 function jobsSetReportsTab(t) { jobsReportsTab = t; jobsReportSearch = ''; renderJobsBody(); }
-function jobsReportSearchChanged(v) { jobsReportSearch = v; renderJobsBody(); }
+function jobsReportSearchChanged(v) { jobsReportSearch = v; renderKeepingFocus(renderJobsBody); }
 
 function renderJobsReports() {
   const tabs = `

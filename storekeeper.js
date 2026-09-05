@@ -237,7 +237,7 @@ function skDeclineRequest(id) {
 
 // ── Dashboard ────────────────────────────────
 function skSetView(v) { skView = v; renderStorekeeperDashboard(); }
-function skSetSearch(v) { skSearch = v; renderStorekeeperDashboard(); }
+function skSetSearch(v) { skSearch = v; renderKeepingFocus(renderStorekeeperDashboard); }
 
 function skMatches(entry) {
   if (!skSearch.trim()) return true;
@@ -430,7 +430,7 @@ function closeReleasePanel() {
 // ══════════════════════════════════════════
 let skItemFilters = { category: '', vendor: '', catelog: '', name: '' };
 
-function skItemFilterChanged(key, val) { skItemFilters[key] = val; renderItemMasterList(); }
+function skItemFilterChanged(key, val) { skItemFilters[key] = val; renderKeepingFocus(renderItemMasterList); }
 
 function renderItemMasterList() {
   const f = skItemFilters;
@@ -655,7 +655,7 @@ function closeCatelogForm() {
 // STOCK ADJUSTMENT (Transactions → Inventory → Stock Adjustment)
 // ══════════════════════════════════════════
 let skAdjFilters = { from: '', to: '', saNo: '' };
-function skAdjFilterChanged(key, val) { skAdjFilters[key] = val; renderStockAdjustmentList(); }
+function skAdjFilterChanged(key, val) { skAdjFilters[key] = val; renderKeepingFocus(renderStockAdjustmentList); }
 
 function renderStockAdjustmentList() {
   const f = skAdjFilters;
@@ -883,7 +883,7 @@ function renderItemSummaryTab() {
 
   return filterHtml + tableHtml;
 }
-function skSummaryFilterChanged(key, v) { skSummaryFilters[key] = v; renderInventoryReports(); }
+function skSummaryFilterChanged(key, v) { skSummaryFilters[key] = v; renderKeepingFocus(renderInventoryReports); }
 
 function renderJobMaterialRequirementTab() {
   const rows = getJobMaterialRequirement().filter(r => r.orders > 0 || r.reqQty > 0);

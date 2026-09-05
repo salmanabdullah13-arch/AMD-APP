@@ -353,7 +353,7 @@ function enquiryMatchesFilters(e) {
   return true;
 }
 
-function salesEnqFilterChanged(key, val) { salesEnqFilters[key] = val; renderSalesBody(); }
+function salesEnqFilterChanged(key, val) { salesEnqFilters[key] = val; renderKeepingFocus(renderSalesBody); }
 
 function renderEnquiryList() {
   const rows = enquiries.filter(enquiryMatchesFilters)
@@ -433,7 +433,7 @@ function salesEnqDraftChanged(key, val) {
     const c = customers.find(x => x.id === val);
     salesDraft.tel = c ? c.tel : '';
   }
-  renderSalesBody();
+  renderKeepingFocus(renderSalesBody);
 }
 
 function renderEnquiryCreate() {
@@ -696,7 +696,7 @@ function salesShowQuotations(tab, stage) {
   salesQtnFilters.stage = stage || '';
   salesSetTopView('quotations');
 }
-function salesQtnFilterChanged(key, val) { salesQtnFilters[key] = val; renderSalesBody(); }
+function salesQtnFilterChanged(key, val) { salesQtnFilters[key] = val; renderKeepingFocus(renderSalesBody); }
 function salesSetQtnListTab(t) { salesQtnListTab = t; renderSalesBody(); }
 
 function renderQuotationList() {
