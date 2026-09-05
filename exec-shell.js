@@ -740,7 +740,8 @@ function execPushCurrent() {
     jobs: 'openJobsModule', accounts: 'openAccountsModule', hr: 'openHRModule', joinery: 'openJoineryModule',
     upholstery: 'openUphModule', 'upholstery-legacy': 'openUpholsteryModule', 'crew-timer': 'openCrewTimerModule', painting: 'openPaintingModule', fleet: 'openFleetModule',
     delivery: 'openDeliverySchedModule', storekeeper: 'openStorekeeperModule', purchasing: 'openPurchasingModule',
-    curtain: 'openCurtainModule', operations: 'openOperationsModule', owner: 'openOwnerModule', admin: 'openAdminModule' }[execModuleKey];
+    curtain: 'openCurtainModule', 'curtain-tracks': 'openTracksDashboard', 'curtain-qc': 'openQCDashboard', 'curtain-install': 'openInstallCrewDashboard', 'curtain-pipeline': 'openPipelineBoard',
+    operations: 'openOperationsModule', owner: 'openOwnerModule', admin: 'openAdminModule' }[execModuleKey];
   if (!opener) return;
   execPushNav(cfg.label, opener + '()');
 }
@@ -1259,6 +1260,10 @@ const EXEC_MODULE_NAV = {
     goHome: "PurUI.back()"
   },
   curtain:     { label: 'Curtain & Blinds', home: () => true, goHome: "curtGoTo('curt-dashboard')" },
+  'curtain-tracks':   { label: 'Tracks', home: () => !tracksDetailItem && tracksDashView === 'queue', goHome: "tracksDetailItem=null;tracksDashView='queue';renderTracksDashboard()" },
+  'curtain-qc':       { label: 'QC', home: () => !qcActiveItem && qcDashView === 'queue', goHome: "qcActiveItem=null;qcDashView='queue';renderQCDashboard()" },
+  'curtain-install':  { label: 'Installation crew', home: () => true, goHome: "renderInstallCrewDashboard()" },
+  'curtain-pipeline': { label: 'Pipeline board', home: () => { const p = document.getElementById('pipeline-detail-panel'); return !p || p.style.display === 'none'; }, goHome: "(function(){ const p = document.getElementById('pipeline-detail-panel'); if (p) p.style.display = 'none'; })()" },
   operations:  { label: 'Operations',   home: () => true, goHome: "opsGoTo('dashboard')" },
   owner:       { label: 'Owner',        home: () => true, goHome: "ownerNav('dashboard')" },
   admin:       { label: 'Admin',        home: () => true, goHome: "adminSetView('approvals')" },
@@ -1387,6 +1392,11 @@ execRolloutCSS.textContent = `
    shell grid a real height */
 #ops-module-wrap.xshell .xs-app{min-height:calc(100vh - 160px);}
 #ops-module-wrap.xshell .xs-top .xs-iconbtn[title="Close"]{display:none;}
+/* The four Curtain dashboards in the shell (5 Sep 2026): their old wine
+   headers hide, the content slot is a positioned column so their absolute
+   detail panels stay inside it. */
+.xshell .curt-ov-head{display:none!important;}   /* the header carries an inline display:flex */
+.curt-ov{position:relative;display:flex;flex-direction:column;min-height:100%;}
 `;
 document.head.appendChild(execRolloutCSS);
 
@@ -1397,7 +1407,8 @@ const EXEC_RERENDER_OF = {
   accounts: 'renderAccountsBody', hr: 'renderHRBody', joinery: 'renderJoineryBody',
   upholstery: 'renderUphBody', 'upholstery-legacy': 'renderUpholsteryBody', 'crew-timer': 'renderCrewTimerBody', painting: 'renderPaintingBody',
   fleet: 'renderFleetBody', delivery: 'renderDeliverySchedBody',
-  purchasing: null, storekeeper: null, curtain: null, operations: null // DOM-router modules
+  purchasing: null, storekeeper: null, curtain: null, operations: null, // DOM-router modules
+  'curtain-tracks': 'renderTracksDashboard', 'curtain-qc': 'renderQCDashboard', 'curtain-install': 'renderInstallCrewDashboard', 'curtain-pipeline': 'renderPipelineBoard'
 };
 // A role lands on its dashboard BEFORE the caches hydrate (about three
 // seconds after login, longer on a reload). Production registered its own
@@ -1443,6 +1454,23 @@ function execEnsureShell(wrap, { key, title, role, navGroupsFn, closeFn }) {
 
 // ── per-role nav configs: what matters to THIS user, with live badges ──
 function nvTag(fn) { try { const n = fn(); return n > 0 ? n : null; } catch (e) { return null; } }
+function curtainTeamsGroup() {
+  const role = (typeof window !== 'undefined' && window.cloudUserType) || '';
+  const teams = [
+    ['curtain_tracks_team',    () => nv('ct-tracks', '🔩', 'Tracks & rollers', "openTracksDashboard()", nvTag(() => typeof getAllTrackItems === 'function' ? getAllTrackItems().filter(i => i.railInfo && i.railInfo.actionable).length : 0))],
+    ['curtain_qc_team',        () => nv('ct-qc', '🔍', 'QC', "openQCDashboard()")],
+    ['curtain_site_installer', () => nv('ct-inst', '🏠', 'Installation crew', "openInstallCrewDashboard()")],
+    ['curtain_team_leader',    () => nv('ct-pipe', '🧵', 'Pipeline board', "openPipelineBoard()")]
+  ];
+  const own = teams.filter(t => t[0] === role);
+  const list = (own.length && role !== 'curtain_team_leader') ? own : teams;
+  return { label: 'Teams', items: list.map(t => t[1]()) };
+}
+function curtainOverlayNav() {
+  const role = (typeof window !== 'undefined' && window.cloudUserType) || '';
+  if (/^curtain_(tracks_team|qc_team|site_installer|team_leader)$/.test(role)) return [curtainTeamsGroup()];
+  return EXEC_NAV_CONFIGS.curtain();
+}
 function nv(id, ico, label, onclick, tag) { return { id, ico, label, onclick: onclick + ";execMarkActive('" + id + "')", tag }; }
 
 const EXEC_NAV_CONFIGS = {
@@ -1639,8 +1667,16 @@ const EXEC_NAV_CONFIGS = {
       nv('cu-wip', '🧵', 'WIP', "curtGoTo('curt-workshop')"),
       nv('cu-fab', '🧶', 'Fabric', "curtGoTo('curt-fabric')"),
       nv('cu-inst', '🏠', 'Installation', "curtGoTo('curt-install')")
-    ] }
+    ] },
+    curtainTeamsGroup()
   ],
+  // The four Curtain team dashboards inside the shell (5 Sep 2026). The
+  // manager sees the whole Curtain rail from any of them; a team sees its
+  // own page, the Team Leader all four — the same scoping Production uses.
+  'curtain-tracks': () => curtainOverlayNav(),
+  'curtain-qc': () => curtainOverlayNav(),
+  'curtain-install': () => curtainOverlayNav(),
+  'curtain-pipeline': () => curtainOverlayNav(),
   // Order, labels and counts are 13b's own nav list. The four decision
   // entries select the dashboard widget's step rather than opening a separate
   // page — that IS the design ("the decision queue is the dashboard"); each

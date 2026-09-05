@@ -9103,3 +9103,46 @@ in `docs/test-run/design-scorecard-findings.md`; the table in
   categorical colours on the HR and Fleet mini-bars, two zero-data charts
   drawing hairlines instead of the empty state, Jobs' pre-package list.
 - `sw.js` v70 → v71.
+
+### 5 Sep 2026 — The four Curtain dashboards join the shared shell (restyle, no rebuild)
+
+Item 4 in Salman's order, and the last family of screens outside the exec
+shell: the Tracks, QC, Installation-crew and Pipeline-board dashboards were
+`position:fixed` overlays from 3 Aug with a wine header of their own, no
+sidebar, no dark mode. The design scorecard flagged all four; nothing else.
+
+- **The shell owns the frame, the renderer owns the content.** Each of the
+  four wraps is adopted once by `execEnsureShell()` through a new
+  `curtOverlayHost()`, and its renderer writes into the shell's content
+  slot instead of the wrap. The old inline headers are class-tagged and
+  hidden (they carry an inline `display:flex`, so the rule is
+  `!important`); the shell's topbar carries the title and the close, its
+  back arrow steps out of a Tracks detail or a QC inspection
+  (`EXEC_MODULE_NAV` entries), and the theme toggle redraws through
+  `EXEC_RERENDER_OF`. Only one Curtain surface shows at a time.
+- **Rails scoped like Production's.** A team sees its own page (Tracks &
+  rollers with a live count, QC, Installation crew); the Team Leader sees
+  all four; the Curtain manager sees the whole Curtain workspace plus a
+  Teams group from any of them — and the main Curtain module's rail gained
+  that Teams group too, so the four are no longer reachable only through
+  links buried inside pages.
+- **Dark mode took three passes, each caught by a screenshot.** 345 neutral
+  literals in the overlay region were mapped to Curtain's tokens; then the
+  content still rendered white, because 227 references used the older
+  Shell namespace (`--shell-surface`, `--shell-border`, `--shell-ink…`)
+  that dark mode never redefines — remapped onto `--card/--line/--ink`;
+  then 22 light washes (`#fef2f2`, `#fffbeb`, `#f0fdf4`, `#dbeafe`) went to
+  the theme-aware wash tokens. The overlay wraps were added to Curtain's
+  token block in `styles.css` so those names resolve outside
+  `#curt-module-wrap`. Semantic reds, greens and ambers were left alone.
+- **Two pre-existing defects the shots surfaced, fixed**: the Tracks
+  dashboard's active tab was white-on-white in light mode (its label "My
+  Queue" invisible in every screenshot, before and after); and QC carried a
+  dev-era "Acting as … Switch" strip — the inspector is the signed-in
+  person now, the switcher shows only offline for the suites.
+- **Verified**: all four probed as their own roles and as the manager,
+  light and dark, by computed style and by reading the shots back; 390px
+  with no overflow; the nine Curtain-touching suites green (granular
+  dashboards, direct landing, back button, shell rollout, nav, bridge fix,
+  batch7, role gating, batch9); `e2e-cloud-curtain.js` 11/11 live. Full offline sweep all green; the design scorecard re-run reads 28 screens, 0 flagged.
+  `sw.js` v71 → v72.

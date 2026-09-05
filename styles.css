@@ -401,7 +401,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-
 ══════════════════════════════════════ */
 
 /* Inherit same light-theme variables as Operations */
-#curt-module-wrap, #curt-module-wrap *{
+#curt-module-wrap, #curt-module-wrap *,
+#tracks-dash-wrap, #tracks-dash-wrap *, #qc-dash-wrap, #qc-dash-wrap *, #install-crew-wrap, #install-crew-wrap *, #pipeline-board-wrap, #pipeline-board-wrap *{
   /* Retoned 2 Aug 2026 — --purple/--curt fold into the one shared wine
      accent (--maraya), replacing Curtain's former distinct purple zoning.
      See the equivalent note on #ops-module-wrap above. */

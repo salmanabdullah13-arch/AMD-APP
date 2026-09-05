@@ -3104,6 +3104,36 @@ let tracksDashView   = 'queue';   // 'queue' | 'jobs' | 'done'
 let tracksActiveJob  = null;      // jobId when in job view
 let tracksDetailItem = null;      // { jobId, windowId } for detail panel
 
+// ── The four Curtain dashboards inside the shared shell (5 Sep 2026, design
+// scorecard item 4 — "restyle only, no rebuild"). They were the last screens
+// outside the exec shell: position:fixed overlays with a wine header of
+// their own and no dark mode. Each renderer now writes into the shell's
+// content slot; the shell's topbar carries the title and the close, its rail
+// carries the team pages, and its back arrow steps out of a detail panel.
+// The old inline headers are class-tagged and hidden, not removed.
+const CURT_OVERLAYS = {
+  'tracks-dash-wrap':   { key: 'curtain-tracks',   title: 'Tracks & Roller Blinds', role: 'Tracks Team',    close: 'closeTracksDashboard' },
+  'qc-dash-wrap':       { key: 'curtain-qc',       title: 'QC',                     role: 'QC Team',        close: 'closeQCDashboard' },
+  'install-crew-wrap':  { key: 'curtain-install',  title: 'Installation Crew',      role: 'Site Installer', close: 'closeInstallCrewDashboard' },
+  'pipeline-board-wrap':{ key: 'curtain-pipeline', title: 'Pipeline Board',         role: 'Team Leader',    close: 'closePipelineBoard' }
+};
+function curtOverlayHost(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return null;
+  const spec = CURT_OVERLAYS[wrapId];
+  if (!spec || typeof execEnsureShell !== 'function' || typeof EXEC_NAV_CONFIGS === 'undefined' || !EXEC_NAV_CONFIGS[spec.key]) return wrap;
+  // One Curtain surface at a time: the others (and the manager's module) hide.
+  Object.keys(CURT_OVERLAYS).forEach(id => { if (id !== wrapId) { const el = document.getElementById(id); if (el) el.style.display = 'none'; } });
+  const cm = document.getElementById('curt-module-wrap'); if (cm && wrap.style.display !== 'none') cm.style.display = 'none';
+  if (!wrap.__xsAdopted) { wrap.innerHTML = ''; wrap.style.background = 'var(--biz-page-bg)'; }   // nothing to adopt — the renderer fills the slot; the page token follows dark mode, --bg does not
+  const roleLabel = (typeof window !== 'undefined' && window.cloudUserType === 'curtain_manager') ? 'Curtain Manager' : spec.role;
+  execEnsureShell(wrap, { key: spec.key, title: spec.title, role: roleLabel, navGroupsFn: EXEC_NAV_CONFIGS[spec.key], closeFn: spec.close });
+  const slot = wrap.querySelector('#xs-slot-' + spec.key);
+  if (!slot) return wrap;
+  slot.classList.add('curt-ov');
+  return slot;
+}
+
 function openTracksDashboard() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
@@ -3113,7 +3143,7 @@ function openTracksDashboard() {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'tracks-dash-wrap';
-    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--shell-bg);overflow:hidden;font-family:inherit;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--bg);overflow:hidden;font-family:inherit;';
     document.body.appendChild(wrap);
   }
   wrap.style.display = 'flex';
@@ -3187,7 +3217,7 @@ function getGroupSiblings(job, w) {
 
 // ── Main render ───────────────────────────────
 function renderTracksDashboard() {
-  const wrap = document.getElementById('tracks-dash-wrap');
+  const wrap = curtOverlayHost('tracks-dash-wrap');
   if (!wrap) return;
 
   // If a detail panel is open, render that instead
@@ -3222,59 +3252,59 @@ function renderTracksDashboard() {
   });
 
   const focusBanner = workingSet.length === 0 ? '' : `
-    <div style="background:#f4e6ec;border-bottom:1px solid var(--shell-border,#e7e9ed);padding:12px 16px;flex:none;">
+    <div style="background:var(--info-bg,#f4e6ec);border-bottom:1px solid var(--line,var(--line));padding:12px 16px;flex:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          <div><span style="font-size:18px;font-weight:800;color:${dueToday.length>0?'#ef4444':'var(--shell-ink-muted,#6b7280)'};">${dueToday.length}</span> <span style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">due today</span></div>
-          <div><span style="font-size:18px;font-weight:800;color:#38bdf8;">${todayMetres.toFixed(1)}m</span> <span style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">track needed today</span></div>
-          ${todayMotorized > 0 ? `<div><span style="font-size:18px;font-weight:800;color:#f59e0b;">⚡${todayMotorized}</span> <span style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">motorized</span></div>` : ''}
+          <div><span style="font-size:18px;font-weight:800;color:${dueToday.length>0?'#ef4444':'var(--ink2,var(--ink2))'};">${dueToday.length}</span> <span style="font-size:11px;color:var(--ink2,var(--ink2,var(--ink2)));">due today</span></div>
+          <div><span style="font-size:18px;font-weight:800;color:#38bdf8;">${todayMetres.toFixed(1)}m</span> <span style="font-size:11px;color:var(--ink2,var(--ink2,var(--ink2)));">track needed today</span></div>
+          ${todayMotorized > 0 ? `<div><span style="font-size:18px;font-weight:800;color:#f59e0b;">⚡${todayMotorized}</span> <span style="font-size:11px;color:var(--ink2,var(--ink2,var(--ink2)));">motorized</span></div>` : ''}
         </div>
         <div style="display:flex;gap:8px;font-size:11px;flex-wrap:wrap;">
-          ${TRACK_TEAM.map(p => `<span style="background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:20px;padding:3px 10px;color:var(--shell-ink,#16181d);">${p}: <b>${workload[p]}</b></span>`).join('')}
-          ${workload.Unassigned > 0 ? `<span style="background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:20px;padding:3px 10px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Unassigned: <b>${workload.Unassigned}</b></span>` : ''}
+          ${TRACK_TEAM.map(p => `<span style="background:var(--line,var(--line));border:1px solid var(--line,var(--line));border-radius:20px;padding:3px 10px;color:var(--ink,var(--ink));">${p}: <b>${workload[p]}</b></span>`).join('')}
+          ${workload.Unassigned > 0 ? `<span style="background:var(--line,var(--line));border:1px solid var(--line,var(--line));border-radius:20px;padding:3px 10px;color:var(--ink2,var(--ink2,var(--ink2)));">Unassigned: <b>${workload.Unassigned}</b></span>` : ''}
         </div>
       </div>
     </div>`;
 
   // ── KPI bar ──
   const kpiBar = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--shell-border,#e7e9ed);flex:none;">
-      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line,var(--line));flex:none;">
+      <div style="background:var(--card,#fff);padding:14px 10px;text-align:center;">
         <p style="font-size:24px;font-weight:800;color:#f59e0b;line-height:1;">${dueThisWeek.length}</p>
-        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">Due this<br>week</p>
+        <p style="font-size:10px;color:var(--ink2,var(--ink2));margin-top:4px;line-height:1.2;">Due this<br>week</p>
       </div>
-      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;">
+      <div style="background:var(--card,#fff);padding:14px 10px;text-align:center;">
         <p style="font-size:24px;font-weight:800;color:var(--maraya);line-height:1;">${active.length}</p>
-        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">In<br>production</p>
+        <p style="font-size:10px;color:var(--ink2,var(--ink2));margin-top:4px;line-height:1.2;">In<br>production</p>
       </div>
-      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;position:relative;">
-        <p style="font-size:24px;font-weight:800;color:${rework.length>0?'#ef4444':'var(--shell-border,#e7e9ed)'};line-height:1;">${rework.length}</p>
-        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">QC failed<br>urgent</p>
+      <div style="background:var(--card,#fff);padding:14px 10px;text-align:center;position:relative;">
+        <p style="font-size:24px;font-weight:800;color:${rework.length>0?'#ef4444':'var(--line,var(--line))'};line-height:1;">${rework.length}</p>
+        <p style="font-size:10px;color:var(--ink2,var(--ink2));margin-top:4px;line-height:1.2;">QC failed<br>urgent</p>
         ${rework.length > 0 ? `<div style="position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:#ef4444;"></div>` : ''}
       </div>
-      <div style="background:var(--shell-surface,#fff);padding:14px 10px;text-align:center;">
+      <div style="background:var(--card,#fff);padding:14px 10px;text-align:center;">
         <p style="font-size:24px;font-weight:800;color:#10b981;line-height:1;">${ready.length}</p>
-        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;line-height:1.2;">Ready<br>for QC</p>
+        <p style="font-size:10px;color:var(--ink2,var(--ink2));margin-top:4px;line-height:1.2;">Ready<br>for QC</p>
       </div>
     </div>`;
 
   // ── View tabs ──
   const viewTabs = `
-    <div style="display:flex;background:var(--shell-border,#e7e9ed);border-bottom:1px solid var(--shell-border,#e7e9ed);flex:none;overflow-x:auto;">
+    <div style="display:flex;background:var(--line,var(--line));border-bottom:1px solid var(--line,var(--line));flex:none;overflow-x:auto;">
       <button onclick="tracksDashView='queue';renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='queue'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='queue'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='queue'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='queue'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='queue'?'var(--card,#fff)':'transparent'};color:${tracksDashView==='queue'?'var(--ink)':'var(--ink2)'};font-size:12px;font-weight:${tracksDashView==='queue'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='queue'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         My Queue (${active.length + rework.length})
       </button>
       <button onclick="tracksDashView='jobs';tracksActiveJob=null;renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='jobs'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='jobs'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='jobs'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='jobs'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='jobs'?'var(--card,#fff)':'transparent'};color:${tracksDashView==='jobs'?'var(--ink)':'var(--ink2)'};font-size:12px;font-weight:${tracksDashView==='jobs'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='jobs'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         By Job
       </button>
       <button onclick="tracksDashView='cutlist';renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='cutlist'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='cutlist'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='cutlist'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='cutlist'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='cutlist'?'var(--card,#fff)':'transparent'};color:${tracksDashView==='cutlist'?'var(--ink)':'var(--ink2)'};font-size:12px;font-weight:${tracksDashView==='cutlist'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='cutlist'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         Cut List
       </button>
       <button onclick="tracksDashView='done';renderTracksDashboard()"
-        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='done'?'var(--shell-surface,#fff)':'transparent'};color:${tracksDashView==='done'?'#fff':'var(--shell-ink-muted,#6b7280)'};font-size:12px;font-weight:${tracksDashView==='done'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='done'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
+        style="flex:1;padding:11px 6px;border:none;background:${tracksDashView==='done'?'var(--card,#fff)':'transparent'};color:${tracksDashView==='done'?'var(--ink)':'var(--ink2)'};font-size:12px;font-weight:${tracksDashView==='done'?'700':'400'};cursor:pointer;border-bottom:${tracksDashView==='done'?'2px solid #10b981':'2px solid transparent'};white-space:nowrap;">
         Completed (${ready.length + installed.length})
       </button>
     </div>`;
@@ -3293,10 +3323,10 @@ function renderTracksDashboard() {
 
   wrap.innerHTML = `
     <!-- Header -->
-    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div class="curt-ov-head" style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🔩 Tracks & Roller Blinds</p>
-        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:11px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{weekday:'short',day:'numeric',month:'short'})}</p>
+        <p style="color:var(--ink2,var(--ink2,var(--ink2)));font-size:11px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{weekday:'short',day:'numeric',month:'short'})}</p>
       </div>
       <button onclick="closeTracksDashboard()"
         style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">
@@ -3328,7 +3358,7 @@ function renderTracksQueueView(rework, active, atHoistQC, waitingOnFabric) {
   // Active production items
   if (active.length > 0) {
     html += `<div style="padding:12px 16px 6px;">
-      <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));text-transform:uppercase;">In Production (${active.length})</p>
+      <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--ink2,var(--ink2,var(--ink2)));text-transform:uppercase;">In Production (${active.length})</p>
     </div>`;
     active.forEach(i => { html += tracksItemCard(i, 'active'); });
   }
@@ -3352,8 +3382,8 @@ function renderTracksQueueView(rework, active, atHoistQC, waitingOnFabric) {
   if (rework.length === 0 && active.length === 0 && atHoistQC.length === 0 && waitingOnFabric.length === 0) {
     html = `<div style="padding:60px 20px;text-align:center;">
       <p style="font-size:40px;margin-bottom:12px;">✓</p>
-      <p style="font-size:15px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">Queue is clear</p>
-      <p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);margin-top:6px;">All items are ready or installed.</p>
+      <p style="font-size:15px;color:var(--ink2,var(--ink2,var(--ink2)));font-weight:600;">Queue is clear</p>
+      <p style="font-size:12px;color:var(--ink3,var(--ink3));margin-top:6px;">All items are ready or installed.</p>
     </div>`;
   }
   return html;
@@ -3368,12 +3398,12 @@ function renderTracksJobView(all) {
     if (!job) { tracksActiveJob = null; return renderTracksJobView(all); }
     const days = daysUntilInstall(job);
     let html = `
-      <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--shell-border,#e7e9ed);">
+      <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line,var(--line));">
         <button onclick="tracksActiveJob=null;renderTracksDashboard()"
-          style="background:rgba(255,255,255,.07);border:1px solid var(--shell-border,#e7e9ed);color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;">← Jobs</button>
+          style="background:rgba(255,255,255,.07);border:1px solid var(--line,var(--line));color:var(--ink2,var(--ink2,var(--ink2)));padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;">← Jobs</button>
         <div>
           <p style="color:#fff;font-weight:700;font-size:14px;">${job.name}</p>
-          <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);">${job.id} · ${job.client}</p>
+          <p style="font-size:11px;color:var(--ink2,var(--ink2));">${job.id} · ${job.client}</p>
         </div>
         ${days !== null ? `<span style="margin-left:auto;background:${urgencyColor(days)}22;color:${urgencyColor(days)};border:1px solid ${urgencyColor(days)}44;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">${urgencyLabel(days)}</span>` : ''}
       </div>`;
@@ -3399,10 +3429,10 @@ function renderTracksJobView(all) {
   });
 
   if (Object.keys(jobGroups).length === 0) {
-    return `<div style="padding:60px 20px;text-align:center;"><p style="color:var(--shell-ink-muted,#6b7280);">No jobs with track work yet.</p></div>`;
+    return `<div style="padding:60px 20px;text-align:center;"><p style="color:var(--ink2,var(--ink2));">No jobs with track work yet.</p></div>`;
   }
 
-  let html = `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;">Select a job</p></div>`;
+  let html = `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--ink2,var(--ink2));text-transform:uppercase;">Select a job</p></div>`;
   Object.values(jobGroups).sort((a,b) => {
     if (a.days === null) return 1;
     if (b.days === null) return -1;
@@ -3412,11 +3442,11 @@ function renderTracksJobView(all) {
     const rdone   = items.filter(i => ['Ready','Installed'].includes(i.stageInfo.stage)).length;
     html += `
       <div onclick="tracksActiveJob='${job.id}';renderTracksDashboard()"
-        style="margin:0 16px 10px;background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:14px;cursor:pointer;">
+        style="margin:0 16px 10px;background:var(--line,var(--line));border:1px solid var(--line,var(--line));border-radius:12px;padding:14px;cursor:pointer;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
             <p style="color:#fff;font-weight:700;font-size:14px;">${job.name}</p>
-            <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);margin-top:2px;">${job.id} · ${items.length} item${items.length>1?'s':''}</p>
+            <p style="font-size:11px;color:var(--ink2,var(--ink2));margin-top:2px;">${job.id} · ${items.length} item${items.length>1?'s':''}</p>
           </div>
           ${days !== null ? `<span style="background:${urgencyColor(days)}22;color:${urgencyColor(days)};border:1px solid ${urgencyColor(days)}44;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${urgencyLabel(days)}</span>` : ''}
         </div>
@@ -3433,14 +3463,14 @@ function renderTracksJobView(all) {
 function renderTracksDoneView(ready, installed) {
   let html = '';
   if (ready.length === 0 && installed.length === 0) {
-    return `<div style="padding:60px 20px;text-align:center;"><p style="color:var(--shell-ink-muted,#6b7280);">No completed items yet.</p></div>`;
+    return `<div style="padding:60px 20px;text-align:center;"><p style="color:var(--ink2,var(--ink2));">No completed items yet.</p></div>`;
   }
   if (ready.length > 0) {
     html += `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#10b981;text-transform:uppercase;">Ready for hoist / install (${ready.length})</p></div>`;
     ready.forEach(i => { html += tracksItemCard(i, 'ready'); });
   }
   if (installed.length > 0) {
-    html += `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;">Installed (${installed.length})</p></div>`;
+    html += `<div style="padding:12px 16px 6px;"><p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--ink2,var(--ink2));text-transform:uppercase;">Installed (${installed.length})</p></div>`;
     installed.forEach(i => { html += tracksItemCard(i, 'done'); });
   }
   return html;
@@ -3453,7 +3483,7 @@ function renderTracksCutListView(items) {
   if (items.length === 0) {
     return `<div style="padding:60px 20px;text-align:center;">
       <p style="font-size:32px;margin-bottom:8px;">✓</p>
-      <p style="font-size:14px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Nothing in production — cut list is empty.</p>
+      <p style="font-size:14px;color:var(--ink2,var(--ink2,var(--ink2)));">Nothing in production — cut list is empty.</p>
     </div>`;
   }
 
@@ -3502,51 +3532,51 @@ function renderTracksCutListView(items) {
       ? `⚠ Short ${g.totalPieces - stock.piecesInStock} pc${(g.totalPieces - stock.piecesInStock) !== 1 ? 's' : ''}`
       : `⚠ Short ${(g.totalM - stock.metresInStock).toFixed(1)}m`;
     return `
-      <div style="margin:0 16px 12px;background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;overflow:hidden;">
+      <div style="margin:0 16px 12px;background:var(--line,var(--line));border:1px solid var(--line,var(--line));border-radius:12px;overflow:hidden;">
         <div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--maraya);">
           <div>
-            <p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${g.railType}${isPieceMode ? ` <span style="font-size:10px;color:var(--maraya);font-weight:600;">· ${stock.pieceLengthM}m pieces</span>` : ''}</p>
-            <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);">${g.rows.length} item${g.rows.length > 1 ? 's' : ''} · ${needLabel}</p>
+            <p style="font-size:13px;font-weight:700;color:var(--ink,var(--ink));">${g.railType}${isPieceMode ? ` <span style="font-size:10px;color:var(--maraya);font-weight:600;">· ${stock.pieceLengthM}m pieces</span>` : ''}</p>
+            <p style="font-size:11px;color:var(--ink2,var(--ink2));">${g.rows.length} item${g.rows.length > 1 ? 's' : ''} · ${needLabel}</p>
           </div>
           ${hasStock ? `
             <span style="background:${sufficient ? '#10b98122' : '#ef444422'};color:${sufficient ? '#34d399' : '#f87171'};border:1px solid ${sufficient ? '#10b98144' : '#ef444444'};border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;">
               ${sufficient ? '✓ Stock OK' : shortLabel}
-            </span>` : `<span style="background:var(--shell-border,#e7e9ed)22;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));border:1px solid var(--shell-border,#e7e9ed)44;border-radius:20px;padding:4px 10px;font-size:11px;white-space:nowrap;">Stock n/a</span>`}
+            </span>` : `<span style="background:var(--line,var(--line))22;color:var(--ink2,var(--ink2,var(--ink2)));border:1px solid var(--line,var(--line))44;border-radius:20px;padding:4px 10px;font-size:11px;white-space:nowrap;">Stock n/a</span>`}
         </div>
         <div style="padding:6px 14px 8px;">
           ${g.rows.map(r => `
-            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
-              <span style="color:var(--shell-ink,#16181d);">${r.w.label} <span style="color:var(--shell-ink-muted,#6b7280);">· ${r.job.name}</span></span>
-              <span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">${isPieceMode ? (r.qty > 1 ? r.qty + ' pcs' : '1 pc') : r.lengthM.toFixed(2) + 'm' + (r.qty > 1 ? ' × ' + r.qty : '')}</span>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--card,#fff);">
+              <span style="color:var(--ink,var(--ink));">${r.w.label} <span style="color:var(--ink2,var(--ink2));">· ${r.job.name}</span></span>
+              <span style="color:var(--ink2,var(--ink2,var(--ink2)));">${isPieceMode ? (r.qty > 1 ? r.qty + ' pcs' : '1 pc') : r.lengthM.toFixed(2) + 'm' + (r.qty > 1 ? ' × ' + r.qty : '')}</span>
             </div>`).join('')}
         </div>
-        ${hasStock ? `<div style="padding:0 14px 10px;font-size:10px;color:var(--shell-ink-faint,#9ba1aa);">In stock: ${isPieceMode ? stock.piecesInStock + ' pcs' : stock.metresInStock + 'm'} · updated ${fmtDate(stock.lastUpdated)}</div>` : ''}
+        ${hasStock ? `<div style="padding:0 14px 10px;font-size:10px;color:var(--ink3,var(--ink3));">In stock: ${isPieceMode ? stock.piecesInStock + ' pcs' : stock.metresInStock + 'm'} · updated ${fmtDate(stock.lastUpdated)}</div>` : ''}
       </div>`;
   }).join('');
 
   const hardwareSection = `
-    <div style="margin:0 16px 12px;background:var(--shell-border,#e7e9ed);border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:14px;">
-      <p style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:10px;">Hardware pick list</p>
+    <div style="margin:0 16px 12px;background:var(--line,var(--line));border:1px solid var(--line,var(--line));border-radius:12px;padding:14px;">
+      <p style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--ink2,var(--ink2));text-transform:uppercase;margin-bottom:10px;">Hardware pick list</p>
       ${Object.values(hardwareParts).length ? Object.values(hardwareParts).sort((a, b) => (b.qty||0) - (a.qty||0)).map(p => `
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
-          <span style="color:var(--shell-ink,#16181d);">${p.label}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--card,#fff);">
+          <span style="color:var(--ink,var(--ink));">${p.label}</span>
           <span style="display:flex;align-items:center;gap:6px;">
-            <span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">${p.hasUnknown ? '?' : '× ' + p.qty + (p.unit === 'm' ? 'm' : '')}</span>
+            <span style="color:var(--ink2,var(--ink2,var(--ink2)));font-weight:600;">${p.hasUnknown ? '?' : '× ' + p.qty + (p.unit === 'm' ? 'm' : '')}</span>
             ${p.hasUnknown ? `<span style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;">NEEDS SPEC</span>`
               : (!p.confirmed ? `<span style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;">UNCONFIRMED</span>` : '')}
           </span>
-        </div>`).join('') : `<p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);">No hardware data yet.</p>`}
+        </div>`).join('') : `<p style="font-size:12px;color:var(--ink3,var(--ink3));">No hardware data yet.</p>`}
       ${Object.keys(motors).length ? `
-        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Motors</p>
+        <p style="font-size:10px;color:var(--ink2,var(--ink2));margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Motors</p>
         ${Object.values(motors).map(m => `
-          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
-            <span style="color:#f59e0b;">⚡ ${m.brand.charAt(0).toUpperCase() + m.brand.slice(1)} ${m.model}</span><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">× ${m.qty}</span>
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--card,#fff);">
+            <span style="color:#f59e0b;">⚡ ${m.brand.charAt(0).toUpperCase() + m.brand.slice(1)} ${m.model}</span><span style="color:var(--ink2,var(--ink2,var(--ink2)));font-weight:600;">× ${m.qty}</span>
           </div>`).join('')}` : ''}
       ${Object.keys(cords).length ? `
-        <p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Cord (roller / blind)</p>
+        <p style="font-size:10px;color:var(--ink2,var(--ink2));margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px;">Cord (roller / blind)</p>
         ${Object.entries(cords).map(([type, qty]) => `
-          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--shell-surface,#fff);">
-            <span style="color:var(--shell-ink,#16181d);">${type}</span><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-weight:600;">× ${qty}</span>
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--card,#fff);">
+            <span style="color:var(--ink,var(--ink));">${type}</span><span style="color:var(--ink2,var(--ink2,var(--ink2)));font-weight:600;">× ${qty}</span>
           </div>`).join('')}` : ''}
     </div>`;
 
@@ -3554,7 +3584,7 @@ function renderTracksCutListView(items) {
     <div style="padding:12px 16px 6px;">
       <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#38bdf8;text-transform:uppercase;">Cutting list — by rail type (${Object.keys(railGroups).length} types)</p>
     </div>
-    ${railSection || `<p style="padding:0 16px 12px;font-size:12px;color:var(--shell-ink-faint,#9ba1aa);">No track/rail items in production right now.</p>`}
+    ${railSection || `<p style="padding:0 16px 12px;font-size:12px;color:var(--ink3,var(--ink3));">No track/rail items in production right now.</p>`}
     <div style="padding:12px 16px 6px;">
       <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:#38bdf8;text-transform:uppercase;">Hardware needed — all ${items.length} items in production</p>
     </div>
@@ -3576,30 +3606,30 @@ function tracksItemCard(i, mode, showDetail) {
   const stageDots = railStages.map((s, si) => {
     const done    = card && card.railTrack && card.railTrack.stageDates && card.railTrack.stageDates[s];
     const isCurr  = railInfo.stage === s;
-    const bg      = done ? '#10b981' : isCurr ? 'var(--maraya)' : 'var(--shell-border,#e7e9ed)';
+    const bg      = done ? '#10b981' : isCurr ? 'var(--maraya)' : 'var(--line,var(--line))';
     return `<div style="display:flex;align-items:center;gap:3px;">
       <div style="width:8px;height:8px;border-radius:50%;background:${bg};flex:none;"></div>
-      <span style="font-size:9px;color:${done?'#10b981':isCurr?'var(--maraya)':'var(--shell-ink-faint,#9ba1aa)'};white-space:nowrap;">${s}</span>
-      ${si < railStages.length-1 ? `<div style="width:10px;height:1px;background:var(--shell-border,#e7e9ed);margin:0 1px;"></div>` : ''}
+      <span style="font-size:9px;color:${done?'#10b981':isCurr?'var(--maraya)':'var(--ink3,var(--ink3))'};white-space:nowrap;">${s}</span>
+      ${si < railStages.length-1 ? `<div style="width:10px;height:1px;background:var(--line,var(--line));margin:0 1px;"></div>` : ''}
     </div>`;
   }).join('');
 
   // Full spec block
   const specBlock = isRoller ? `
-    <div style="background:#f7f8fa;border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Size (W×H)</p><p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${w.width} × ${w.height} cm</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:600;">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Fabric</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord type</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord length</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.cordLength ? w.cordLength + ' cm' : '—'}</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord side</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:700;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Size (W×H)</p><p style="font-size:13px;font-weight:700;color:var(--ink,var(--ink));">${w.width} × ${w.height} cm</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Bracket</p><p style="font-size:12px;color:var(--ink,var(--ink));font-weight:600;">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Fabric</p><p style="font-size:12px;color:var(--ink,var(--ink));">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Cord type</p><p style="font-size:12px;color:var(--ink,var(--ink));">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Cord length</p><p style="font-size:12px;color:var(--ink,var(--ink));">${w.cordLength ? w.cordLength + ' cm' : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Cord side</p><p style="font-size:12px;color:var(--ink,var(--ink));font-weight:700;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
     </div>` : `
-    <div style="background:#f7f8fa;border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Track length</p><p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : w.width ? (w.width/100).toFixed(2)+' m' : '—'}</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Rail type</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:600;">${w.railType || '—'}</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Opening</p><p style="font-size:12px;color:var(--shell-ink,#16181d);font-weight:700;">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
-      <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket</p><p style="font-size:12px;color:var(--shell-ink,#16181d);">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-      ${w.motorized ? `<div style="grid-column:1/-1;"><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Motor</p><p style="font-size:12px;color:#f59e0b;font-weight:700;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)} — needs motor team fit</p></div>` : ''}
+    <div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Track length</p><p style="font-size:13px;font-weight:700;color:var(--ink,var(--ink));">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : w.width ? (w.width/100).toFixed(2)+' m' : '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Rail type</p><p style="font-size:12px;color:var(--ink,var(--ink));font-weight:600;">${w.railType || '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Opening</p><p style="font-size:12px;color:var(--ink,var(--ink));font-weight:700;">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
+      <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Bracket</p><p style="font-size:12px;color:var(--ink,var(--ink));">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+      ${w.motorized ? `<div style="grid-column:1/-1;"><p style="font-size:10px;color:var(--ink2,var(--ink2));">Motor</p><p style="font-size:12px;color:#f59e0b;font-weight:700;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)} — needs motor team fit</p></div>` : ''}
     </div>`;
 
   // Action buttons — derived straight from the rail track's own state, so
@@ -3653,30 +3683,30 @@ function tracksItemCard(i, mode, showDetail) {
   // Paired-opening note — same physical window, different layer (main+sheer, curtain+Roman, etc.)
   const pairedNote = siblings.length > 0 ? `
     <p style="font-size:11px;color:var(--maraya);margin-top:3px;">
-      🔗 Paired: ${siblings.map(s => `${s.w.label}${s.card ? ` <span style="color:var(--shell-ink-muted,#6b7280);">(${getItemCardStageDisplay(s.card, s.w.treatment).stage})</span>` : ''}`).join(', ')}
+      🔗 Paired: ${siblings.map(s => `${s.w.label}${s.card ? ` <span style="color:var(--ink2,var(--ink2));">(${getItemCardStageDisplay(s.card, s.w.treatment).stage})</span>` : ''}`).join(', ')}
     </p>` : '';
 
   // Assignee row — tap to assign Abdullah / Prince
   const assigneeRow = `
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-      <span style="font-size:10px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;letter-spacing:.5px;">Assigned:</span>
+      <span style="font-size:10px;color:var(--ink2,var(--ink2));text-transform:uppercase;letter-spacing:.5px;">Assigned:</span>
       ${TRACK_TEAM.map(p => `
         <button onclick="assignTrackItem('${job.id}','${w.id}', ${card && card.assignedTo === p ? 'null' : `'${p}'`})"
           style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
-            background:${card && card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-surface,#fff)'};
-            color:${card && card.assignedTo === p ? '#fff' : 'var(--shell-ink-muted,var(--shell-ink-muted,#6b7280))'};
-            border:1px solid ${card && card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-border,#e7e9ed)'};">
+            background:${card && card.assignedTo === p ? 'var(--maraya)' : 'var(--card,#fff)'};
+            color:${card && card.assignedTo === p ? '#fff' : 'var(--ink2,var(--ink2,var(--ink2)))'};
+            border:1px solid ${card && card.assignedTo === p ? 'var(--maraya)' : 'var(--line,var(--line))'};">
           ${p}
         </button>`).join('')}
-      ${!card || !card.assignedTo ? `<span style="font-size:11px;color:var(--shell-ink-faint,#9ba1aa);">— unassigned</span>` : ''}
+      ${!card || !card.assignedTo ? `<span style="font-size:11px;color:var(--ink3,var(--ink3));">— unassigned</span>` : ''}
     </div>`;
 
   const borderColor = mode === 'rework' ? '#f5b8b5' :
                       mode === 'ready'  ? '#b6e6c9' :
-                      mode === 'done'   ? 'var(--shell-border,#e7e9ed)' : 'var(--shell-border,#e7e9ed)';
+                      mode === 'done'   ? 'var(--line,var(--line))' : 'var(--line,var(--line))';
   const bgColor     = mode === 'rework' ? 'var(--bad-bg,#fdeceb)' :
                       mode === 'ready'  ? 'var(--ok-bg,#eafaf1)' :
-                      mode === 'done'   ? '#f7f7f8' : 'var(--shell-border,#e7e9ed)';
+                      mode === 'done'   ? '#f7f7f8' : 'var(--line,var(--line))';
 
   return `
     <div style="margin:0 16px 10px;background:${bgColor};border:1px solid ${borderColor};border-radius:12px;padding:14px;cursor:pointer;"
@@ -3686,17 +3716,17 @@ function tracksItemCard(i, mode, showDetail) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.label}</p>
+            <p style="font-size:15px;font-weight:800;color:var(--ink,var(--ink));">${w.label}</p>
             ${isRoller ? `<span style="background:#60013122;color:var(--maraya);border:1px solid #60013144;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">ROLLER</span>` : `<span style="background:#0ea5e922;color:#38bdf8;border:1px solid #0ea5e944;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">RAIL</span>`}
             ${qcFails > 0 ? `<span style="background:#ef444422;color:#f87171;border:1px solid #ef444444;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">${qcFails} QC fail${qcFails>1?'s':''}</span>` : ''}
           </div>
-          <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);margin-top:2px;">${job.name} · ${w.room}</p>
+          <p style="font-size:11px;color:var(--ink2,var(--ink2));margin-top:2px;">${job.name} · ${w.room}</p>
           ${pairedNote}
         </div>
         <!-- Install countdown -->
         <div style="text-align:right;flex:none;">
           <p style="font-size:14px;font-weight:800;color:${daysColor};">${daysText}</p>
-          ${days !== null ? `<p style="font-size:10px;color:var(--shell-ink-faint,#9ba1aa);">to install</p>` : `<p style="font-size:10px;color:var(--shell-ink-faint,#9ba1aa);">no date set</p>`}
+          ${days !== null ? `<p style="font-size:10px;color:var(--ink3,var(--ink3));">to install</p>` : `<p style="font-size:10px;color:var(--ink3,var(--ink3));">no date set</p>`}
         </div>
       </div>
 
@@ -3718,7 +3748,7 @@ function tracksItemCard(i, mode, showDetail) {
 
 // ── Detail panel — full spec + history ────────
 function renderTracksDetailPanel() {
-  const wrap = document.getElementById('tracks-dash-wrap');
+  const wrap = curtOverlayHost('tracks-dash-wrap');
   if (!wrap || !tracksDetailItem) return;
 
   const { jobId, windowId } = tracksDetailItem;
@@ -3734,13 +3764,13 @@ function renderTracksDetailPanel() {
   const fabInfo    = getFabricDisplay(card);
 
   const historyRows = card.qcHistory.map(h => `
-    <div style="border-bottom:1px solid var(--shell-border,#e7e9ed);padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+    <div style="border-bottom:1px solid var(--line,var(--line));padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
       <div>
         <p style="font-size:12px;font-weight:700;color:${h.result==='pass'?'#10b981':'#ef4444'};">
           ${h.result==='pass'?'✓ Pass':'✗ Fail'} — Attempt ${h.attempt}
         </p>
-        <p style="font-size:11px;color:var(--shell-ink-muted,#6b7280);">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
-        ${h.notes ? `<p style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-top:3px;">${h.notes}</p>` : ''}
+        <p style="font-size:11px;color:var(--ink2,var(--ink2));">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+        ${h.notes ? `<p style="font-size:11px;color:var(--ink2,var(--ink2,var(--ink2)));margin-top:3px;">${h.notes}</p>` : ''}
       </div>
       ${h.photos && h.photos.length ? `<div style="position:relative;flex:none;"><img src="${h.photos[0]}" style="width:44px;height:44px;border-radius:7px;object-fit:cover;">${h.photos.length>1?`<span style="position:absolute;bottom:-4px;right:-4px;background:var(--maraya);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:8px;">+${h.photos.length-1}</span>`:''}</div>` : ''}
     </div>`).join('');
@@ -3751,11 +3781,11 @@ function renderTracksDetailPanel() {
     const curr = railInfo.stage === s;
     return `
       <div style="flex:1;text-align:center;">
-        <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;background:${done?'#10b981':curr?'var(--maraya)':'var(--shell-border,#e7e9ed)'};border:2px solid ${done?'#10b981':curr?'var(--maraya)':'var(--shell-ink-faint,#9ba1aa)'};">
-          ${done ? `<span style="color:#fff;font-size:11px;font-weight:800;">✓</span>` : curr ? `<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:block;"></span>` : ''}
+        <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;background:${done?'#10b981':curr?'var(--maraya)':'var(--line,var(--line))'};border:2px solid ${done?'#10b981':curr?'var(--maraya)':'var(--ink3,var(--ink3))'};">
+          ${done ? `<span style="color:#fff;font-size:11px;font-weight:800;">✓</span>` : curr ? `<span style="width:8px;height:8px;border-radius:50%;background:var(--card);display:block;"></span>` : ''}
         </div>
-        <p style="font-size:9px;color:${done?'#10b981':curr?'var(--maraya)':'var(--shell-ink-faint,#9ba1aa)'};font-weight:${done||curr?'700':'400'};">${s}</p>
-        ${done && card.railTrack.stageDates[s] ? `<p style="font-size:8px;color:var(--shell-ink-faint,#9ba1aa);">${new Date(card.railTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</p>` : ''}
+        <p style="font-size:9px;color:${done?'#10b981':curr?'var(--maraya)':'var(--ink3,var(--ink3))'};font-weight:${done||curr?'700':'400'};">${s}</p>
+        ${done && card.railTrack.stageDates[s] ? `<p style="font-size:8px;color:var(--ink3,var(--ink3));">${new Date(card.railTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</p>` : ''}
       </div>`;
   }).join('');
 
@@ -3770,12 +3800,12 @@ function renderTracksDetailPanel() {
   const stockIsPiece = stock && stock.mode === 'piece';
 
   wrap.innerHTML = `
-    <div style="background:var(--maraya);padding:14px 16px;display:flex;align-items:center;gap:10px;flex:none;">
+    <div class="curt-ov-head" style="background:var(--maraya);padding:14px 16px;display:flex;align-items:center;gap:10px;flex:none;">
       <button onclick="tracksDetailItem=null;renderTracksDashboard()"
         style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Queue</button>
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">${w.label}</p>
-        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:11px;">${job.name} · ${w.room}</p>
+        <p style="color:var(--ink2,var(--ink2,var(--ink2)));font-size:11px;">${job.name} · ${w.room}</p>
       </div>
       ${days !== null ? `<span style="margin-left:auto;background:${urgencyColor(days)}22;color:${urgencyColor(days)};border:1px solid ${urgencyColor(days)}44;border-radius:20px;padding:5px 11px;font-size:12px;font-weight:700;">${urgencyLabel(days)}</span>` : ''}
     </div>
@@ -3783,56 +3813,56 @@ function renderTracksDetailPanel() {
     <div style="flex:1;overflow-y:auto;padding-bottom:30px;">
 
       <!-- Assignment -->
-      <div style="padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;">Assigned to</span>
+      <div style="padding:16px;border-bottom:1px solid var(--line,var(--line));display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--ink2,var(--ink2));text-transform:uppercase;">Assigned to</span>
         ${TRACK_TEAM.map(p => `
           <button onclick="assignTrackItem('${job.id}','${w.id}', ${card.assignedTo === p ? 'null' : `'${p}'`})"
             style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;
-              background:${card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-surface,#fff)'};
-              color:${card.assignedTo === p ? '#fff' : 'var(--shell-ink-muted,var(--shell-ink-muted,#6b7280))'};
-              border:1px solid ${card.assignedTo === p ? 'var(--maraya)' : 'var(--shell-border,#e7e9ed)'};">
+              background:${card.assignedTo === p ? 'var(--maraya)' : 'var(--card,#fff)'};
+              color:${card.assignedTo === p ? '#fff' : 'var(--ink2,var(--ink2,var(--ink2)))'};
+              border:1px solid ${card.assignedTo === p ? 'var(--maraya)' : 'var(--line,var(--line))'};">
             ${p}
           </button>`).join('')}
       </div>
 
       ${siblings.length > 0 ? `
       <!-- Paired opening -->
-      <div style="padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);background:#f4e6ec;">
+      <div style="padding:16px;border-bottom:1px solid var(--line,var(--line));background:var(--info-bg,#f4e6ec);">
         <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--maraya);text-transform:uppercase;margin-bottom:8px;">🔗 Same opening — ${siblings.length + 1} layers</p>
         ${siblings.map(s => `
           <div onclick="tracksDetailItem={jobId:'${job.id}',windowId:'${s.w.id}'};renderTracksDashboard()"
             style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;cursor:pointer;">
-            <span style="font-size:12px;color:var(--shell-ink,#16181d);">${s.w.label}</span>
+            <span style="font-size:12px;color:var(--ink,var(--ink));">${s.w.label}</span>
             ${s.card ? itemCardStagePill(s.card, s.w.treatment) : ''}
           </div>`).join('')}
       </div>` : ''}
 
       <!-- Stage timeline -->
-      <div style="background:var(--shell-border,#e7e9ed);padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:12px;">Rail progress</p>
+      <div style="background:var(--line,var(--line));padding:16px;border-bottom:1px solid var(--line,var(--line));">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--ink2,var(--ink2));text-transform:uppercase;margin-bottom:12px;">Rail progress</p>
         <div style="display:flex;align-items:flex-start;">${stageLine}</div>
         ${fabricNote}
       </div>
 
       <!-- Full spec -->
-      <div style="padding:16px;border-bottom:1px solid var(--shell-border,#e7e9ed);">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:12px;">${isRoller ? 'Roller blind spec' : 'Rail spec'}</p>
+      <div style="padding:16px;border-bottom:1px solid var(--line,var(--line));">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--ink2,var(--ink2));text-transform:uppercase;margin-bottom:12px;">${isRoller ? 'Roller blind spec' : 'Rail spec'}</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           ${isRoller ? `
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Width</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.width} cm</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Height</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.height} cm</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Fabric</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord type</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord length</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.cordLength ? w.cordLength+' cm' : '—'}</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Cord side</p><p style="font-size:14px;font-weight:800;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? '● '+w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Width</p><p style="font-size:15px;font-weight:800;color:var(--ink,var(--ink));">${w.width} cm</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Height</p><p style="font-size:15px;font-weight:800;color:var(--ink,var(--ink));">${w.height} cm</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Fabric</p><p style="font-size:13px;font-weight:600;color:var(--ink,var(--ink));">${w.fabricCode || fabricLabel(w.fabricType) || '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Bracket</p><p style="font-size:13px;font-weight:600;color:var(--ink,var(--ink));">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Cord type</p><p style="font-size:13px;font-weight:600;color:var(--ink,var(--ink));">${w.cordType ? w.cordType.replace(/_/g,' ') : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Cord length</p><p style="font-size:13px;font-weight:600;color:var(--ink,var(--ink));">${w.cordLength ? w.cordLength+' cm' : '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Cord side</p><p style="font-size:14px;font-weight:800;color:${w.cordSide==='left'?'#60a5fa':'#f472b6'};">${w.cordSide ? '● '+w.cordSide.charAt(0).toUpperCase()+w.cordSide.slice(1) : '—'}</p></div>
           ` : `
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Track length</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : (w.width/100).toFixed(2)+' m'}</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Rail type</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.railType || '—'}</p></div>
-            <div style="grid-column:1/-1;"><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Opening direction</p><p style="font-size:15px;font-weight:800;color:var(--shell-ink,#16181d);">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
-            <div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Bracket type</p><p style="font-size:13px;font-weight:600;color:var(--shell-ink,#16181d);">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
-            ${w.motorized ? `<div><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Motor</p><p style="font-size:13px;font-weight:700;color:#f59e0b;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)}</p></div>` : ''}
-            ${stock && (stockIsPiece ? stock.piecesInStock != null : stock.metresInStock != null) ? `<div style="grid-column:1/-1;border-top:1px solid var(--shell-border,#e7e9ed);padding-top:8px;margin-top:4px;"><p style="font-size:10px;color:var(--shell-ink-muted,#6b7280);">Rail stock on hand</p><p style="font-size:13px;font-weight:700;color:${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '#f87171' : '#34d399'};">${stockIsPiece ? stock.piecesInStock + ' pcs (' + stock.pieceLengthM + 'm each)' : stock.metresInStock + 'm'} ${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '— low, check Cut List' : 'available'}</p></div>` : ''}
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Track length</p><p style="font-size:15px;font-weight:800;color:var(--ink,var(--ink));">${w.calc ? (w.calc.trackLength/100).toFixed(2)+' m' : (w.width/100).toFixed(2)+' m'}</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Rail type</p><p style="font-size:13px;font-weight:600;color:var(--ink,var(--ink));">${w.railType || '—'}</p></div>
+            <div style="grid-column:1/-1;"><p style="font-size:10px;color:var(--ink2,var(--ink2));">Opening direction</p><p style="font-size:15px;font-weight:800;color:var(--ink,var(--ink));">${OPENING_DIRECTIONS[w.openingDirection] || '—'}</p></div>
+            <div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Bracket type</p><p style="font-size:13px;font-weight:600;color:var(--ink,var(--ink));">${w.bracketType ? w.bracketType.replace(/_/g,' ') : '—'}</p></div>
+            ${w.motorized ? `<div><p style="font-size:10px;color:var(--ink2,var(--ink2));">Motor</p><p style="font-size:13px;font-weight:700;color:#f59e0b;">⚡ ${(w.motorBrand||'Somfy').charAt(0).toUpperCase()+(w.motorBrand||'somfy').slice(1)}</p></div>` : ''}
+            ${stock && (stockIsPiece ? stock.piecesInStock != null : stock.metresInStock != null) ? `<div style="grid-column:1/-1;border-top:1px solid var(--line,var(--line));padding-top:8px;margin-top:4px;"><p style="font-size:10px;color:var(--ink2,var(--ink2));">Rail stock on hand</p><p style="font-size:13px;font-weight:700;color:${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '#f87171' : '#34d399'};">${stockIsPiece ? stock.piecesInStock + ' pcs (' + stock.pieceLengthM + 'm each)' : stock.metresInStock + 'm'} ${(stockIsPiece ? stock.piecesInStock < stock.reorderAt : stock.metresInStock < stock.reorderAt) ? '— low, check Cut List' : 'available'}</p></div>` : ''}
           `}
         </div>
       </div>
@@ -3840,11 +3870,11 @@ function renderTracksDetailPanel() {
       <!-- QC history -->
       ${card.qcHistory.length > 0 ? `
       <div style="padding:16px;">
-        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--shell-ink-muted,#6b7280);text-transform:uppercase;margin-bottom:10px;">QC history (${card.qcHistory.length})</p>
+        <p style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--ink2,var(--ink2));text-transform:uppercase;margin-bottom:10px;">QC history (${card.qcHistory.length})</p>
         ${historyRows}
       </div>` : `
       <div style="padding:16px;">
-        <p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);">No QC history yet.</p>
+        <p style="font-size:12px;color:var(--ink3,var(--ink3));">No QC history yet.</p>
       </div>`}
     </div>`;
 }
@@ -3927,7 +3957,7 @@ function openQCDashboard() {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'qc-dash-wrap';
-    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:#f7f9fc;overflow:hidden;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--bg);overflow:hidden;';
     document.body.appendChild(wrap);
   }
   wrap.style.display = 'flex';
@@ -3975,22 +4005,26 @@ function qcSetView(v) {
 }
 
 function renderQCDashboard() {
-  const wrap = document.getElementById('qc-dash-wrap');
+  const wrap = curtOverlayHost('qc-dash-wrap');
   if (!wrap) return;
 
   const tabs = ['queue', 'performance', 'log'];
   const tabLabels = { queue: 'Queue', performance: 'Performance', log: 'Log' };
   const tabBar = `
-    <div style="display:flex;gap:6px;padding:10px 16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
+    <div style="display:flex;gap:6px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line);flex:none;">
       ${tabs.map(t => `
-        <button onclick="qcSetView('${t}')" style="flex:1;padding:8px;border-radius:8px;border:1px solid ${qcDashView===t?'var(--maraya)':'#e2e8f0'};background:${qcDashView===t?'var(--maraya)':'#f7f9fc'};color:${qcDashView===t?'#fff':'#475569'};font-size:12px;font-weight:700;cursor:pointer;">
+        <button onclick="qcSetView('${t}')" style="flex:1;padding:8px;border-radius:8px;border:1px solid ${qcDashView===t?'var(--maraya)':'var(--line)'};background:${qcDashView===t?'var(--maraya)':'var(--bg)'};color:${qcDashView===t?'#fff':'var(--ink2)'};font-size:12px;font-weight:700;cursor:pointer;">
           ${tabLabels[t]}
         </button>`).join('')}
     </div>`;
 
-  const acting = `
-    <div style="padding:8px 16px;background:#f1f5f9;border-bottom:1px solid #e8ecf0;display:flex;justify-content:space-between;align-items:center;flex:none;">
-      <span style="font-size:11px;color:#64748b;">Acting as: <b style="color:var(--shell-ink);">${qcCurrentUser || 'not set'}</b></span>
+  // In a real session the inspector IS the signed-in person — the dev-era
+  // "Acting as / Switch" strip (a simulated identity from before there was a
+  // login) only shows offline, where the suites still pick a name.
+  if (window.__realCloudSession && window.cloudIdentity) qcCurrentUser = window.cloudIdentity;
+  const acting = window.__realCloudSession ? '' : `
+    <div style="padding:8px 16px;background:var(--bg);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex:none;">
+      <span style="font-size:11px;color:var(--ink2);">Acting as: <b style="color:var(--ink);">${qcCurrentUser || 'not set'}</b></span>
       <button onclick="qcSwitchUser()" style="background:none;border:none;color:#3b82f6;font-size:11px;font-weight:600;cursor:pointer;">Switch</button>
     </div>`;
 
@@ -4000,10 +4034,10 @@ function renderQCDashboard() {
   else body = renderQCQueueView();
 
   wrap.innerHTML = `
-    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div class="curt-ov-head" style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🔍 QC Dashboard</p>
-        <p style="color:#94a3b8;font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+        <p style="color:var(--ink3);font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
       </div>
       <button onclick="closeQCDashboard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
     </div>
@@ -4011,7 +4045,7 @@ function renderQCDashboard() {
     ${acting}
     ${body}
     <!-- QC Panel overlay (hidden by default) -->
-    <div id="qc-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+    <div id="qc-panel" style="display:none;position:absolute;inset:0;background:var(--bg);overflow-y:auto;z-index:10;"></div>`;
 }
 
 function qcSwitchUser() {
@@ -4048,19 +4082,19 @@ function renderQCQueueView() {
   const newCount = qcItems.filter(i => i.card.qcQueuedAt && !i.card.qcSeen).length;
 
   const kpiRow = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px;background:#fff;border-bottom:1px solid #e8ecf0;">
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;position:relative;">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px;background:var(--card);border-bottom:1px solid var(--line);">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;position:relative;">
         ${newCount > 0 ? `<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;">${newCount} new</span>` : ''}
         <p style="font-size:22px;font-weight:800;color:#3b82f6;">${qcItems.length}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Awaiting QC</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Awaiting QC</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#ef4444;">${reworkItems.length}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">In rework</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">In rework</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#10b981;">${passedToday.length}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Passed today</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Passed today</p>
       </div>
     </div>`;
 
@@ -4070,23 +4104,23 @@ function renderQCQueueView() {
     const isNew = i.card.qcQueuedAt && !i.card.qcSeen;
     const locked = i.card.qcLockedBy && !qcLockIsStale(i.card) && i.card.qcLockedBy !== qcCurrentUser;
     return `
-      <div style="border:1px solid ${locked?'#f59e0b':isNew?'#3b82f6':'#e8ecf0'};border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;cursor:pointer;"
+      <div style="border:1px solid ${locked?'#f59e0b':isNew?'#3b82f6':'var(--line)'};border-radius:12px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer;"
         onclick="openQCPanel('${i.job.id}','${i.w.id}')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${i.w.label}</p>
-            <p style="font-size:11px;color:#64748b;">${i.job.name} · ${i.job.id} · ${i.w.room}</p>
-            <p style="font-size:12px;color:#475569;margin-top:4px;">${treatmentLabel(i.w.treatment)} · ${i.w.width}×${i.w.height} cm</p>
+            <p style="font-size:14px;font-weight:700;color:var(--ink);">${i.w.label}</p>
+            <p style="font-size:11px;color:var(--ink2);">${i.job.name} · ${i.job.id} · ${i.w.room}</p>
+            <p style="font-size:12px;color:var(--ink2);margin-top:4px;">${treatmentLabel(i.w.treatment)} · ${i.w.width}×${i.w.height} cm</p>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
-            ${isNew ? `<span class="pill" style="background:#dbeafe;color:#3b82f6;">● New</span>` : `<span class="pill info">QC</span>`}
+            ${isNew ? `<span class="pill" style="background:var(--info-bg,#dbeafe);color:#3b82f6;">● New</span>` : `<span class="pill info">QC</span>`}
             ${attempts > 0 ? `<span class="pill bad" style="font-size:10px;">Attempt ${attempts+1}</span>` : ''}
           </div>
         </div>
-        ${locked ? `<div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;">
+        ${locked ? `<div style="margin-top:8px;background:var(--warn-bg,#fffbeb);border:1px solid #fde68a;border-radius:8px;padding:6px 10px;">
           <p style="font-size:11px;color:#b45309;font-weight:600;">🔒 Being inspected by ${i.card.qcLockedBy} · ${qcLockAgeLabel(i.card)}</p>
         </div>` : ''}
-        ${lastFail ? `<div style="margin-top:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
+        ${lastFail ? `<div style="margin-top:8px;background:var(--bad-bg,#fef2f2);border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
           <p style="font-size:11px;color:#dc2626;font-weight:600;">Previous fail: ${lastFail.notes || 'No notes'}</p>
           <p style="font-size:10px;color:#ef4444;">${new Date(lastFail.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
         </div>` : ''}
@@ -4096,38 +4130,38 @@ function renderQCQueueView() {
 
   function reworkCard(i) {
     return `
-      <div style="border:1px solid #fecaca;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">
+      <div style="border:1px solid #fecaca;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${i.w.label}</p>
-            <p style="font-size:11px;color:#64748b;">${i.job.name} · ${i.job.id}</p>
+            <p style="font-size:14px;font-weight:700;color:var(--ink);">${i.w.label}</p>
+            <p style="font-size:11px;color:var(--ink2);">${i.job.name} · ${i.job.id}</p>
           </div>
           <span class="pill bad">Rework → ${i.stageInfo.stage}${i.stageInfo.track ? ` (${i.stageInfo.track === 'fabric' ? 'Fabric' : 'Rail'})` : ''}</span>
         </div>
-        <p style="font-size:12px;color:#64748b;margin-top:6px;">Returned to ${i.stageInfo.stage} for correction. Will reappear here when production marks it ready for QC again.</p>
+        <p style="font-size:12px;color:var(--ink2);margin-top:6px;">Returned to ${i.stageInfo.stage} for correction. Will reappear here when production marks it ready for QC again.</p>
       </div>`;
   }
 
   const listView = `
     <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:80px;">
       ${qcItems.length > 0 ? `
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:10px;">Awaiting QC (${qcItems.length})</p>
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:10px;">Awaiting QC (${qcItems.length})</p>
         ${qcItems.map(i => qcItemCard(i)).join('')}` : `
         <div style="text-align:center;padding:48px 20px;">
           <p style="font-size:32px;margin-bottom:8px;">✓</p>
-          <p style="font-size:14px;color:#64748b;">No items waiting for QC.</p>
+          <p style="font-size:14px;color:var(--ink2);">No items waiting for QC.</p>
         </div>`}
       ${reworkItems.length > 0 ? `
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin:16px 0 10px;">In Rework (${reworkItems.length})</p>
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin:16px 0 10px;">In Rework (${reworkItems.length})</p>
         ${reworkItems.map(i => reworkCard(i)).join('')}` : ''}
       ${passedToday.length > 0 ? `
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin:16px 0 10px;">Passed Today (${passedToday.length})</p>
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin:16px 0 10px;">Passed Today (${passedToday.length})</p>
         ${passedToday.map(i => `
-          <div style="border:1px solid #d1fae5;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">
+          <div style="border:1px solid #d1fae5;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card);">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div>
-                <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${i.w.label}</p>
-                <p style="font-size:11px;color:#64748b;">${i.job.name} · ${treatmentLabel(i.w.treatment)}</p>
+                <p style="font-size:14px;font-weight:700;color:var(--ink);">${i.w.label}</p>
+                <p style="font-size:11px;color:var(--ink2);">${i.job.name} · ${treatmentLabel(i.w.treatment)}</p>
               </div>
               <span class="pill ok">✓ Passed</span>
             </div>
@@ -4145,7 +4179,7 @@ function renderQCPerformanceView() {
     return `<div style="flex:1;overflow-y:auto;padding:16px;">
       <div style="text-align:center;padding:48px 20px;">
         <p style="font-size:32px;margin-bottom:8px;">📊</p>
-        <p style="font-size:14px;color:#64748b;">No QC inspections recorded yet.</p>
+        <p style="font-size:14px;color:var(--ink2);">No QC inspections recorded yet.</p>
       </div>
     </div>`;
   }
@@ -4169,22 +4203,22 @@ function renderQCPerformanceView() {
   const avgAttempts = attemptsToPass.length ? (attemptsToPass.reduce((a,b)=>a+b,0) / attemptsToPass.length) : null;
 
   const kpiRow = `
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:16px;background:#fff;border-bottom:1px solid #e8ecf0;">
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:16px;background:var(--card);border-bottom:1px solid var(--line);">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#10b981;">${overallPassRate}%</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Overall pass rate (${passCount}/${rows.length})</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Overall pass rate (${passCount}/${rows.length})</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#ef4444;">${failCount}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Total fails logged</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Total fails logged</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#3b82f6;">${avgAttempts ? avgAttempts.toFixed(1) : '—'}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Avg attempts to pass</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Avg attempts to pass</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:var(--maraya);">${qcTurnaroundLabel(avgTurnaround)}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Avg turnaround (queue → result)</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Avg turnaround (queue → result)</p>
       </div>
     </div>`;
 
@@ -4205,14 +4239,14 @@ function renderQCPerformanceView() {
       const rate = Math.round((s.pass / s.total) * 100);
       const avgT = s.turnarounds.length ? s.turnarounds.reduce((a,b)=>a+b,0)/s.turnarounds.length : null;
       return `
-        <div style="border-bottom:1px solid #f1f5f9;padding:10px 0;display:flex;justify-content:space-between;align-items:center;">
+        <div style="border-bottom:1px solid var(--bg);padding:10px 0;display:flex;justify-content:space-between;align-items:center;">
           <div>
-            <p style="font-size:13px;font-weight:700;color:var(--shell-ink);">${person}</p>
-            <p style="font-size:11px;color:#64748b;">${s.total} inspection${s.total>1?'s':''} · ${s.pass} pass / ${s.fail} fail</p>
+            <p style="font-size:13px;font-weight:700;color:var(--ink);">${person}</p>
+            <p style="font-size:11px;color:var(--ink2);">${s.total} inspection${s.total>1?'s':''} · ${s.pass} pass / ${s.fail} fail</p>
           </div>
           <div style="text-align:right;">
             <p style="font-size:14px;font-weight:700;color:${rate>=80?'#10b981':rate>=50?'#f59e0b':'#ef4444'};">${rate}%</p>
-            <p style="font-size:10px;color:#94a3b8;">avg ${qcTurnaroundLabel(avgT)}</p>
+            <p style="font-size:10px;color:var(--ink3);">avg ${qcTurnaroundLabel(avgT)}</p>
           </div>
         </div>`;
     }).join('');
@@ -4227,21 +4261,21 @@ function renderQCPerformanceView() {
   const reasonRows = Object.entries(failReasons)
     .sort((a,b) => b[1] - a[1])
     .map(([label, count]) => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9;">
-        <p style="font-size:12px;color:#475569;">${label}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--bg);">
+        <p style="font-size:12px;color:var(--ink2);">${label}</p>
         <span class="pill bad" style="font-size:11px;">${count}</span>
       </div>`).join('');
 
   return `
     ${kpiRow}
     <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:80px;">
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:8px;">By QC person</p>
-        ${personRows || '<p style="font-size:12px;color:#94a3b8;">No data yet.</p>'}
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:8px;">By QC person</p>
+        ${personRows || '<p style="font-size:12px;color:var(--ink3);">No data yet.</p>'}
       </div>
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:8px;">Most common fail reasons</p>
-        ${reasonRows || '<p style="font-size:12px;color:#94a3b8;">No fails logged yet.</p>'}
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:8px;">Most common fail reasons</p>
+        ${reasonRows || '<p style="font-size:12px;color:var(--ink3);">No fails logged yet.</p>'}
       </div>
     </div>`;
 }
@@ -4252,9 +4286,9 @@ function renderQCLogView() {
   const rows = qcLogFilter === 'all' ? allRows : allRows.filter(r => r.h.result === qcLogFilter);
 
   const filterBar = `
-    <div style="display:flex;gap:6px;padding:12px 16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
+    <div style="display:flex;gap:6px;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);flex:none;">
       ${['all','pass','fail'].map(f => `
-        <button onclick="qcSetLogFilter('${f}')" style="padding:6px 14px;border-radius:20px;border:1px solid ${qcLogFilter===f?'var(--maraya)':'#e2e8f0'};background:${qcLogFilter===f?'var(--maraya)':'#f7f9fc'};color:${qcLogFilter===f?'#fff':'#475569'};font-size:12px;font-weight:600;cursor:pointer;text-transform:capitalize;">
+        <button onclick="qcSetLogFilter('${f}')" style="padding:6px 14px;border-radius:20px;border:1px solid ${qcLogFilter===f?'var(--maraya)':'var(--line)'};background:${qcLogFilter===f?'var(--maraya)':'var(--bg)'};color:${qcLogFilter===f?'#fff':'var(--ink2)'};font-size:12px;font-weight:600;cursor:pointer;text-transform:capitalize;">
           ${f} ${f !== 'all' ? `(${allRows.filter(r=>r.h.result===f).length})` : `(${allRows.length})`}
         </button>`).join('')}
     </div>`;
@@ -4262,23 +4296,23 @@ function renderQCLogView() {
   const rowsHtml = rows.map(r => {
     const ms = qcTurnaroundMs(r.h);
     return `
-      <div style="border:1px solid #e8ecf0;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">
+      <div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
-            <p style="font-size:13px;font-weight:700;color:var(--shell-ink);">${r.w.label} <span style="font-weight:400;color:#94a3b8;">· Attempt ${r.h.attempt}</span></p>
-            <p style="font-size:11px;color:#64748b;">${r.job.name} · ${r.job.id} · ${treatmentLabel(r.w.treatment)}</p>
+            <p style="font-size:13px;font-weight:700;color:var(--ink);">${r.w.label} <span style="font-weight:400;color:var(--ink3);">· Attempt ${r.h.attempt}</span></p>
+            <p style="font-size:11px;color:var(--ink2);">${r.job.name} · ${r.job.id} · ${treatmentLabel(r.w.treatment)}</p>
           </div>
           <span class="pill ${r.h.result==='pass'?'ok':'bad'}">${r.h.result==='pass'?'✓ Pass':'✗ Fail'}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-          <p style="font-size:11px;color:#64748b;">${r.h.person} · ${new Date(r.h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+          <p style="font-size:11px;color:var(--ink2);">${r.h.person} · ${new Date(r.h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
           <p style="font-size:11px;color:var(--maraya);font-weight:600;">⏱ ${qcTurnaroundLabel(ms)}</p>
         </div>
         ${r.h.checklist && r.h.checklist.some(c => !c.ok) ? `
-          <div style="margin-top:6px;background:#fef2f2;border-radius:8px;padding:6px 10px;">
+          <div style="margin-top:6px;background:var(--bad-bg,#fef2f2);border-radius:8px;padding:6px 10px;">
             ${r.h.checklist.filter(c => !c.ok).map(c => `<p style="font-size:11px;color:#dc2626;">✗ ${c.label}${c.remark ? ' — ' + c.remark : ''}</p>`).join('')}
           </div>` : ''}
-        ${r.h.notes ? `<p style="font-size:12px;color:#475569;margin-top:6px;">${r.h.notes}</p>` : ''}
+        ${r.h.notes ? `<p style="font-size:12px;color:var(--ink2);margin-top:6px;">${r.h.notes}</p>` : ''}
         ${r.h.photos && r.h.photos.length ? `
           <div style="display:flex;gap:6px;margin-top:8px;">
             ${r.h.photos.map(p => `<img src="${p}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;" />`).join('')}
@@ -4292,7 +4326,7 @@ function renderQCLogView() {
       ${rows.length ? rowsHtml : `
         <div style="text-align:center;padding:48px 20px;">
           <p style="font-size:32px;margin-bottom:8px;">📋</p>
-          <p style="font-size:14px;color:#64748b;">No QC records${qcLogFilter!=='all' ? ` for "${qcLogFilter}"` : ''} yet.</p>
+          <p style="font-size:14px;color:var(--ink2);">No QC records${qcLogFilter!=='all' ? ` for "${qcLogFilter}"` : ''} yet.</p>
         </div>`}
     </div>`;
 }
@@ -4335,16 +4369,16 @@ function openQCPanel(jobId, windowId) {
   checklistItems.forEach(it => { qcChecklistState[it.key] = { ok: true, remark: '' }; });
 
   const checklistHtml = checklistItems.map(it => `
-    <div style="border-bottom:1px solid #f1f5f9;padding:10px 0;">
+    <div style="border-bottom:1px solid var(--bg);padding:10px 0;">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
         <input type="checkbox" id="qc-check-${it.key}" checked
           onchange="qcChecklistItemToggle('${it.key}', this.checked)"
           style="width:18px;height:18px;accent-color:#10b981;flex:none;">
-        <span style="font-size:13px;color:var(--shell-ink);font-weight:500;">${it.label}</span>
+        <span style="font-size:13px;color:var(--ink);font-weight:500;">${it.label}</span>
       </label>
       <div id="qc-remark-wrap-${it.key}" style="display:none;margin:8px 0 0 28px;">
         <textarea id="qc-remark-${it.key}" rows="2" placeholder="What's the issue?"
-          style="width:100%;padding:8px 10px;border:1px solid #fecaca;border-radius:8px;font-size:12px;background:#fef2f2;box-sizing:border-box;resize:vertical;"></textarea>
+          style="width:100%;padding:8px 10px;border:1px solid #fecaca;border-radius:8px;font-size:12px;background:var(--bad-bg,#fef2f2);box-sizing:border-box;resize:vertical;"></textarea>
       </div>
     </div>`).join('');
 
@@ -4354,17 +4388,17 @@ function openQCPanel(jobId, windowId) {
   ].join('');
 
   const historyRows = card.qcHistory.map((h, idx) => `
-    <div style="border-bottom:1px solid #e8ecf0;padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+    <div style="border-bottom:1px solid var(--line);padding:10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
       <div>
         <p style="font-size:12px;font-weight:700;color:${h.result==='pass'?'#10b981':'#ef4444'};">
           ${h.result === 'pass' ? '✓ Pass' : '✗ Fail'} — Attempt ${h.attempt}
         </p>
-        <p style="font-size:11px;color:#64748b;">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+        <p style="font-size:11px;color:var(--ink2);">${h.person} · ${new Date(h.timestamp).toLocaleDateString('en-BH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
         ${h.checklist && h.checklist.some(c => !c.ok) ? `
           <div style="margin-top:4px;">
             ${h.checklist.filter(c => !c.ok).map(c => `<p style="font-size:11px;color:#ef4444;">✗ ${c.label}${c.remark ? ' — ' + c.remark : ''}</p>`).join('')}
           </div>` : ''}
-        ${h.notes ? `<p style="font-size:12px;color:#475569;margin-top:3px;">${h.notes}</p>` : ''}
+        ${h.notes ? `<p style="font-size:12px;color:var(--ink2);margin-top:3px;">${h.notes}</p>` : ''}
         ${h.result==='fail' && card.reworkLog[idx] ? `<p style="font-size:11px;color:#ef4444;margin-top:2px;">Returned to: ${card.reworkLog[idx].returnTo}</p>` : ''}
       </div>
       ${h.photos && h.photos.length ? `<div style="display:flex;gap:4px;flex:none;flex-wrap:wrap;max-width:104px;justify-content:flex-end;">${h.photos.map(p => `<img src="${p}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;" />`).join('')}</div>` : ''}
@@ -4375,7 +4409,7 @@ function openQCPanel(jobId, windowId) {
     <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">QC — ${win.label}</p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${win.room} · ${treatmentLabel(win.treatment)}</p>
+        <p style="color:var(--ink3);font-size:11px;margin-top:1px;">${job.name} · ${win.room} · ${treatmentLabel(win.treatment)}</p>
       </div>
       <button onclick="closeQCPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← List</button>
     </div>
@@ -4383,29 +4417,29 @@ function openQCPanel(jobId, windowId) {
     <div style="padding:16px;">
 
       <!-- Item specs -->
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Item specs</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:10px;">Item specs</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div><p style="font-size:11px;color:#94a3b8;">Size</p><p style="font-size:13px;font-weight:600;">${win.width} × ${win.height} cm</p></div>
-          <div><p style="font-size:11px;color:#94a3b8;">Treatment</p><p style="font-size:13px;font-weight:600;">${treatmentLabel(win.treatment)}</p></div>
-          <div><p style="font-size:11px;color:#94a3b8;">Rail type</p><p style="font-size:13px;font-weight:600;">${win.railType || '—'}</p></div>
-          <div><p style="font-size:11px;color:#94a3b8;">Hems T/B/S</p><p style="font-size:13px;font-weight:600;">${win.topHem||0} / ${win.bottomHem||0} / ${win.sideHem||0} cm</p></div>
-          ${win.calc ? `<div><p style="font-size:11px;color:#94a3b8;">Cut size</p><p style="font-size:13px;font-weight:600;">${win.calc.cutWidth} × ${win.calc.cutHeight} cm</p></div>` : ''}
-          <div><p style="font-size:11px;color:#94a3b8;">QC attempts</p><p style="font-size:13px;font-weight:600;color:${attempts>0?'#ef4444':'#10b981'};">${attempts}</p></div>
+          <div><p style="font-size:11px;color:var(--ink3);">Size</p><p style="font-size:13px;font-weight:600;">${win.width} × ${win.height} cm</p></div>
+          <div><p style="font-size:11px;color:var(--ink3);">Treatment</p><p style="font-size:13px;font-weight:600;">${treatmentLabel(win.treatment)}</p></div>
+          <div><p style="font-size:11px;color:var(--ink3);">Rail type</p><p style="font-size:13px;font-weight:600;">${win.railType || '—'}</p></div>
+          <div><p style="font-size:11px;color:var(--ink3);">Hems T/B/S</p><p style="font-size:13px;font-weight:600;">${win.topHem||0} / ${win.bottomHem||0} / ${win.sideHem||0} cm</p></div>
+          ${win.calc ? `<div><p style="font-size:11px;color:var(--ink3);">Cut size</p><p style="font-size:13px;font-weight:600;">${win.calc.cutWidth} × ${win.calc.cutHeight} cm</p></div>` : ''}
+          <div><p style="font-size:11px;color:var(--ink3);">QC attempts</p><p style="font-size:13px;font-weight:600;color:${attempts>0?'#ef4444':'#10b981'};">${attempts}</p></div>
         </div>
       </div>
 
       <!-- Lifecycle stages -->
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:10px;">Stage progress</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:10px;">Stage progress</p>
         ${prodTracks.fabric ? `
-        <p style="font-size:10px;color:#94a3b8;margin-bottom:4px;">✂️ Fabric</p>
+        <p style="font-size:10px;color:var(--ink3);margin-bottom:4px;">✂️ Fabric</p>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           ${prodTracks.fabric.map(s => {
             const done = card.fabricTrack && card.fabricTrack.stageDates[s];
             const isCurrent = card.fabricTrack && card.fabricTrack.stage === s && !card.fabricTrack.done;
-            const bg = done ? '#10b981' : isCurrent ? '#3b82f6' : '#e2e8f0';
-            const col = (done || isCurrent) ? '#fff' : '#94a3b8';
+            const bg = done ? '#10b981' : isCurrent ? '#3b82f6' : 'var(--line)';
+            const col = (done || isCurrent) ? '#fff' : 'var(--ink3)';
             return `<div style="background:${bg};color:${col};border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;">
               ${s}${done ? ' ✓' : ''}
               ${done ? `<span style="font-size:10px;opacity:.8;"> ${new Date(card.fabricTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</span>` : ''}
@@ -4413,13 +4447,13 @@ function openQCPanel(jobId, windowId) {
           }).join('')}
         </div>` : ''}
         ${prodTracks.rail ? `
-        <p style="font-size:10px;color:#94a3b8;margin-bottom:4px;">🔩 Rail</p>
+        <p style="font-size:10px;color:var(--ink3);margin-bottom:4px;">🔩 Rail</p>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
           ${prodTracks.rail.map(s => {
             const done = card.railTrack && card.railTrack.stageDates[s];
             const isCurrent = card.railTrack && card.railTrack.stage === s && !card.railTrack.done;
-            const bg = done ? '#10b981' : isCurrent ? '#3b82f6' : '#e2e8f0';
-            const col = (done || isCurrent) ? '#fff' : '#94a3b8';
+            const bg = done ? '#10b981' : isCurrent ? '#3b82f6' : 'var(--line)';
+            const col = (done || isCurrent) ? '#fff' : 'var(--ink3)';
             return `<div style="background:${bg};color:${col};border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;">
               ${s}${done ? ' ✓' : ''}
               ${done ? `<span style="font-size:10px;opacity:.8;"> ${new Date(card.railTrack.stageDates[s]).toLocaleDateString('en-BH',{day:'numeric',month:'short'})}</span>` : ''}
@@ -4429,66 +4463,66 @@ function openQCPanel(jobId, windowId) {
       </div>
 
       <!-- QC form -->
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:12px;">QC inspection — Attempt ${attempts + 1}</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:12px;">QC inspection — Attempt ${attempts + 1}</p>
 
         <div style="margin-bottom:12px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">QC person</label>
+          <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:6px;">QC person</label>
           <div id="qc-person-roster" style="display:flex;gap:8px;flex-wrap:wrap;">
             ${qcPersonRosterHtml(card)}
           </div>
         </div>
 
         <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:2px;">Inspection checklist</label>
-          <p style="font-size:11px;color:#94a3b8;margin-bottom:6px;">Checked = OK. Uncheck to flag an issue — a remark will be required.</p>
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:4px 12px;">
+          <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:2px;">Inspection checklist</label>
+          <p style="font-size:11px;color:var(--ink3);margin-bottom:6px;">Checked = OK. Uncheck to flag an issue — a remark will be required.</p>
+          <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 12px;">
             ${checklistHtml}
           </div>
         </div>
 
         <div style="margin-bottom:12px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Additional notes (optional)</label>
+          <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:6px;">Additional notes (optional)</label>
           <textarea id="qc-notes" rows="2" placeholder="Anything else worth recording..."
-            style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;background:#f8fafc;"></textarea>
+            style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;background:var(--bg);"></textarea>
         </div>
 
         <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Photos <span style="color:#ef4444;">*at least 1 required — pass or fail</span></label>
+          <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:6px;">Photos <span style="color:#ef4444;">*at least 1 required — pass or fail</span></label>
           <input id="qc-photo-input" type="file" accept="image/*" capture="environment"
             onchange="qcPhotoAdd(this)"
             style="display:none;">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button onclick="document.getElementById('qc-photo-input').click()"
-              style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;">
+              style="background:var(--bg);border:1px solid var(--line);color:var(--ink2);padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;">
               📷 Add photo
             </button>
-            <span id="qc-photo-name" style="font-size:11px;color:#94a3b8;"></span>
+            <span id="qc-photo-name" style="font-size:11px;color:var(--ink3);"></span>
           </div>
           <div id="qc-photo-gallery" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
         </div>
 
         <!-- Result buttons -->
-        <div style="border-top:1px solid #e8ecf0;padding-top:14px;">
-          <p style="font-size:12px;font-weight:600;color:#475569;margin-bottom:10px;">Result</p>
+        <div style="border-top:1px solid var(--line);padding-top:14px;">
+          <p style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:10px;">Result</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
             <button id="qc-pass-btn"
               onclick="qcSelectResult('pass')"
-              style="padding:14px;border-radius:10px;border:2px solid #d1fae5;background:#f0fdf4;color:#10b981;font-weight:700;font-size:14px;cursor:pointer;">
+              style="padding:14px;border-radius:10px;border:2px solid #d1fae5;background:var(--ok-bg,#f0fdf4);color:#10b981;font-weight:700;font-size:14px;cursor:pointer;">
               ✓ Pass
             </button>
             <button id="qc-fail-btn"
               onclick="qcSelectResult('fail')"
-              style="padding:14px;border-radius:10px;border:2px solid #fecaca;background:#fef2f2;color:#ef4444;font-weight:700;font-size:14px;cursor:pointer;">
+              style="padding:14px;border-radius:10px;border:2px solid #fecaca;background:var(--bad-bg,#fef2f2);color:#ef4444;font-weight:700;font-size:14px;cursor:pointer;">
               ✗ Fail
             </button>
           </div>
 
           <!-- Rework stage picker — shown only when Fail selected -->
-          <div id="qc-rework-section" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:12px;">
+          <div id="qc-rework-section" style="display:none;background:var(--bad-bg,#fef2f2);border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:12px;">
             <label style="font-size:12px;font-weight:600;color:#dc2626;display:block;margin-bottom:6px;">Send back to which stage?</label>
             <select id="qc-rework-stage"
-              style="width:100%;padding:10px 12px;border:1px solid #fecaca;border-radius:8px;font-size:13px;background:#fff;box-sizing:border-box;">
+              style="width:100%;padding:10px 12px;border:1px solid #fecaca;border-radius:8px;font-size:13px;background:var(--card);box-sizing:border-box;">
               ${stageOptions}
             </select>
           </div>
@@ -4502,8 +4536,8 @@ function openQCPanel(jobId, windowId) {
 
       <!-- QC history -->
       ${card.qcHistory.length > 0 ? `
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:24px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:8px;">QC history (${card.qcHistory.length} attempt${card.qcHistory.length>1?'s':''})</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:24px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:8px;">QC history (${card.qcHistory.length} attempt${card.qcHistory.length>1?'s':''})</p>
         ${historyRows}
       </div>` : ''}
 
@@ -4547,17 +4581,17 @@ function openQCLockedPanel(job, win, card) {
     <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">QC — ${win.label}</p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.name} · ${win.room}</p>
+        <p style="color:var(--ink3);font-size:11px;margin-top:1px;">${job.name} · ${win.room}</p>
       </div>
       <button onclick="closeQCPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← List</button>
     </div>
     <div style="padding:16px;">
-      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px;text-align:center;">
+      <div style="background:var(--warn-bg,#fffbeb);border:1px solid #fde68a;border-radius:12px;padding:20px;text-align:center;">
         <p style="font-size:32px;margin-bottom:10px;">🔒</p>
         <p style="font-size:14px;font-weight:700;color:#b45309;">Being inspected by ${card.qcLockedBy}</p>
         <p style="font-size:12px;color:#92400e;margin-top:4px;">Started ${qcLockAgeLabel(card)}. This item will unlock automatically after 15 minutes of inactivity.</p>
         <button onclick="qcOverrideLock('${job.id}','${win.id}')"
-          style="margin-top:14px;background:#fff;border:1px solid #f59e0b;color:#b45309;padding:9px 18px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
+          style="margin-top:14px;background:var(--card);border:1px solid #f59e0b;color:#b45309;padding:9px 18px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
           Override — take over inspection
         </button>
         <p style="font-size:10px;color:#92400e;margin-top:8px;">Only override if you know that session was abandoned (crashed app, wrong device, etc).</p>
@@ -4613,12 +4647,12 @@ function qcPersonRosterHtml(card) {
   const selected = window._qcSelectedPerson || qcCurrentUser;
   const chips = QC_TEAM.map(p => `
     <button onclick="qcSelectPerson('${p}')"
-      style="padding:8px 14px;border-radius:20px;border:1px solid ${selected===p?'var(--maraya)':'#e2e8f0'};background:${selected===p?'var(--maraya)':'#f8fafc'};color:${selected===p?'#fff':'#475569'};font-size:13px;font-weight:600;cursor:pointer;">
+      style="padding:8px 14px;border-radius:20px;border:1px solid ${selected===p?'var(--maraya)':'var(--line)'};background:${selected===p?'var(--maraya)':'var(--bg)'};color:${selected===p?'#fff':'var(--ink2)'};font-size:13px;font-weight:600;cursor:pointer;">
       ${p}
     </button>`).join('');
   return `${chips}
     <button onclick="qcAddPersonPrompt()"
-      style="padding:8px 14px;border-radius:20px;border:1px dashed #94a3b8;background:#fff;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">
+      style="padding:8px 14px;border-radius:20px;border:1px dashed var(--ink3);background:var(--card);color:var(--ink2);font-size:13px;font-weight:600;cursor:pointer;">
       + Add QC person
     </button>`;
 }
@@ -4680,9 +4714,9 @@ function qcSelectResult(result) {
 
   if (passBtn && failBtn) {
     passBtn.style.borderWidth = result === 'pass' ? '3px' : '2px';
-    passBtn.style.background  = result === 'pass' ? '#d1fae5' : '#f0fdf4';
+    passBtn.style.background  = result === 'pass' ? '#d1fae5' : 'var(--ok-bg,#f0fdf4)';
     failBtn.style.borderWidth = result === 'fail' ? '3px' : '2px';
-    failBtn.style.background  = result === 'fail' ? '#fecaca' : '#fef2f2';
+    failBtn.style.background  = result === 'fail' ? '#fecaca' : 'var(--bad-bg,#fef2f2)';
   }
   if (reworkSection) {
     reworkSection.style.display = result === 'fail' ? 'block' : 'none';
@@ -4849,7 +4883,7 @@ function renderTimeLog() {
       </div>
     </div>
     <p class="foot">Tap any cell to log hours. A worker can log against more than one job on the same day — each entry is added separately and the cell shows the total.</p>
-    <div id="curt-timelog-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+    <div id="curt-timelog-panel" style="display:none;position:absolute;inset:0;background:var(--bg);overflow-y:auto;z-index:10;"></div>`;
 }
 
 // ── Cell entry panel ────────────────────
@@ -4974,7 +5008,7 @@ function openInstallCrewDashboard() {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'install-crew-wrap';
-    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:#f7f9fc;overflow:hidden;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--bg);overflow:hidden;';
     document.body.appendChild(wrap);
   }
   wrap.style.display = 'flex';
@@ -4990,7 +5024,7 @@ function closeInstallCrewDashboard() { closeModuleWrap(document.getElementById('
 function icEsc(x) { return String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
 function renderInstallCrewDashboard() {
-  const wrap = document.getElementById('install-crew-wrap');
+  const wrap = curtOverlayHost('install-crew-wrap');
   if (!wrap) return;
 
   const today = todayStr();
@@ -5032,43 +5066,43 @@ function renderInstallCrewDashboard() {
     const openSnags = getOpenSnagCount(job);
 
     return `
-      <div style="border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:10px;background:#fff;">
+      <div style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;background:var(--card);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${job.name}</p>
-            <p style="font-size:11px;color:#64748b;">${job.id} · ${job.client}</p>
+            <p style="font-size:14px;font-weight:700;color:var(--ink);">${job.name}</p>
+            <p style="font-size:11px;color:var(--ink2);">${job.id} · ${job.client}</p>
           </div>
           ${statusPill(inst.status || 'pending')}
         </div>
 
         <!-- Progress bar -->
         <div style="margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);margin-bottom:4px;">
             <span>${ready.length + installed.length} of ${total} items ready</span>
             <span style="color:${readyPct===100?'#10b981':'#f59e0b'};font-weight:600;">${readyPct}%</span>
           </div>
-          <div style="background:#e2e8f0;border-radius:4px;height:6px;">
+          <div style="background:var(--line);border-radius:4px;height:6px;">
             <div style="width:${readyPct}%;background:${readyPct===100?'#10b981':'#f59e0b'};height:6px;border-radius:4px;transition:width .3s;"></div>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:10px;">
-          <div><span style="color:#94a3b8;">Install date:</span> <span style="font-weight:600;">${inst.scheduledDate ? fmtDate(inst.scheduledDate) : '—'}</span></div>
-          <div><span style="color:#94a3b8;">Site contact:</span> <span style="font-weight:600;">${inst.siteContact || '—'}</span></div>
-          <div><span style="color:#94a3b8;">Crew:</span> <span style="font-weight:600;">${inst.team && inst.team.length > 0 ? inst.team.join(', ') : '—'}</span></div>
-          ${daysToInstall !== null ? `<div><span style="color:#94a3b8;">Days to install:</span> <span style="font-weight:600;color:${daysToInstall<=1?'#ef4444':daysToInstall<=3?'#f59e0b':'#10b981'};">${daysToInstall}d</span></div>` : ''}
+          <div><span style="color:var(--ink3);">Install date:</span> <span style="font-weight:600;">${inst.scheduledDate ? fmtDate(inst.scheduledDate) : '—'}</span></div>
+          <div><span style="color:var(--ink3);">Site contact:</span> <span style="font-weight:600;">${inst.siteContact || '—'}</span></div>
+          <div><span style="color:var(--ink3);">Crew:</span> <span style="font-weight:600;">${inst.team && inst.team.length > 0 ? inst.team.join(', ') : '—'}</span></div>
+          ${daysToInstall !== null ? `<div><span style="color:var(--ink3);">Days to install:</span> <span style="font-weight:600;color:${daysToInstall<=1?'#ef4444':daysToInstall<=3?'#f59e0b':'#10b981'};">${daysToInstall}d</span></div>` : ''}
         </div>
 
         <!-- Items list -->
         ${ready.length > 0 ? `
-        <div style="background:#f0fdf4;border:1px solid #d1fae5;border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div style="background:var(--ok-bg,#f0fdf4);border:1px solid #d1fae5;border-radius:8px;padding:10px;margin-bottom:8px;">
           <p style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;">Ready to install (${ready.length})</p>
           <div style="display:flex;flex-wrap:wrap;gap:4px;">
-            ${ready.map(w => `<span style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--shell-ink);">${w.label}</span>`).join('')}
+            ${ready.map(w => `<span style="background:var(--card);border:1px solid #d1fae5;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--ink);">${w.label}</span>`).join('')}
           </div>
         </div>` : ''}
         ${installed.length > 0 ? `
-        <div style="background:#f0fdf4;border-radius:8px;padding:8px 10px;">
+        <div style="background:var(--ok-bg,#f0fdf4);border-radius:8px;padding:8px 10px;">
           <p style="font-size:11px;color:#10b981;">✓ ${installed.length} item${installed.length>1?'s':''} already installed</p>
         </div>` : ''}
 
@@ -5090,11 +5124,11 @@ function renderInstallCrewDashboard() {
         </div>` : ''}
 
         <!-- Snags -->
-        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f1f5f9;padding-top:10px;">
-          <span style="font-size:12px;color:${openSnags > 0 ? '#ef4444' : '#94a3b8'};font-weight:${openSnags > 0 ? '700' : '400'};">
+        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--bg);padding-top:10px;">
+          <span style="font-size:12px;color:${openSnags > 0 ? '#ef4444' : 'var(--ink3)'};font-weight:${openSnags > 0 ? '700' : '400'};">
             ${openSnags > 0 ? `⚠ ${openSnags} open snag${openSnags > 1 ? 's' : ''}` : 'No open snags'}
           </span>
-          <button onclick="openSnagPanel('${job.id}')" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Snags →</button>
+          <button onclick="openSnagPanel('${job.id}')" style="background:var(--bg);border:1px solid var(--line);color:var(--ink2);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Snags →</button>
         </div>
 
         ${inst.status === 'complete' ? `<div style="margin-top:8px;"><span class="pill ok">✓ All done · Handover signed</span></div>` : ''}
@@ -5105,23 +5139,23 @@ function renderInstallCrewDashboard() {
     const { job, held, qc, total } = jc;
     const openSnags = getOpenSnagCount(job);
     return `
-      <div style="border:1px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:10px;background:#fffbeb;">
+      <div style="border:1px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:10px;background:var(--warn-bg,#fffbeb);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
           <div>
-            <p style="font-size:14px;font-weight:700;color:var(--shell-ink);">${job.name}</p>
-            <p style="font-size:11px;color:#64748b;">${job.id} · ${job.client}</p>
+            <p style="font-size:14px;font-weight:700;color:var(--ink);">${job.name}</p>
+            <p style="font-size:11px;color:var(--ink2);">${job.id} · ${job.client}</p>
           </div>
           <span class="pill warn">Held</span>
         </div>
         <p style="font-size:12px;color:#92400e;margin-bottom:6px;">${held.length} of ${total} items finished, but held back — QC: ${qc.done}/${qc.total} passed. Released once the whole job clears QC, or Ops enables partial release for this job in the Install tab.</p>
         <div style="display:flex;flex-wrap:wrap;gap:4px;">
-          ${held.map(w => `<span style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--shell-ink);">${w.label}</span>`).join('')}
+          ${held.map(w => `<span style="background:var(--card);border:1px solid #fde68a;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--ink);">${w.label}</span>`).join('')}
         </div>
         <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #fde68a;padding-top:10px;">
           <span style="font-size:12px;color:${openSnags > 0 ? '#ef4444' : '#92400e'};font-weight:${openSnags > 0 ? '700' : '400'};">
             ${openSnags > 0 ? `⚠ ${openSnags} open snag${openSnags > 1 ? 's' : ''}` : 'No open snags'}
           </span>
-          <button onclick="openSnagPanel('${job.id}')" style="background:#fff;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Snags →</button>
+          <button onclick="openSnagPanel('${job.id}')" style="background:var(--card);border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Snags →</button>
         </div>
       </div>`;
   }
@@ -5129,7 +5163,7 @@ function renderInstallCrewDashboard() {
   function section(title, items, accent) {
     if (items.length === 0) return '';
     return `
-      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${accent||'#94a3b8'};margin:0 0 10px;">${title} (${items.length})</p>
+      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${accent||'var(--ink3)'};margin:0 0 10px;">${title} (${items.length})</p>
       ${items.map(i => jobInstallCard(i)).join('')}
       <div style="height:16px;"></div>`;
   }
@@ -5137,7 +5171,7 @@ function renderInstallCrewDashboard() {
   function heldSection(title, items, accent) {
     if (items.length === 0) return '';
     return `
-      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${accent||'#94a3b8'};margin:0 0 10px;">${title} (${items.length})</p>
+      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${accent||'var(--ink3)'};margin:0 0 10px;">${title} (${items.length})</p>
       ${items.map(i => heldJobCard(i)).join('')}
       <div style="height:16px;"></div>`;
   }
@@ -5147,10 +5181,10 @@ function renderInstallCrewDashboard() {
   const totalHeld  = jobCards.reduce((s, j) => s + j.held.length, 0);
 
   wrap.innerHTML = `
-    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div class="curt-ov-head" style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🏠 Installation Crew</p>
-        <p style="color:#94a3b8;font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+        <p style="color:var(--ink3);font-size:12px;margin-top:2px;">${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
       </div>
       <button onclick="closeInstallCrewDashboard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
     </div>
@@ -5159,28 +5193,28 @@ function renderInstallCrewDashboard() {
          install crew's own hours form is gone, and this opens the clock
          preset on the curtain crew. Hours still land in labourDayLogs at
          real payroll rates, per man present. -->
-    <div style="background:#fff;border-bottom:1px solid #e8ecf0;padding:10px 16px;flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div style="background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <p style="font-weight:700;font-size:12.5px;flex:1 1 auto;">⏱ Installation and steaming hours are logged on the crew clock</p>
       <button onclick="openCrewTimerFor('curt')" style="background:var(--maraya);color:#fff;border:0;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:700;cursor:pointer;">Start the clock</button>
     </div>
 
     <!-- KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px;background:#fff;border-bottom:1px solid #e8ecf0;flex:none;">
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px;background:var(--card);border-bottom:1px solid var(--line);flex:none;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#f59e0b;">${todayJobs.length}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Today</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Today</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#10b981;">${totalReady}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Items ready</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Items ready</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:#f59e0b;">${totalHeld}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Held (QC pending)</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Held (QC pending)</p>
       </div>
-      <div style="text-align:center;padding:10px;background:#f7f9fc;border-radius:10px;">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:10px;">
         <p style="font-size:22px;font-weight:800;color:var(--maraya);">${totalDone}</p>
-        <p style="font-size:11px;color:#64748b;margin-top:2px;">Installed</p>
+        <p style="font-size:11px;color:var(--ink2);margin-top:2px;">Installed</p>
       </div>
     </div>
 
@@ -5189,11 +5223,11 @@ function renderInstallCrewDashboard() {
       ${section('Upcoming', upcomingJobs, '#3b82f6')}
       ${section('Ready — not yet scheduled', readyJobs, '#10b981')}
       ${heldSection('Held — awaiting full job QC', heldJobs, '#f59e0b')}
-      ${section('Completed', doneJobs, '#94a3b8')}
+      ${section('Completed', doneJobs, 'var(--ink3)')}
       ${jobCards.length === 0 && heldJobs.length === 0 ? `
         <div style="text-align:center;padding:48px 20px;">
           <p style="font-size:32px;margin-bottom:8px;">🏠</p>
-          <p style="font-size:14px;color:#64748b;">No items ready for installation yet.</p>
+          <p style="font-size:14px;color:var(--ink2);">No items ready for installation yet.</p>
         </div>` : ''}
     </div>`;
 }
@@ -5224,7 +5258,7 @@ function openSnagPanel(jobId) {
   if (!panel) {
     panel = document.createElement('div');
     panel.id = 'snag-panel-wrap';
-    panel.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:#f7f9fc;overflow:hidden;';
+    panel.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:var(--bg);overflow:hidden;';
     document.body.appendChild(panel);
   }
   panel.style.display = 'flex';
@@ -5249,7 +5283,7 @@ function renderSnagPanel() {
   const resolved = snags.filter(s => s.resolved);
 
   const reporterChips = INSTALL_CREW.map(name => `
-    <button type="button" style="padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid ${window._snagReporter===name?'var(--maraya)':'#e2e8f0'};background:${window._snagReporter===name?'var(--maraya)':'#fff'};color:${window._snagReporter===name?'#fff':'#475569'};cursor:pointer;"
+    <button type="button" style="padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid ${window._snagReporter===name?'var(--maraya)':'var(--line)'};background:${window._snagReporter===name?'var(--maraya)':'#fff'};color:${window._snagReporter===name?'#fff':'var(--ink2)'};cursor:pointer;"
       onclick="selectSnagReporter('${name}')">${name}</button>`).join('');
 
   function newPhotoGallery() {
@@ -5258,7 +5292,7 @@ function renderSnagPanel() {
     return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
       ${photos.map((p, i) => `
         <div style="position:relative;width:56px;height:56px;">
-          <img src="${p}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;">
+          <img src="${p}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">
           <button onclick="snagPhotoRemove(${i})" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">×</button>
         </div>`).join('')}
     </div>`;
@@ -5267,27 +5301,27 @@ function renderSnagPanel() {
   function snagRow(s) {
     const isResolving = snagResolvingId === s.id;
     return `
-      <div style="background:#fff;border:1px solid ${s.resolved ? '#e8ecf0' : '#fecaca'};border-radius:10px;padding:12px;margin-bottom:8px;">
+      <div style="background:var(--card);border:1px solid ${s.resolved ? 'var(--line)' : '#fecaca'};border-radius:10px;padding:12px;margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
           <div style="flex:1;">
-            <p style="font-size:13px;font-weight:600;color:var(--shell-ink);">${s.desc}</p>
-            <p style="font-size:11px;color:#94a3b8;margin-top:2px;">Reported by ${s.reportedBy} · ${fmtDate(s.reportedAt)}</p>
+            <p style="font-size:13px;font-weight:600;color:var(--ink);">${s.desc}</p>
+            <p style="font-size:11px;color:var(--ink3);margin-top:2px;">Reported by ${s.reportedBy} · ${fmtDate(s.reportedAt)}</p>
           </div>
           ${s.resolved ? `<span class="pill ok">✓ Resolved</span>` : `<span class="pill bad">Open</span>`}
         </div>
-        ${s.photos && s.photos.length > 0 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${s.photos.map(p => `<img src="${p}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;">`).join('')}</div>` : ''}
+        ${s.photos && s.photos.length > 0 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${s.photos.map(p => `<img src="${p}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);">`).join('')}</div>` : ''}
         ${s.resolved
-          ? `<p style="font-size:11px;color:#64748b;margin-top:8px;">${s.resolvedNotes ? '— ' + s.resolvedNotes + ' ' : ''}${s.resolvedAt ? '· ' + fmtDate(s.resolvedAt) : ''}</p>`
+          ? `<p style="font-size:11px;color:var(--ink2);margin-top:8px;">${s.resolvedNotes ? '— ' + s.resolvedNotes + ' ' : ''}${s.resolvedAt ? '· ' + fmtDate(s.resolvedAt) : ''}</p>`
           : (isResolving ? `
-          <div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:10px;">
+          <div style="margin-top:10px;border-top:1px solid var(--bg);padding-top:10px;">
             <textarea id="snag-resolve-notes-${s.id}" rows="2" placeholder="What was done to fix it..."
-              style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;resize:vertical;box-sizing:border-box;"></textarea>
+              style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;resize:vertical;box-sizing:border-box;"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px;">
               <button onclick="confirmResolveSnag('${s.id}')" style="flex:1;background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;">✓ Confirm resolved</button>
-              <button onclick="cancelResolveSnag()" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;">Cancel</button>
+              <button onclick="cancelResolveSnag()" style="background:var(--bg);border:1px solid var(--line);color:var(--ink2);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;">Cancel</button>
             </div>
           </div>` : `
-          <button onclick="startResolveSnag('${s.id}')" style="margin-top:8px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Mark resolved</button>`)}
+          <button onclick="startResolveSnag('${s.id}')" style="margin-top:8px;background:var(--bg);border:1px solid var(--line);color:var(--ink2);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Mark resolved</button>`)}
       </div>`;
   }
 
@@ -5295,28 +5329,28 @@ function renderSnagPanel() {
     <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">Snags — ${job.name}</p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.id} · ${open.length} open · ${resolved.length} resolved</p>
+        <p style="color:var(--ink3);font-size:11px;margin-top:1px;">${job.id} · ${open.length} open · ${resolved.length} resolved</p>
       </div>
       <button onclick="closeSnagPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
     </div>
 
     <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:100px;">
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:16px;">
-        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Report a snag</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px;">Report a snag</p>
         <textarea id="snag-new-desc" rows="2" placeholder="What's the issue..."
-          style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;margin-bottom:10px;"></textarea>
-        <p style="font-size:11px;color:#94a3b8;margin-bottom:6px;">Reported by</p>
+          style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;margin-bottom:10px;"></textarea>
+        <p style="font-size:11px;color:var(--ink3);margin-bottom:6px;">Reported by</p>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${reporterChips}</div>
         <input id="snag-photo-input" type="file" accept="image/*" capture="environment" onchange="snagPhotoAdd(this)" style="display:none;">
         <button onclick="document.getElementById('snag-photo-input').click()"
-          style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">📷 Add photo</button>
+          style="background:var(--bg);border:1px solid var(--line);color:var(--ink2);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">📷 Add photo</button>
         ${newPhotoGallery()}
         <button onclick="submitSnag()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;background:var(--maraya);color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer;">Submit snag</button>
       </div>
 
       ${open.length > 0 ? `<p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#ef4444;margin-bottom:8px;">Open (${open.length})</p>${open.map(snagRow).join('')}` : ''}
-      ${resolved.length > 0 ? `<p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:16px 0 8px;">Resolved (${resolved.length})</p>${resolved.map(snagRow).join('')}` : ''}
-      ${snags.length === 0 ? `<p style="font-size:13px;color:#94a3b8;text-align:center;padding:24px;">No snags reported for this job.</p>` : ''}
+      ${resolved.length > 0 ? `<p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin:16px 0 8px;">Resolved (${resolved.length})</p>${resolved.map(snagRow).join('')}` : ''}
+      ${snags.length === 0 ? `<p style="font-size:13px;color:var(--ink3);text-align:center;padding:24px;">No snags reported for this job.</p>` : ''}
     </div>`;
 }
 
@@ -5415,7 +5449,7 @@ function openSignoffPanel(jobId) {
   if (!panel) {
     panel = document.createElement('div');
     panel.id = 'signoff-panel-wrap';
-    panel.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:#f7f9fc;overflow:hidden;';
+    panel.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:var(--bg);overflow:hidden;';
     document.body.appendChild(panel);
   }
   panel.style.display = 'flex';
@@ -5442,7 +5476,7 @@ function renderSignoffPanel() {
     <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">Client sign-off — ${job.name}</p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:1px;">${job.id} · ${job.client}</p>
+        <p style="color:var(--ink3);font-size:11px;margin-top:1px;">${job.id} · ${job.client}</p>
       </div>
       <button onclick="closeSignoffPanel()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
     </div>`;
@@ -5451,7 +5485,7 @@ function renderSignoffPanel() {
   if (openSnags > 0) {
     panel.innerHTML = header + `
       <div style="flex:1;overflow-y:auto;padding:16px;">
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:24px;text-align:center;">
+        <div style="background:var(--bad-bg,#fef2f2);border:1px solid #fecaca;border-radius:12px;padding:24px;text-align:center;">
           <p style="font-size:32px;margin-bottom:10px;">🔒</p>
           <p style="font-size:14px;font-weight:700;color:#dc2626;">${openSnags} open snag${openSnags > 1 ? 's' : ''} must be resolved first</p>
           <p style="font-size:12px;color:#991b1b;margin-top:6px;">Client sign-off is locked until every on-site snag for this job is marked resolved.</p>
@@ -5466,32 +5500,32 @@ function renderSignoffPanel() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
       ${photos.map((p, i) => `
         <div style="position:relative;width:56px;height:56px;">
-          <img src="${p}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;">
+          <img src="${p}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">
           <button onclick="signoffPhotoRemove(${i})" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">×</button>
         </div>`).join('')}
     </div>`;
 
   panel.innerHTML = header + `
     <div style="flex:1;overflow-y:auto;padding:16px;padding-bottom:100px;">
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:14px;">
-        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Client name</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;">
+        <p style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px;">Client name</p>
         <input id="signoff-client-name" type="text" placeholder="Name of person signing"
-          style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">
+          style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box;">
       </div>
 
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:14px;">
-        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Completion photos</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;">
+        <p style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px;">Completion photos</p>
         <input id="signoff-photo-input" type="file" accept="image/*" capture="environment" onchange="signoffPhotoAdd(this)" style="display:none;">
         <button onclick="document.getElementById('signoff-photo-input').click()"
-          style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">📷 Add photo</button>
+          style="background:var(--bg);border:1px solid var(--line);color:var(--ink2);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">📷 Add photo</button>
         ${photoGallery}
       </div>
 
-      <div style="background:#fff;border:1px solid #e8ecf0;border-radius:12px;padding:14px;margin-bottom:14px;">
-        <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">Client signature</p>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;">
+        <p style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px;">Client signature</p>
         <canvas id="signoff-canvas" width="320" height="160"
-          style="width:100%;height:160px;border:1px dashed #cbd5e1;border-radius:8px;background:#fafafa;touch-action:none;"></canvas>
-        <button onclick="clearSignoffCanvas()" style="margin-top:8px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;">Clear</button>
+          style="width:100%;height:160px;border:1px dashed var(--ink3);border-radius:8px;background:var(--bg);touch-action:none;"></canvas>
+        <button onclick="clearSignoffCanvas()" style="margin-top:8px;background:var(--bg);border:1px solid var(--line);color:var(--ink2);padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;">Clear</button>
       </div>
 
       <button onclick="submitSignoff()" style="width:100%;padding:13px;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;">
@@ -5509,7 +5543,7 @@ function setupSignoffCanvas() {
   canvas.width  = canvas.clientWidth;
   canvas.height = canvas.clientHeight;
   signoffCtx = canvas.getContext('2d');
-  signoffCtx.strokeStyle = '#16181d';
+  signoffCtx.strokeStyle = 'var(--ink)';
   signoffCtx.lineWidth   = 2;
   signoffCtx.lineCap     = 'round';
 
@@ -5682,7 +5716,7 @@ function openPipelineBoard() {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'pipeline-board-wrap';
-    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--shell-bg);overflow:hidden;font-family:inherit;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--bg);overflow:hidden;font-family:inherit;';
     document.body.appendChild(wrap);
   }
   wrap.style.display = 'flex';
@@ -5709,9 +5743,9 @@ function pipelineCard(entry, colType) {
 
   return `
     <div onclick="openPipelineDetail('${job.id}','${w.id}','${colType}')"
-      style="background:${isRework ? 'var(--bad-bg,#fdeceb)' : '#f7f8fa'};border:1px solid ${isRework ? '#f5b8b5' : 'var(--shell-border,#e7e9ed)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
-      <p style="font-size:13px;font-weight:700;color:var(--shell-ink,#16181d);">${w.label}</p>
-      <p style="font-size:11px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-top:1px;">${job.name} · ${w.room}</p>
+      style="background:${isRework ? 'var(--bad-bg,#fdeceb)' : 'var(--bg)'};border:1px solid ${isRework ? '#f5b8b5' : 'var(--line,var(--line))'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+      <p style="font-size:13px;font-weight:700;color:var(--ink,var(--ink));">${w.label}</p>
+      <p style="font-size:11px;color:var(--ink2,var(--ink2,var(--ink2)));margin-top:1px;">${job.name} · ${w.room}</p>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
         <span style="font-size:11px;font-weight:600;color:${isRework ? '#f87171' : 'var(--maraya)'};">${isRework ? 'Rework → ' : ''}${stageLabel}</span>
         <span style="font-size:10px;font-weight:600;color:${daysColor};">${daysText}</span>
@@ -5722,27 +5756,27 @@ function pipelineCard(entry, colType) {
 // ── Column renderer ─────────────────────────────
 function pipelineColumn(title, icon, entries, colType) {
   return `
-    <div style="flex:none;width:78vw;max-width:320px;background:var(--shell-tint,#f1f2f4);border-radius:14px;margin-right:12px;display:flex;flex-direction:column;max-height:100%;overflow:hidden;">
-      <div style="padding:12px 14px;border-bottom:1px solid var(--shell-border,#e7e9ed);flex:none;">
-        <p style="font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--shell-ink,#16181d);">${icon} ${title} <span style="color:var(--shell-ink-muted,#6b7280);">(${entries.length})</span></p>
+    <div style="flex:none;width:78vw;max-width:320px;background:var(--bg,#f1f2f4);border-radius:14px;margin-right:12px;display:flex;flex-direction:column;max-height:100%;overflow:hidden;">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--line,var(--line));flex:none;">
+        <p style="font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ink,var(--ink));">${icon} ${title} <span style="color:var(--ink2,var(--ink2));">(${entries.length})</span></p>
       </div>
       <div style="padding:12px;overflow-y:auto;flex:1;">
-        ${entries.length ? entries.map(e => pipelineCard(e, colType)).join('') : `<p style="font-size:12px;color:var(--shell-ink-faint,#9ba1aa);text-align:center;padding:20px 0;">Nothing here</p>`}
+        ${entries.length ? entries.map(e => pipelineCard(e, colType)).join('') : `<p style="font-size:12px;color:var(--ink3,var(--ink3));text-align:center;padding:20px 0;">Nothing here</p>`}
       </div>
     </div>`;
 }
 
 // ── Main render ─────────────────────────────────
 function renderPipelineBoard() {
-  const wrap = document.getElementById('pipeline-board-wrap');
+  const wrap = curtOverlayHost('pipeline-board-wrap');
   if (!wrap) return;
   const items = getPipelineItems();
 
   wrap.innerHTML = `
-    <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
+    <div class="curt-ov-head" style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex:none;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:16px;">🧵 Pipeline Board</p>
-        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:12px;margin-top:2px;">All active jobs · ${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
+        <p style="color:var(--ink2,var(--ink2,var(--ink2)));font-size:12px;margin-top:2px;">All active jobs · ${new Date().toLocaleDateString('en-BH',{day:'numeric',month:'short',year:'numeric'})}</p>
       </div>
       <button onclick="closePipelineBoard()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Back</button>
     </div>
@@ -5753,7 +5787,7 @@ function renderPipelineBoard() {
       ${pipelineColumn('Ready for Delivery', '📦', items.ready, 'ready')}
     </div>
     <!-- Detail panel overlay (hidden by default) -->
-    <div id="pipeline-detail-panel" style="display:none;position:absolute;inset:0;background:#f7f9fc;overflow-y:auto;z-index:10;"></div>`;
+    <div id="pipeline-detail-panel" style="display:none;position:absolute;inset:0;background:var(--bg);overflow-y:auto;z-index:10;"></div>`;
 }
 
 // ── Detail panel — routes to the right EXISTING action per column ──
@@ -5780,10 +5814,10 @@ function openPipelineDetail(jobId, windowId, colType) {
   if (colType === 'stitching') {
     const info = getFabricDisplay(card);
     body = `
-      <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-bottom:10px;">Fabric / stitching</p>
-        <p style="font-size:13px;color:var(--shell-ink);margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.fabricCode || '—'}</p>
-        <p style="font-size:12px;color:var(--shell-ink-muted,#6b7280);margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : 'var(--shell-ink)'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+      <div style="background:var(--card);border:1px solid var(--line,var(--line));border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink2,var(--ink2,var(--ink2)));margin-bottom:10px;">Fabric / stitching</p>
+        <p style="font-size:13px;color:var(--ink);margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.fabricCode || '—'}</p>
+        <p style="font-size:12px;color:var(--ink2,var(--ink2));margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : 'var(--ink)'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
         ${info.isRework ? `
           <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
           <button onclick="finishFabricRework('${job.id}','${w.id}');closePipelineDetail();"
@@ -5801,10 +5835,10 @@ function openPipelineDetail(jobId, windowId, colType) {
     const idx = railStages.indexOf(info.stage);
     const isLast = idx >= railStages.length - 1;
     body = `
-      <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;">
-        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-bottom:10px;">Rail / track</p>
-        <p style="font-size:13px;color:var(--shell-ink);margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.railType || '—'}</p>
-        <p style="font-size:12px;color:var(--shell-ink-muted,#6b7280);margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : 'var(--shell-ink)'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
+      <div style="background:var(--card);border:1px solid var(--line,var(--line));border-radius:12px;padding:16px;">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink2,var(--ink2,var(--ink2)));margin-bottom:10px;">Rail / track</p>
+        <p style="font-size:13px;color:var(--ink);margin-bottom:4px;"><b>${treatmentLabel(w.treatment)}</b> — ${w.railType || '—'}</p>
+        <p style="font-size:12px;color:var(--ink2,var(--ink2));margin-bottom:14px;">Current stage: <b style="color:${info.isRework ? '#ef4444' : 'var(--ink)'};">${info.isRework ? 'Rework → ' : ''}${info.stage}</b></p>
         ${info.isRework ? `
           <p style="font-size:12px;color:#ef4444;margin-bottom:12px;">QC sent this back for rework.</p>
           <button onclick="tracksMarkStageComplete('${job.id}','${w.id}');closePipelineDetail();"
@@ -5822,26 +5856,26 @@ function openPipelineDetail(jobId, windowId, colType) {
     const released = qc.allPassed || job.installation.partialRelease === true;
     if (card.stage === 'Installed') {
       body = `
-        <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;text-align:center;">
+        <div style="background:var(--card);border:1px solid var(--line,var(--line));border-radius:12px;padding:16px;text-align:center;">
           <p style="font-size:32px;margin-bottom:8px;">✅</p>
           <p style="font-size:14px;font-weight:700;color:#10b981;">${w.label} is installed</p>
-          <p style="font-size:12px;color:var(--shell-ink-muted,#6b7280);margin-top:4px;">${job.name}${job.client ? ' · ' + job.client : ''}</p>
+          <p style="font-size:12px;color:var(--ink2,var(--ink2));margin-top:4px;">${job.name}${job.client ? ' · ' + job.client : ''}</p>
         </div>`;
     } else if (!released) {
       body = `
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px;">
+        <div style="background:var(--warn-bg,#fffbeb);border:1px solid #fde68a;border-radius:12px;padding:16px;">
           <p style="font-size:13px;font-weight:700;color:#b45309;">⚠ Held</p>
           <p style="font-size:12px;color:#92400e;margin-top:6px;">${job.name} hasn't fully cleared QC yet (${qc.done}/${qc.total} passed). This item is released once the whole job clears, or Ops enables partial release for this job from the Install dashboard.</p>
         </div>`;
     } else {
       body = `
-        <div style="background:#fff;border:1px solid var(--shell-border,#e7e9ed);border-radius:12px;padding:16px;">
-          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));margin-bottom:10px;">Ready for delivery</p>
-          <p style="font-size:13px;color:var(--shell-ink);margin-bottom:4px;"><b>${w.label}</b> — ${job.name}</p>
+        <div style="background:var(--card);border:1px solid var(--line,var(--line));border-radius:12px;padding:16px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink2,var(--ink2,var(--ink2)));margin-bottom:10px;">Ready for delivery</p>
+          <p style="font-size:13px;color:var(--ink);margin-bottom:4px;"><b>${w.label}</b> — ${job.name}</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:12px 0 16px;">
-            <div><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Install date:</span> <b>${job.installation.scheduledDate ? fmtDate(job.installation.scheduledDate) : '—'}</b></div>
-            <div><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Site contact:</span> <b>${job.installation.siteContact || '—'}</b></div>
-            <div style="grid-column:1/-1;"><span style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));">Crew:</span> <b>${job.installation.team && job.installation.team.length ? job.installation.team.join(', ') : '—'}</b></div>
+            <div><span style="color:var(--ink2,var(--ink2,var(--ink2)));">Install date:</span> <b>${job.installation.scheduledDate ? fmtDate(job.installation.scheduledDate) : '—'}</b></div>
+            <div><span style="color:var(--ink2,var(--ink2,var(--ink2)));">Site contact:</span> <b>${job.installation.siteContact || '—'}</b></div>
+            <div style="grid-column:1/-1;"><span style="color:var(--ink2,var(--ink2,var(--ink2)));">Crew:</span> <b>${job.installation.team && job.installation.team.length ? job.installation.team.join(', ') : '—'}</b></div>
           </div>
           <button onclick="markItemInstalled('${job.id}','${w.id}');closePipelineDetail();"
             style="width:100%;padding:13px;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">
@@ -5855,7 +5889,7 @@ function openPipelineDetail(jobId, windowId, colType) {
     <div style="background:var(--maraya);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;">
       <div>
         <p style="color:#fff;font-weight:700;font-size:15px;">${w.label}</p>
-        <p style="color:var(--shell-ink-muted,var(--shell-ink-muted,#6b7280));font-size:11px;margin-top:1px;">${job.name} · ${w.room}</p>
+        <p style="color:var(--ink2,var(--ink2,var(--ink2)));font-size:11px;margin-top:1px;">${job.name} · ${w.room}</p>
       </div>
       <button onclick="closePipelineDetail()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;">← Board</button>
     </div>

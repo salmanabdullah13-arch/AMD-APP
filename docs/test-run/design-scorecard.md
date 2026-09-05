@@ -1,6 +1,6 @@
 # Design scorecard — every built dashboard, 1440 and 390, light and dark
 
-Generated 2026-09-05 14:59 by `design-scorecard.js` (offline, demo data). Screenshots in `test-run/scorecard/`.
+Generated 2026-09-05 15:20 by `design-scorecard.js` (offline, demo data). Screenshots in `test-run/scorecard/`.
 Measured: the shell chrome (sidebar + topbar) present · no horizontal overflow · dark surface actually dark · no label inside a bar fill · the money rule for roles that must never see it · empty-state copy present. What needs an eye: type sizes, spacing, badge tones, the "first five seconds" test — see the screenshots.
 
 | Dashboard | Role | Shell | Overflow 390 | Dark | Fill labels | Money leak | Empty states | Screens |
@@ -20,10 +20,10 @@ Measured: the shell chrome (sidebar + topbar) present · no horizontal overflow 
 | Jobs | owner | ✓ | ✓ | ✓ | ✓ | n/a | 0 | `jobs-desktop-light.png` `jobs-desktop-dark.png` `jobs-phone-light.png` `jobs-phone-dark.png` |
 | HR & Payroll | owner | ✓ | ✓ | ✓ | ✓ | n/a | 0 | `hr-payroll-desktop-light.png` `hr-payroll-desktop-dark.png` `hr-payroll-phone-light.png` `hr-payroll-phone-dark.png` |
 | Approver | owner | ✓ | ✓ | ✓ | ✓ | n/a | 0 | `approver-desktop-light.png` `approver-desktop-dark.png` `approver-phone-light.png` `approver-phone-dark.png` |
-| Curtain – Tracks Team | owner | **✗** | ✓ | **✗** | ✓ | n/a | 0 | `curtain-tracks-team-desktop-light.png` `curtain-tracks-team-desktop-dark.png` `curtain-tracks-team-phone-light.png` `curtain-tracks-team-phone-dark.png` |
-| Curtain – QC Team | owner | **✗** | ✓ | **✗** | ✓ | n/a | 1 | `curtain-qc-team-desktop-light.png` `curtain-qc-team-desktop-dark.png` `curtain-qc-team-phone-light.png` `curtain-qc-team-phone-dark.png` |
-| Curtain – Site Installer | owner | **✗** | ✓ | **✗** | ✓ | n/a | 0 | `curtain-site-installer-desktop-light.png` `curtain-site-installer-desktop-dark.png` `curtain-site-installer-phone-light.png` `curtain-site-installer-phone-dark.png` |
-| Curtain – Team Leader | owner | **✗** | ✓ | **✗** | ✓ | n/a | 2 | `curtain-team-leader-desktop-light.png` `curtain-team-leader-desktop-dark.png` `curtain-team-leader-phone-light.png` `curtain-team-leader-phone-dark.png` |
+| Curtain – Tracks Team | owner | ✓ | ✓ | ✓ | ✓ | n/a | 0 | `curtain-tracks-team-desktop-light.png` `curtain-tracks-team-desktop-dark.png` `curtain-tracks-team-phone-light.png` `curtain-tracks-team-phone-dark.png` |
+| Curtain – QC Team | owner | ✓ | ✓ | ✓ | ✓ | n/a | 1 | `curtain-qc-team-desktop-light.png` `curtain-qc-team-desktop-dark.png` `curtain-qc-team-phone-light.png` `curtain-qc-team-phone-dark.png` |
+| Curtain – Site Installer | owner | ✓ | ✓ | ✓ | ✓ | n/a | 0 | `curtain-site-installer-desktop-light.png` `curtain-site-installer-desktop-dark.png` `curtain-site-installer-phone-light.png` `curtain-site-installer-phone-dark.png` |
+| Curtain – Team Leader | owner | ✓ | ✓ | ✓ | ✓ | n/a | 2 | `curtain-team-leader-desktop-light.png` `curtain-team-leader-desktop-dark.png` `curtain-team-leader-phone-light.png` `curtain-team-leader-phone-dark.png` |
 | Upholstery – Team Leader | owner | ✓ | ✓ | ✓ | ✓ | n/a | 1 | `upholstery-team-leader-desktop-light.png` `upholstery-team-leader-desktop-dark.png` `upholstery-team-leader-phone-light.png` `upholstery-team-leader-phone-dark.png` |
 | Upholstery – QC/Packaging | owner | ✓ | ✓ | ✓ | ✓ | n/a | 0 | `upholstery-qc-packaging-desktop-light.png` `upholstery-qc-packaging-desktop-dark.png` `upholstery-qc-packaging-phone-light.png` `upholstery-qc-packaging-phone-dark.png` |
 | Vehicle Fleet Inspector | owner | ✓ | ✓ | ✓ | ✓ | n/a | 0 | `vehicle-fleet-inspector-desktop-light.png` `vehicle-fleet-inspector-desktop-dark.png` `vehicle-fleet-inspector-phone-light.png` `vehicle-fleet-inspector-phone-dark.png` |
@@ -34,4 +34,4 @@ Measured: the shell chrome (sidebar + topbar) present · no horizontal overflow 
 | Upholstery — Team Leader | upholstery_team_leader | ✓ | ✓ | ✓ | ✓ | ✓ | 1 | `upholstery-team-leader-desktop-light.png` `upholstery-team-leader-desktop-dark.png` `upholstery-team-leader-phone-light.png` `upholstery-team-leader-phone-dark.png` |
 | Upholstery — QC/Packaging | upholstery_qc_packaging_team | ✓ | ✓ | ✓ | ✓ | ✓ | 0 | `upholstery-qc-packaging-desktop-light.png` `upholstery-qc-packaging-desktop-dark.png` `upholstery-qc-packaging-phone-light.png` `upholstery-qc-packaging-phone-dark.png` |
 
-28 screens graded · 4 with at least one measured problem.
+28 screens graded · 0 with at least one measured problem.

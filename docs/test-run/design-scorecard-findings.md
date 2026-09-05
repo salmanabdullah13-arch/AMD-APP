@@ -8,7 +8,7 @@ strip, label-above-bar, scroll clearance, empty-state copy, status
 vocabulary, date and currency format, badge tones, the page template, the
 money rule per role, and the "first five seconds" test per role).
 
-## Measured: 28 screens, 4 flagged — all four the Curtain granular dashboards (no shell, no dark), which are item 4; the Operations overflow is fixed
+## Measured: 28 screens, 0 flagged after item 4 (the four Curtain dashboards joined the shell the same day); the Operations overflow is fixed
 
 ## The outliers, and what to do about each
 
