@@ -20,4 +20,4 @@ _*.js
 _*.txt
 _*.md
 _*.png
-test-run/
+/test-run/
