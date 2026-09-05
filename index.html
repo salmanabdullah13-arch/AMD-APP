@@ -1186,14 +1186,18 @@ const NODES = [
   { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ launchPurchasingModule(); } },
   { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ launchStorekeeperModule(); } },
   { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ launchUpholsteryModule(); } },   // 20a — upholstery-ui.js
-  { id:'upholstery-legacy', label:'Upholstery (old pipeline view)', built:true, launch:()=>{ launchLegacyUpholsteryModule(); } },
+  { id:'upholstery-legacy', label:'Upholstery (old pipeline view)', built:false, retired:true, launch:()=>{ launchLegacyUpholsteryModule(); } },   // retired 5 Sep 2026 — 20a replaced it
   // Superseded by the 19a Production module (id 'production'), which is what
   // every joinery user_type now lands on. The wrapper stays because the four
   // granular joinery views render inside its own module wrap — but the label
   // says so, because 'Joinery' and 'Production' sitting side by side is how
   // Owner ended up on the wrong screen and thought the 19a build was wrong.
-  { id:'joinery',      label:'Joinery (old pipeline view)', built:true,  launch:()=>{ launchJoineryModule(); } },
-  { id:'painting',    label:'Painting',         built:true,  launch:()=>{ launchPaintingModule(); } },
+  // Retired 5 Sep 2026: Painting folded into Production (its lane, its
+  // queue on the Floor queue page); the Batch 8 Joinery wrapper and its four
+  // granular views likewise. Kept launchable for the legacy suites, out of
+  // every picker and landing.
+  { id:'joinery',      label:'Joinery (old pipeline view)', built:false, retired:true, launch:()=>{ launchJoineryModule(); } },
+  { id:'painting',    label:'Painting (retired — see Production)', built:false, retired:true, launch:()=>{ launchPaintingModule(); } },
   { id:'sales',        label:'Sales',            built:true,  launch:()=>{ launchSalesModule(); } },
   { id:'estimation',  label:'Estimator',        built:true,  launch:()=>{ launchEstimatorModule(); } },
   { id:'owner',        label:'Owner Dashboard',  built:true,  launch:()=>{ launchOwnerModule(); } },
@@ -1238,12 +1242,12 @@ const NODES = [
   // needed genuinely new internal granularity, not just wiring).
   // joinery_assistant_production_manager deliberately isn't listed here
   // — it shares the 'joinery' node itself (see schema.sql).
-  { id:'joinery-drafting',       label:'Joinery – Draftsman',           built:true, launch:()=>{ launchJoineryDraftingModule(); } },
-  { id:'joinery-cutting',        label:'Joinery – Cutting List Team',   built:true, launch:()=>{ launchJoineryCuttingModule(); } },
-  { id:'joinery-veneer-pressing',label:'Joinery – Veneer Pressing Team',built:true, launch:()=>{ launchJoineryVeneerPressingModule(); } },
+  { id:'joinery-drafting',       label:'Joinery – Draftsman',           built:false, retired:true, launch:()=>{ launchJoineryDraftingModule(); } },
+  { id:'joinery-cutting',        label:'Joinery – Cutting List Team',   built:false, retired:true, launch:()=>{ launchJoineryCuttingModule(); } },
+  { id:'joinery-veneer-pressing',label:'Joinery – Veneer Pressing Team',built:false, retired:true, launch:()=>{ launchJoineryVeneerPressingModule(); } },
   // Team Leader / Floor Supervisor / Site Supervisor share this one
   // node (see the design note above and in schema.sql/data.js).
-  { id:'joinery-floor',          label:'Joinery – Floor Overview',      built:true, launch:()=>{ launchJoineryFloorModule(); } },
+  { id:'joinery-floor',          label:'Joinery – Floor Overview',      built:false, retired:true, launch:()=>{ launchJoineryFloorModule(); } },
   // Vehicle Fleet Inspector + Delivery/Scheduling (Milestone E, 5 Aug
   // 2026) — entirely new modules, see fleet-delivery.js/the design
   // note in data.js. Deliberately minimal scope, matching the plan.

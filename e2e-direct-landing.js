@@ -114,11 +114,16 @@ async function simulateRealLogin(page, userType) {
   await page.evaluate(() => { if (typeof closeTracksDashboard === 'function') closeTracksDashboard(); });
   await page.waitForTimeout(200);
   await simulateRealLogin(page, 'joinery_draftsman');
+  // 5 Sep 2026: the old Joinery wrapper is retired — the Draftsman lands on
+  // Production's Floor queue with a rail scoped to the role (no manager
+  // Dashboard, no Pricing input) and the Drafting section on screen.
   const draftingLanding = await page.evaluate(() => ({
-    joineryVisible: document.getElementById('joinery-module-wrap')?.style.display !== 'none',
-    hasTabBar: document.querySelectorAll('#joinery-module-wrap .sales-tabbtn').length > 0
+    productionVisible: getComputedStyle(document.getElementById('prd-module-wrap')).display !== 'none',
+    view: typeof PrdUI !== 'undefined' ? PrdUI.state.view + '/' + PrdUI.state.page : null,
+    nav: [...document.querySelectorAll('#prd-module-wrap .xs-item .xs-lbl')].map(n => n.textContent.trim()),
+    section: [...document.querySelectorAll('#prd-body .prd-floor-h')].map(h => h.textContent)
   }));
-  record('Signing in as Joinery Draftsman lands directly on the restricted drafting view (no tab bar)', draftingLanding.joineryVisible && !draftingLanding.hasTabBar ? 'PASS' : 'FAIL', JSON.stringify(draftingLanding));
+  record('Signing in as Joinery Draftsman lands directly on Production\'s Floor queue with a role-scoped rail (no manager Dashboard)', draftingLanding.productionVisible && draftingLanding.view === 'page/floor' && !draftingLanding.nav.includes('Dashboard') && draftingLanding.nav.includes('Cutting lists') && draftingLanding.section.includes('Drafting') ? 'PASS' : 'FAIL', JSON.stringify(draftingLanding));
 
   currentStep = 'final';
   const critical = consoleErrors.filter(e => !e.text.includes('favicon'));

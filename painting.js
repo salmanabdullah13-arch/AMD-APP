@@ -353,17 +353,24 @@ function paintingProgressCell(r) {
   if (!inFlight) return pct ? `<br><span style="font-size:10px;color:#94a3b8;">${pct}%</span>` : '';
   return `<br>${[25, 50, 75].map(p => `<span style="font-size:10px;cursor:pointer;padding:1px 4px;border-radius:4px;${pct >= p ? 'background:var(--biz-primary);color:#fff;' : 'background:#eef0f3;color:#64748b;'}" onclick="paintingSetProgress('${r.job.id}',${r.item.lineId},${p})">${p}%</span>`).join(' ')}`;
 }
+// Painting's screens fold into Production (5 Sep 2026): when Production is
+// on screen, a queue action repaints it; the old module body otherwise.
+function paintingRerender() {
+  const prd = document.getElementById('prd-module-wrap');
+  if (prd && getComputedStyle(prd).display !== 'none' && typeof PrdUI !== 'undefined') { PrdUI.paint(); return; }
+  renderPaintingBody();
+}
 function paintingSetProgress(jobId, lineId, pct) {
   const res = setLineProgress(jobId, lineId, 'paint', pct, paintingCurrentUser);
   if (res && res.error) { paintingAlert(res.error); return; }
-  renderPaintingBody();
+  paintingRerender();
 }
 // Painting's own day-log form is gone too (2 Sep 2026) — the crew clock
 // is the one way hours are logged. "Start the clock" opens it preset.
 
 function paintingSetMaterial(jobId, lineId, materialStatus) {
   setPaintingMaterialStatus(jobId, lineId, materialStatus);
-  renderPaintingBody();
+  paintingRerender();
 }
 
 function paintingAction(fnName, ...args) {
@@ -371,7 +378,7 @@ function paintingAction(fnName, ...args) {
   const result = fns[fnName](...args);
   if (result && result.error) { paintingAlert(result.error); return; }
   paintingAlert('✓ Updated.');
-  renderPaintingBody();
+  paintingRerender();
 }
 
 // QC fail prompts for an optional reason (6 Aug 2026 audit, loophole #6) —

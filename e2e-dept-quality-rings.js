@@ -107,7 +107,7 @@ async function openNode(page, nodeId, wrapId) {
   });
 
   currentStep = 'upholstery-ring-renders';
-  await openNode(page, 'upholstery', 'upholstery-module-wrap');
+  await openNode(page, 'upholstery-legacy', 'upholstery-module-wrap');   // the Batch 8 wrapper this card belongs to (retired 5 Sep 2026, still launchable)
   await shot(page, 'upholstery-quality-ring');
   const upholsteryRing = await page.evaluate(() => {
     const html = document.getElementById('upholstery-body').innerHTML;

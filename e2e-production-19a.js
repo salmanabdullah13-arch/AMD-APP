@@ -361,7 +361,7 @@ function check(name, ok, detail) {
   check('and closes with Create…, which opens the flows',
     /Create/.test(frame.labels[frame.labels.length - 1] || '') && /go\('form'/.test(frame.last || ''),
     frame.labels.slice(-2));
-  check('all sixteen rail entries are there', frame.labels.length === 16, frame.labels.length);
+  check('all seventeen rail entries are there (the sixteen of the frame plus the Floor queue, 5 Sep 2026)', frame.labels.length === 17, frame.labels.length);
   // "Thursday 13 August 2026 · 5 things asked of you · 3 jobs with no lane ·
   // Crew A over" — the day in one sentence.
   check('the topbar carries the date', /\d{4}/.test(frame.sub), frame.sub);

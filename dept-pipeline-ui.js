@@ -76,9 +76,9 @@ function deptProgressCell(r, modPrefix, deptKey) {
 }
 function deptSetProgress(modPrefix, jobId, lineId, deptKey, pct) {
   const res = setLineProgress(jobId, lineId, deptKey, pct, null);
-  const alertFn = modPrefix === 'upholstery' ? upholsteryAlert : joineryAlert;
+  const alertFn = deptAlertFn(modPrefix);
   if (res && res.error) { alertFn(res.error); return; }
-  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
+  deptRerenderBody(modPrefix);
 }
 // The per-person day-log form that used to sit here is gone (2 Sep 2026):
 // the crew clock is the ONE way hours are logged, workshop included. The
@@ -89,10 +89,10 @@ function deptSetProgress(modPrefix, jobId, lineId, deptKey, pct) {
 function deptQueueAction(modPrefix, fnName, ...args) {
   const fns = { startLineProduction, submitLineForQC, recordLineQCResult, reworkLineBackToProduction, handOffLine };
   const result = fns[fnName](...args);
-  const alertFn = modPrefix === 'upholstery' ? upholsteryAlert : joineryAlert;
+  const alertFn = deptAlertFn(modPrefix);
   if (result && result.error) { alertFn(result.error); return; }
   alertFn('✓ Updated.');
-  if (modPrefix === 'upholstery') renderUpholsteryBody(); else renderJoineryBody();
+  deptRerenderBody(modPrefix);
 }
 
 // QC fail prompts for a reason (6 Aug 2026 audit, loophole #6). The reason is
@@ -421,12 +421,15 @@ function renderBudgetApprovals(approverUserType, approverDisplayName, modPrefix)
 // bolting on a third hardcoded branch inline at every call site.
 function deptAlertFn(modPrefix) {
   if (modPrefix === 'upholstery') return upholsteryAlert;
-  if (modPrefix === 'operations') return (typeof showAlert === 'function' ? showAlert : alert);
+  if (modPrefix === 'operations' || modPrefix === 'production') return (typeof showAlert === 'function' ? showAlert : alert);
   return joineryAlert;
 }
+// Since 5 Sep 2026 the joinery queue is hosted on Production's Floor queue
+// page ('production'); the old Joinery module is retired but still loaded.
 function deptRerenderBody(modPrefix) {
   if (modPrefix === 'upholstery') renderUpholsteryBody();
   else if (modPrefix === 'operations') { if (typeof renderOpsBudgetApprovals === 'function') renderOpsBudgetApprovals(); }
+  else if (modPrefix === 'production') { if (typeof PrdUI !== 'undefined') PrdUI.paint(); }
   else renderJoineryBody();
 }
 

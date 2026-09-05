@@ -144,6 +144,9 @@ function joineryAdvanceSubStage(jobId, lineId, toSubStage) {
   const result = advanceJoinerySubStage(jobId, lineId, toSubStage);
   if (result.error) { joineryAlert(result.error); return; }
   joineryAlert('✓ Advanced to ' + JOINERY_SUB_STAGE_LABEL[toSubStage] + '.');
+  // Since 5 Sep 2026 the sub-stage views are hosted on Production's Floor queue.
+  const prd = document.getElementById('prd-module-wrap');
+  if (prd && getComputedStyle(prd).display !== 'none' && typeof PrdUI !== 'undefined') { PrdUI.paint(); return; }
   renderJoineryBody();
 }
 

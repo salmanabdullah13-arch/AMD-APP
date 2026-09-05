@@ -9010,3 +9010,64 @@ real roles against the live project. Four passes, the last **180/180**. Findings
   real-quote-ewan, team-comms, quote-confirmed-lock and the live messages
   suite all green after the changes. Full offline sweep all green; live regression green on jobcard-merge, cloud-jobcards, cloud-financial and cloud-production. `sw.js` v67 → v68.
   Residue purged after every pass.
+
+### 5 Sep 2026 — Typing kept exiting the field; Painting folds into Production; the old Joinery wrapper retires
+
+Salman set the order for the remaining work: the fold and retirements
+first, then the design scorecard, then Curtain's restyle, then iteration
+4. Mid-way he reported a bug that took precedence.
+
+**"Typing one letter exits the text box" — fixed app-wide.** The enquiry
+form's `salesEnqDraftChanged()` redrew the whole Sales body on every
+keystroke, replacing the input under the cursor; fifteen filter and
+search handlers across Sales, Jobs, Purchasing, Accounts, Storekeeper,
+Estimator and HR did the same. One shell helper, `renderKeepingFocus()`,
+runs the redraw and puts focus and the caret back on the same field (by
+id, else by the field's own `oninput` attribute, which is unique per
+field); email and number inputs have no selection API, so the caret is
+parked at the end by re-setting the value — the one case the first cut
+missed. `e2e-typing-keeps-focus.js` types three characters, one at a
+time, into every affected field and asserts focus and text survive each
+keystroke: 17/17. The customer form was a false hit (its handler only
+stores the value). Pushed on its own as `78a04a9`.
+
+**Painting folds into Production; the Joinery and Upholstery wrappers
+retire** (agreed 2 Sep). What existed: `joinery.js` (the Batch 8
+pipeline wrapper, no manager landing on it since 19a, hosting the four
+granular views), `painting.js` (a standalone module the Painting Lead
+landed on), and the 19a Production module, which already carried the
+Paint & polish lane and the paint queue — but **none of the stage
+moves**. Retiring the old queues outright would have left every joinery
+line with nowhere to be started, sent to QC, passed or handed off, and
+delivery and completion depend on lines reaching `done`.
+
+- **The Floor queue**, a new Production page, hosts the proven renderers
+  the old modules carried — the shared joinery queue, the four sub-stage
+  views, Painting's own queue — scoped by role, with their actions
+  repainting Production (`deptRerenderBody('production')`,
+  `paintingRerender()`). The rules did not move: Painting keeps its own
+  pipeline in the data layer, joinery's sub-stage gate still guards QC.
+- **Role rails** (`PRD_ROLE_RAILS`): every production role lands on
+  Production now. The manager keeps the whole rail; the Painting Lead gets
+  Floor queue · Paint & polish · Teams · Overtime · Reminders; the
+  Draftsman gets Floor queue (Drafting) · BOM changes · Cutting lists ·
+  Documents with ＋ opening the revision flow; the Cutting List Team gets
+  Floor queue (Cutting) · Cutting lists · Week board · Material with ＋ on
+  the cutting-list builder; Veneer Pressing gets Floor queue (Veneer) ·
+  Veneer pressing · Cutting lists with ＋ on a batch; the Floor, Site and
+  Team-Leader roles get the floor overview by stage and the Assembly
+  lane, with the board, Teams and Overtime. Each is one entry in a map,
+  cheap to repoint if the floor wants it otherwise.
+- The seven roles' `dashboard_node_id` repointed to `production` live
+  (`supabase/fold-production-2026-09-05.sql`, mirrored into
+  `schema.sql`). The seven retired nodes are `built:false, retired:true`
+  in `NODES` — out of every picker and landing, still launchable for the
+  legacy suites — and Owner's Paint & polish opens the lane inside
+  Production (`launchProductionPaintPage()`). The old files stay loaded,
+  dormant, until iteration 4 confirms nothing else needs them.
+- **Verified**: the four landings probed offline (manager, Painting
+  Lead, Draftsman, Team Leader) and the two real logins live; suites
+  repointed rather than deleted (`direct-landing`, `batch8-phase2-4`,
+  `dept-quality-rings`, the 19a rail count → seventeen); `owner-dashboard`
+  45/45 unchanged because its coverage check reads the registry. Full offline sweep all green.
+  `sw.js` v69 → v70.

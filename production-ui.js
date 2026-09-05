@@ -109,46 +109,80 @@ function prdBuildShell() {
   // Badge counts the frame shows on almost every rail item — all real
   // readers, so an empty shop shows an empty rail rather than invented ones.
   const cnt = (fn) => safeTop(fn, 0) || '';
+  const roleRail = prdRoleRail();
   prdModuleWrap.innerHTML = execShellHTML({
-    title: 'Production', sub: null, role: 'Joinery Production Manager',
+    title: 'Production', sub: null, role: roleRail ? roleRail.label : 'Joinery Production Manager',
     contentId: 'prd-body', closeFn: 'closeProductionModule',
     /* Rail order, labels, icons and badge tones are the handoff's own
        fifteen-page table, in its order. Pages not yet built open the board
        rather than a dead view — flagged in the session log, not hidden. */
     navGroups: [{
-      label: 'Workspace', items: [
-        /* The frame's rail opens with Dashboard, above Week board — without
-           it there is no way back to the board from inside a page except the
-           back arrow, and the board page is not the dashboard. */
-        nv('prd-dash', '⌂', 'Dashboard', "PrdUI.go('dash','board')", k.askedOfYou || ''),
-        nv('prd-board', '▦', 'Week board', "PrdUI.go('page','board')", k.waitingForLane || ''),
-        nv('prd-price', '∑', 'Pricing input', "PrdUI.go('page','price')", k.askedOfYou || ''),
-        nv('prd-bomb', '⊟', 'BOM input for budgeting', "PrdUI.go('page','bomb')",
-          cnt(() => getInputRequestsOfType('bom_budget_input').filter(r => r.status === 'open').length)),
-        nv('prd-bom', '⇄', 'BOM changes', "PrdUI.go('page','bom')", k.deadPaperOut || ''),
-        nv('prd-mat', '▣', 'Material & reservations', "PrdUI.go('page','mat')", k.blockedForMaterial || ''),
-        nv('prd-quote', '⌸', 'Supplier quotes', "PrdUI.go('page','quote')",
-          cnt(() => (typeof rfqs !== 'undefined' ? rfqs : []).filter(r => r.status === 'quotes-in').length)),
-        nv('prd-cut', '⌗', 'Cutting lists', "PrdUI.go('page','cut')", k.liveSheets || ''),
-        nv('prd-press', '▤', 'Veneer pressing', "PrdUI.go('page','press')", k.openBatches || ''),
-        nv('prd-paint', '◐', 'Paint & polish', "PrdUI.go('page','paint')",
-          cnt(() => getPulledSlotRows('paint').length)),
-        nv('prd-inst', '⇱', 'Site installation', "PrdUI.go('page','inst')",
-          cnt(() => getPulledSlotRows('carp').filter(r => !r.booked).length)),
-        nv('prd-team', '☷', 'Teams & labour', "PrdUI.go('page','team')",
-          cnt(() => getCrewlessMen().length)),
-        nv('prd-ot', '◑', 'Overtime & recovery', "PrdUI.go('page','ot')",
-          cnt(() => getOvertimeRows().filter(r => !r.refused).length)),
-        nv('prd-rem', '⏱', 'Reminders', "PrdUI.go('page','rem')",
-          cnt(() => getProductionReminders().length)),
-        nv('prd-doc', '▨', 'Documents', "PrdUI.go('page','doc')"),
-        /* The frame's last rail item. The form view's own twelve pills ARE
-           the create menu, so this opens it on the spec's default flow. */
-        nv('prd-create', '＋', 'Create…', "PrdUI.go('form','price')")
-      ]
+      label: 'Workspace', items: prdRailItems(roleRail, k, cnt)
     }]
   });
 }
+// The full rail in the handoff's order, keyed so a role's rail is a filter
+// over it rather than a second list that can drift.
+function prdRailItems(roleRail, k, cnt) {
+  const all = [
+        /* The frame's rail opens with Dashboard, above Week board — without
+           it there is no way back to the board from inside a page except the
+           back arrow, and the board page is not the dashboard. */
+        ['dash', nv('prd-dash', '⌂', 'Dashboard', "PrdUI.go('dash','board')", k.askedOfYou || '')],
+        ['board', nv('prd-board', '▦', 'Week board', "PrdUI.go('page','board')", k.waitingForLane || '')],
+        /* The Floor queue: where a line is started, moved through joinery's
+           sub-stages, sent to QC, passed or failed, and handed off — the
+           screens the old Joinery and Painting modules carried. */
+        ['floor', nv('prd-floor', '◫', 'Floor queue', "PrdUI.go('page','floor')",
+          cnt(() => getDepartmentQueue('carp').length + (typeof getPaintingQueue === 'function' ? getPaintingQueue().length : 0)))],
+        ['price', nv('prd-price', '∑', 'Pricing input', "PrdUI.go('page','price')", k.askedOfYou || '')],
+        ['bomb', nv('prd-bomb', '⊟', 'BOM input for budgeting', "PrdUI.go('page','bomb')",
+          cnt(() => getInputRequestsOfType('bom_budget_input').filter(r => r.status === 'open').length))],
+        ['bom', nv('prd-bom', '⇄', 'BOM changes', "PrdUI.go('page','bom')", k.deadPaperOut || '')],
+        ['mat', nv('prd-mat', '▣', 'Material & reservations', "PrdUI.go('page','mat')", k.blockedForMaterial || '')],
+        ['quote', nv('prd-quote', '⌸', 'Supplier quotes', "PrdUI.go('page','quote')",
+          cnt(() => (typeof rfqs !== 'undefined' ? rfqs : []).filter(r => r.status === 'quotes-in').length))],
+        ['cut', nv('prd-cut', '⌗', 'Cutting lists', "PrdUI.go('page','cut')", k.liveSheets || '')],
+        ['press', nv('prd-press', '▤', 'Veneer pressing', "PrdUI.go('page','press')", k.openBatches || '')],
+        ['paint', nv('prd-paint', '◐', 'Paint & polish', "PrdUI.go('page','paint')",
+          cnt(() => getPulledSlotRows('paint').length))],
+        ['inst', nv('prd-inst', '⇱', 'Site installation', "PrdUI.go('page','inst')",
+          cnt(() => getPulledSlotRows('carp').filter(r => !r.booked).length))],
+        ['team', nv('prd-team', '☷', 'Teams & labour', "PrdUI.go('page','team')",
+          cnt(() => getCrewlessMen().length))],
+        ['ot', nv('prd-ot', '◑', 'Overtime & recovery', "PrdUI.go('page','ot')",
+          cnt(() => getOvertimeRows().filter(r => !r.refused).length))],
+        ['rem', nv('prd-rem', '⏱', 'Reminders', "PrdUI.go('page','rem')",
+          cnt(() => getProductionReminders().length))],
+        ['doc', nv('prd-doc', '▨', 'Documents', "PrdUI.go('page','doc')")],
+        /* The frame's last rail item. The form view's own twelve pills ARE
+           the create menu, so this opens it on the spec's default flow. */
+        ['create', nv('prd-create', '＋', 'Create…', "PrdUI.go('form','price')")]
+  ];
+  if (!roleRail) return all.map(x => x[1]);
+  const items = all.filter(x => roleRail.items.includes(x[0])).map(x => x[1]);
+  if (roleRail.create) items.push(nv('prd-create', '＋', 'Create…', "PrdUI.go('form','" + roleRail.create + "')"));
+  return items;
+}
+
+// ── Painting folds into Production; the old Joinery wrapper retires (Salman,
+// 2 Sep 2026, built 5 Sep). Every production role lands HERE now. The
+// manager keeps the whole rail; the granular roles get the pages that are
+// theirs and land on the Floor queue, where the stage moves live. The rules
+// themselves did not move — Painting keeps its own pipeline in the data
+// layer, joinery's sub-stage gate still guards QC — only the screens did.
+const PRD_ROLE_RAILS = {
+  painting_lead:                { label: 'Painting Lead / Work Supervisor', items: ['floor', 'paint', 'team', 'ot', 'rem'], landing: 'floor', create: null },
+  joinery_draftsman:            { label: 'Draftsman',              items: ['floor', 'bom', 'cut', 'doc'], landing: 'floor', create: 'bom' },
+  joinery_cutting_list_team:    { label: 'Cutting List Team',      items: ['floor', 'cut', 'board', 'mat'], landing: 'floor', create: 'cut' },
+  joinery_veneer_pressing_team: { label: 'Veneer Pressing Team',   items: ['floor', 'press', 'cut'], landing: 'floor', create: 'press' },
+  joinery_floor_supervisor:     { label: 'Floor Supervisor',       items: ['floor', 'board', 'team', 'ot', 'rem'], landing: 'floor', create: null },
+  joinery_site_supervisor:      { label: 'Site Supervisor',        items: ['floor', 'board', 'inst', 'team', 'rem'], landing: 'floor', create: null },
+  joinery_team_leader:          { label: 'Team Leader',            items: ['floor', 'board', 'team', 'ot', 'rem'], landing: 'floor', create: null }
+};
+function prdRoleRail() { return PRD_ROLE_RAILS[(typeof window !== 'undefined' && window.cloudUserType) || ''] || null; }
+// Owner's Workshops → Paint & polish opens the paint lane inside Production.
+function launchProductionPaintPage() { openProductionModule(); if (typeof PrdUI !== 'undefined') PrdUI.go('page', 'paint'); }
 
 function openProductionModule() {
   const scroll = document.getElementById('scroll');
@@ -162,9 +196,9 @@ function openProductionModule() {
   execThemeApply();
   PrdUI.reset();
   renderProductionBody();
-  // PrdUI.reset() has just set the view to 'dash', so this is prd-dash.
-  // It marked prd-board for a fortnight.
-  execMarkActive('prd-dash');
+  // PrdUI.reset() lands the manager on the dashboard and a granular role on
+  // its own page — mark whichever it was (it marked prd-board for a fortnight).
+  execMarkActive(PrdUI.state.view === 'dash' ? 'prd-dash' : 'prd-' + PrdUI.state.page);
   execRefreshBadges();
 }
 function closeProductionModule() { closeModuleWrap(prdModuleWrap, 'launchProductionModule'); }
@@ -2015,6 +2049,7 @@ window.PrdUI = (function () {
      ═══════════════════════════════════════════════════════════════════ */
 
   var PAGE_TITLES = {
+    floor: 'Floor queue',
     board: 'Week board', price: 'Pricing input', bomb: 'BOM input for budgeting',
     bom: 'BOM changes', mat: 'Material & reservations', quote: 'Supplier quotes',
     cut: 'Cutting lists', press: 'Veneer pressing', paint: 'Paint & polish',
@@ -2502,7 +2537,49 @@ window.PrdUI = (function () {
     };
   }
 
+  /* The Floor queue — the stage moves the retired Joinery and Painting
+     modules carried, hosted here on their own proven renderers (the shared
+     joinery queue, the sub-stage views, Painting's queue), scoped by role.
+     Their actions repaint Production (deptRerenderBody / paintingRerender). */
+  function pageFloor() {
+    var role = (window.cloudUserType) || 'joinery_production_manager';
+    var me = window.cloudIdentity || 'Joinery Production Manager';
+    var g = function (fn) { return typeof window[fn] === 'function'; };
+    var sec = function (title, html) { return '<div class="prd-floor-sec"><div class="prd-floor-h">' + esc(title) + '</div>' + html + '</div>'; };
+    var parts = [];
+    if (role === 'painting_lead') {
+      parts.push(sec('Paint & polish — incoming work', g('renderPaintingQueue') ? renderPaintingQueue() : ''));
+    } else if (role === 'joinery_draftsman') {
+      parts.push(sec('Drafting', g('renderJoinerySubStageView') ? renderJoinerySubStageView('drafting') : ''));
+    } else if (role === 'joinery_cutting_list_team') {
+      parts.push(sec('Cutting', g('renderJoinerySubStageView') ? renderJoinerySubStageView('cutting') : ''));
+    } else if (role === 'joinery_veneer_pressing_team') {
+      parts.push(sec('Veneer pressing', g('renderJoinerySubStageView') ? renderJoinerySubStageView('veneer-pressing') : ''));
+    } else if (/^joinery_(floor_supervisor|site_supervisor|team_leader)$/.test(role)) {
+      parts.push(sec('The floor, by stage', g('renderJoineryFloorView') ? renderJoineryFloorView() : ''));
+      parts.push(sec('Assembly', g('renderJoinerySubStageView') ? renderJoinerySubStageView('assembly') : ''));
+    } else {
+      parts.push(sec('Joinery queue', g('renderDeptQueue') ? renderDeptQueue('carp', me, 'production') : ''));
+      parts.push(sec('The floor, by stage', g('renderJoineryFloorView') ? renderJoineryFloorView() : ''));
+      parts.push(sec('Paint & polish queue', g('renderPaintingQueue') ? renderPaintingQueue() : ''));
+    }
+    var rows = safe(function () { return getDepartmentQueue('carp'); }, []);
+    var prow = safe(function () { return typeof getPaintingQueue === 'function' ? getPaintingQueue() : []; }, []);
+    var n = function (st) { return rows.filter(function (r) { return r.entry.status === st; }).length; };
+    return {
+      sub: 'Every joinery and paint line on the floor at its stage — start it, move it through drafting, cutting, pressing and assembly, send it to QC, pass or fail it, hand it off. Hours are logged on the clock.',
+      stats: [
+        { v: rows.length, l: 'Joinery lines' },
+        { v: n('in-production'), l: 'In production' },
+        { v: n('qc'), l: 'At QC', st: n('qc') ? 'warn' : 'ok' },
+        { v: prow.length, l: 'Paint lines' }
+      ],
+      chips: [],
+      custom: parts.join('')
+    };
+  }
   var PAGES = {
+    floor: pageFloor,
     board: pageBoard,
     price: function () { return pageRequests('pricing_input', true); },
     bomb: function () { return pageRequests('bom_budget_input', false); },
@@ -2810,7 +2887,10 @@ window.PrdUI = (function () {
     // the same reason estimator.js exposes processExcelImport().
     processBOMExcel: function (sheets) { return bomProcessExcel(sheets); },
     bomExcelState: function () { return S.bomExcel; },
-    reset: function () { S.view = 'dash'; S.page = 'board'; S.gate = null; S.off = 0; },
+    reset: function () {
+      var rr = typeof prdRoleRail === 'function' ? prdRoleRail() : null;
+      S.view = rr ? 'page' : 'dash'; S.page = rr ? rr.landing : 'board'; S.gate = null; S.off = 0; S.pgChip = 0;
+    },
     // Entering any create flow resets the gate to null — a gate that arrives
     // pre-answered in the job's favour defeats the entire mechanism.
     go: function (view, key) {

@@ -81,7 +81,7 @@ function ownerBuildShell() {
           { id: 'm-production', ico: '▦', label: 'Production', onclick: "ownerGoTo('launchProductionModule')" },
           { id: 'm-curtain', ico: '◫', label: 'Curtain & blinds', onclick: "ownerGoTo('launchCurtainModule')" },
           { id: 'm-upholstery', ico: '◧', label: 'Upholstery', onclick: "ownerGoTo('launchUpholsteryModule')" },
-          { id: 'm-painting', ico: '◐', label: 'Paint & polish', onclick: "ownerGoTo('launchPaintingModule')" }
+          { id: 'm-painting', ico: '◐', label: 'Paint & polish', onclick: "ownerGoTo('launchProductionPaintPage')" }
         ]
       },
       {

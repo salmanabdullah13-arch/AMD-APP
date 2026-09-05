@@ -61,7 +61,8 @@ async function openNode(page, nodeId, wrapId) {
   // ── Ecosystem hub: confirm the 3 new nodes are built and reachable ──
   currentStep = 'ecosystem-hub-nodes';
   const nodeInfo = await page.evaluate(() => window.__eco3d.NODES.filter(n => ['joinery', 'upholstery', 'painting'].includes(n.id)));
-  record('Joinery/Upholstery/Painting are all built:true in NODES', nodeInfo.every(n => n.built) ? 'PASS' : 'FAIL', JSON.stringify(nodeInfo));
+  // 5 Sep 2026: Painting folded into Production and the Batch 8 Joinery wrapper retired — both stay launchable for this suite but are out of every picker.
+  record('Upholstery is built; the Joinery wrapper and Painting are retired (out of the pickers, still launchable)', nodeInfo.find(n => n.id === 'upholstery').built && nodeInfo.filter(n => n.id !== 'upholstery').every(n => !n.built && n.retired) ? 'PASS' : 'FAIL', JSON.stringify(nodeInfo));
 
   // ── Seed a job with a Joinery (paint-tagged) item and an Upholstery item ──
   currentStep = 'seed-and-route';
