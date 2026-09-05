@@ -95,10 +95,10 @@ async function openNode(page, nodeId, wrapId) {
   ]) ? 'PASS' : 'FAIL', JSON.stringify(hierarchyCheck));
   const groupHeaderShown = await page.evaluate(() => document.getElementById('sales-body').innerHTML.includes('RECEPTION AREA') && document.getElementById('sales-body').innerHTML.includes('PANTRY AREA'));
   record('Group header rows render in the Sales item table', groupHeaderShown ? 'PASS' : 'FAIL');
-  const copyGroupBtn = await page.evaluate(() => !!document.querySelector('#sales-body span[onclick*="Copy Group"]') || document.getElementById('sales-body').innerHTML.includes('Copy Group'));
+  const copyGroupBtn = await page.evaluate(() => !!document.querySelector('#sales-body .qs-b.copy[title^="Copy this Group"]'));   // 5 Sep 2026: the copy controls live in the Structure panel on the right
   record('"Copy Group" action is offered on the Group header', copyGroupBtn ? 'PASS' : 'FAIL');
 
-  await page.click('#sales-body span:has-text("Copy Group")');
+  await page.click('#sales-body .qs-b.copy[title^="Copy this Group"]');
   await page.waitForTimeout(150);
   await shot(page, 'after-copy-group');
   const afterCopyGroup = await page.evaluate((id) => quotations.find(q => q.id === id).items.length, qtnId);

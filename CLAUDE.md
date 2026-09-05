@@ -9172,3 +9172,51 @@ Production fold, the Curtain restyle and the scorecard's own fixes are in.
 Open: the 18a Store Keeper interface (never built), the Approver's landing
 (counts, not the queue), F1 at the design level, the real-device camera
 check Salman wants last, and the PAT to revoke when he is done.
+
+### 5 Sep 2026 — Salman's first live test: the quotation wizard's Product & Services step
+
+Five findings from Salman's own test on the iPad, all built the same
+evening:
+
+1. **Unit has no default.** The select opened on "Box"; it opens on
+   "Choose…" now and Add Item refuses without a choice — a wrong unit on a
+   printed quotation is worse than a pause. The data layer still defaults
+   `"Nos"` for programmatic callers (seeds, suites); the form is where a
+   person can make the mistake.
+2. **The step is two columns** at ≥960px (`.sales-wiz2`): the Add Item form
+   on the left; on the right a new **Structure** panel (Groups → Sub Groups
+   → lines, with ▲▼ order and ⧉ copy on each), then Totals and the
+   quote-level discount. The Items table sits below, full width. One
+   column on a phone.
+3. **Photos save.** The 500 KB cap refused every iPad photo (2–4 MB) with
+   a toast that was easy to miss — "images don't save". `salesCompressImage()`
+   shrinks the picture on the device first (1280px longest side, JPEG,
+   quality stepped down until it fits); the form takes a photo before Add
+   Item and every row has a 📷 with a thumbnail once one is attached.
+   Offline the photo rides as a data URL. Proven live as the Sales
+   fixture: a 1600px PNG became a 53 KB JPEG in the `item-images` bucket,
+   the public URL persisted on the line and fetchable.
+4. **Copy stays in the Group, and order exists.** `copyQuoteSection()`
+   appended clones at the END of the quote, so a copied Sub Group left its
+   Group. Groups and Sub Groups are runs of consecutive items, so:
+   `copyQuoteSectionAt()` splices the clones in directly after the original,
+   named "(copy)"; `moveQuoteSectionAt()` swaps a run with its neighbour and
+   a Sub Group only ever moves within its own Group (refused with the
+   reason at either end); `moveQuotationItem()` swaps a line inside its Sub
+   Group. Serials recompute from order. `addQuotationItem()` was split into
+   `buildQuotationItemRow()` + push so a clone can be placed rather than
+   appended. **A real bug found on the way**: `nextQuotationItemId()` was
+   length-based, so a removed line's id was handed to the next line added
+   and edits by lineId landed on the wrong row — max-based now.
+5. **The form resets itself after Add Item** — field by field, before the
+   redraw — and puts the cursor back in Product; a desktop cleared the
+   fields on redraw, the iPad kept the typed text.
+
+- **Verified**: new `e2e-quote-structure.js` (21/21) — the chosen-unit rule,
+  the two columns, the form clearing, a Sub Group copied in place with both
+  lines and unique ids, a Group copied, every order move including the two
+  refusals that keep a Sub Group inside its Group, the photo landing as a
+  thumbnail, a 2400px photo compressed to a 1280px JPEG under 500 KB, and
+  the phone. Four suites repointed to the chosen-unit rule and the new
+  controls (batch9, bugfixes-iphone, batch7-big-pieces,
+  labour-copybom-approver). Full offline sweep all green. `sw.js` v72 → v73.

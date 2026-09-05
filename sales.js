@@ -196,6 +196,25 @@ salesStyleTag.textContent = `
 #sales-module-wrap .sales-tile.t-cyan{background:linear-gradient(135deg,var(--biz-cyan),var(--biz-primary2));}
 #sales-module-wrap .sales-back{font-size:12px;color:var(--biz-primary);font-weight:600;cursor:pointer;margin-bottom:10px;display:inline-block;}
 `;
+salesStyleTag.textContent += `
+/* Quotation wizard, step 2 (5 Sep 2026): the form on the left, the quote's
+   structure — copy and order — on the right; one column on a phone. */
+#sales-module-wrap .sales-wiz2{display:grid;grid-template-columns:1fr;gap:12px;align-items:start;}
+@media (min-width:960px){#sales-module-wrap .sales-wiz2{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);}}
+#sales-module-wrap .sales-wiz2 .sales-card{margin-bottom:12px;}
+#sales-module-wrap .qs-g{border:1px solid var(--biz-border-light);border-radius:10px;padding:8px 10px;margin-bottom:8px;background:var(--biz-card-bg);}
+#sales-module-wrap .qs-gh,#sales-module-wrap .qs-sh,#sales-module-wrap .qs-it{display:flex;align-items:center;gap:6px;min-height:28px;}
+#sales-module-wrap .qs-gh{font-weight:700;font-size:12.5px;}
+#sales-module-wrap .qs-sh{font-weight:600;font-size:12px;margin:6px 0 2px 10px;color:var(--biz-text);}
+#sales-module-wrap .qs-it{font-size:11.5px;color:var(--biz-text-muted);margin-left:22px;}
+#sales-module-wrap .qs-it .qs-serial{font-variant-numeric:tabular-nums;color:var(--biz-text-faint);min-width:38px;}
+#sales-module-wrap .qs-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#sales-module-wrap .qs-b{flex:none;width:26px;height:26px;border-radius:7px;border:1px solid var(--biz-border-light);background:var(--biz-card-bg);color:var(--biz-text-muted);font-size:12px;cursor:pointer;display:grid;place-items:center;padding:0;}
+#sales-module-wrap .qs-b:hover{border-color:var(--biz-primary);color:var(--biz-primary);}
+#sales-module-wrap .qs-b.copy{color:var(--biz-primary);font-weight:700;}
+#sales-module-wrap .it-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--biz-border-light);display:block;}
+#sales-module-wrap .it-photo-lbl{cursor:pointer;color:var(--biz-primary);font-size:12px;}
+`;
 document.head.appendChild(salesStyleTag);
 
 // ── Module shell ──
@@ -1412,64 +1431,120 @@ function renderWizardStep2() {
   const hierarchy = computeQuoteHierarchy(q.items);
   const rowsHtml = q.items.length === 0
     ? `<p style="font-size:12px;color:#64748b;margin-bottom:10px;">No items added yet.</p>`
-    : `<table class="sales-items"><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th><th></th></tr>` +
+    : `<table class="sales-items"><tr><th>#</th><th></th><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Net</th><th></th></tr>` +
       hierarchy.map(h => {
         const it = h.item;
         let headers = '';
-        if (h.isNewGroup) headers += `<tr style="background:#e2e8f0;"><td colspan="7" style="font-weight:700;">${esc(it.group || '(No Group)')}${it.group ? ` <span style="cursor:pointer;color:var(--biz-primary);font-weight:600;font-size:10.5px;" onclick="salesCopySection('${q.id}',${it.lineId},'group')">⧉ Copy Group</span>` : ''}</td></tr>`;
-        if (h.isNewSubgroup) headers += `<tr style="background:#f1f5f9;"><td colspan="7" style="font-weight:600;text-decoration:underline;">${h.groupNo}.${h.subgroupNo} ${esc(it.subgroup || '(No Sub Group)')}${it.subgroup ? ` <span style="cursor:pointer;color:var(--biz-primary);font-weight:600;font-size:10.5px;text-decoration:none;" onclick="salesCopySection('${q.id}',${it.lineId},'subgroup')">⧉ Copy Sub Group</span>` : ''}</td></tr>`;
-        return headers + `<tr><td>${h.serial}</td><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
-        <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})" title="Edit">✎</span><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesDuplicateItem('${q.id}',${it.lineId})" title="Duplicate">⧉</span><label title="${it.imageUrl ? 'Replace photo' : 'Attach photo'}" style="cursor:pointer;color:${it.imageUrl ? 'var(--ok,#0f9d58)' : 'var(--biz-primary)'};margin-right:8px;">📷<input type="file" accept="image/*" style="display:none;" onchange="salesUploadItemImage('${q.id}',${it.lineId},this.files[0]);this.value='';"></label><span style="cursor:pointer;color:#b91c1c;" onclick="salesRemoveItem('${q.id}',${it.lineId})" title="Remove">✕</span></td></tr>` +
-        (salesEditingLineId === it.lineId ? `<tr><td colspan="7">${renderSalesItemEditPanel(q, it)}</td></tr>` : '');
+        if (h.isNewGroup) headers += `<tr style="background:#e2e8f0;"><td colspan="8" style="font-weight:700;">${h.groupNo}. ${esc(it.group || '(No Group)')}</td></tr>`;
+        if (h.isNewSubgroup) headers += `<tr style="background:#f1f5f9;"><td colspan="8" style="font-weight:600;text-decoration:underline;">${h.groupNo}.${h.subgroupNo} ${esc(it.subgroup || '(No Sub Group)')}</td></tr>`;
+        const photo = it.imageUrl
+          ? `<label class="it-photo-lbl" title="Replace photo"><img class="it-thumb" src="${esc(it.imageUrl)}"><input type="file" accept="image/*" hidden onchange="salesUploadItemImage('${q.id}',${it.lineId},this.files[0])"></label>`
+          : `<label class="it-photo-lbl" title="Attach a photo">📷<input type="file" accept="image/*" hidden onchange="salesUploadItemImage('${q.id}',${it.lineId},this.files[0])"></label>`;
+        return headers + `<tr><td>${h.serial}</td><td>${photo}</td><td>${esc(it.product)}</td><td>${it.qty}</td><td>${esc(it.unit)}</td><td>${it.rate.toFixed(3)}</td><td>${it.netAmount.toFixed(3)}</td>
+        <td><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesToggleEditItem(${it.lineId})" title="Edit">✎</span><span style="cursor:pointer;color:var(--biz-primary);margin-right:8px;" onclick="salesDuplicateItem('${q.id}',${it.lineId})" title="Duplicate this line">⧉</span><span style="cursor:pointer;color:#dc2626;" onclick="salesRemoveItem('${q.id}',${it.lineId})" title="Remove">✕</span></td></tr>` +
+        (salesEditingLineId === it.lineId ? `<tr><td colspan="8">${renderSalesItemEditPanel(q, it)}</td></tr>` : '');
       }).join('') +
       `</table>`;
 
   return `
     ${q.headerComment ? `<div class="sales-preview"><p style="font-weight:700;color:#1a1f2e;margin-bottom:4px;">Approver Comments</p><p>${esc(q.headerComment)}</p></div>` : ''}
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Item</p>
-      ${locked ? `<div class="sales-banner">Rate/Amount/Net Amount are locked at 0.000 for Sales — pricing is always completed by the Estimator.</div>` : ''}
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div class="sales-field"><label>Group (Area)</label><input type="text" id="it-group" value="${esc(defaultGroup)}"></div>
-        <div class="sales-field"><label>Sub Group</label><input type="text" id="it-subgroup" value="${esc(defaultSubgroup)}"></div>
+    <div class="sales-wiz2">
+      <div>
+        <div class="sales-card">
+          <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Add Item</p>
+          ${locked ? `<div class="sales-banner">Rate/Amount/Net Amount are locked at 0.000 for Sales — pricing is always completed by the Estimator.</div>` : ''}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="sales-field"><label>Group (Area)</label><input type="text" id="it-group" value="${esc(defaultGroup)}"></div>
+            <div class="sales-field"><label>Sub Group</label><input type="text" id="it-subgroup" value="${esc(defaultSubgroup)}"></div>
+          </div>
+          <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Group/Sub Group become header/sub-header sections on the printed quotation. Leave blank for a flat, ungrouped item.</p>
+          <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product" autocomplete="off"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="sales-field"><label>Qty</label><input type="number" id="it-qty" value="1"></div>
+            <div class="sales-field"><label>Unit</label><select id="it-unit"><option value="">Choose…</option>${units.map(u => `<option value="${esc(u.name)}">${esc(u.name)}</option>`).join('')}</select></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="sales-field"><label>Rate</label><input class="${locked ? 'sales-locked' : ''}" type="number" id="it-rate" ${locked ? 'disabled value="0"' : 'value="0"'}></div>
+            <div class="sales-field"><label>Vat%</label><input type="number" id="it-vat" value="${q.taxPercent}"></div>
+          </div>
+          <div class="sales-field"><label>Disc%</label><input type="number" id="it-disc" value="0"></div>
+          <div class="sales-field"><label>Description</label><textarea id="it-desc"></textarea></div>
+          <div class="sales-field"><label>Internal Comments</label><textarea id="it-comments"></textarea></div>
+          <div class="sales-field"><label>Photo (optional)</label><input type="file" id="it-photo" accept="image/*">
+            <p style="font-size:10.5px;color:#94a3b8;margin-top:4px;">A phone photo is compressed on the device before it is saved, and prints in the quotation's IMAGE column.</p></div>
+          <button class="primary" style="width:100%;" onclick="salesAddItem('${q.id}')">Add Item</button>
+        </div>
       </div>
-      <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Group/Sub Group become header/sub-header sections on the printed quotation. Leave blank for a flat, ungrouped item.</p>
-      <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div class="sales-field"><label>Qty</label><input type="number" id="it-qty" value="1"></div>
-        <div class="sales-field"><label>Unit</label><select id="it-unit">${units.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}</select></div>
+      <div>
+        ${renderQuoteStructurePanel(q, hierarchy)}
+        <div class="sales-card">
+          <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">Totals</p>
+          <div style="font-size:12px;color:#334155;">
+            <p>Item Total: BD ${totals.itemTotal.toFixed(3)}</p>
+            <p>Discount: BD ${totals.discTotal.toFixed(3)}</p>
+            <p>Gross Amount: BD ${(totals.itemTotal - totals.discTotal).toFixed(3)}</p>
+            <p>VAT: BD ${totals.vatTotal.toFixed(3)}</p>
+            <p style="font-weight:700;">Net Amount: BD ${totals.netTotal.toFixed(3)}</p>
+          </div>
+        </div>
+        <div class="sales-card">
+          <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">Quote-level discount</p>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="quote-discount" type="number" min="0" step="0.001" value="${q.quoteDiscount || ''}" placeholder="BD amount off the whole quote" style="flex:1;">
+            <button class="secondary" onclick="salesApplyQuoteDiscount('${q.id}')">Apply</button>
+          </div>
+          <p style="font-size:10px;color:#94a3b8;margin-top:4px;">One document discount (like the real quotations carry) — distributed proportionally across the items, so totals, invoices and prints all stay consistent.</p>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div class="sales-field"><label>Rate</label><input class="${locked ? 'sales-locked' : ''}" type="number" id="it-rate" ${locked ? 'disabled value="0"' : 'value="0"'}></div>
-        <div class="sales-field"><label>Vat%</label><input type="number" id="it-vat" value="${q.taxPercent}"></div>
-      </div>
-      <div class="sales-field"><label>Disc%</label><input type="number" id="it-disc" value="0"></div>
-      <div class="sales-field"><label>Description</label><textarea id="it-desc"></textarea></div>
-      <div class="sales-field"><label>Internal Comments</label><textarea id="it-comments"></textarea></div>
-      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Image upload not wired — no upload infrastructure in this app yet.</p>
-      <button class="primary" style="width:100%;" onclick="salesAddItem('${q.id}')">Add Item</button>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Items</p>
-      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Once a quotation has been to the Estimator, use ✎ to adjust Qty/Description/Internal Comments — Rate stays Estimator-controlled.</p>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Once a quotation has been to the Estimator, use ✎ to adjust Qty/Description/Internal Comments — Rate stays Estimator-controlled. Copy and reorder sections in the Structure panel.</p>
       ${rowsHtml}
-      <div style="font-size:12px;color:#334155;">
-        <p>Item Total: BD ${totals.itemTotal.toFixed(3)}</p>
-        <p>Discount: BD ${totals.discTotal.toFixed(3)}</p>
-        <p>Gross Amount: BD ${(totals.itemTotal - totals.discTotal).toFixed(3)}</p>
-        <p>VAT: BD ${totals.vatTotal.toFixed(3)}</p>
-        <p style="font-weight:700;">Net Amount: BD ${totals.netTotal.toFixed(3)}</p>
-      </div>
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">Quote-level discount</p>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input id="quote-discount" type="number" min="0" step="0.001" value="${q.quoteDiscount || ''}" placeholder="BD amount off the whole quote" style="flex:1;">
-        <button class="secondary" onclick="salesApplyQuoteDiscount('${q.id}')">Apply</button>
-      </div>
-      <p style="font-size:10px;color:#94a3b8;margin-top:4px;">One document discount (like the real quotations carry) — distributed proportionally across the items, so totals, invoices and prints all stay consistent.</p>
     </div>
     <button class="primary" style="width:100%;" onclick="salesWizardStep=3;renderSalesBody();">Save & Proceed</button>`;
+}
+
+// The quote's structure — Groups, Sub Groups, lines — with copy and order
+// controls (Salman, 5 Sep 2026: "give an arranging order if I want to
+// change the order for group or subgroup — Q-Pro had this option").
+function renderQuoteStructurePanel(q, hierarchy) {
+  if (!q.items.length) return `<div class="sales-card"><p style="font-weight:700;font-size:12.5px;margin-bottom:6px;">Structure</p><p style="font-size:12px;color:#94a3b8;">Groups and Sub Groups appear here as you add items — copy a whole section or change its order from this panel.</p></div>`;
+  const groups = [];
+  hierarchy.forEach(h => {
+    if (h.isNewGroup) groups.push({ name: h.item.group, no: h.groupNo, anchor: h.item.lineId, subs: [] });
+    const g = groups[groups.length - 1];
+    if (h.isNewSubgroup) g.subs.push({ name: h.item.subgroup, no: h.subgroupNo, anchor: h.item.lineId, items: [] });
+    g.subs[g.subs.length - 1].items.push(h);
+  });
+  const b = (title, cls, onclick, glyph) => `<button class="qs-b ${cls || ''}" title="${title}" onclick="${onclick}">${glyph}</button>`;
+  return `<div class="sales-card">
+    <p style="font-weight:700;font-size:12.5px;margin-bottom:2px;">Structure</p>
+    <p style="font-size:10.5px;color:#94a3b8;margin-bottom:8px;">▲▼ change the order · ⧉ copy a whole section with everything inside it. A Sub Group stays inside its Group.</p>
+    ${groups.map((g, gi) => `<div class="qs-g">
+      <div class="qs-gh"><span class="qs-name">${g.no}. ${esc(g.name || '(No Group)')}</span>
+        ${b('Move this Group up', '', `salesMoveSection('${q.id}',${g.anchor},'group',-1)`, '▲')}
+        ${b('Move this Group down', '', `salesMoveSection('${q.id}',${g.anchor},'group',1)`, '▼')}
+        ${b('Copy this Group and everything in it', 'copy', `salesCopySection('${q.id}',${g.anchor},'group')`, '⧉')}</div>
+      ${g.subs.map(s => `<div class="qs-sh"><span class="qs-name">${g.no}.${s.no} ${esc(s.name || '(No Sub Group)')}</span>
+        ${b('Move this Sub Group up (within its Group)', '', `salesMoveSection('${q.id}',${s.anchor},'subgroup',-1)`, '▲')}
+        ${b('Move this Sub Group down (within its Group)', '', `salesMoveSection('${q.id}',${s.anchor},'subgroup',1)`, '▼')}
+        ${b('Copy this Sub Group and its items', 'copy', `salesCopySection('${q.id}',${s.anchor},'subgroup')`, '⧉')}</div>
+        ${s.items.map(h => `<div class="qs-it"><span class="qs-serial">${h.serial}</span><span class="qs-name">${esc(h.item.product)}</span>
+          ${b('Move this line up', '', `salesMoveItem('${q.id}',${h.item.lineId},-1)`, '▲')}
+          ${b('Move this line down', '', `salesMoveItem('${q.id}',${h.item.lineId},1)`, '▼')}</div>`).join('')}`).join('')}
+    </div>`).join('')}
+  </div>`;
+}
+function salesMoveSection(qtnId, lineId, scope, dir) {
+  const r = moveQuoteSectionAt(qtnId, lineId, scope, dir);
+  if (r && r.error) { salesAlert(r.error); return; }
+  renderSalesBody();
+}
+function salesMoveItem(qtnId, lineId, dir) {
+  const r = moveQuotationItem(qtnId, lineId, dir);
+  if (r && r.error) { salesAlert(r.error); return; }
+  renderSalesBody();
 }
 
 // Copy a whole Group or Sub Group (and every item inside it) as new items
@@ -1478,12 +1553,9 @@ function renderWizardStep2() {
 // Passed by lineId (not the raw group/subgroup name) so a name containing
 // an apostrophe can never break the onclick attribute string.
 function salesCopySection(qtnId, lineId, scope) {
-  const qtn = quotations.find(q => q.id === qtnId);
-  const item = qtn && qtn.items.find(it => it.lineId === lineId);
-  if (!item) return;
-  const result = copyQuoteSection(qtnId, item.group, scope === 'subgroup' ? item.subgroup : undefined);
+  const result = copyQuoteSectionAt(qtnId, lineId, scope === 'subgroup' ? 'subgroup' : 'group');
   if (result && result.error) { salesAlert(result.error); return; }
-  salesAlert(`✓ ${scope === 'subgroup' ? 'Sub Group' : 'Group'} copied — ${result.length} item${result.length === 1 ? '' : 's'} added.`);
+  salesAlert(`✓ ${scope === 'subgroup' ? 'Sub Group' : 'Group'} copied in place — ${result.length} item${result.length === 1 ? '' : 's'}, named "(copy)" so you can rename it.`);
   renderSalesBody();
 }
 
@@ -1504,44 +1576,76 @@ function salesUpdateItemField(lineId, key, val) {
 }
 
 function salesAddItem(qtnId) {
-  const product = document.getElementById('it-product').value;
+  const product = document.getElementById('it-product').value.trim();
   if (!product) { salesAlert('Product/Service is required.'); return; }
-  addQuotationItem(qtnId, {
+  const unit = document.getElementById('it-unit').value;
+  if (!unit) { salesAlert('Choose a Unit for this item.'); document.getElementById('it-unit').focus(); return; }   // no default — a wrong unit on a printed quotation is worse than a pause (Salman, 5 Sep 2026)
+  const photoInput = document.getElementById('it-photo');
+  const photo = photoInput && photoInput.files && photoInput.files[0];
+  const row = addQuotationItem(qtnId, {
     group: document.getElementById('it-group').value,
     subgroup: document.getElementById('it-subgroup').value,
     product,
     qty: Number(document.getElementById('it-qty').value),
-    unit: document.getElementById('it-unit').value,
+    unit,
     rate: Number(document.getElementById('it-rate').value),
     vatPercent: Number(document.getElementById('it-vat').value),
     discPercent: Number(document.getElementById('it-disc').value),
     description: document.getElementById('it-desc').value,
     internalComments: document.getElementById('it-comments').value
   });
+  if (row && row.error) { salesAlert(row.error); return; }
+  // Reset the form explicitly before the redraw — an iPad kept the typed
+  // text where a desktop cleared it (Salman, 5 Sep 2026) — then put the
+  // cursor back in Product for the next line.
+  ['it-product', 'it-desc', 'it-comments'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('it-qty').value = '1'; document.getElementById('it-disc').value = '0'; document.getElementById('it-unit').value = '';
+  if (photoInput) photoInput.value = '';
+  salesAlert('✓ Added: ' + product);
   renderSalesBody();
+  const next = document.getElementById('it-product'); if (next) next.focus();
+  if (photo) salesUploadItemImage(qtnId, row.lineId, photo);
 }
 function salesRemoveItem(qtnId, lineId) { removeQuotationItem(qtnId, lineId); renderSalesBody(); }
 
 // Stage 6: product photo per quote line — Salman's call: SALES uploads at
 // quote time. Lands in the public item-images bucket; the public URL rides
 // on item.imageUrl and shows in the quotation/Job Order print documents.
+// A phone photo is 2–4 MB; the old 500 KB refusal read as "images don't
+// save" (Salman, 5 Sep 2026). Compress on the device first — longest side
+// 1280px, JPEG, quality stepped down until it fits — then upload.
+function salesCompressImage(file, maxSide = 1280, targetBytes = 450 * 1024) {
+  return new Promise((resolve) => {
+    if (!/^image\//.test(file.type) || typeof createImageBitmap !== 'function') { resolve(file); return; }
+    createImageBitmap(file).then(bmp => {
+      const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas'); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const tryQ = (q) => c.toBlob(blob => { if (!blob) { resolve(file); return; } if (blob.size <= targetBytes || q <= 0.5) resolve(new File([blob], (file.name.replace(/\.[^.]+$/, '') || 'photo') + '.jpg', { type: 'image/jpeg' })); else tryQ(q - 0.12); }, 'image/jpeg', q);
+      tryQ(0.86);
+    }).catch(() => resolve(file));
+  });
+}
 async function salesUploadItemImage(qtnId, lineId, file) {
   if (!file) return;
-  if (!window.__realCloudSession || !sb) { salesAlert('Photo upload needs a signed-in cloud session.'); return; }
-  // 500 KB cap — Salman's call (6 Aug 2026): keeps quote documents light
-  // and uploads fast on site connections.
-  if (file.size > 500 * 1024) { salesAlert('Photo is over 500 KB — please use a smaller/compressed image.'); return; }
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const pathKey = qtnId + '/' + lineId + '-' + Date.now() + '.' + ext;
-  const { error } = await sb.storage.from('item-images').upload(pathKey, file, { upsert: true });
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) { salesAlert('Line not found.'); return; }
+  const frozen = quotationFrozen(qtnId); if (frozen) { salesAlert(frozen.error); return; }
+  const small = await salesCompressImage(file);
+  if (!window.__realCloudSession || !sb) {
+    // Offline (the e2e bypass): keep the photo on the line as a data URL so the wizard and the print show it.
+    const reader = new FileReader();
+    reader.onload = () => { item.imageUrl = reader.result; persistQuotationUpdate(quotations.find(q => q.id === qtnId)); salesAlert('✓ Photo attached (this session only — sign in to save it to the cloud).'); renderSalesBody(); };
+    reader.readAsDataURL(small);
+    return;
+  }
+  const pathKey = qtnId + '/' + lineId + '-' + Date.now() + '.jpg';
+  const { error } = await sb.storage.from('item-images').upload(pathKey, small, { upsert: true, contentType: 'image/jpeg' });
   if (error) { salesAlert('Upload failed: ' + error.message); return; }
   const { data } = sb.storage.from('item-images').getPublicUrl(pathKey);
-  const item = findQuotationItem(qtnId, lineId);
-  if (item) {
-    item.imageUrl = data.publicUrl;
-    persistQuotationUpdate(quotations.find(q => q.id === qtnId));
-  }
-  salesAlert('✓ Photo attached.');
+  item.imageUrl = data.publicUrl;
+  persistQuotationUpdate(quotations.find(q => q.id === qtnId));
+  salesAlert('✓ Photo saved (' + Math.round(small.size / 1024) + ' KB).');
   renderSalesBody();
 }
 

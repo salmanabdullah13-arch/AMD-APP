@@ -157,7 +157,7 @@ async function openNode(page, nodeId, wrapId) {
   await page.evaluate((args) => { openQuotationWizard(args.qtnId, 2); }, seed);
   await page.waitForTimeout(200);
   const unitOptionsFromRealMaster = await page.evaluate(() => {
-    const domOptions = Array.from(document.querySelectorAll('#it-unit option')).map(o => o.value);
+    const domOptions = Array.from(document.querySelectorAll('#it-unit option')).map(o => o.value).filter(Boolean);   // minus the 'Choose…' placeholder (5 Sep 2026)
     const realMasterNames = units.map(u => u.name);
     return JSON.stringify(domOptions) === JSON.stringify(realMasterNames);
   });

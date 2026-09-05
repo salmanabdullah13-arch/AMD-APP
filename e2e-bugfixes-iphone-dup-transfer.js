@@ -92,11 +92,12 @@ async function openNode(page, nodeId, wrapId) {
   await page.waitForTimeout(200);
   await page.fill('#sales-body #it-product', 'Wardrobe Panel A');
   await page.fill('#sales-body #it-qty', '3');
+  await page.selectOption('#sales-body #it-unit', 'Nos');   // 5 Sep 2026: the Unit has no default — a person chooses it
   await page.click('#sales-body button:has-text("Add Item")');
   await page.waitForTimeout(150);
   await shot(page, 'item-added-before-duplicate');
   const countBefore = await page.evaluate((id) => quotations.find(q => q.id === id).items.length, qtnId);
-  await page.click('#sales-body span[title="Duplicate"]');
+  await page.click('#sales-body span[title^="Duplicate"]');
   await page.waitForTimeout(150);
   await shot(page, 'item-duplicated');
   const afterDup = await page.evaluate((id) => quotations.find(q => q.id === id).items, qtnId);

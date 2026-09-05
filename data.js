@@ -2879,11 +2879,21 @@ function quotationFrozen(qtnId) {
   return lock ? { error: lock.reason } : null;
 }
 
-function nextQuotationItemId(qtn) { return qtn.items.length + 1; }
+// Max-based (5 Sep 2026): length-based minting handed a removed line's id to
+// the next line added, so edits by lineId landed on the wrong row.
+function nextQuotationItemId(qtn) { return (qtn.items || []).reduce((m, it) => Math.max(m, Number(it.lineId) || 0), 0) + 1; }
 function addQuotationItem(qtnId, item) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
   const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
+  const row = buildQuotationItemRow(qtn, item);
+  qtn.items.push(row);
+  persistQuotationUpdate(qtn);
+  return row;
+}
+// The row a new line becomes — shared by addQuotationItem() and the section
+// copy, which splices its clones into place rather than appending.
+function buildQuotationItemRow(qtn, item) {
   const amount = (item.qty || 0) * (item.rate || 0);
   const discAmt = item.discAmt || (amount * (item.discPercent || 0) / 100);
   const netAmount = qtn.withEstimation ? 0 : (amount - discAmt) * (1 + (item.vatPercent || 0) / 100);
@@ -2908,26 +2918,94 @@ function addQuotationItem(qtnId, item) {
     // line's rate no longer purely reflects the BOM's own calculated figure.
     corrections: [], priceManuallyOverridden: false
   };
-  qtn.items.push(row);
-  persistQuotationUpdate(qtn);
   return row;
 }
-// Copies every item under a Group (or a specific Sub Group within one) as
-// new items appended to the end of the quote — same "duplicate then
-// tweak" pattern as salesDuplicateItem, just at section granularity so a
-// whole area doesn't need retyping line by line. Rate/BOM always reset
-// like any new item; group/subgroup labels carry over so the copy lands
-// in the same visual section, ready to rename if it's actually a new one.
+// ── Sections: copy and order (Salman, 5 Sep 2026, from his own test) ──
+// A quotation's Groups and Sub Groups are RUNS of consecutive items sharing
+// the same names (computeQuoteHierarchy below); order in items[] IS the
+// order on the document. Q-Pro let him copy a whole section and arrange the
+// order; the first copy here appended clones at the END of the quote, so a
+// copied Sub Group left its Group. Now:
+//   copyQuoteSectionAt  — clones the run holding lineId and splices the
+//                          clones in directly AFTER it, staying inside the
+//                          Group; the copy is named "<name> (copy)" so the
+//                          two can be told apart and renamed.
+//   moveQuoteSectionAt  — swaps the run with its neighbour; a Sub Group only
+//                          ever moves within its own Group.
+//   moveQuotationItem   — swaps a line with its neighbour inside its Sub Group.
+// Serials recompute from order, so nothing else has to be renumbered.
+function quoteRunBounds(items, lineId, scope) {
+  const h = computeQuoteHierarchy(items);
+  const idx = items.findIndex(it => it.lineId === lineId);
+  if (idx < 0) return null;
+  const key = scope === "group" ? (x => String(x.groupNo)) : (x => x.groupNo + "." + x.subgroupNo);
+  const k = key(h[idx]);
+  let s = idx, e = idx;
+  while (s > 0 && key(h[s - 1]) === k) s--;
+  while (e < items.length - 1 && key(h[e + 1]) === k) e++;
+  return { start: s, end: e, h, groupNo: h[idx].groupNo };
+}
+function copyQuoteSectionAt(qtnId, lineId, scope) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
+  const b = quoteRunBounds(qtn.items, lineId, scope === "group" ? "group" : "subgroup");
+  if (!b) return { error: "Nothing to copy." };
+  const src = qtn.items.slice(b.start, b.end + 1);
+  const made = [];
+  src.forEach((it, i) => {
+    const clone = buildQuotationItemRow(qtn, {
+      group: scope === "group" ? (it.group ? it.group + " (copy)" : it.group) : it.group,
+      subgroup: scope === "group" ? it.subgroup : (it.subgroup ? it.subgroup + " (copy)" : it.subgroup),
+      product: it.product, qty: it.qty, unit: it.unit, vatPercent: it.vatPercent, discPercent: it.discPercent,
+      description: it.description, internalComments: it.internalComments, imageUrl: it.imageUrl
+    });
+    qtn.items.splice(b.end + 1 + i, 0, clone);
+    made.push(clone);
+  });
+  persistQuotationUpdate(qtn);
+  return made;
+}
+// Kept for callers that pass names (and for the confirmed-quote lock suite):
+// copies the FIRST run matching the names, in place.
 function copyQuoteSection(qtnId, group, subgroup) {
   const qtn = quotations.find(q => q.id === qtnId);
   if (!qtn) return { error: "Quotation not found." };
   const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
-  const matches = qtn.items.filter(it => it.group === group && (subgroup === undefined || subgroup === null || it.subgroup === subgroup));
-  if (!matches.length) return { error: "Nothing to copy." };
-  return matches.map(it => addQuotationItem(qtnId, {
-    group: it.group, subgroup: it.subgroup, product: it.product, qty: it.qty, unit: it.unit,
-    vatPercent: it.vatPercent, discPercent: it.discPercent, description: it.description, internalComments: it.internalComments
-  }));
+  const anchor = qtn.items.find(it => it.group === group && (subgroup === undefined || subgroup === null || it.subgroup === subgroup));
+  if (!anchor) return { error: "Nothing to copy." };
+  return copyQuoteSectionAt(qtnId, anchor.lineId, (subgroup === undefined || subgroup === null) ? "group" : "subgroup");
+}
+function moveQuoteSectionAt(qtnId, lineId, scope, dir) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
+  const sc = scope === "group" ? "group" : "subgroup";
+  const me = quoteRunBounds(qtn.items, lineId, sc);
+  if (!me) return { error: "Line not found." };
+  const step = dir < 0 ? -1 : 1;
+  const nIdx = step < 0 ? me.start - 1 : me.end + 1;
+  if (nIdx < 0 || nIdx >= qtn.items.length) return { error: sc === "group" ? "That Group is already " + (step < 0 ? "first." : "last.") : "That Sub Group is already " + (step < 0 ? "first" : "last") + " in its Group." };
+  const nb = quoteRunBounds(qtn.items, qtn.items[nIdx].lineId, sc);
+  if (sc === "subgroup" && nb.groupNo !== me.groupNo) return { error: "That Sub Group is already " + (step < 0 ? "first" : "last") + " in its Group — move the Group instead." };
+  const items = qtn.items;
+  const first = step < 0 ? nb : me, second = step < 0 ? me : nb;
+  qtn.items = items.slice(0, first.start).concat(items.slice(second.start, second.end + 1), items.slice(first.start, first.end + 1), items.slice(second.end + 1));
+  persistQuotationUpdate(qtn);
+  return { ok: true };
+}
+function moveQuotationItem(qtnId, lineId, dir) {
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (!qtn) return { error: "Quotation not found." };
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
+  const b = quoteRunBounds(qtn.items, lineId, "subgroup");
+  if (!b) return { error: "Line not found." };
+  const idx = qtn.items.findIndex(it => it.lineId === lineId);
+  const j = idx + (dir < 0 ? -1 : 1);
+  if (j < b.start || j > b.end) return { error: "That line is already " + (dir < 0 ? "first" : "last") + " in its Sub Group." };
+  const t = qtn.items[idx]; qtn.items[idx] = qtn.items[j]; qtn.items[j] = t;
+  persistQuotationUpdate(qtn);
+  return { ok: true };
 }
 // Computes the printed/display hierarchy (Group -> Sub Group -> Item) from
 // the flat items[] array's own stored group/subgroup strings — a new
