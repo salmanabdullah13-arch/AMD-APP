@@ -4186,7 +4186,12 @@ async function initCloudJobCardsCache() {
       // created on ANOTHER device after this one is already logged in —
       // without this, that job would sync into jobCards[] here but never
       // get a projects[]/curtainJobs[] entry on this device at all.
-      if (payload.eventType === "INSERT") { if (idx < 0) { jobCards.push(mapped); bridgeJobToOperationsAndCurtain(mapped); } else jobCards[idx] = mapped; }
+      // F6 (end-to-end run, 3 Sep 2026): the curtain entry is NOT built here.
+      // The confirming session already made it and its scanner is about to
+      // upsert it; a second fresh copy from this session raced that write and
+      // clobbered the curtain manager's first edits. Only the local-only
+      // projects[] rollup is bridged for a job that arrives from elsewhere.
+      if (payload.eventType === "INSERT") { if (idx < 0) { jobCards.push(mapped); bridgeJobToOperationsAndCurtain(mapped, { fromRemote: true }); } else jobCards[idx] = mapped; }
       else if (payload.eventType === "UPDATE") { if (idx >= 0) jobCards[idx] = mapped; }
       notifyLiveUpdateListeners();
     })
@@ -4358,8 +4363,13 @@ async function initCloudJsonCollections() {
     const arr = col.arr();
     arr.length = 0;
     data.forEach(row => {
-      arr.push(col.hydrate ? col.hydrate(row.payload) : row.payload);
-      cloudCollectionSnapshots[col.prefix + row.id] = JSON.stringify(row.payload);
+      const rec = col.hydrate ? col.hydrate(row.payload) : row.payload;
+      arr.push(rec);
+      // The snapshot is the LOCAL serialisation of what was hydrated, not the
+      // raw row: otherwise every login re-upserted every row (key order, a
+      // derived field) and could overwrite a concurrent edit with its own
+      // hydrated copy — the second half of F6.
+      cloudCollectionSnapshots[col.prefix + row.id] = collectionLocalJson(col, rec);
     });
   }));
   const ch = sb.channel("json-collections-sync");
@@ -4374,6 +4384,19 @@ async function initCloudJsonCollections() {
   notifyLiveUpdateListeners();
 }
 
+// jsonb normalises key order on the way back, so comparing raw JSON strings
+// called every echo of our own write "a remote change" and replaced the local
+// object with it — dropping whatever had been edited in the last three
+// seconds. Every snapshot comparison goes through one canonical form.
+function stableStringify(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map(stableStringify).join(",") + "]";
+  return "{" + Object.keys(v).sort().map(k => v[k] === undefined ? null : JSON.stringify(k) + ":" + stableStringify(v[k])).filter(Boolean).join(",") + "}";
+}
+function collectionLocalJson(col, rec) {
+  const payload = col.toPayload ? col.toPayload(rec) : JSON.parse(JSON.stringify(rec));
+  return stableStringify(payload);
+}
 function applyRemoteCollectionChange(col, payload) {
   const arr = col.arr();
   if (payload.eventType === "DELETE") {
@@ -4385,12 +4408,26 @@ function applyRemoteCollectionChange(col, payload) {
   } else {
     const row = payload.new;
     if (!row) return;
-    const json = JSON.stringify(row.payload);
-    if (cloudCollectionSnapshots[col.prefix + row.id] === json) return; // our own echo
-    const idx = arr.findIndex(r => String(r.id) === String(row.id));
+    const key = col.prefix + row.id;
+    // Everything compares in the LOCAL form (hydrate, then toPayload): the
+    // raw row carries e.g. a curtain job's stored val, the hydrated record a
+    // live getter, and mixing the two forms made a clean record read as dirty.
     const mapped = col.hydrate ? col.hydrate(row.payload) : row.payload;
+    const json = collectionLocalJson(col, mapped);
+    if (cloudCollectionSnapshots[key] === json) return; // our own echo
+    const idx = arr.findIndex(r => String(r.id) === String(row.id));
+    // A local record with UNPERSISTED edits is never replaced by a remote
+    // copy: the edit being typed right now wins, and the next scan pushes it.
+    // The snapshot moves to the remote version so the scan sees the local
+    // one as changed. Same last-writer-wins the rest of the app lives by,
+    // except it can no longer lose the writer who is mid-edit.
+    if (idx >= 0 && cloudCollectionSnapshots[key] !== undefined && collectionLocalJson(col, arr[idx]) !== cloudCollectionSnapshots[key]) {
+      cloudCollectionSnapshots[key] = json;
+      notifyLiveUpdateListeners();
+      return;
+    }
     if (idx >= 0) arr[idx] = mapped; else arr.push(mapped);
-    cloudCollectionSnapshots[col.prefix + row.id] = json;
+    cloudCollectionSnapshots[key] = json;
   }
   notifyLiveUpdateListeners();
 }
@@ -4419,7 +4456,7 @@ function scanAndPersistCollections() {
     col.arr().forEach(rec => {
       if (!rec || rec.id === undefined || rec.id === null) return;
       const payload = col.toPayload ? col.toPayload(rec) : JSON.parse(JSON.stringify(rec));
-      const json = JSON.stringify(payload);
+      const json = stableStringify(payload);
       const key = col.prefix + rec.id;
       if (cloudCollectionSnapshots[key] === json) return;
       cloudCollectionSnapshots[key] = json;   // set BEFORE the write so the realtime echo is recognized
@@ -4473,7 +4510,7 @@ function startCollectionsAutosave() {
 // matter what code touches job.amount in the future. Confirmed via grep
 // that nothing anywhere ever assigns to .val/.budget.sell/.deptVal
 // directly outside this function, so defining them as getter-only is safe.
-function bridgeJobToOperationsAndCurtain(job) {
+function bridgeJobToOperationsAndCurtain(job, opts = {}) {
   const customer = customers.find(c => c.id === job.customerId);
   const clientName = customer ? customer.name : "—";
 
@@ -4508,7 +4545,11 @@ function bridgeJobToOperationsAndCurtain(job) {
   // says, so item-level data is the correct source of truth here, not
   // a new one grafted on.
   const hasCurtainLine = job.items.some(it => (it.departmentSequence || []).includes("curt"));
-  if (hasCurtainLine) {
+  // A job that arrived through realtime from another session: when the
+  // curtain collection is cloud-backed, that session's own row is on its way
+  // and must be the only copy. Building one here is what F6 was.
+  const curtainCloud = typeof CLOUD_JSON_COLLECTIONS !== "undefined" && CLOUD_JSON_COLLECTIONS.some(c => c.table === "curtain_jobs" && c.live);
+  if (hasCurtainLine && !(opts.fromRemote && curtainCloud)) {
     let cj = curtainJobs.find(j => j.id === job.id);
     if (!cj) {
       cj = {

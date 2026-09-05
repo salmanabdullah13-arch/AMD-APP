@@ -8834,3 +8834,41 @@ approved them over the Management API: **eighteen roles**, every one used.
 - **Next**: fix F6 first (data loss), then F5, then iteration 2 (the
   exception branches) and iteration 3 (adversarial), then the design
   scorecard.
+
+### 5 Sep 2026 — Finding F6 fixed: the curtain edit that two sessions used to lose
+
+Salman: "lets fix 6." The end-to-end run had shown, two passes in three,
+that windows authored on a curtain job seconds after Sales confirmed it did
+not reach the table. The mechanism, read out of the bridge, the job-card
+realtime handler and the json-collection scanner together:
+
+- **Two fresh copies of one row.** The confirming session bridges the job
+  into \`curtainJobs[]\` and its scanner upserts the row. Every OTHER open
+  session receives the job-card INSERT through realtime and bridged
+  inline — building its own fresh copy — and its scanner upserted the same
+  row. When the second copy came back to the curtain manager's session as a
+  realtime change, it replaced the object that had just been edited.
+- **The echo test never matched.** Snapshots were raw JSON strings of the
+  row; jsonb normalises key order, so a session's own write came back as
+  "a remote change" and replaced the local object every three seconds.
+- **The login re-upsert.** A hydrated record's local serialisation differed
+  from the raw row (a curtain job's stored \`val\` versus its live getter),
+  so every login re-upserted every row it had merely read.
+
+Fixed in \`data.js\`: a remote job-card INSERT bridges only the local
+\`projects[]\` rollup when the curtain collection is cloud-backed; one
+canonical key-sorted LOCAL form (\`stableStringify\` over \`toPayload(hydrate)\`)
+for every comparison — hydration snapshot, echo test, scanner diff; and a
+record with unpersisted local edits is never replaced by a remote copy (the
+snapshot moves, the next scan pushes the local one). My first cut compared
+local against raw and made a clean record read as dirty, so a stale copy was
+pushed back — the new live suite caught it on its last check.
+
+- **Verification**: new \`e2e-cloud-bridge-race.js\` (7/7, live, three
+  sessions) drives the exact race — Sales confirms, the curtain manager
+  authors within a second, nine seconds later the manager's session, the
+  Owner's session and a session logging in afterwards all hold the windows,
+  and an edit made while a fourth session logs in survives it. Live
+  regression: cloud-curtain 11/11, cloud-financial 11/11, cloud-events,
+  cloud-production, cloud-customers, cloud-jobcards — 7/7, 20/20, 9/9, 8/8. Offline
+  sweep: all green.
