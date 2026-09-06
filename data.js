@@ -6816,6 +6816,9 @@ function nextJournalId() {
 // post an unbalanced entry the way a UI-only validation might miss.
 function createJournal({ date = null, lines = [], remarks = "" } = {}) {
   if (!lines || lines.length < 2) return { error: "A Journal needs at least two lines (one Debit, one Credit)." };
+  // The lines carry dr/cr (acSaveJournal builds them) — a guard written
+  // against debit/credit would never have fired on a real one.
+  if (lines.some(l => (Number(l.dr) || 0) < 0 || (Number(l.cr) || 0) < 0)) return { error: "A Debit or Credit cannot be negative — post it on the other side instead." };
   const drTotal = Math.round(lines.reduce((s, l) => s + (Number(l.dr) || 0), 0) * 1000) / 1000;
   const crTotal = Math.round(lines.reduce((s, l) => s + (Number(l.cr) || 0), 0) * 1000) / 1000;
   if (drTotal !== crTotal || drTotal === 0) {

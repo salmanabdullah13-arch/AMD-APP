@@ -1246,7 +1246,7 @@ function jobsSaveNewTask() {
   jobsNewTaskDraft = null;
   renderJobsBody();
 }
-function jobsCompleteTask(id) { completeTask(id); renderJobsBody(); }
+function jobsCompleteTask(id) { const r = completeTask(id); if (r && r.error) { jobsAlert(r.error); return; } renderJobsBody(); }
 
 // Sidebar anchors (§2). Each scrolls within the record rather than
 // navigating — the record IS the page.

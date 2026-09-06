@@ -840,9 +840,11 @@ function renderBomSummaryTab(item) {
     <button class="primary" style="width:100%;margin-top:8px;" onclick="estimatorSubmitBOM()">Submit</button>`;
 }
 
-function estimatorSetOH(category, val) { setBOMOHPercent(estimatorActiveQtnId, estimatorActiveLineId, category, val); renderEstimatorBody(); }
-function estimatorSetProfit(val) { setBOMProfitPercent(estimatorActiveQtnId, estimatorActiveLineId, val); renderEstimatorBody(); }
-function estimatorSetOverride(val) { setBOMSellingOverride(estimatorActiveQtnId, estimatorActiveLineId, val); renderEstimatorBody(); }
+// A frozen quote refuses these — say so rather than redrawing the old figure
+// as if nothing was typed (forms pass, 6 Sep 2026).
+function estimatorSetOH(category, val) { const r = setBOMOHPercent(estimatorActiveQtnId, estimatorActiveLineId, category, val); if (r && r.error) { estimatorAlert(r.error); return; } renderEstimatorBody(); }
+function estimatorSetProfit(val) { const r = setBOMProfitPercent(estimatorActiveQtnId, estimatorActiveLineId, val); if (r && r.error) { estimatorAlert(r.error); return; } renderEstimatorBody(); }
+function estimatorSetOverride(val) { const r = setBOMSellingOverride(estimatorActiveQtnId, estimatorActiveLineId, val); if (r && r.error) { estimatorAlert(r.error); return; } renderEstimatorBody(); }
 
 function estimatorSubmitBOM() {
   const result = submitItemBOM(estimatorActiveQtnId, estimatorActiveLineId, estimatorCurrentUser);

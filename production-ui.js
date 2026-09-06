@@ -802,7 +802,8 @@ window.PrdUI = (function () {
       (hint ? '<span class="prd-f-h">' + esc(hint) + '</span>' : '') + '</div>';
   }
   function inp(id, ph, type) {
-    return '<input class="prd-in" id="' + id + '" type="' + (type || 'text') + '" placeholder="' + esc(ph || '') + '">';
+    // A negative hour count or head count is never meant (forms pass, 6 Sep 2026).
+    return '<input class="prd-in" id="' + id + '" type="' + (type || 'text') + '"' + (type === 'number' ? ' min="0"' : '') + ' placeholder="' + esc(ph || '') + '">';
   }
   function sel(id, opts, empty) {
     return '<select class="prd-in" id="' + id + '">' +

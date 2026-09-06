@@ -349,9 +349,15 @@ const FLOWS = ['price', 'bomb', 'bom', 'res', 'purch', 'quote',
     // Week-relative, and days of its own: the board only shows this week, and
     // an earlier block books CREW-A on day(1) with another job — that IS a
     // real overload, which would mask the check below.
+    // …so pick days in this week that CANNOT be the earlier block's day(1) or
+    // day(3) — on a Sunday its Monday was today+1, and the other job's slot
+    // made the overload real (6 Sep 2026: the date rolled mid-run and this
+    // suite failed on a Sunday alone).
     const sun = new Date(); sun.setDate(sun.getDate() - sun.getDay());
     const wk = (n) => { const d = new Date(sun); d.setDate(sun.getDate() + n); return localISO(d); };
-    return { job: job.id, day1: wk(1), day2: wk(2), lines: job.items.map(i => Number(i.lineId)) };
+    const taken = [1, 3].map(n => { const d = new Date(); d.setDate(d.getDate() + n); return localISO(d); });
+    const free = [1, 2, 3, 4, 5, 6].map(wk).filter(d => taken.indexOf(d) < 0);
+    return { job: job.id, day1: free[0], day2: free[1], lines: job.items.map(i => Number(i.lineId)) };
   });
 
   const rows = await page.evaluate(async (s) => {

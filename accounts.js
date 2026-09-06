@@ -436,7 +436,7 @@ function acMethodsBlockHtml(prefix) {
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
       <input type="checkbox" id="${prefix}-m-${key}-en" onchange="acRecalcAmount('${prefix}')">
       <span style="font-size:11.5px;width:52px;">${label}</span>
-      <input type="number" step="0.001" id="${prefix}-m-${key}-amt" placeholder="Amt" oninput="acRecalcAmount('${prefix}')" style="width:90px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
+      <input type="number" min="0" step="0.001" id="${prefix}-m-${key}-amt" placeholder="Amt" oninput="acRecalcAmount('${prefix}')" style="width:90px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
       ${extra}
     </div>`;
   return `
@@ -448,7 +448,7 @@ function acMethodsBlockHtml(prefix) {
       ${row('wallet', 'Wallet')}
       ${row('cheque', 'Cheque')}
       <label style="font-size:11px;color:#64748b;">Amount (auto-summed)*</label>
-      <input id="${prefix}-amount" type="number" step="0.001" readonly style="width:100%;padding:8px;margin:4px 0;border:1px solid #10b981;background:#F4FBF8;border-radius:6px;font-weight:700;">
+      <input id="${prefix}-amount" type="number" min="0" step="0.001" readonly style="width:100%;padding:8px;margin:4px 0;border:1px solid #10b981;background:#F4FBF8;border-radius:6px;font-weight:700;">
     </div>`;
 }
 function acRecalcAmount(prefix) {
@@ -495,7 +495,7 @@ function acLineRowHtml(formType, i, withJob) {
   return `
     <tr id="ac-row-${formType}-${i}" style="display:${i === 0 ? '' : 'none'};">
       <td style="padding:4px;"><select id="ac-${formType}-ledger-${i}" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;">${acLedgerOptionsHtml()}</select></td>
-      <td style="padding:4px;"><input id="ac-${formType}-amt-${i}" type="number" step="0.001" style="width:80px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      <td style="padding:4px;"><input id="ac-${formType}-amt-${i}" type="number" min="0" step="0.001" style="width:80px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
       <td style="padding:4px;"><input id="ac-${formType}-narr-${i}" type="text" placeholder="Narration" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
       ${withJob ? `<td style="padding:4px;"><input id="ac-${formType}-job-${i}" type="text" placeholder="Job No" style="width:90px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>` : ''}
     </tr>`;
@@ -616,8 +616,8 @@ function acJournalRowHtml(i, visible) {
   return `
     <tr id="ac-row-jl-${i}" style="display:${visible ? '' : 'none'};">
       <td style="padding:4px;"><select id="ac-jl-ledger-${i}" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;">${acLedgerOptionsHtml()}</select></td>
-      <td style="padding:4px;"><input id="ac-jl-dr-${i}" type="number" step="0.001" style="width:70px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
-      <td style="padding:4px;"><input id="ac-jl-cr-${i}" type="number" step="0.001" style="width:70px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      <td style="padding:4px;"><input id="ac-jl-dr-${i}" type="number" min="0" step="0.001" style="width:70px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
+      <td style="padding:4px;"><input id="ac-jl-cr-${i}" type="number" min="0" step="0.001" style="width:70px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
       <td style="padding:4px;"><input id="ac-jl-narr-${i}" type="text" placeholder="Narration" style="width:100%;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
       <td style="padding:4px;"><input id="ac-jl-job-${i}" type="text" placeholder="Job No" style="width:80px;padding:5px;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;"></td>
     </tr>`;
@@ -959,7 +959,7 @@ function renderSalesReceiptCreate() {
     <div class="sales-field">
       <label><input type="checkbox" ${d.methods[key].enabled ? 'checked' : ''} onchange="salesReceiptMethodToggle('${key}',this.checked)"> ${label}</label>
       ${d.methods[key].enabled ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-        <input type="number" step="0.001" style="flex:1;" placeholder="Amount" value="${d.methods[key].amount}" onchange="salesReceiptMethodField('${key}','amount',this.value)">
+        <input type="number" min="0" step="0.001" style="flex:1;" placeholder="Amount" value="${d.methods[key].amount}" onchange="salesReceiptMethodField('${key}','amount',this.value)">
         ${extraHtml || ''}
       </div>` : ''}
     </div>`;
@@ -970,8 +970,8 @@ function renderSalesReceiptCreate() {
       ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
       : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Paid</th><th>Paying Amt</th><th>Disc</th><th>Balance</th></tr>
         ${d.allocations.map((a, i) => `<tr><td>${acEsc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.paidAmount.toFixed(3)}</td>
-          <td><input type="number" step="0.001" style="width:80px;" value="${a.payingAmount}" onchange="salesReceiptAllocationChanged(${i},'payingAmount',this.value)"></td>
-          <td><input type="number" step="0.001" style="width:70px;" value="${a.discountAmount}" onchange="salesReceiptAllocationChanged(${i},'discountAmount',this.value)"></td>
+          <td><input type="number" min="0" step="0.001" style="width:80px;" value="${a.payingAmount}" onchange="salesReceiptAllocationChanged(${i},'payingAmount',this.value)"></td>
+          <td><input type="number" min="0" step="0.001" style="width:70px;" value="${a.discountAmount}" onchange="salesReceiptAllocationChanged(${i},'discountAmount',this.value)"></td>
           <td>${a.balanceAmount.toFixed(3)}</td></tr>`).join('')}
         </table></div>`;
 
@@ -982,9 +982,9 @@ function renderSalesReceiptCreate() {
       ${methodBlock('cCard', 'C Card', `<select style="flex:1;" onchange="salesReceiptMethodField('cCard','type',this.value)"><option ${d.methods.cCard.type === 'Visa Card' ? 'selected' : ''}>Visa Card</option><option ${d.methods.cCard.type === 'Master Card' ? 'selected' : ''}>Master Card</option><option ${d.methods.cCard.type === 'Others' ? 'selected' : ''}>Others</option></select><input type="text" style="flex:1;" placeholder="Authorized" value="${acEsc(d.methods.cCard.authorized)}" onchange="salesReceiptMethodField('cCard','authorized',this.value)">`)}
       ${methodBlock('wallet', 'Wallet', `<select style="flex:1;" onchange="salesReceiptMethodField('wallet','type',this.value)"><option ${d.methods.wallet.type === 'B wallet' ? 'selected' : ''}>B wallet</option><option ${d.methods.wallet.type === 'IBAN' ? 'selected' : ''}>IBAN</option><option ${d.methods.wallet.type === 'Benefit' ? 'selected' : ''}>Benefit</option></select><input type="text" style="flex:1;" placeholder="Authorized" value="${acEsc(d.methods.wallet.authorized)}" onchange="salesReceiptMethodField('wallet','authorized',this.value)">`)}
       ${methodBlock('cheque', 'Cheque', `<input type="text" style="flex:1;" placeholder="Number" value="${acEsc(d.methods.cheque.number)}" onchange="salesReceiptMethodField('cheque','number',this.value)"><input type="text" style="flex:1;" placeholder="Bank" value="${acEsc(d.methods.cheque.bank)}" onchange="salesReceiptMethodField('cheque','bank',this.value)">`)}
-      <div class="sales-field"><label>Amount *</label><input type="number" step="0.001" id="rc-amount"></div>
+      <div class="sales-field"><label>Amount *</label><input type="number" min="0" step="0.001" id="rc-amount"></div>
       <div class="sales-field"><label>Reference Number</label><input type="text" id="rc-reference"></div>
-      <div class="sales-field"><label>Advance payment</label><input type="number" step="0.001" id="rc-advance" value="0"></div>
+      <div class="sales-field"><label>Advance payment</label><input type="number" min="0" step="0.001" id="rc-advance" value="0"></div>
       <p style="font-weight:700;font-size:12px;margin:10px 0 4px;">Invoice Allocation</p>
       ${allocHtml}
       <div class="sales-field" style="margin-top:10px;"><label>Remarks</label><textarea id="rc-remarks"></textarea></div>
@@ -1077,14 +1077,14 @@ function renderSalesCreditNoteCreate() {
       ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
       : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Balance</th><th>Crediting Amt</th></tr>
         ${d.allocations.map((a, i) => `<tr><td>${acEsc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.balanceAmount.toFixed(3)}</td>
-          <td><input type="number" step="0.001" style="width:80px;" value="${a.creditingAmount}" onchange="salesCreditNoteAllocationChanged(${i},this.value)"></td></tr>`).join('')}
+          <td><input type="number" min="0" step="0.001" style="width:80px;" value="${a.creditingAmount}" onchange="salesCreditNoteAllocationChanged(${i},this.value)"></td></tr>`).join('')}
         </table></div>`;
 
     reveal = `
       <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Client Name: ${acEsc(c ? c.name : '—')}</p>
       <p style="font-weight:700;font-size:12px;margin:6px 0 4px;">Invoice Allocation</p>
       ${allocHtml}
-      <div class="sales-field" style="margin-top:10px;"><label>Amount *</label><input type="number" step="0.001" id="cn-amount"></div>
+      <div class="sales-field" style="margin-top:10px;"><label>Amount *</label><input type="number" min="0" step="0.001" id="cn-amount"></div>
       <div class="sales-field"><label>Reason</label><textarea id="cn-reason"></textarea></div>
       <div style="display:flex;gap:8px;">
         <button class="primary" style="flex:1;" onclick="saveSalesCreditNote()">Create Credit Note</button>

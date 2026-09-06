@@ -434,7 +434,10 @@ function salesCancelEnquiry(id) {
 
 // ── Create Enquiry ──
 function openEnquiryCreate() {
-  salesDraft = { division: SALES_DIVISIONS[0], customerId: '', prospectName: '', contactPerson: '', tel: '', email: '', requirements: '', source: ENQUIRY_SOURCES[0], salesPerson: STAFF[0] };
+  // Division starts unanswered — it drives department routing and revenue
+  // attribution downstream, and "whatever sorts first" was Curtain & Blinds
+  // (forms pass, 6 Sep 2026).
+  salesDraft = { division: '', customerId: '', prospectName: '', contactPerson: '', tel: '', email: '', requirements: '', source: '', salesPerson: salesIdentity() };
   salesView = 'enq-create';
   renderSalesBody();
 }
@@ -476,7 +479,7 @@ function renderEnquiryCreate() {
     <div class="sales-card">
       <p style="font-weight:700;font-size:14px;margin-bottom:12px;">Create Enquiry</p>
       <div class="sales-field"><label>Division</label>
-        <select onchange="salesEnqDraftChanged('division',this.value)">${SALES_DIVISIONS.map(x => `<option value="${x}" ${d.division === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+        <select onchange="salesEnqDraftChanged('division',this.value)"><option value="">Choose…</option>${SALES_DIVISIONS.map(x => `<option value="${x}" ${d.division === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
       </div>
       <div class="sales-field"><label>Select Customer</label>
         <select onchange="salesEnqDraftChanged('customerId',this.value)">
@@ -492,7 +495,7 @@ function renderEnquiryCreate() {
       <div class="sales-field"><label>Email</label><input type="email" value="${esc(d.email)}" oninput="salesEnqDraftChanged('email',this.value)"></div>
       <div class="sales-field"><label>Requirements</label><textarea oninput="salesEnqDraftChanged('requirements',this.value)">${esc(d.requirements)}</textarea></div>
       <div class="sales-field"><label>Select Source of Enquiry</label>
-        <select onchange="salesEnqDraftChanged('source',this.value)">${ENQUIRY_SOURCES.map(x => `<option value="${x}" ${d.source === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+        <select onchange="salesEnqDraftChanged('source',this.value)"><option value="">Choose…</option>${ENQUIRY_SOURCES.map(x => `<option value="${x}" ${d.source === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
       </div>
       <div class="sales-field"><label>Sales Person Assigned</label>
         <select onchange="salesEnqDraftChanged('salesPerson',this.value)">${STAFF.map(x => `<option value="${x}" ${d.salesPerson === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
@@ -507,6 +510,8 @@ function renderEnquiryCreate() {
 
 function saveEnquiryCreate() {
   const d = salesDraft;
+  if (!d.division) { salesAlert('Choose a Division for this enquiry.'); return; }
+  if (!d.source) { salesAlert('Choose how this enquiry came in (Source).'); return; }
   if (!d.contactPerson || !d.tel) { salesAlert('Contact Person and Tel are required.'); return; }
   const result = createEnquiry(d);
   if (result.error) { salesAlert(result.error); return; }
@@ -577,7 +582,9 @@ function saveCustomerCreate() {
     ? `✓ Customer ${result.id} created — flagged as a possible duplicate of ${result.possibleDuplicateOf} for Accounts to review. You can keep working with it right away.`
     : `✓ Customer ${result.id} created.`);
   if (returnTo === 'enq-create') {
-    salesDraft = { division: SALES_DIVISIONS[0], customerId: result.id, prospectName: '', contactPerson: result.contactPerson, tel: result.tel, email: result.email, requirements: '', source: ENQUIRY_SOURCES[0], salesPerson: STAFF[0] };
+    // Returning from Add Customer: the customer is filled in, Division and
+    // Source stay the salesperson's to choose (forms pass, 6 Sep 2026).
+    salesDraft = { division: '', customerId: result.id, prospectName: '', contactPerson: result.contactPerson, tel: result.tel, email: result.email, requirements: '', source: '', salesPerson: salesIdentity() };
     salesView = 'enq-create';
   } else {
     salesDraft = null;
@@ -1606,7 +1613,9 @@ function salesAddItem(qtnId) {
   const next = document.getElementById('it-product'); if (next) next.focus();
   if (photo) salesUploadItemImage(qtnId, row.lineId, photo);
 }
-function salesRemoveItem(qtnId, lineId) { removeQuotationItem(qtnId, lineId); renderSalesBody(); }
+// A confirmed quotation refuses a removal — the ✕ used to do nothing at all
+// and say nothing (forms pass, 6 Sep 2026).
+function salesRemoveItem(qtnId, lineId) { const r = removeQuotationItem(qtnId, lineId); if (r && r.error) { salesAlert(r.error); return; } renderSalesBody(); }
 
 // Stage 6: product photo per quote line — Salman's call: SALES uploads at
 // quote time. Lands in the public item-images bucket; the public URL rides

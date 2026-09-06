@@ -414,7 +414,7 @@ window.UphUI = (function () {
     return '<div class="uph-f' + (wide ? ' wide' : '') + '"><label>' + esc(label) + '</label>' + inner +
       (hint ? '<span class="uph-f-h">' + esc(hint) + '</span>' : '') + '</div>';
   }
-  function inp(id, ph, type, v) { return '<input class="uph-in" id="' + id + '" type="' + (type || 'text') + '" placeholder="' + esc(ph || '') + '"' + (v !== undefined ? ' value="' + esc(v) + '"' : '') + '>'; }
+  function inp(id, ph, type, v) { return '<input class="uph-in" id="' + id + '" type="' + (type || 'text') + '"' + (type === 'number' ? ' min="0"' : '') + ' placeholder="' + esc(ph || '') + '"' + (v !== undefined ? ' value="' + esc(v) + '"' : '') + '>'; }
   function sel(id, opts, empty, cur) {
     return '<select class="uph-in" id="' + id + '"><option value="">' + esc(empty || 'Choose…') + '</option>' +
       opts.map(function (o) { return '<option value="' + esc(o.v) + '"' + (cur === o.v ? ' selected' : '') + '>' + esc(o.l) + '</option>'; }).join('') + '</select>';
@@ -1241,7 +1241,9 @@ window.UphUI = (function () {
     if (a === 'confirm-slot') { var cr = safe(function () { return confirmUphSlot(el.getAttribute('data-s'), UPH_USER); }, { error: 'Could not confirm it.' }); if (cr && cr.error && typeof commsToast === 'function') commsToast(cr.error); paint(); return; }
     if (a === 'release-hold') {
       var rid = el.getAttribute('data-r');
-      safe(function () { fabricHolds.filter(function (h) { return h.rollId === rid && h.status === 'held'; }).forEach(function (h) { releaseFabricHold(h.id, UPH_USER, 'released from the register'); }); }, null);
+      var err = null;
+      safe(function () { fabricHolds.filter(function (h) { return h.rollId === rid && h.status === 'held'; }).forEach(function (h) { var rr = releaseFabricHold(h.id, UPH_USER, 'released from the register'); if (rr && rr.error) err = rr.error; }); }, null);
+      if (err) { toast(err); return; }
       paint(); return;
     }
     if (a === 'reserve-roll') {

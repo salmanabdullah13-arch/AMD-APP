@@ -359,18 +359,22 @@ function renderPurchRequests() {
 
 // ── PR creation form (new, direct — no conversion involved) ───────
 function openPRForm() {
+  // Division, Department and Destination start UNANSWERED (forms pass, 6 Sep
+  // 2026 — Salman's rule from the quotation's Unit: a field that becomes a
+  // record is chosen, not defaulted). Destination especially: a job's
+  // material silently going to the shared pool is expensive to unpick.
   prFormDraft = {
-    division: SALES_DIVISIONS[0],
-    department: 'carp',
+    division: '',
+    department: '',
     linkedJobId: '',
-    destinationType: 'inventory',
+    destinationType: '',
     items: [{ name: '', qty: 1, unit: '', itemRef: null }]
   };
 
-  document.getElementById('pr-form-division').innerHTML = SALES_DIVISIONS.map(d => `<option ${d === prFormDraft.division ? 'selected' : ''}>${d}</option>`).join('');
-  document.getElementById('pr-form-dept').innerHTML = purchDeptOptionsHtml(prFormDraft.department);
+  document.getElementById('pr-form-division').innerHTML = '<option value="">Choose…</option>' + SALES_DIVISIONS.map(d => `<option>${d}</option>`).join('');
+  document.getElementById('pr-form-dept').innerHTML = '<option value="">Choose…</option>' + purchDeptOptionsHtml(prFormDraft.department);
   document.getElementById('pr-form-job').innerHTML = purchJobOptionsHtml(prFormDraft.linkedJobId);
-  document.getElementById('pr-form-dest').value = prFormDraft.destinationType;
+  document.getElementById('pr-form-dest').value = '';
   renderPRFormProjectDetails();
   renderPRFormItems();
 
@@ -465,6 +469,9 @@ function savePRForm() {
   if (!prFormDraft) return;
   const items = prFormDraft.items.filter(it => it.name.trim() && it.qty > 0);
   if (items.length === 0) { purchAlert('Add at least one item with a name and quantity.'); return; }
+  if (!prFormDraft.division) { purchAlert('Choose a Division.'); return; }
+  if (!prFormDraft.department) { purchAlert('Choose a Department.'); return; }
+  if (!prFormDraft.destinationType) { purchAlert('Choose a Destination — stock, a job, or others.'); return; }
 
   const raisedBy = (window.prompt("Your name (raising this request):", "") || "").trim();
   if (!raisedBy) { purchAlert('Raiser name is required.'); return; }

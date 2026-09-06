@@ -9220,3 +9220,62 @@ evening:
   the phone. Four suites repointed to the chosen-unit rule and the new
   controls (batch9, bugfixes-iphone, batch7-big-pieces,
   labour-copybom-approver). Full offline sweep all green. `sw.js` v72 → v73.
+
+### 6 Sep 2026 — The forms pass: every screen the way a person meets it
+
+Salman: "How about you run a comprehensive pass?" — after his own ten
+minutes on the quotation wizard found five defects four scripted
+iterations had missed, every one of the same kind: the screen, not the
+flow. The iterations drive the data layer as each role; they never sit in
+a form. Two new harnesses do, both committed and re-runnable:
+`forms-audit-static.js` (reads the source) and `forms-audit-dom.js` (opens
+every module and every rail page at 1280 and 390). Findings and the
+deliberate exceptions: `docs/test-run/forms-pass-findings.md`.
+
+- **Seven refusals the screen was throwing away** — a guard fires, the
+  function returns `{error}`, the screen redraws as if nothing happened.
+  That is exactly how "images don't save" looked. Every instance fixed:
+  removing a line from a confirmed quotation (the ✕ did nothing and said
+  nothing), the Estimator's overhead / profit / selling-price override on
+  a frozen quote, clearing a discount limit, completing a job task,
+  releasing a fabric hold.
+- **Four fields that became a record while pre-answered** — Salman's Unit
+  rule applied where a wrong value is expensive and easy to miss. A
+  Purchase Request opened on Division "Curtain & Blinds", Department
+  "Carpentry" and Destination **"Stock (shared pool)"**: a job's material
+  silently filed to the pool. A new enquiry opened on Division "Curtain &
+  Blinds" and the first Source, and the division drives routing and
+  revenue attribution downstream. All now open unanswered and are refused
+  at save.
+- **A Journal balanced on two negatives** — Dr −100 against Cr −100
+  balances and means nothing; receipts and payments already refused a
+  non-positive amount, the Journal did not. **My first fix was dead
+  code**: it guarded `debit`/`credit` while the app's lines carry
+  `dr`/`cr`, so it would never have fired on a real journal. The suite
+  caught it — worth recording, because a guard written against the wrong
+  field name reads exactly like a guard that works.
+- **Twelve Accounts amount fields** plus every number field in Production
+  and Upholstery got a floor of zero (the ledger's opening balance left
+  unbounded — a credit-side opening is legitimately negative).
+- **Reported, not swept**: 33 screens carry controls under 30px (filter
+  chips, tab strips, inline ✎ ⧉ ✕, and the legacy Storekeeper list's
+  37×20 "Edit"). Most are the design packages' own geometry; resizing them
+  app-wide is a design decision for Salman, not a bug fix. Two selects
+  stay pre-answered on purpose: a new ledger's tax treatment ("Taxable
+  10%" is the norm) and the enquiry's salesperson, which is
+  correct-by-construction — it is the signed-in person.
+- **A detector bug of my own, worth keeping**: the first DOM scan read
+  `options[0]` rather than the SELECTED option, so a payroll month
+  correctly pre-set to now and a role pre-set to the person's own read as
+  defects. Reading `selectedIndex` cut 124 flags to 5, of which 4 were
+  real.
+- **A date-rollover flake the sweep caught, in a test rather than the
+  app**: `e2e-production-flows.js` picks a Monday for its same-job booking
+  and an earlier block books another job on today+1 — the two coincide on
+  a Sunday alone, making the "overload" genuine. The date rolled from
+  Saturday to Sunday mid-session and it started failing; confirmed
+  identical on committed code before touching anything. The suite now
+  picks days that cannot be the earlier block's, whatever today is.
+- **Verified**: `e2e-forms-pass.js` (11/11) drives every fix through the
+  real screens and asserts both harnesses still read zero. Full offline sweep all green.
+  `sw.js` v73 → v74.

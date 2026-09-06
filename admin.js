@@ -275,7 +275,7 @@ function adminSaveDiscountLimit(kind, key) {
   if (typeof logActivity === 'function') logActivity({ type: 'discount-limit-set', linkedType: 'master', linkedId: r.id, user: window.cloudIdentity || 'Admin', message: 'Discount limit for ' + k + ' set to ' + r.maxPct + '%' });
   renderAdminDiscountsTab();
 }
-function adminClearDiscountLimit(id) { clearDiscountLimit(id); renderAdminDiscountsTab(); }
+function adminClearDiscountLimit(id) { const r = clearDiscountLimit(id); if (r && r.error) { alert(r.error); return; } renderAdminDiscountsTab(); }
 function adminToggleUserRow(profileId) {
   adminUserExpandedId = adminUserExpandedId === profileId ? null : profileId;
   renderAdminUsersInto();
