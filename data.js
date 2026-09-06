@@ -6465,6 +6465,115 @@ function createProformaFromJob(jobId) {
 
 // Balance nets off both a Receipt's paidAmount and a Credit Note's
 // creditedAmount — an invoice can be partly settled by either.
+// ═══════════════════════════════════════════════════════════════
+// STATEMENTS, CONSUMPTION AND HISTORY (Salman, 6 Sep 2026 — "journals
+// ledger, soa not built and build those. Any reports, consumptions
+// reports, history all of it").
+//
+// A Statement of Account is the document a client or a supplier asks for:
+// what was owed at the start of a period, every document that moved the
+// balance since, and what is owed now. Nothing here stores anything — it
+// is read off the same records the ledgers and the dashboards read, so a
+// statement can never disagree with an invoice.
+// ═══════════════════════════════════════════════════════════════
+
+// party: "customer" | "supplier". Returns { party, name, openingBalance,
+// rows[], totals, closingBalance }. Each row: date, type, ref, particulars,
+// debit, credit, balance — a customer's DEBIT is what they owe us; a
+// supplier's CREDIT is what we owe them, so each side reads naturally.
+function getStatementOfAccount({ party = "customer", partyId, from = "", to = "" } = {}) {
+  const inRange = (d) => (!from || d >= from) && (!to || d <= to);
+  const before = (d) => from && d < from;
+  const rows = [];
+  let opening = 0;
+
+  if (party === "customer") {
+    const c = customers.find(x => x.id === partyId);
+    if (!c) return { error: "Customer not found." };
+    opening = Number(c.openingBalance) || 0;
+    const add = (date, type, ref, particulars, debit, credit) => {
+      if (before(date)) { opening += (debit || 0) - (credit || 0); return; }
+      if (inRange(date)) rows.push({ date, type, ref, particulars, debit: debit || 0, credit: credit || 0 });
+    };
+    taxInvoices.filter(v => v.customerId === partyId).forEach(v => {
+      const job = jobCards.find(j => j.id === v.jobId);
+      add(v.date, "Tax Invoice", v.id, job ? job.projectName : (v.jobId || ""), v.totals.netTotal, 0);
+    });
+    salesReceipts.filter(v => v.customerId === partyId).forEach(v =>
+      add(v.receiptDate, "Receipt", v.id, (v.allocations || []).map(a => a.invoiceId).filter(Boolean).join(", ") || "On account", 0, v.amount));
+    salesCreditNotes.filter(v => v.customerId === partyId && v.status !== "cancelled").forEach(v =>
+      add(v.creditNoteDate, "Credit Note", v.id, v.reason || "", 0, v.amount));
+    rows.sort((a, b) => (a.date || "").localeCompare(b.date || "") || a.type.localeCompare(b.type));
+    let bal = opening;
+    rows.forEach(r => { bal = Math.round((bal + r.debit - r.credit) * 1000) / 1000; r.balance = bal; });
+    return { party, partyId, name: c.name, contact: c.contactPerson, tel: c.tel, address: c.address, vatNo: c.vatNo,
+      openingBalance: Math.round(opening * 1000) / 1000, rows,
+      totals: { debit: Math.round(rows.reduce((t, r) => t + r.debit, 0) * 1000) / 1000, credit: Math.round(rows.reduce((t, r) => t + r.credit, 0) * 1000) / 1000 },
+      closingBalance: Math.round(bal * 1000) / 1000, from, to };
+  }
+
+  const sup = suppliers.find(x => x.id === partyId);
+  if (!sup) return { error: "Supplier not found." };
+  opening = Number(sup.openingBalance) || 0;
+  const add = (date, type, ref, particulars, debit, credit) => {
+    if (before(date)) { opening += (credit || 0) - (debit || 0); return; }
+    if (inRange(date)) rows.push({ date, type, ref, particulars, debit: debit || 0, credit: credit || 0 });
+  };
+  purchaseInvoices.filter(v => v.supplierId === partyId && v.status !== "cancelled").forEach(v =>
+    add(v.dateReceived, "Purchase Invoice", v.id, v.supplierRef ? "Their ref " + v.supplierRef : "", 0, (v.totals && v.totals.netAmount) || 0));
+  payments.filter(v => v.supplierId === partyId && v.status !== "cancelled").forEach(v =>
+    add(v.paymentDate, "Payment", v.id, (v.allocations || []).map(a => a.invoiceId).filter(Boolean).join(", ") || "On account", v.amount, 0));
+  debitNotes.filter(v => v.supplierId === partyId && v.status !== "cancelled").forEach(v =>
+    add(v.debitNoteDate, "Debit Note", v.id, v.reason || "", v.amount, 0));
+  rows.sort((a, b) => (a.date || "").localeCompare(b.date || "") || a.type.localeCompare(b.type));
+  let bal = opening;
+  rows.forEach(r => { bal = Math.round((bal + r.credit - r.debit) * 1000) / 1000; r.balance = bal; });
+  return { party, partyId, name: sup.name, contact: sup.contactPerson, tel: sup.telephone, address: sup.address, vatNo: sup.vatNo,
+    openingBalance: Math.round(opening * 1000) / 1000, rows,
+    totals: { debit: Math.round(rows.reduce((t, r) => t + r.debit, 0) * 1000) / 1000, credit: Math.round(rows.reduce((t, r) => t + r.credit, 0) * 1000) / 1000 },
+    closingBalance: Math.round(bal * 1000) / 1000, from, to };
+}
+
+// What was actually consumed, from the real material moves — an issue is
+// consumption, a return gives it back. Priced off the move's own rate, the
+// same figure the Material Cost sheet and the cost ledger use, so the
+// report can never disagree with them. groupBy: "item" | "job".
+function getMaterialConsumption({ from = "", to = "", jobId = null, itemId = null, groupBy = "item" } = {}) {
+  const inRange = (d) => (!from || d >= from) && (!to || d <= to);
+  const moves = [];
+  (typeof jobCards !== "undefined" ? jobCards : []).forEach(job => {
+    if (jobId && job.id !== jobId) return;
+    const push = (move, sign, kind) => {
+      if (move.status === "cancelled" || !inRange(move.date)) return;
+      (move.items || []).forEach(it => {
+        if (itemId && it.itemId !== itemId) return;
+        const qty = (Number(it.qty) || 0) * sign;
+        const rate = Number(it.rate) || 0;
+        moves.push({ date: move.date, kind, voucherNo: move.id, jobId: job.id, projectName: job.projectName,
+          itemId: it.itemId || null, name: it.name || it.stockItemName || "", unit: it.unit || "",
+          lineId: it.lineId === undefined ? null : it.lineId, qty, rate, value: Math.round(qty * rate * 1000) / 1000 });
+      });
+    };
+    (job.materialsIssues || []).forEach(m => push(m, 1, "Issue"));
+    (job.materialsReturns || []).forEach(m => push(m, -1, "Return"));
+  });
+  moves.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const key = (m) => groupBy === "job" ? m.jobId : (m.itemId || m.name);
+  const groups = {};
+  moves.forEach(m => {
+    const k = key(m);
+    if (!groups[k]) groups[k] = { key: k, label: groupBy === "job" ? (m.projectName || m.jobId) : m.name,
+      sub: groupBy === "job" ? m.jobId : (m.unit || ""), qty: 0, value: 0, moves: [] };
+    groups[k].qty = Math.round((groups[k].qty + m.qty) * 1000) / 1000;
+    groups[k].value = Math.round((groups[k].value + m.value) * 1000) / 1000;
+    groups[k].moves.push(m);
+  });
+  const rows = Object.values(groups).sort((a, b) => b.value - a.value);
+  return { rows, moves, groupBy, from, to,
+    totalQty: Math.round(rows.reduce((t, r) => t + r.qty, 0) * 1000) / 1000,
+    totalValue: Math.round(rows.reduce((t, r) => t + r.value, 0) * 1000) / 1000 };
+}
+
 function invoiceBalance(inv) {
   return Math.round((inv.totals.netTotal - (inv.paidAmount || 0) - (inv.creditedAmount || 0)) * 1000) / 1000;
 }

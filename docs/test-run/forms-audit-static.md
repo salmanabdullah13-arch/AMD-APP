@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-06 05:52 by `forms-audit-static.js`.
+Generated 2026-09-06 15:42 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
@@ -9,24 +9,26 @@ A data-layer function that can `return {error}`, called from a screen with its r
 
 _None._
 
-## B · Selects that open pre-answered (122)
+## B · Selects that open pre-answered (126)
 
 The first `<option>` carries a real value, so whatever happens to be first is what gets saved unless the person notices. A filter defaulting to "All" is fine; a field that becomes a record is not.
 
 | File | Line | id | First option |
 |---|---|---|---|
-| `accounts.js` | 411 | `ac-lg-tax` | _list, no placeholder_ |
-| `accounts.js` | 497 | `ac-` | _list, no placeholder_ |
-| `accounts.js` | 618 | `ac-jl-ledger-` | _list, no placeholder_ |
-| `accounts.js` | 693 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 733 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 758 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 1002 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 1100 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 1161 | `cu-customer` | _list, no placeholder_ |
-| `accounts.js` | 1171 | `cu-salesman` | _list, no placeholder_ |
-| `accounts.js` | 1185 | `cu-vat` | _list, no placeholder_ |
-| `accounts.js` | 1316 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 412 | `ac-lg-tax` | _list, no placeholder_ |
+| `accounts.js` | 498 | `ac-` | _list, no placeholder_ |
+| `accounts.js` | 619 | `ac-jl-ledger-` | _list, no placeholder_ |
+| `accounts.js` | 694 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 754 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 759 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 789 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 815 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 1059 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 1157 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 1218 | `cu-customer` | _list, no placeholder_ |
+| `accounts.js` | 1228 | `cu-salesman` | _list, no placeholder_ |
+| `accounts.js` | 1242 | `cu-vat` | _list, no placeholder_ |
+| `accounts.js` | 1373 | `(no id)` | _list, no placeholder_ |
 | `admin.js` | 218 | `admin-usertype-` | _list, no placeholder_ |
 | `admin.js` | 261 | `admin-dl-user` | _list, no placeholder_ |
 | `approval-queue.js` | 90 | `aq-usertype-` | _list, no placeholder_ |
@@ -78,7 +80,7 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `production-ui.js` | 809 | `(no id)` | _list, no placeholder_ |
 | `purchasing.js` | 156 | `(no id)` | _list, no placeholder_ |
 | `purchasing.js` | 179 | `(no id)` | _list, no placeholder_ |
-| `purchasing.js` | 1498 | `(no id)` | _list, no placeholder_ |
+| `purchasing.js` | 1500 | `(no id)` | _list, no placeholder_ |
 | `sales.js` | 390 | `(no id)` | _list, no placeholder_ |
 | `sales.js` | 485 | `(no id)` | _list, no placeholder_ |
 | `sales.js` | 501 | `(no id)` | _list, no placeholder_ |
@@ -95,21 +97,23 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `sales.js` | 1706 | `fin-terms` | _list, no placeholder_ |
 | `sales.js` | 1883 | `(no id)` | _list, no placeholder_ |
 | `sales.js` | 1893 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 353 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 357 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 447 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 451 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 455 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 501 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 356 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 360 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 450 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 454 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 458 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 504 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 510 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 516 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 522 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 702 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 709 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 831 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 507 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 513 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 519 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 525 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 705 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 712 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 837 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 867 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 843 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 873 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 941 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 946 | `(no id)` | _list, no placeholder_ |
 | `teamcomms.js` | 64 | `comms-to` | _list, no placeholder_ |
 | `upholstery-ui.js` | 589 | `(no id)` | _list, no placeholder_ |
 | `index.html` | 471 | `cs-rail-type` | _list, no placeholder_ |

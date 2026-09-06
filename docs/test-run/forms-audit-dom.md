@@ -1,6 +1,6 @@
 # Forms pass — the clicking half (every module, every rail page)
 
-Generated 2026-09-06 05:52 by `forms-audit-dom.js` (offline, demo data). 65 screens walked.
+Generated 2026-09-06 15:43 by `forms-audit-dom.js` (offline, demo data). 65 screens walked.
 
 ## 1 · Selects that open pre-answered INSIDE a create form (2)
 
@@ -19,7 +19,7 @@ Filters and pick-a-row selects — a default is usually right here. Listed for c
 
 _None._
 
-## 4 · Controls under 30px on a phone (33 screens)
+## 4 · Controls under 30px on a phone (34 screens)
 
 | Module | Page | Count | Sample |
 |---|---|---|---|
@@ -30,6 +30,7 @@ _None._
       0
    312x20, Week 53x25, Month 59x25, ‹ 26x26, Today 50x26, › 26x26 |
 | Purchaser | `purchGoTo('purch-requests')` | 5 | All 34x24, Carpentry 70x24, Painting 62x24, Upholstery 75x24, Metal Works 83x24 |
+| Purchaser | `purchGoTo('purch-orders')` | 1 | 🖨 Print PO 57x15 |
 | Purchaser | `purchGoTo('purch-suppliers')` | 1 | View 42x20 |
 | Storekeeper | `(landing)` | 2 | In-Pool 57x27, Release History 96x27 |
 | Storekeeper | `skGoTo('items')` | 207 | All Catelogs 288x19, Edit 37x20, Edit 37x20, Edit 37x20, Edit 37x20, Edit 37x20 |

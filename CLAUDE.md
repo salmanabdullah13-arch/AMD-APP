@@ -9279,3 +9279,57 @@ deliberate exceptions: `docs/test-run/forms-pass-findings.md`.
 - **Verified**: `e2e-forms-pass.js` (11/11) drives every fix through the
   real screens and asserts both harnesses still read zero. Full offline sweep all green.
   `sw.js` v73 → v74.
+
+### 6 Sep 2026 — The rest of the documents, the Statement of Account, consumption and history
+
+Salman: "build all and look for pdf prints, journals ledger, soa not built
+and build those. Any reports, consumptions reports, history all of it."
+Seven documents existed; the audit of what was missing is in the answer
+above it. Everything below is built on print.js's own helpers, so every
+document in the app now carries one letterhead, one footer, one type scale.
+
+- **New file `print-documents.js`**, nine builders on one shared shell:
+  **Tax Invoice** (the client-facing one, whose button used to say "not
+  wired to a document generator yet" — it shows the lines, VAT, amount in
+  words, the bank block, and what is still owed once receipts and credit
+  notes exist), **Proforma**, **Delivery Note** (quantities and a
+  receiver's signature, deliberately no prices), **Purchase Order**,
+  **Goods Receipt** (with the short/over column and the claim), the five
+  **vouchers** — Receipt, Credit Note, Supplier Payment, Debit Note and
+  Journal, one builder because a voucher is a party, an amount and what it
+  was set against — the **Material Issue / Return note**, the **Statement
+  of Account**, and one **generic report printer** used by the Day Book,
+  Ledger Report, Trial Balance, Balance Sheet, consumption and item
+  history, so a report on paper cannot drift from the same report on
+  screen.
+- **Statement of Account (`getStatementOfAccount`, data.js)** — the
+  document a client or a supplier actually asks for: opening balance,
+  every document that moved it, running balance, closing. Customer and
+  supplier sides each read naturally (a customer's debit is what they owe
+  us; a supplier's credit is what we owe them). A date range moves
+  everything before it into the opening balance rather than dropping it.
+  Nothing is stored — it reads the same invoices, receipts, credit notes,
+  payments and debit notes the ledgers read, so it cannot disagree with
+  them. New Accounts screen with its own print.
+- **Material consumption (`getMaterialConsumption`)** — what was actually
+  used, from the real issues less the returns, priced at the rate each
+  movement carried (the figure the Material Cost sheet already uses).
+  Grouped by item or by job, filterable by date and job, in Storekeeper →
+  Reports with a print. A return gives material back rather than counting
+  as more consumption.
+- **Item history** already existed as the Stock Report — a replayed
+  ledger per item — and only lacked a way to print it; it has one now.
+- **Wired**: the Tax Invoice screen prints the real document, every
+  delivery note prints from the Job Card hub, Accounts gained the
+  Statement screen and prints on the Day Book, Ledger, Trial Balance and
+  Balance Sheet, Purchasing prints a PO in any state and a debit note,
+  and Storekeeper's "Print not implemented in this build" stub is now the
+  real Material Issue note.
+- **Verified**: new `e2e-documents-reports.js` (26/26) renders every
+  document from real records and reads it back — a document that renders
+  its "no longer exists" fallback fails rather than passes — checks the
+  statement's arithmetic (every debit less every credit equals the closing
+  balance), the range rule, that a delivery note carries no prices, and
+  that consumption reads 3 × 12 = 36.000 and drops to 24.000 after a
+  return. The Tax Invoice and the Statement were also read back as
+  images. Full offline sweep all green. `sw.js` v74 → v75.

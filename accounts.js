@@ -165,6 +165,7 @@ function renderAccountsBody() {
   else if (accountsView === 'ledger-report') content = renderLedgerReportView();
   else if (accountsView === 'trial-balance') content = renderTrialBalanceView();
   else if (accountsView === 'proforma') content = renderProformaList();
+  else if (accountsView === 'soa') content = renderStatementOfAccount();
   else if (accountsView === 'salesreceipts') content = renderSalesReceiptList();
   else if (accountsView === 'salesreceipt-new') content = renderSalesReceiptCreate();
   else if (accountsView === 'creditnotes') content = renderSalesCreditNoteList();
@@ -721,6 +722,61 @@ function acDivisionFieldHtml(unselected = false) {
     : `<div style="flex:1;min-width:140px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">Division</label><input type="text" value="Al Maraya Decor" disabled style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box;color:#94a3b8;"></div>`;
 }
 
+// ── Statement of Account (Salman, 6 Sep 2026) ──────────────────────
+// The document a client or a supplier asks for: what was owed at the
+// start, every document since, what is owed now. Read straight off the
+// invoices, receipts, credit notes, payments and debit notes, so it can
+// never disagree with them.
+let acSoaParty = 'customer';
+let acSoaId = '';
+let acSoaFrom = '';
+let acSoaTo = '';
+function acSoaSet(key, val) { ({ party: () => { acSoaParty = val; acSoaId = ''; }, id: () => acSoaId = val, from: () => acSoaFrom = val, to: () => acSoaTo = val })[key](); renderAccountsBody(); }
+function acSoaDateField(key, label, value) {
+  return `<div style="flex:1;min-width:110px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">${label}</label>
+    <input type="date" value="${value || ''}" onchange="acSoaSet('${key}',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--biz-border-light);border-radius:6px;font-size:12px;"></div>`;
+}
+function acPrintStatement() {
+  if (!acSoaId) { accountsAlert('Choose an account first.'); return; }
+  printStatement({ party: acSoaParty, partyId: acSoaId, from: acSoaFrom, to: acSoaTo });
+}
+function renderStatementOfAccount() {
+  const list = acSoaParty === 'customer'
+    ? customers.slice().sort((a, b) => a.name.localeCompare(b.name))
+    : suppliers.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const st = acSoaId ? getStatementOfAccount({ party: acSoaParty, partyId: acSoaId, from: acSoaFrom, to: acSoaTo }) : null;
+  const money = (n) => 'BD ' + (Number(n) || 0).toFixed(3);
+  return `
+    <div class="sales-card">
+      <p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">Opening balance, every document that moved it, and the closing balance — for a customer or a supplier. Print it and send it as it stands.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:130px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">Account type</label>
+          <select onchange="acSoaSet('party',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--biz-border-light);border-radius:6px;font-size:12px;">
+            <option value="customer" ${acSoaParty === 'customer' ? 'selected' : ''}>Customer</option>
+            <option value="supplier" ${acSoaParty === 'supplier' ? 'selected' : ''}>Supplier</option>
+          </select></div>
+        <div style="flex:2;min-width:180px;"><label style="font-size:10.5px;color:#64748b;display:block;margin-bottom:3px;">Account</label>
+          <select onchange="acSoaSet('id',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--biz-border-light);border-radius:6px;font-size:12px;">
+            <option value="">Choose…</option>${list.map(x => `<option value="${acEsc(x.id)}" ${acSoaId === x.id ? 'selected' : ''}>${acEsc(x.name)}</option>`).join('')}
+          </select></div>
+        ${acSoaDateField('from', 'From', acSoaFrom)}${acSoaDateField('to', 'To', acSoaTo)}
+      </div>
+      ${acSoaId ? `<button class="secondary" style="margin-top:10px;font-size:12px;" onclick="acPrintStatement()">🖨 Print statement</button>` : ''}
+    </div>
+    ${!st ? '<div class="sales-card"><p style="font-size:12px;color:#94a3b8;">Choose an account to see its statement.</p></div>'
+      : st.error ? `<div class="sales-card"><p style="font-size:12px;color:#dc2626;">${acEsc(st.error)}</p></div>`
+      : `<div class="sales-card" style="overflow-x:auto;">
+        <p style="font-weight:700;font-size:13px;margin-bottom:2px;">${acEsc(st.name)}</p>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:10px;">${acEsc(st.address || '')}</p>
+        <table class="sales-items"><tr><th>Date</th><th>Type</th><th>Reference</th><th>Particulars</th><th>Debit</th><th>Credit</th><th>Balance</th></tr>
+          <tr style="background:var(--biz-border-light);"><td colspan="6"><b>Opening balance</b></td><td><b>${money(st.openingBalance)}</b></td></tr>
+          ${st.rows.map(r => `<tr><td>${r.date}</td><td>${acEsc(r.type)}</td><td>${acEsc(r.ref)}</td><td>${acEsc(r.particulars)}</td>
+            <td>${r.debit ? money(r.debit) : ''}</td><td>${r.credit ? money(r.credit) : ''}</td><td>${money(r.balance)}</td></tr>`).join('')
+            || '<tr><td colspan="7" style="color:#94a3b8;">No transactions in this period.</td></tr>'}
+          <tr style="background:var(--biz-border-light);"><td colspan="4"><b>Closing balance</b></td><td><b>${money(st.totals.debit)}</b></td><td><b>${money(st.totals.credit)}</b></td><td><b>${money(st.closingBalance)}</b></td></tr>
+        </table></div>`}`;
+}
+
 function renderDayBookReport() {
   const f = acReportFilters;
   const rows = getDayBookRows({ voucherType: f.voucherType, from: f.dbFrom, to: f.dbTo });
@@ -739,6 +795,7 @@ function renderDayBookReport() {
       </div>
     </div>
     <div class="sales-card" style="overflow-x:auto;">
+      <button class="secondary" style="font-size:11.5px;margin-bottom:8px;" onclick="acPrintDayBook()">🖨 Print</button>
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No vouchers match these filters.</p>` :
         `<table class="sales-items"><tr><th>Voucher Type</th><th>Voucher No</th><th>Voucher Date</th><th>Client</th><th>Amount</th><th>Status</th></tr>
         ${rows.map(r => `<tr><td>${acEsc(r.type)}</td><td>${acEsc(r.no)}</td><td>${r.date}</td><td>${acEsc(r.client)}</td><td>BD ${(r.amount || 0).toFixed(3)}</td><td>${acEsc(r.status)}</td></tr>`).join('')}
@@ -1349,4 +1406,57 @@ function renderSalesBillOutstanding() {
   }
 
   return filterHtml + tableHtml;
+}
+
+// ── Report prints (6 Sep 2026). Each re-derives its rows from the same
+// get* the screen used, then hands them to the one shared table printer,
+// so a report on paper cannot drift from the same report on screen.
+function acPrintDayBook() {
+  const f = acReportFilters;
+  const rows = getDayBookRows({ voucherType: f.voucherType, from: f.dbFrom, to: f.dbTo });
+  printReport({
+    title: 'Day Book', subtitle: f.voucherType && f.voucherType !== 'All' ? f.voucherType : 'All voucher types',
+    meta: [['From', f.dbFrom || '—'], ['To', f.dbTo || 'today'], ['Vouchers', String(rows.length)]],
+    cols: [{ label: 'Type', key: 'type' }, { label: 'Voucher No', key: 'no' }, { label: 'Date', key: 'date', align: 'center' },
+      { label: 'Client / Party', key: 'client' }, { label: 'Amount', key: 'amount', fmt: 'bd' }, { label: 'Status', key: 'status', align: 'center' }],
+    rows,
+    totalRow: { type: 'Total', amount: rows.reduce((s, r) => s + (Number(r.amount) || 0), 0) }
+  });
+}
+function acPrintLedgerReport() {
+  const f = acReportFilters;
+  if (!f.ledgerName) { accountsAlert('Choose a ledger first.'); return; }
+  const postings = getGLPostings().filter(p => p.ledgerName === f.ledgerName && (!f.glFrom || p.date >= f.glFrom) && (!f.glTo || p.date <= f.glTo));
+  let bal = 0;
+  const rows = postings.map(p => { bal += (Number(p.dr) || 0) - (Number(p.cr) || 0); return Object.assign({}, p, { running: Math.round(bal * 1000) / 1000 }); });
+  printReport({
+    title: 'Ledger Report', subtitle: f.ledgerName,
+    meta: [['Ledger', f.ledgerName], ['From', f.glFrom || '—'], ['To', f.glTo || 'today']],
+    cols: [{ label: 'Date', key: 'date', align: 'center' }, { label: 'Voucher', key: 'voucherNo' }, { label: 'Type', key: 'voucherType' },
+      { label: 'Narration', key: 'narration' }, { label: 'Debit', key: 'dr', fmt: 'bd' }, { label: 'Credit', key: 'cr', fmt: 'bd' }, { label: 'Balance', key: 'running', fmt: 'bd' }],
+    rows,
+    totalRow: { date: 'Total', dr: rows.reduce((s, r) => s + (Number(r.dr) || 0), 0), cr: rows.reduce((s, r) => s + (Number(r.cr) || 0), 0), running: bal }
+  });
+}
+function acPrintTrialBalance() {
+  const tb = getTrialBalance();
+  const rows = (tb.rows || tb || []).map(r => r);
+  printReport({
+    title: 'Trial Balance', meta: [['Printed', todayISO()], ['Lines', String(rows.length)]],
+    cols: [{ label: 'Ledger / Group', key: r => r.name || r.ledgerName || r.group }, { label: 'Debit', key: r => r.debit || r.dr, fmt: 'bd' }, { label: 'Credit', key: r => r.credit || r.cr, fmt: 'bd' }],
+    rows,
+    totalRow: { name: 'Total', debit: rows.reduce((s, r) => s + (Number(r.debit || r.dr) || 0), 0), credit: rows.reduce((s, r) => s + (Number(r.credit || r.cr) || 0), 0) }
+  });
+}
+function acPrintBalanceSheet() {
+  const bs = getBalanceSheet();
+  const rows = [];
+  const side = (label, list) => { rows.push({ __section: label }); (list || []).forEach(r => rows.push(r)); };
+  side('Assets', bs.assets); side('Liabilities', bs.liabilities); if (bs.equity) side('Equity', bs.equity);
+  printReport({
+    title: 'Balance Sheet', meta: [['As at', todayISO()]],
+    cols: [{ label: 'Account', key: r => r.name || r.label || '' }, { label: 'Amount', key: r => r.amount === undefined ? r.value : r.amount, fmt: 'bd' }],
+    rows,
+    totalRow: { name: 'Total assets', amount: (bs.totalAssets !== undefined ? bs.totalAssets : (bs.assets || []).reduce((s, r) => s + (Number(r.amount || r.value) || 0), 0)) }
+  });
 }

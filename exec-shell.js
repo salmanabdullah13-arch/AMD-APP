@@ -1549,7 +1549,8 @@ const EXEC_NAV_CONFIGS = {
       nv('ac-rcpt', '💵', 'Sales Receipts', "accountsSetView('salesreceipts')"),
       nv('ac-scn', '↩', 'Credit Notes', "accountsSetView('creditnotes')"),
       nv('ac-prof', '⎘', 'Proforma', "accountsSetView('proforma')"),
-      nv('ac-bos', '⏳', 'Bill O/s', "accountsSetView('bill-os')")
+      nv('ac-bos', '⏳', 'Bill O/s', "accountsSetView('bill-os')"),
+      nv('ac-soa', '📄', 'Statement of Account', "accountsSetView('soa')")
     ] },
     { label: 'General Ledger', items: [
       nv('ac-coa', '🗂', 'Chart of Accounts', "accountsSetView('coa')"),

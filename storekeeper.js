@@ -105,7 +105,10 @@ let skMastersTab       = 'unit';    // 'unit' | 'category' | 'catelog'
 let skItemFormDraft    = null;      // Item Master create/edit draft
 let skItemEditingId    = null;
 let skAdjDraft         = null;      // Stock Adjustment create draft
-let skReportsTab       = 'stock';   // 'stock' | 'summary' | 'mrp'
+let skReportsTab       = 'stock';   // 'stock' | 'summary' | 'mrp' | 'consumption'
+// Material consumption (Salman, 6 Sep 2026) — what was actually used, from
+// the real issues and returns, priced off the move's own rate.
+let skConsFilters = { from: '', to: '', groupBy: 'item', jobId: '' };
 let skStockReportItemId = '';
 let skStockReportFilters = { voucherType: 'All', from: '', to: '' };
 let skSummaryFilters   = { category: '', itemName: '', includeZero: true };
@@ -785,7 +788,7 @@ function renderMaterialsMoveList(kind) {
             <td style="font-weight:600;">${r.move.id}${r.move.status === 'cancelled' ? ' (Cancelled)' : ''}</td>
             <td>${r.client}</td><td>${r.move.date}</td><td>${r.jobId}</td>
             <td>
-              <button style="font-size:11px;background:none;border:0;color:var(--biz-teal);cursor:pointer;" onclick="skAlert('Print not implemented in this build.')">Print</button>
+              <button style="font-size:11px;background:none;border:0;color:var(--biz-teal);cursor:pointer;" onclick="printMaterialMove('${r.jobId}','${kind === 'MR' ? 'return' : 'issue'}','${r.move.id}')">Print</button>
               <button style="font-size:11px;background:none;border:0;color:var(--biz-teal);cursor:pointer;" onclick="hideModuleWrap(skModuleWrap);openJobsModule('${r.jobId}')">Edit</button>
               ${r.move.status !== 'cancelled' ? `<button style="font-size:11px;background:none;border:0;color:#dc2626;cursor:pointer;" onclick="skCancelMove('${r.jobId}','${kind}','${r.move.id}')">Cancel</button>` : ''}
             </td>
@@ -813,11 +816,13 @@ function renderInventoryReports() {
       <button class="sk-tabbtn ${skReportsTab === 'stock' ? 'active' : ''}" onclick="skSetReportsTab('stock')">Stock Report</button>
       <button class="sk-tabbtn ${skReportsTab === 'summary' ? 'active' : ''}" onclick="skSetReportsTab('summary')">Item Summary</button>
       <button class="sk-tabbtn ${skReportsTab === 'mrp' ? 'active' : ''}" onclick="skSetReportsTab('mrp')">Job Material Requirement</button>
+      <button class="sk-tabbtn ${skReportsTab === 'consumption' ? 'active' : ''}" onclick="skSetReportsTab('consumption')">Consumption</button>
     </div>`;
 
   let body = '';
   if (skReportsTab === 'stock') body = renderStockReportTab();
   else if (skReportsTab === 'summary') body = renderItemSummaryTab();
+  else if (skReportsTab === 'consumption') body = renderConsumptionTab();
   else body = renderJobMaterialRequirementTab();
 
   document.getElementById('sk-reports-body').innerHTML = tabsHtml + body;
@@ -827,6 +832,7 @@ function renderStockReportTab() {
   const f = skStockReportFilters;
   const filterHtml = `
     <div class="sk-card">
+      <button class="secondary" style="font-size:11.5px;margin-bottom:8px;" onclick="skPrintItemHistory()">🖨 Print item history</button>
       <div class="sk-field"><label>Item Name*</label>
         <select onchange="skStockReportItemChanged(this.value)">
           <option value="">-Select item-</option>
@@ -916,4 +922,68 @@ function skCreatePRFromShortfall() {
   skAlert(`✓ ${result.id} raised for ${skMrpChecked.size} item(s)`);
   skMrpChecked.clear();
   renderInventoryReports();
+}
+
+// ── Material consumption + item-history print (6 Sep 2026) ──────────
+function skEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function skConsFilterChanged(key, val) { skConsFilters[key] = val; renderKeepingFocus(renderInventoryReports); }
+function renderConsumptionTab() {
+  const f = skConsFilters;
+  const data = getMaterialConsumption({ from: f.from, to: f.to, groupBy: f.groupBy, jobId: f.jobId || null });
+  const money = (n) => (Number(n) || 0).toFixed(3);
+  return `
+    <div class="sk-card">
+      <p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">What was actually consumed — every material issue, less what came back. Priced at the rate the move itself carried, the same figure the job's Material Cost sheet uses.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div class="sk-field" style="flex:1;min-width:120px;"><label>From</label><input type="date" value="${f.from}" onchange="skConsFilterChanged('from',this.value)"></div>
+        <div class="sk-field" style="flex:1;min-width:120px;"><label>To</label><input type="date" value="${f.to}" onchange="skConsFilterChanged('to',this.value)"></div>
+        <div class="sk-field" style="flex:1;min-width:120px;"><label>Group by</label>
+          <select onchange="skConsFilterChanged('groupBy',this.value)">
+            <option value="item" ${f.groupBy === 'item' ? 'selected' : ''}>Item</option>
+            <option value="job" ${f.groupBy === 'job' ? 'selected' : ''}>Job</option>
+          </select></div>
+        <div class="sk-field" style="flex:1;min-width:140px;"><label>Job (optional)</label>
+          <select onchange="skConsFilterChanged('jobId',this.value)">
+            <option value="">All jobs</option>
+            ${jobCards.map(j => `<option value="${skEsc(j.id)}" ${f.jobId === j.id ? 'selected' : ''}>${skEsc(j.id)} — ${skEsc(j.projectName || '')}</option>`).join('')}
+          </select></div>
+      </div>
+      <button class="secondary" style="margin-top:8px;font-size:11.5px;" onclick="skPrintConsumption()">🖨 Print</button>
+    </div>
+    <div class="sk-card" style="overflow-x:auto;">
+      ${data.rows.length === 0 ? '<p style="font-size:12px;color:#64748b;">No material was issued in this period.</p>' : `
+        <table class="sk-table"><tr><th>${f.groupBy === 'job' ? 'Job' : 'Item'}</th><th>${f.groupBy === 'job' ? 'Job No' : 'Unit'}</th><th>Qty consumed</th><th>Value (BD)</th><th>Moves</th></tr>
+        ${data.rows.map(r => `<tr><td>${skEsc(r.label || '—')}</td><td>${skEsc(r.sub || '')}</td><td>${r.qty}</td><td>${money(r.value)}</td><td>${r.moves.length}</td></tr>`).join('')}
+        <tr style="font-weight:700;background:var(--biz-border-light);"><td colspan="2">Total</td><td>${data.totalQty}</td><td>${money(data.totalValue)}</td><td>${data.moves.length}</td></tr>
+        </table>`}
+    </div>`;
+}
+function skPrintConsumption() {
+  const f = skConsFilters;
+  const data = getMaterialConsumption({ from: f.from, to: f.to, groupBy: f.groupBy, jobId: f.jobId || null });
+  printReport({
+    title: 'Material Consumption',
+    subtitle: 'Grouped by ' + (f.groupBy === 'job' ? 'job' : 'item'),
+    meta: [['From', f.from || '—'], ['To', f.to || 'today'], ['Job', f.jobId || 'All jobs'], ['Movements', String(data.moves.length)]],
+    cols: [{ label: f.groupBy === 'job' ? 'Job' : 'Item', key: 'label' }, { label: f.groupBy === 'job' ? 'Job No' : 'Unit', key: 'sub' },
+      { label: 'Qty consumed', key: 'qty', fmt: 'qty' }, { label: 'Value', key: 'value', fmt: 'bd' }, { label: 'Moves', key: r => r.moves.length, align: 'center' }],
+    rows: data.rows,
+    totalRow: { label: 'Total', qty: data.totalQty, value: data.totalValue },
+    noteHTML: '<div class="note-box">An issue is consumption; a return gives it back, so a returned item reduces the figures above. Rates are the ones recorded on each movement.</div>'
+  });
+}
+function skPrintItemHistory() {
+  if (!skStockReportItemId) { skAlert('Choose an item first.'); return; }
+  const f = skStockReportFilters;
+  const item = itemMaster.find(i => i.id === skStockReportItemId) || {};
+  const rows = getStockReport({ itemId: skStockReportItemId, voucherType: f.voucherType, from: f.from, to: f.to }) || [];
+  printReport({
+    title: 'Item History', subtitle: item.name || skStockReportItemId,
+    meta: [['Item', item.name || '—'], ['Code', item.id || '—'], ['From', f.from || '—'], ['To', f.to || 'today'], ['Movements', String(rows.length)]],
+    cols: [{ label: 'Date', key: 'date', align: 'center' }, { label: 'Voucher', key: 'voucherNo' }, { label: 'Type', key: 'voucherType' },
+      { label: 'Party / Job', key: 'vendor' }, { label: 'Qty', key: 'qty', fmt: 'qty' }, { label: 'Balance', key: 'closingStock', fmt: 'qty' },
+      { label: 'Rate', key: 'rate', fmt: 'bd' }, { label: 'Value', key: 'amount', fmt: 'bd' }],
+    rows,
+    noteHTML: '<div class="note-box">Replayed from the opening stock through every voucher in date order, so each balance is what the shelf held after that movement.</div>'
+  });
 }

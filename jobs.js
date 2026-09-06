@@ -610,7 +610,7 @@ function renderJobDocumentsCard(job, counts, total, sales, routed, cancelled) {
       ${tile('Files', counts.files)}
     </div>
     ${counts.invoices ? `<table class="sales-items" style="margin-top:10px;"><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th>Received</th><th>Balance</th></tr>${getInvoicesForJob(job.id).map(inv => `<tr style="cursor:pointer;" onclick="openInvoicePrint('${inv.id}')"><td>${jEsc(inv.id)}</td><td>${inv.date}</td><td>${inv.totals.netTotal.toFixed(3)}</td><td>${(inv.paidAmount || 0).toFixed(3)}</td><td>${invoiceBalance(inv).toFixed(3)}</td></tr>`).join('')}</table>` : ''}
-    ${counts.delivery ? `<table class="sales-items" style="margin-top:10px;"><tr><th>DN</th><th>Date</th><th>Lines</th></tr>${job.deliveryNotes.map(dn => `<tr><td>${dn.id}</td><td>${dn.date}</td><td>${dn.lines.length}</td></tr>`).join('')}</table>` : ''}
+    ${counts.delivery ? `<table class="sales-items" style="margin-top:10px;"><tr><th>DN</th><th>Date</th><th>Lines</th><th></th></tr>${job.deliveryNotes.map(dn => `<tr><td>${dn.id}</td><td>${dn.date}</td><td>${dn.lines.length}</td><td><span style="cursor:pointer;color:var(--biz-primary);" onclick="printDeliveryNote('${job.id}','${dn.id}')">Print</span></td></tr>`).join('')}</table>` : ''}
     <div class="jr-attach"><button class="jr-btn outline" onclick="jobsAttachFile()">Attach a file</button></div>
     ` : ''}
   </div>`;
@@ -1108,7 +1108,7 @@ function renderInvoicePrint() {
       </div>
     </div>
     <div style="display:flex;gap:8px;max-width:560px;margin:0 auto;">
-      <button class="primary" style="flex:1;" onclick="jobsAlert('Print/PDF export not wired to a document generator yet.')">Print / Download PDF</button>
+      <button class="primary" style="flex:1;" onclick="printTaxInvoice('${inv.id}')">Print / Download PDF</button>
       <button class="secondary" style="flex:1;" onclick="openJobHub('${job.id}');">Exit</button>
     </div>`;
 }

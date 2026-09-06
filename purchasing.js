@@ -930,6 +930,7 @@ function renderPurchOrders() {
             </div>
             <span class="p-pill issued">Issued</span>
           </div>
+          <button class="secondary" style="font-size:12px;margin-top:8px;margin-right:6px;" onclick="printPurchaseOrder('${po.id}')">🖨 Print PO</button>
           <button class="primary" style="font-size:12px;background:var(--biz-primary);border-color:var(--biz-primary);margin-top:8px;" onclick="openInvoiceForm('${po.id}')">Receive & Convert to Invoice →</button>
         </div>`;
     });
@@ -946,6 +947,7 @@ function renderPurchOrders() {
           <p style="font-weight:700;font-size:13px;">${po.id} → ${inv ? inv.id : '—'}</p>
           <p style="font-size:11px;color:#64748b;">${po.supplierNameTel || '—'} · received ${inv ? inv.dateReceived : '—'}</p>
           <span class="p-pill invoiced">Invoiced</span>
+          <span style="cursor:pointer;color:var(--biz-primary);font-size:11.5px;margin-left:8px;" onclick="printPurchaseOrder('${po.id}')">🖨 Print PO</span>
         </div>`;
     });
   }
@@ -1684,7 +1686,7 @@ function renderDebitNotes() {
           const s = suppliers.find(x => x.id === dn.supplierId);
           return `
         <tr style="border-top:1px solid #f1f5f9;">
-          <td style="padding:6px;font-weight:600;">${dn.id}</td>
+          <td style="padding:6px;font-weight:600;"><span style="cursor:pointer;color:var(--biz-primary);" onclick="printVoucher('debitnote','${dn.id}')" title="Print this debit note">${dn.id}</span></td>
           <td style="padding:6px;">${s ? s.name : '—'}</td>
           <td style="padding:6px;">${dn.debitNoteDate}</td>
           <td style="padding:6px;">BD ${dn.amount.toFixed(3)}</td>
