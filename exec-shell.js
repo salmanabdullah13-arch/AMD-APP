@@ -740,7 +740,7 @@ function execPushCurrent() {
     jobs: 'openJobsModule', accounts: 'openAccountsModule', hr: 'openHRModule', joinery: 'openJoineryModule',
     upholstery: 'openUphModule', 'upholstery-legacy': 'openUpholsteryModule', 'crew-timer': 'openCrewTimerModule', painting: 'openPaintingModule', fleet: 'openFleetModule',
     delivery: 'openDeliverySchedModule', storekeeper: 'openStorekeeperModule', purchasing: 'openPurchasingModule',
-    curtain: 'openCurtainModule', 'curtain-tracks': 'openTracksDashboard', 'curtain-qc': 'openQCDashboard', 'curtain-install': 'openInstallCrewDashboard', 'curtain-pipeline': 'openPipelineBoard',
+    store: 'openStoreModule', curtain: 'openCurtainModule', 'curtain-tracks': 'openTracksDashboard', 'curtain-qc': 'openQCDashboard', 'curtain-install': 'openInstallCrewDashboard', 'curtain-pipeline': 'openPipelineBoard',
     operations: 'openOperationsModule', owner: 'openOwnerModule', admin: 'openAdminModule' }[execModuleKey];
   if (!opener) return;
   execPushNav(cfg.label, opener + '()');
@@ -1259,6 +1259,7 @@ const EXEC_MODULE_NAV = {
     home: () => (typeof PurUI !== 'undefined' ? PurUI.isRoot() : true),
     goHome: "PurUI.back()"
   },
+  store:       { label: 'Store', home: () => StoreUI.state.view === 'dash', goHome: "StoreUI.go('dash','stk')" },
   curtain:     { label: 'Curtain & Blinds', home: () => true, goHome: "curtGoTo('curt-dashboard')" },
   'curtain-tracks':   { label: 'Tracks', home: () => !tracksDetailItem && tracksDashView === 'queue', goHome: "tracksDetailItem=null;tracksDashView='queue';renderTracksDashboard()" },
   'curtain-qc':       { label: 'QC', home: () => !qcActiveItem && qcDashView === 'queue', goHome: "qcActiveItem=null;qcDashView='queue';renderQCDashboard()" },
@@ -1407,6 +1408,7 @@ const EXEC_RERENDER_OF = {
   accounts: 'renderAccountsBody', hr: 'renderHRBody', joinery: 'renderJoineryBody',
   upholstery: 'renderUphBody', 'upholstery-legacy': 'renderUpholsteryBody', 'crew-timer': 'renderCrewTimerBody', painting: 'renderPaintingBody',
   fleet: 'renderFleetBody', delivery: 'renderDeliverySchedBody',
+  store: 'renderStoreBody',
   purchasing: null, storekeeper: null, curtain: null, operations: null, // DOM-router modules
   'curtain-tracks': 'renderTracksDashboard', 'curtain-qc': 'renderQCDashboard', 'curtain-install': 'renderInstallCrewDashboard', 'curtain-pipeline': 'renderPipelineBoard'
 };

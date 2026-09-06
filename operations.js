@@ -775,7 +775,7 @@ function buildHeat(){
 // (nothing left to see there now that the chrome is gone) because the
 // wrap is still one of its descendants.
 // ══════════════════════════════════════════
-const OPS_OTHER_WRAPS = ['purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap',
+const OPS_OTHER_WRAPS = ['purch-module-wrap', 'store-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap',
   'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap',
   'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap',
   'owner-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'timer-module-wrap', 'admin-module-wrap'];

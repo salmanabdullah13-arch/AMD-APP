@@ -497,7 +497,7 @@ insert into public.user_types (key, label, dashboard_node_id, department) values
   ('approver', 'Approver', 'approvals', 'commercial'),
   ('accounts', 'Accounts', 'accounts', 'commercial'),
   ('operations_manager', 'Operations Manager', 'operations', 'operations'),
-  ('storekeeper', 'Storekeeper', 'storekeeper', 'operations'),
+  ('storekeeper', 'Storekeeper', 'store', 'operations'),   -- 6 Sep 2026: the 18a module, not the old stock pool
   ('purchaser', 'Purchaser', 'purchasing', 'operations'),
   -- dashboard_node_id filled in for Milestone E (5 Aug 2026) — see the
   -- NODES entries in index.html.

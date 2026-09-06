@@ -17,7 +17,7 @@ timerModuleWrap.className = 'xshell';
 timerModuleWrap.style.cssText = 'display:none;';
 document.body.appendChild(timerModuleWrap);
 
-const TIMER_OTHER_WRAPS = ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap',
+const TIMER_OTHER_WRAPS = ['ops-module-wrap', 'purch-module-wrap', 'store-module-wrap', 'curt-module-wrap', 'sk-module-wrap',
   'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap',
   'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap',
   'painting-module-wrap', 'owner-module-wrap', 'admin-module-wrap', 'fleet-module-wrap',

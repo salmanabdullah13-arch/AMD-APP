@@ -4707,7 +4707,7 @@ function bridgeJobToOperationsAndCurtain(job, opts = {}) {
       cj = {
         id: job.id, name: job.projectName, client: clientName,
         status: "bom_pending", bomStatus: "bom_pending", budgetStatus: "pending", bomRejectionComment: null,
-        wastageBuffer: 10, windowGroups: [], linkedJobCardId: job.id
+        wastageBuffer: 10, windowGroups: [], bom: { accessories: [] }, linkedJobCardId: job.id
       };
       Object.defineProperty(cj, "val", { enumerable: true, get() { const j = getJobCard(cj.id); return j ? j.amount : 0; } });
       Object.defineProperty(cj, "deptVal", { enumerable: true, get() { const j = getJobCard(cj.id); return j ? j.amount : 0; } });

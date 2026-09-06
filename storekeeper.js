@@ -140,7 +140,7 @@ function openStorekeeperModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  const purchMod = document.getElementById('purch-module-wrap');
+  const purchMod = document.getElementById('purch-module-wrap', 'store-module-wrap');
   if (purchMod) purchMod.style.display = 'none';
   const curtMod = document.getElementById('curt-module-wrap');
   if (curtMod) curtMod.style.display = 'none';
@@ -972,11 +972,17 @@ function skPrintConsumption() {
     noteHTML: '<div class="note-box">An issue is consumption; a return gives it back, so a returned item reduces the figures above. Rates are the ones recorded on each movement.</div>'
   });
 }
+function safeStockReport(itemId, f) {
+  // getStockReport() returns undefined without a real item — the print
+  // button threw on it (dead-control sweep, 6 Sep 2026).
+  if (!itemId) return [];
+  try { return getStockReport({ itemId, voucherType: f.voucherType, from: f.from, to: f.to }) || []; } catch (e) { return []; }
+}
 function skPrintItemHistory() {
   if (!skStockReportItemId) { skAlert('Choose an item first.'); return; }
   const f = skStockReportFilters;
   const item = itemMaster.find(i => i.id === skStockReportItemId) || {};
-  const rows = getStockReport({ itemId: skStockReportItemId, voucherType: f.voucherType, from: f.from, to: f.to }) || [];
+  const rows = safeStockReport(skStockReportItemId, f) || [];
   printReport({
     title: 'Item History', subtitle: item.name || skStockReportItemId,
     meta: [['Item', item.name || '—'], ['Code', item.id || '—'], ['From', f.from || '—'], ['To', f.to || 'today'], ['Movements', String(rows.length)]],

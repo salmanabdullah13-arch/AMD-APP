@@ -23,6 +23,7 @@
 <link rel="stylesheet" href="upholstery.css">
 <link rel="stylesheet" href="crew-timer.css">
 <link rel="stylesheet" href="purchase.css">
+<link rel="stylesheet" href="store.css">
 
 <style>/* ── Gantt chart ─────────────────── */
     .gantt-wrap { width:100%; overflow-x:auto; }
@@ -1141,6 +1142,7 @@
 <script src="ops-dashboard.js"></script>
 <script src="auth.js"></script>
 <script src="approval-queue.js"></script>
+<script src="store-ui.js"></script>
 <script src="print.js"></script>
   <script src="print-documents.js"></script>
 <script src="teamcomms.js"></script>
@@ -1186,7 +1188,8 @@ const NODES = [
   { id:'operations',  label:'Operations',      built:true,  launch:()=>{ goTo('operations'); } },
   { id:'curtain',      label:'Curtain & Blinds', built:true, launch:()=>{ launchCurtainModule(); } },
   { id:'purchasing',  label:'Purchaser',        built:true,  launch:()=>{ launchPurchasingModule(); } },
-  { id:'storekeeper', label:'Storekeeper',      built:true,  launch:()=>{ launchStorekeeperModule(); } },
+  { id:'store',       label:'Store',            built:true,  launch:()=>{ launchStoreModule(); } },   // 18a — the storekeeper's real module
+  { id:'storekeeper', label:'Storekeeper (old stock pool)', built:true, launch:()=>{ launchStorekeeperModule(); } },
   { id:'upholstery',  label:'Upholstery',       built:true,  launch:()=>{ launchUpholsteryModule(); } },   // 20a — upholstery-ui.js
   { id:'upholstery-legacy', label:'Upholstery (old pipeline view)', built:false, retired:true, launch:()=>{ launchLegacyUpholsteryModule(); } },   // retired 5 Sep 2026 — 20a replaced it
   // Superseded by the 19a Production module (id 'production'), which is what

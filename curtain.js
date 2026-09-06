@@ -1549,7 +1549,11 @@ function computeBOMQuantities(job) {
 
 function renderBOMSections() {
   const job = curtCurrentJob;
-  const bom = job.bom;
+  // A job bridged from a confirmed quotation has no bom object — only the
+  // two original fixture jobs ever did, and those were cleared on 6 Aug.
+  // Opening the BOM screen on any real curtain job threw here (found by
+  // the dead-control sweep, 6 Sep 2026).
+  const bom = job.bom || (job.bom = { accessories: [] });
   const qtyBom = computeBOMQuantities(job);
   const materialAlerts = getCurtainMaterialAlerts(job);
 

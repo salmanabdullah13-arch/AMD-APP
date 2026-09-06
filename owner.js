@@ -98,7 +98,7 @@ function ownerBuildShell() {
           /* "Departments" is Operations, which owns the cross-department view. */
           { id: 'm-departments', ico: '⚙', label: 'Departments', onclick: 'ownerGoToOperations()' },
           { id: 'm-purchasing', ico: '⬡', label: 'Purchasing', onclick: "ownerGoTo('launchPurchasingModule')" },
-          { id: 'm-store', ico: '▤', label: 'Store', onclick: "ownerGoTo('launchStorekeeperModule')" },
+          { id: 'm-store', ico: '▤', label: 'Store', onclick: "ownerGoTo('launchStoreModule')" },   // the 18a module — Masters below still opens the old one, which is where Masters lives
           { id: 'm-fleet', ico: '🚐', label: 'Vehicles', onclick: "ownerGoTo('launchFleetModule')" },
           { id: 'm-hr', ico: '☰', label: 'HR & payroll', onclick: "ownerGoTo('launchHRModule')" }
         ]
@@ -165,7 +165,7 @@ function openOwnerModule() {
   const scroll = document.getElementById('scroll');
   if (scroll) scroll.style.display = 'none';
   document.querySelectorAll('.module').forEach(m => m.style.display = 'none');
-  ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'timer-module-wrap', 'admin-module-wrap'].forEach(id => {
+  ['ops-module-wrap', 'purch-module-wrap', 'store-module-wrap', 'curt-module-wrap', 'sk-module-wrap', 'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap', 'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap', 'painting-module-wrap', 'fleet-module-wrap', 'delivery-sched-module-wrap', 'prd-module-wrap', 'uph-module-wrap', 'timer-module-wrap', 'admin-module-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });

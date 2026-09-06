@@ -14,7 +14,7 @@ function goTo(p){
   // Hide curtain/purchasing modules, restore main scroll
   const curtMod = document.getElementById('curt-module-wrap');
   if (curtMod) curtMod.style.cssText = 'display:none;';
-  const purchMod = document.getElementById('purch-module-wrap');
+  const purchMod = document.getElementById('purch-module-wrap', 'store-module-wrap');
   if (purchMod) purchMod.style.cssText = 'display:none;';
   const skMod = document.getElementById('sk-module-wrap');
   if (skMod) skMod.style.cssText = 'display:none;';

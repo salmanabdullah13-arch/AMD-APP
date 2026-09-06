@@ -39,7 +39,7 @@ document.body.appendChild(prdModuleWrap);
 
 /* Every other module's wrap, hidden when this one opens. The standing rule:
    a new floating module joins every existing hide-list the day it is made. */
-const PRD_OTHER_WRAPS = ['ops-module-wrap', 'purch-module-wrap', 'curt-module-wrap', 'sk-module-wrap',
+const PRD_OTHER_WRAPS = ['ops-module-wrap', 'purch-module-wrap', 'store-module-wrap', 'curt-module-wrap', 'sk-module-wrap',
   'sales-module-wrap', 'estimator-module-wrap', 'approver-module-wrap', 'jobs-module-wrap',
   'accounts-module-wrap', 'hr-module-wrap', 'joinery-module-wrap', 'upholstery-module-wrap',
   'painting-module-wrap', 'owner-module-wrap', 'admin-module-wrap', 'fleet-module-wrap',

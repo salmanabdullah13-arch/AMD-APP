@@ -195,7 +195,7 @@ function openPurchasingModule() {
     if (el) el.style.display = 'none';
   });
 
-  const mod = document.getElementById('purch-module-wrap');
+  const mod = document.getElementById('purch-module-wrap', 'store-module-wrap');
   mod.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--biz-page-bg);';
   execEnsureShell(mod, { key: 'purchasing', title: 'Purchaser', role: 'Purchasing', navGroupsFn: EXEC_NAV_CONFIGS.purchasing, closeFn: 'closePurchasingModule' });
 
@@ -1820,7 +1820,7 @@ function renderPurchaseBillOutstanding() {
   document.getElementById('purch-billos-body').innerHTML = filterHtml + tableHtml;
 }
 
-function closePurchasingModule() { closeModuleWrap(document.getElementById('purch-module-wrap'), 'launchPurchasingModule'); }
+function closePurchasingModule() { closeModuleWrap(document.getElementById('purch-module-wrap', 'store-module-wrap'), 'launchPurchasingModule'); }
 
 // ── Hook into shell ─────────────────────
 function launchPurchasingModule() {

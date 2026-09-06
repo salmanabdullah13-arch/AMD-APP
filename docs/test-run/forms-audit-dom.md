@@ -1,6 +1,6 @@
 # Forms pass — the clicking half (every module, every rail page)
 
-Generated 2026-09-06 15:43 by `forms-audit-dom.js` (offline, demo data). 65 screens walked.
+Generated 2026-09-06 19:56 by `forms-audit-dom.js` (offline, demo data). 66 screens walked.
 
 ## 1 · Selects that open pre-answered INSIDE a create form (2)
 
@@ -19,7 +19,7 @@ Filters and pick-a-row selects — a default is usually right here. Listed for c
 
 _None._
 
-## 4 · Controls under 30px on a phone (34 screens)
+## 4 · Controls under 30px on a phone (35 screens)
 
 | Module | Page | Count | Sample |
 |---|---|---|---|
@@ -32,9 +32,12 @@ _None._
 | Purchaser | `purchGoTo('purch-requests')` | 5 | All 34x24, Carpentry 70x24, Painting 62x24, Upholstery 75x24, Metal Works 83x24 |
 | Purchaser | `purchGoTo('purch-orders')` | 1 | 🖨 Print PO 57x15 |
 | Purchaser | `purchGoTo('purch-suppliers')` | 1 | View 42x20 |
-| Storekeeper | `(landing)` | 2 | In-Pool 57x27, Release History 96x27 |
-| Storekeeper | `skGoTo('items')` | 207 | All Catelogs 288x19, Edit 37x20, Edit 37x20, Edit 37x20, Edit 37x20, Edit 37x20 |
-| Storekeeper | `skGoTo('masters')` | 3 | Unit 42x27, Stock Category 95x27, Catelog 59x27 |
+| Store | `(landing)` | 7 | This week
+      0
+   292x20, Week 54x22, Month 58x22, ‹ 26x26, Today 52x26, › 26x26 |
+| Storekeeper (old stock pool) | `(landing)` | 2 | In-Pool 57x27, Release History 96x27 |
+| Storekeeper (old stock pool) | `skGoTo('items')` | 207 | All Catelogs 288x19, Edit 37x20, Edit 37x20, Edit 37x20, Edit 37x20, Edit 37x20 |
+| Storekeeper (old stock pool) | `skGoTo('masters')` | 3 | Unit 42x27, Stock Category 95x27, Catelog 59x27 |
 | Upholstery | `(landing)` | 11 | ? What this page is  126x22, ? What this page is  126x22, This week 65x15, ? What this pag |
 | Upholstery | `UphUI.go('page','reg')` | 2 | Upholstery 55x15, ? What this page is  126x22 |
 | Upholstery | `UphUI.go('form','plan')` | 12 | Upholstery 55x15, Pricing input 91x28, Upholstery spec 107x28, Fabric plan 81x28, Foam sch |
@@ -80,6 +83,6 @@ A negative quantity or rate saves silently.
 ## Screens that would not open
 
 - Operations `opsGoTo('projects')` — view: Cannot read properties of undefined (reading 'length')
-- Curtain & Blinds `curtGoTo('curt-install')` — view: Cannot read properties of undefined (reading 'fabric')
+- Curtain & Blinds `curtGoTo('curt-install')` — view: Cannot read properties of undefined (reading 'length')
 
 Page errors during the walk: 0
