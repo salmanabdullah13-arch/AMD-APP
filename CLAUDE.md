@@ -9333,3 +9333,96 @@ document in the app now carries one letterhead, one footer, one type scale.
   that consumption reads 3 × 12 = 36.000 and drops to 24.000 after a
   return. The Tax Invoice and the Statement were also read back as
   images. Full offline sweep all green. `sw.js` v74 → v75.
+
+### 6 Sep 2026 — 18a Store Keeper: the interface, and the storekeeper lands on it
+
+The largest single gap the design scorecard found. `store-data.js` had been
+live since 19 Aug — locations, bins, holds, issues, transfers, counts, with
+server-side gates on the project — and the storekeeper could not reach any
+of it from a screen: they landed on the legacy stock-pool dashboard.
+
+- **New `store-ui.js` / `store.css`** on the shared shell, the same shape as
+  17a and 20a: the package's fourteen-item rail, a five-step "Your day, in
+  the order it runs" widget at one fixed geometry (452px, checked identical
+  across all five steps — the whole point of a fixed slot), twelve pages
+  from one template, and eight create flows behind their gates.
+- **The three design commitments are asserted through the data layer, not
+  the screen**: stock per item PER BIN with bins keyed by store, so A1 in
+  Riffa is not A1 in Tubli; only `onHand` stored, with held and free
+  derived, so a hold moves stock between them without touching on-hand; and
+  no material without a job card — refused for an empty id, for "general
+  use" however it is typed, and for a job that does not exist, with not one
+  unit moving on any of the three. The blocked copy is the rule verbatim.
+- **The storekeeper role now lands here** (`user_types.dashboard_node_id`,
+  applied live and recorded in `schema.sql`). The legacy module stays as
+  "Storekeeper (old stock pool)" because its Masters tab — units,
+  categories, catalogue — is still where those live.
+- **Owner's own Store route repointed at it**, per the standing rule that a
+  module is not finished until Owner can open the CURRENT version. Owner's
+  Masters link deliberately still opens the old one.
+- **Verified**: new `e2e-store-18a.js` (32/32) — the commitments, the rail,
+  the widget's geometry across every step, all twelve pages with a money
+  sweep, every option of all eight gates, a real issue driven through the
+  real form moving the real shelf, dark by computed style, 390px. Owner
+  45/45. Standing battery clean, full offline sweep all green. `sw.js` v76.
+- Two real crashes found by the dead-control sweep while wiring this, both
+  pre-existing: Curtain's BOM screen read `job.bom` on bridged curtain jobs,
+  which have none, so every real curtain job threw; and the new item-history
+  print threw with no item chosen.
+
+### 7 Sep 2026 — Dead-control triage: two real bugs, and a detector worth keeping
+
+The sweep had flagged 90 controls where clicking did nothing. Most of that
+was the detector rather than the app, and fixing the detector was worth more
+than hand-triaging 90 rows.
+
+- **It hashed only the first 4000 characters of the module wrap**, so a
+  modal appended to `document.body` and any change further down the page
+  read as "nothing happened"; and it clicked tabs you were already on, which
+  correctly do nothing. It hashes the whole document now and skips active
+  tabs: **90 → 33 → 15**, with the four remaining false-positive classes
+  written into the generated report so the next reader does not re-derive
+  them. It captures the stack too — an error lands in the window of a later
+  click than the one that caused it, which is exactly what made the single
+  throw look as though it came from a print when it came from the store.
+
+**The two real bugs it found:**
+- **The planner's redraw was a second hand-kept list of module wraps**, and
+  it had gone stale the way every hand-kept list in this app does:
+  Production, Store, Purchasing, Curtain, Fleet and Delivery were never
+  added, so inside those modules stepping the week, switching Week/Month and
+  picking a day changed `plannerState` and redrew nothing. It still named
+  `renderSKBody` and `renderStorekeeperBody`, neither of which exists. It
+  resolves through exec-shell's own maintained registry now
+  (`plRedrawFn()`), keyed by the module actually on screen, so a module
+  added later is covered by registering it once.
+- **Printing a Store page threw** on any row without a `cells` array — an
+  empty-state or note row, which is a real shape there. Mine, from the day
+  before.
+- **Saving a discount limit gave no feedback at all**, so saving the same
+  figure redrew an identical screen and read as broken. It says what was
+  saved now, and clearing says the role falls back to the default.
+
+**The Approver landing, per the design scorecard**: it opened with six count
+tiles and a Category Breakdown chart of three zeros, while the Approver's
+actual work appeared only as a number, one nav item away. The queue leads
+now — oldest first, because that is what the aging badge is for, picked and
+unpicked together, each row going to the review or the pick. The chart is
+gone; a division mix still renders on Sales and Owner, which is where it
+belongs. `e2e-lighter-touch-charts.js` was repointed at the rework rather
+than deleted, the same treatment the Owner, Sales and Purchaser chart checks
+got when those redesigns landed.
+
+**Accounts prints `BD 1,408.407`** like the rest of the app — one `acBD()`
+formatter rather than fifty-three separate `toFixed(3)` calls. Checked first
+that nothing in that module uses three decimals for a quantity, an hour or a
+percentage.
+
+**One pre-existing suite failure fixed on the way**: the upholstery
+serial-line check assumed the two working days either side of a weekend are
+one calendar day apart. A derived slot moves by calendar days, so it now
+asserts the real delta — it was failing only on the weekdays where the
+fixture straddled Friday and Saturday, which is why it passed for weeks.
+
+Store 32/32, upholstery 63/63, planner 25/25 with a regression check for
+both fixes, lighter-touch charts 12/12. Full offline sweep all green.
