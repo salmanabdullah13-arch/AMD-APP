@@ -83,6 +83,7 @@ let custBankingSearch = '';
 let custBankingCustomerId = null;
 let salesBillOSFilters = { view: 'byparty', ageWise: false, ageBasis: 'bill' };
 
+function acBD(n) { return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
 function acEsc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/</g, '&lt;'); }
 function accountsAlert(msg) {
   if (typeof showAlert === 'function') { showAlert(msg); return; }
@@ -260,16 +261,16 @@ function renderAccountsDashboard() {
   const topClients = getTopClientsByValue(6).map(c => ({ label: c.name, value: c.value }));
   return `
     <div class="sales-kpi-grid">
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('invoices')"><div class="num">BD ${k.revenue.toFixed(3)}</div><div class="lbl">Revenue (Invoiced)</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('bill-os')"><div class="num">BD ${k.receivables.toFixed(3)}</div><div class="lbl">Receivables</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsOpenPurchasing('purch-billos')"><div class="num">BD ${k.payables.toFixed(3)}</div><div class="lbl">Payables</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsOpenPurchasing('purch-orders')"><div class="num">BD ${k.pendingPOValue.toFixed(3)}</div><div class="lbl">PO Value Awaiting Delivery</div></div>
-      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('daybook')"><div class="num">BD ${k.cashPosition.toFixed(3)}</div><div class="lbl">Cash Position (proxy)</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('invoices')"><div class="num">BD ${acBD(k.revenue)}</div><div class="lbl">Revenue (Invoiced)</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('bill-os')"><div class="num">BD ${acBD(k.receivables)}</div><div class="lbl">Receivables</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsOpenPurchasing('purch-billos')"><div class="num">BD ${acBD(k.payables)}</div><div class="lbl">Payables</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsOpenPurchasing('purch-orders')"><div class="num">BD ${acBD(k.pendingPOValue)}</div><div class="lbl">PO Value Awaiting Delivery</div></div>
+      <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('daybook')"><div class="num">BD ${acBD(k.cashPosition)}</div><div class="lbl">Cash Position (proxy)</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="accountsSetView('invoices')"><div class="num">${k.invoiceCount}</div><div class="lbl">Sales Invoices</div></div>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Revenue by Division (invoiced, monthly)</p>
-      ${cwStackedMonthlyBars(monthlyRev.months, divSeries, { valueFormatter: v => 'BD ' + v.toFixed(3), emptyMessage: 'No invoices generated yet.' })}
+      ${cwStackedMonthlyBars(monthlyRev.months, divSeries, { valueFormatter: v => 'BD ' + acBD(v), emptyMessage: 'No invoices generated yet.' })}
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Top Clients (confirmed order value)</p>
@@ -335,7 +336,7 @@ function renderAccountsSalesInvoices() {
     <div class="sales-card">
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No sales invoices generated yet.</p>` :
         `<table class="sales-items"><tr><th>Invoice No</th><th>Date</th><th>Job</th><th>Net Total</th></tr>
-        ${rows.map(inv => `<tr><td>${acEsc(inv.id)}</td><td>${inv.date}</td><td>${acEsc(inv.jobId)}</td><td>BD ${inv.totals.netTotal.toFixed(3)}</td></tr>`).join('')}
+        ${rows.map(inv => `<tr><td>${acEsc(inv.id)}</td><td>${inv.date}</td><td>${acEsc(inv.jobId)}</td><td>BD ${acBD(inv.totals.netTotal)}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }
@@ -346,7 +347,7 @@ function renderAccountsPurchaseInvoices() {
     <div class="sales-card">
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No purchase invoices yet.</p>` :
         `<table class="sales-items"><tr><th>Invoice</th><th>Date</th><th>Supplier</th><th>Status</th><th>Net Amount</th></tr>
-        ${rows.map(inv => `<tr><td>${acEsc(inv.id)}</td><td>${inv.dateReceived}</td><td>${acEsc(inv.supplierNameTel) || '—'}</td><td>${acEsc(inv.status)}</td><td>BD ${(inv.totals ? inv.totals.netAmount : 0).toFixed(3)}</td></tr>`).join('')}
+        ${rows.map(inv => `<tr><td>${acEsc(inv.id)}</td><td>${inv.dateReceived}</td><td>${acEsc(inv.supplierNameTel) || '—'}</td><td>${acEsc(inv.status)}</td><td>BD ${acBD(inv.totals ? inv.totals.netAmount : 0)}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }
@@ -459,7 +460,7 @@ function acRecalcAmount(prefix) {
     return s + (en && en.checked ? (Number(amt.value) || 0) : 0);
   }, 0);
   const amountEl = document.getElementById(`${prefix}-amount`);
-  if (amountEl) amountEl.value = total.toFixed(3);
+  if (amountEl) amountEl.value = acBD(total);
 }
 function acReadMethods(prefix) {
   const methods = {};
@@ -487,7 +488,7 @@ function renderGeneralReceipts() {
       <button class="primary" style="width:100%;margin-bottom:10px;" onclick="accountsSetView('receipt-new')">+ New General Receipt</button>
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No General Receipts yet.</p>` :
         `<table class="sales-items"><tr><th>Receipt No</th><th>Date</th><th>Amount</th></tr>
-        ${rows.map(r => `<tr><td>${r.id}</td><td>${r.date}</td><td>BD ${r.amount.toFixed(3)}</td></tr>`).join('')}
+        ${rows.map(r => `<tr><td>${r.id}</td><td>${r.date}</td><td>BD ${acBD(r.amount)}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }
@@ -559,7 +560,7 @@ function renderGeneralPayments() {
       <button class="primary" style="width:100%;margin-bottom:10px;" onclick="accountsSetView('payment-new')">+ New General Payment</button>
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No General Payments yet.</p>` :
         `<table class="sales-items"><tr><th>Payment No</th><th>Date</th><th>Amount</th><th>Status</th></tr>
-        ${rows.map(p => `<tr style="${p.status === 'cancelled' ? 'background:#FEF2F2;color:#B91C1C;' : ''}"><td>${p.id}</td><td>${p.date}</td><td>BD ${p.amount.toFixed(3)}</td><td>${acEsc(p.status)}${p.status !== 'cancelled' ? ` <button style="font-size:10px;background:none;border:1px solid #B91C1C;color:#B91C1C;border-radius:6px;padding:2px 6px;cursor:pointer;" onclick="acCancelPayment('${p.id}')">Cancel</button>` : ''}</td></tr>`).join('')}
+        ${rows.map(p => `<tr style="${p.status === 'cancelled' ? 'background:#FEF2F2;color:#B91C1C;' : ''}"><td>${p.id}</td><td>${p.date}</td><td>BD ${acBD(p.amount)}</td><td>${acEsc(p.status)}${p.status !== 'cancelled' ? ` <button style="font-size:10px;background:none;border:1px solid #B91C1C;color:#B91C1C;border-radius:6px;padding:2px 6px;cursor:pointer;" onclick="acCancelPayment('${p.id}')">Cancel</button>` : ''}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }
@@ -608,7 +609,7 @@ function renderJournals() {
       <button class="primary" style="width:100%;margin-bottom:10px;" onclick="accountsSetView('journal-new')">+ New Journal</button>
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No Journal entries yet.</p>` :
         `<table class="sales-items"><tr><th>JL No</th><th>Date</th><th>Debit</th><th>Credit</th><th>Status</th></tr>
-        ${rows.map(j => `<tr style="${j.status === 'cancelled' ? 'background:#FEF2F2;color:#B91C1C;' : ''}"><td>${j.id}</td><td>${j.date}</td><td>BD ${j.drTotal.toFixed(3)}</td><td>BD ${j.crTotal.toFixed(3)}</td><td>${acEsc(j.status)}${j.status !== 'cancelled' ? ` <button style="font-size:10px;background:none;border:1px solid #B91C1C;color:#B91C1C;border-radius:6px;padding:2px 6px;cursor:pointer;" onclick="acCancelJournal('${j.id}')">Cancel</button>` : ''}</td></tr>`).join('')}
+        ${rows.map(j => `<tr style="${j.status === 'cancelled' ? 'background:#FEF2F2;color:#B91C1C;' : ''}"><td>${j.id}</td><td>${j.date}</td><td>BD ${acBD(j.drTotal)}</td><td>BD ${acBD(j.crTotal)}</td><td>${acEsc(j.status)}${j.status !== 'cancelled' ? ` <button style="font-size:10px;background:none;border:1px solid #B91C1C;color:#B91C1C;border-radius:6px;padding:2px 6px;cursor:pointer;" onclick="acCancelJournal('${j.id}')">Cancel</button>` : ''}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }
@@ -745,7 +746,7 @@ function renderStatementOfAccount() {
     ? customers.slice().sort((a, b) => a.name.localeCompare(b.name))
     : suppliers.slice().sort((a, b) => a.name.localeCompare(b.name));
   const st = acSoaId ? getStatementOfAccount({ party: acSoaParty, partyId: acSoaId, from: acSoaFrom, to: acSoaTo }) : null;
-  const money = (n) => 'BD ' + (Number(n) || 0).toFixed(3);
+  const money = (n) => 'BD ' + acBD(n);
   return `
     <div class="sales-card">
       <p style="font-size:11.5px;color:#94a3b8;margin-bottom:8px;">Opening balance, every document that moved it, and the closing balance — for a customer or a supplier. Print it and send it as it stands.</p>
@@ -798,7 +799,7 @@ function renderDayBookReport() {
       <button class="secondary" style="font-size:11.5px;margin-bottom:8px;" onclick="acPrintDayBook()">🖨 Print</button>
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No vouchers match these filters.</p>` :
         `<table class="sales-items"><tr><th>Voucher Type</th><th>Voucher No</th><th>Voucher Date</th><th>Client</th><th>Amount</th><th>Status</th></tr>
-        ${rows.map(r => `<tr><td>${acEsc(r.type)}</td><td>${acEsc(r.no)}</td><td>${r.date}</td><td>${acEsc(r.client)}</td><td>BD ${(r.amount || 0).toFixed(3)}</td><td>${acEsc(r.status)}</td></tr>`).join('')}
+        ${rows.map(r => `<tr><td>${acEsc(r.type)}</td><td>${acEsc(r.no)}</td><td>${r.date}</td><td>${acEsc(r.client)}</td><td>BD ${acBD(r.amount || 0)}</td><td>${acEsc(r.status)}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }
@@ -824,7 +825,7 @@ function renderLedgerReportView() {
       ${!f.ledgerName ? `<p style="font-size:12px;color:#64748b;">Select a Ledger to view its transactions.</p>` :
         postings.length === 0 ? `<p style="font-size:12px;color:#64748b;">No transactions posted to ${acEsc(f.ledgerName)} in this range.</p>` :
         `<table class="sales-items"><tr><th>#</th><th>Date</th><th>Voucher</th><th>Voucher No</th><th>Voucher Ref</th><th>Debit</th><th>Credit</th><th>Narration</th></tr>
-        ${postings.map((p, i) => `<tr><td>${i + 1}</td><td>${p.date}</td><td>${acEsc(p.voucherType)}</td><td>${acEsc(p.voucherNo)}</td><td>${acEsc(p.voucherRef)}</td><td>${p.dr ? 'BD ' + p.dr.toFixed(3) : ''}</td><td>${p.cr ? 'BD ' + p.cr.toFixed(3) : ''}</td><td>${acEsc(p.narration) || '—'}</td></tr>`).join('')}
+        ${postings.map((p, i) => `<tr><td>${i + 1}</td><td>${p.date}</td><td>${acEsc(p.voucherType)}</td><td>${acEsc(p.voucherNo)}</td><td>${acEsc(p.voucherRef)}</td><td>${p.dr ? 'BD ' + acBD(p.dr) : ''}</td><td>${p.cr ? 'BD ' + acBD(p.cr) : ''}</td><td>${acEsc(p.narration) || '—'}</td></tr>`).join('')}
         </table>`}
     </div>`;
 }
@@ -832,7 +833,7 @@ function renderLedgerReportView() {
 function renderTrialBalanceView() {
   const f = acReportFilters;
   const rows = getTrialBalance({ from: f.glFrom, to: f.glTo, ledgerWise: f.ledgerWise });
-  const fmt = n => (n < 0 ? '(' + Math.abs(n).toFixed(3) + ')' : n.toFixed(3));
+  const fmt = n => (n < 0 ? '(' + acBD(Math.abs(n)) + ')' : acBD(n));
   const totals = rows.reduce((s, r) => ({ debit: s.debit + r.debit, credit: s.credit + r.credit }), { debit: 0, credit: 0 });
   return `
     <div class="sales-card">
@@ -848,8 +849,8 @@ function renderTrialBalanceView() {
     <div class="sales-card" style="overflow-x:auto;">
       ${rows.length === 0 ? `<p style="font-size:12px;color:#64748b;">No ledger activity in this range.</p>` :
         `<table class="sales-items"><tr><th>Particulars</th><th>Opening Balance</th><th>Debit</th><th>Credit</th><th>Closing Balance</th></tr>
-        ${rows.map(r => `<tr><td>${acEsc(r.name)}</td><td>${fmt(r.opening)}</td><td>${r.debit.toFixed(3)}</td><td>${r.credit.toFixed(3)}</td><td>${fmt(r.closing)}</td></tr>`).join('')}
-        <tr style="font-weight:700;"><td>Total</td><td></td><td>${totals.debit.toFixed(3)}</td><td>${totals.credit.toFixed(3)}</td><td></td></tr>
+        ${rows.map(r => `<tr><td>${acEsc(r.name)}</td><td>${fmt(r.opening)}</td><td>${acBD(r.debit)}</td><td>${acBD(r.credit)}</td><td>${fmt(r.closing)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td>Total</td><td></td><td>${acBD(totals.debit)}</td><td>${acBD(totals.credit)}</td><td></td></tr>
         </table>`}
     </div>`;
 }
@@ -868,18 +869,18 @@ function renderProfitLossView() {
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Trading Account</p>
       <table class="sales-items">
-        <tr><td>Direct Incomes</td><td>${p.directIncome.toFixed(3)}</td></tr>
-        <tr><td>Direct Expenses</td><td>${p.directExpense.toFixed(3)}</td></tr>
-        <tr><td style="font-weight:700;">Gross Profit</td><td ${zeroRed(p.grossProfit)}>${p.grossProfit.toFixed(3)}</td></tr>
+        <tr><td>Direct Incomes</td><td>${acBD(p.directIncome)}</td></tr>
+        <tr><td>Direct Expenses</td><td>${acBD(p.directExpense)}</td></tr>
+        <tr><td style="font-weight:700;">Gross Profit</td><td ${zeroRed(p.grossProfit)}>${acBD(p.grossProfit)}</td></tr>
       </table>
     </div>
     <div class="sales-card">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Income Statement</p>
       <table class="sales-items">
-        <tr><td>Gross Profit b/f</td><td>${p.grossProfit.toFixed(3)}</td></tr>
-        <tr><td>Indirect Incomes</td><td>${p.indirectIncome.toFixed(3)}</td></tr>
-        <tr><td>Indirect Expenses</td><td>${p.indirectExpense.toFixed(3)}</td></tr>
-        <tr><td style="font-weight:700;">Net Profit</td><td ${zeroRed(p.netProfit)}>${p.netProfit.toFixed(3)}</td></tr>
+        <tr><td>Gross Profit b/f</td><td>${acBD(p.grossProfit)}</td></tr>
+        <tr><td>Indirect Incomes</td><td>${acBD(p.indirectIncome)}</td></tr>
+        <tr><td>Indirect Expenses</td><td>${acBD(p.indirectExpense)}</td></tr>
+        <tr><td style="font-weight:700;">Net Profit</td><td ${zeroRed(p.netProfit)}>${acBD(p.netProfit)}</td></tr>
       </table>
     </div>
     <div class="sales-card">
@@ -895,14 +896,14 @@ function renderBalanceSheetView() {
         <div>
           <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Assets</p>
           ${bs.assets.length === 0 ? `<p style="font-size:12px;color:#64748b;">No asset balances.</p>` :
-            `<table class="sales-items">${bs.assets.map(a => `<tr><td>${acEsc(a.name)}</td><td>${a.amount.toFixed(3)}</td></tr>`).join('')}
-            <tr style="font-weight:700;"><td>Total</td><td>${bs.totalAssets.toFixed(3)}</td></tr></table>`}
+            `<table class="sales-items">${bs.assets.map(a => `<tr><td>${acEsc(a.name)}</td><td>${acBD(a.amount)}</td></tr>`).join('')}
+            <tr style="font-weight:700;"><td>Total</td><td>${acBD(bs.totalAssets)}</td></tr></table>`}
         </div>
         <div>
           <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Liabilities</p>
           ${bs.liabilities.length === 0 ? `<p style="font-size:12px;color:#64748b;">No liability balances.</p>` :
-            `<table class="sales-items">${bs.liabilities.map(a => `<tr><td>${acEsc(a.name)}</td><td>${a.amount.toFixed(3)}</td></tr>`).join('')}
-            <tr style="font-weight:700;"><td>Total</td><td>${bs.totalLiabilities.toFixed(3)}</td></tr></table>`}
+            `<table class="sales-items">${bs.liabilities.map(a => `<tr><td>${acEsc(a.name)}</td><td>${acBD(a.amount)}</td></tr>`).join('')}
+            <tr style="font-weight:700;"><td>Total</td><td>${acBD(bs.totalLiabilities)}</td></tr></table>`}
         </div>
       </div>
     </div>
@@ -956,7 +957,7 @@ function renderProformaList() {
     <table class="sales-items"><tr><th>Proforma</th><th>Qtn No</th><th>Date</th><th>Client</th><th>Amount</th></tr>
     ${rows.map(p => {
       const c = customers.find(x => x.id === p.customerId);
-      return `<tr style="cursor:pointer;" onclick="hideModuleWrap(accountsModuleWrap);setTimeout(()=>launchJobsModule('${p.jobId}'),150);"><td>${acEsc(p.id)}</td><td>${acEsc(p.quotationId)}</td><td>${p.date}</td><td>${acEsc(c ? c.name : '—')}</td><td>${p.totals.netTotal.toFixed(3)}</td></tr>`;
+      return `<tr style="cursor:pointer;" onclick="hideModuleWrap(accountsModuleWrap);setTimeout(()=>launchJobsModule('${p.jobId}'),150);"><td>${acEsc(p.id)}</td><td>${acEsc(p.quotationId)}</td><td>${p.date}</td><td>${acEsc(c ? c.name : '—')}</td><td>${acBD(p.totals.netTotal)}</td></tr>`;
     }).join('')}
     </table>
   </div>`;
@@ -974,7 +975,7 @@ function renderSalesReceiptList() {
     html += `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>Receipt No</th><th>Client</th><th>Date</th><th>Amount</th></tr>
     ${salesReceipts.slice().reverse().map(r => {
       const c = customers.find(x => x.id === r.customerId);
-      return `<tr><td>${acEsc(r.id)}</td><td>${acEsc(c ? c.name : '—')}</td><td>${r.receiptDate}</td><td>${r.amount.toFixed(3)}</td></tr>`;
+      return `<tr><td>${acEsc(r.id)}</td><td>${acEsc(c ? c.name : '—')}</td><td>${r.receiptDate}</td><td>${acBD(r.amount)}</td></tr>`;
     }).join('')}
     </table></div>`;
   }
@@ -1026,10 +1027,10 @@ function renderSalesReceiptCreate() {
     const allocHtml = d.allocations.length === 0
       ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
       : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Paid</th><th>Paying Amt</th><th>Disc</th><th>Balance</th></tr>
-        ${d.allocations.map((a, i) => `<tr><td>${acEsc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.paidAmount.toFixed(3)}</td>
+        ${d.allocations.map((a, i) => `<tr><td>${acEsc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${acBD(a.invoiceAmount)}</td><td>${acBD(a.paidAmount)}</td>
           <td><input type="number" min="0" step="0.001" style="width:80px;" value="${a.payingAmount}" onchange="salesReceiptAllocationChanged(${i},'payingAmount',this.value)"></td>
           <td><input type="number" min="0" step="0.001" style="width:70px;" value="${a.discountAmount}" onchange="salesReceiptAllocationChanged(${i},'discountAmount',this.value)"></td>
-          <td>${a.balanceAmount.toFixed(3)}</td></tr>`).join('')}
+          <td>${acBD(a.balanceAmount)}</td></tr>`).join('')}
         </table></div>`;
 
     reveal = `
@@ -1095,7 +1096,7 @@ function renderSalesCreditNoteList() {
     html += `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>Credit Note No</th><th>Client</th><th>Date</th><th>Amount</th><th>Action</th></tr>
     ${salesCreditNotes.slice().reverse().map(cn => {
       const c = customers.find(x => x.id === cn.customerId);
-      return `<tr style="${cn.status === 'cancelled' ? 'background:#fee2e2;' : ''}"><td>${acEsc(cn.id)}</td><td>${acEsc(c ? c.name : '—')}</td><td>${cn.creditNoteDate}</td><td>${cn.amount.toFixed(3)}</td>
+      return `<tr style="${cn.status === 'cancelled' ? 'background:#fee2e2;' : ''}"><td>${acEsc(cn.id)}</td><td>${acEsc(c ? c.name : '—')}</td><td>${cn.creditNoteDate}</td><td>${acBD(cn.amount)}</td>
         <td>${cn.status === 'cancelled' ? 'Cancelled' : `<span style="cursor:pointer;color:#b91c1c;" onclick="salesCancelCreditNote('${cn.id}')">Cancel</span>`}</td></tr>`;
     }).join('')}
     </table></div>`;
@@ -1133,7 +1134,7 @@ function renderSalesCreditNoteCreate() {
     const allocHtml = d.allocations.length === 0
       ? `<p style="font-size:12px;color:#64748b;">No Invoice List Available..!</p>`
       : `<div style="overflow-x:auto;"><table class="sales-items"><tr><th>Invoice #</th><th>Date</th><th>Inv. Amt</th><th>Balance</th><th>Crediting Amt</th></tr>
-        ${d.allocations.map((a, i) => `<tr><td>${acEsc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${a.invoiceAmount.toFixed(3)}</td><td>${a.balanceAmount.toFixed(3)}</td>
+        ${d.allocations.map((a, i) => `<tr><td>${acEsc(a.invoiceId)}</td><td>${a.invoiceDate}</td><td>${acBD(a.invoiceAmount)}</td><td>${acBD(a.balanceAmount)}</td>
           <td><input type="number" min="0" step="0.001" style="width:80px;" value="${a.creditingAmount}" onchange="salesCreditNoteAllocationChanged(${i},this.value)"></td></tr>`).join('')}
         </table></div>`;
 
@@ -1382,26 +1383,26 @@ function renderSalesBillOutstanding() {
       </div>
       ${billOSLegendHtml()}
     </div>
-    <div class="sales-card"><p style="font-weight:700;font-size:13px;">Outstanding Amount: BD ${outstandingTotal.toFixed(3)}</p></div>`;
+    <div class="sales-card"><p style="font-weight:700;font-size:13px;">Outstanding Amount: BD ${acBD(outstandingTotal)}</p></div>`;
 
   let tableHtml;
   if (rows.length === 0) {
     tableHtml = `<div class="sales-card"><p style="font-size:12.5px;color:#64748b;">No outstanding bills match these filters.</p></div>`;
   } else if (f.view === 'byparty' && !buckets) {
     tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Bill No</th><th>Bill Type</th><th>Date</th><th>PO No</th><th>Salesman</th><th>Bill Amt</th><th>Paid Amt</th><th>Bal Amt</th><th>Age</th><th>Status</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(r.invoiceId)}</td><td>Tax Invoice</td><td>${r.date}</td><td>${acEsc(r.lpoNo) || '—'}</td><td>${acEsc(r.salesPerson) || '—'}</td><td>${r.billAmt.toFixed(3)}</td><td>${r.paidAmt.toFixed(3)}</td><td>${r.balAmt.toFixed(3)}</td><td>${r.age}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(r.invoiceId)}</td><td>Tax Invoice</td><td>${r.date}</td><td>${acEsc(r.lpoNo) || '—'}</td><td>${acEsc(r.salesPerson) || '—'}</td><td>${acBD(r.billAmt)}</td><td>${acBD(r.paidAmt)}</td><td>${acBD(r.balAmt)}</td><td>${r.age}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
       </table></div>`;
   } else if (f.view === 'byparty' && buckets) {
     tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Bill No</th><th>Date</th><th>Client</th><th>Bal Amt</th><th>${BILL_AGE_BUCKETS.map(b => b.label).join('</th><th>')}</th><th>Due On</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(r.invoiceId)}</td><td>${r.date}</td><td>${acEsc(custName(r.customerId))}</td><td>${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}<td>${r.dueDate}</td></tr>`).join('')}
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(r.invoiceId)}</td><td>${r.date}</td><td>${acEsc(custName(r.customerId))}</td><td>${acBD(r.balAmt)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? acBD(r.buckets[b.key]) : ''}</td>`).join('')}<td>${r.dueDate}</td></tr>`).join('')}
       </table></div>`;
   } else if (f.view === 'all' && !buckets) {
     tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Client</th><th>Bill Amt</th><th>Paid Amt</th><th>Bal Amt</th><th>Status</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(custName(r.customerId))}</td><td>${r.billAmt.toFixed(3)}</td><td>${r.paidAmt.toFixed(3)}</td><td>${r.balAmt.toFixed(3)}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(custName(r.customerId))}</td><td>${acBD(r.billAmt)}</td><td>${acBD(r.paidAmt)}</td><td>${acBD(r.balAmt)}</td><td><span class="bill-pill ${billPillClass(billOutstandingStatus(r.billAmt, r.paidAmt))}">${billOutstandingStatus(r.billAmt, r.paidAmt)}</span></td></tr>`).join('')}
       </table></div>`;
   } else {
     tableHtml = `<div class="sales-card" style="overflow-x:auto;"><table class="sales-items"><tr><th>#</th><th>Client</th><th>Bal Amt</th><th>${BILL_AGE_BUCKETS.map(b => b.label).join('</th><th>')}</th></tr>
-      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(custName(r.customerId))}</td><td>${r.balAmt.toFixed(3)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? r.buckets[b.key].toFixed(3) : ''}</td>`).join('')}</tr>`).join('')}
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${acEsc(custName(r.customerId))}</td><td>${acBD(r.balAmt)}</td>${BILL_AGE_BUCKETS.map(b => `<td>${r.buckets[b.key] ? acBD(r.buckets[b.key]) : ''}</td>`).join('')}</tr>`).join('')}
       </table></div>`;
   }
 

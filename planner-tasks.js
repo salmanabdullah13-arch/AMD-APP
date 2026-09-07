@@ -90,31 +90,37 @@ function plEventsOn(d, cache) { return (cache || plEvents())[plIso(d)] || []; }
 
 /* The one re-render entry point. Whichever dashboard is showing owns its own
    body; this finds it rather than each dashboard having to register. */
+/* Which module redraws when a planner control is used.
+   This used to be a second hand-kept list of wrap ids, and it went stale
+   exactly the way every other hand-kept list in this app has: Production,
+   Store, Purchasing, Curtain, Fleet and Delivery were never added, so
+   inside those modules every planner control — stepping the week, the
+   Week/Month switch, picking a day — changed plannerState and redrew
+   nothing. It also still named renderSKBody and renderStorekeeperBody,
+   neither of which exists any more.
+   It resolves through exec-shell's own maintained registry now, keyed by
+   the module that is actually on screen, so a module added later is
+   covered by registering it once, in one place. The overrides are the
+   modules whose redraw is not their EXEC_RERENDER_OF entry: the
+   DOM-router ones, and Production, which is null there only because it
+   registers its own hydration listener. */
+function plRedrawFn() {
+  const key = typeof execModuleKey !== 'undefined' ? execModuleKey : null;
+  if (!key) return null;
+  const over = {
+    operations: 'renderOpsDashboard', curtain: 'renderCurtDashboard',
+    production: 'renderProductionBody',
+    purchasing: () => { if (typeof PurUI !== 'undefined') PurUI.paint(); }
+  };
+  const hit = Object.prototype.hasOwnProperty.call(over, key)
+    ? over[key]
+    : (typeof EXEC_RERENDER_OF !== 'undefined' ? EXEC_RERENDER_OF[key] : null);
+  if (typeof hit === 'function') return hit;
+  return (typeof hit === 'string' && typeof window[hit] === 'function') ? window[hit] : null;
+}
 function rerenderDashboard() {
-  const M = [
-    ['owner-module-wrap', 'renderOwnerBody'],
-    ['admin-module-wrap', 'renderAdminBody'],
-    ['sales-module-wrap', 'renderSalesBody'],
-    ['estimator-module-wrap', 'renderEstimatorBody'],
-    ['approver-module-wrap', 'renderApproverBody'],
-    ['accounts-module-wrap', 'renderAccountsBody'],
-    ['jobs-module-wrap', 'renderJobsBody'],
-    ['hr-module-wrap', 'renderHRBody'],
-    ['storekeeper-module-wrap', 'renderStorekeeperBody'],
-    ['sk-module-wrap', 'renderSKBody'],
-    ['joinery-module-wrap', 'renderJoineryBody'],
-    ['upholstery-module-wrap', 'renderUpholsteryBody'],
-    ['uph-module-wrap', 'renderUphBody'],
-    ['timer-module-wrap', 'renderCrewTimerBody'],
-    ['painting-module-wrap', 'renderPaintingBody'],
-    ['ops-module-wrap', 'renderOpsDashboard']
-  ];
-  for (const [id, fn] of M) {
-    const el = document.getElementById(id);
-    if (el && el.style.display !== 'none' && typeof window[fn] === 'function') {
-      try { window[fn](); } catch (e) { /* one dashboard must not break the widget */ }
-    }
-  }
+  const fn = plRedrawFn();
+  if (fn) { try { fn(); } catch (e) { /* one dashboard must not break the widget */ } }
   if (typeof execRefreshBadges === 'function') execRefreshBadges();
   if (typeof plRenderFullScreen === 'function') plRenderFullScreen();
 }

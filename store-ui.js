@@ -559,8 +559,10 @@ window.StoreUI = (function () {
       if (!def || typeof printReport !== 'function') return;
       printReport({ title: def.title, subtitle: def.sub,
         meta: (def.stats || []).map(s => [String(s[0]), String(s[1])]),
-        cols: def.cols.map((c, i) => ({ label: c, key: (r) => (r.cells[i] || {}).main })),
-        rows: def.rows,
+        // A row without cells is a real shape here — an empty-state or a
+        // note row — and reading through it threw when the page was printed.
+        cols: def.cols.map((c, i) => ({ label: c, key: (r) => ((r && r.cells && r.cells[i]) || {}).main })),
+        rows: (def.rows || []).filter(r => r && r.cells),
         noteHTML: '<div class="note-box">Where it is comes before what it is. The store works in quantities — nothing here carries a price.</div>' });
     }
   };

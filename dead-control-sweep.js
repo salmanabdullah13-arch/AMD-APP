@@ -43,7 +43,10 @@ const WALK = {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 950 } });
   const page = await ctx.newPage();
   const pageErrors = [];
-  page.on('pageerror', e => pageErrors.push(e.message));
+  // The stack, not just the message: an error can land in the window of a
+  // LATER click than the one that caused it, and without a source line
+  // there is nothing to chase.
+  page.on('pageerror', e => pageErrors.push(e.message + '  [' + ((e.stack || '').split('\n')[1] || '').trim().slice(0, 80) + ']'));
   let dialogs = 0;
   page.on('dialog', d => { dialogs++; d.accept(); });
   let popups = 0;
@@ -92,7 +95,12 @@ const WALK = {
       typeof estimatorView !== 'undefined' ? estimatorView : '', typeof PrdUI !== 'undefined' ? PrdUI.state.view + PrdUI.state.page : '',
       typeof UphUI !== 'undefined' ? UphUI.state.view + UphUI.state.page : '', typeof purchPage !== 'undefined' ? purchPage : '',
       typeof curtPage !== 'undefined' ? curtPage : '', typeof hrView !== 'undefined' ? hrView : ''].join('|');
-    return { wrapId: wrap ? wrap.id : 'none', len: wrap ? wrap.innerHTML.length : 0, hash: wrap ? wrap.innerHTML.slice(0, 4000) : '', state, toasts: window.__toasts };
+    // Hash the WHOLE document, not a prefix of the module wrap: a modal is
+    // appended to document.body, and a change 4000 characters down the page
+    // is still a change. Both read as 'nothing happened' otherwise.
+    const h = (s) => { let x = 5381; for (let i = 0; i < s.length; i++) x = ((x * 33) ^ s.charCodeAt(i)) >>> 0; return x; };
+    const all = document.body.innerHTML;
+    return { wrapId: wrap ? wrap.id : 'none', len: all.length, hash: h(all), state, toasts: window.__toasts };
   });
 
   const dead = [], errs = [];
@@ -118,8 +126,12 @@ const WALK = {
             .filter(el => !el.closest('.xs-side, .xs-top'))
             .filter(el => { const t = (el.textContent || '').trim() + ' ' + (el.getAttribute('onclick') || ''); return !SKIP.test(t); });
           const el = els[idx]; if (!el) return false;
+          // A tab that is already the one you are on does nothing when you
+          // click it, and that is correct — not a dead control.
+          if (/(^|\s)(on|active|sel|selected|current)(\s|$)/.test(el.className || '')) return 'active';
           el.click(); return true;
         }, { idx: it.i, skipSrc: SKIP.source });
+        if (ok === 'active') continue;
         if (!ok) continue;
         clicked++;
         await page.waitForTimeout(260);
@@ -138,6 +150,21 @@ const WALK = {
   const md = ['# Dead-control sweep — every control on every screen, clicked', '',
     'Generated ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' by `dead-control-sweep.js` (offline, demo data). ' + clicked + ' controls clicked.',
     '', 'A control passes if ANYTHING happened: the body changed, a toast or dialog appeared, the view moved, a print opened a tab, or another module took over. Destructive controls (sign out, delete, remove, cancel, purge, clear) are never clicked.', '',
+    'Four classes of entry below are known NOT to be defects, and were each',
+    'checked by hand on 7 Sep 2026 rather than assumed:',
+    '',
+    '- **A tab you are already on.** Clicking the active tab correctly does',
+    '  nothing. Controls carrying an `on`/`active`/`selected` class are skipped,',
+    '  but a module that marks its active tab some other way still shows up.',
+    '- **A screen whose queue is empty.** The Estimator\'s Quote/Items/BOM tabs',
+    '  render the same "nothing on your desk" panel when no quote is picked;',
+    '  with a real quote in the queue all five change.',
+    '- **`event.stopPropagation()` chips.** Their whole job is to stop the row',
+    '  underneath from firing. Clicking one directly is meant to do nothing.',
+    '- **A prompt the harness answers with nothing.** Dialogs are auto-accepted',
+    '  with an empty value, so a control that acts on what you typed correctly',
+    '  does not act.',
+    '',
     '## Controls where nothing happened (' + dead.length + ')', ''];
   if (!dead.length) md.push('_None._', '');
   else {

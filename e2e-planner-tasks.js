@@ -264,6 +264,39 @@ const check = (name, ok, extra) => {
     getComputedStyle(document.querySelector('#exec-planner .xs-pl-body')).paddingBottom);
   check('planner scroll clears the chat bubble on a phone (84px)', clearance === '84px', clearance);
 
+  // The planner's controls have to work in EVERY module that shows them,
+  // not just the ones that happened to be on a hand-kept list. Production
+  // and Store were missing from it, so stepping the week or picking a day
+  // changed the state and redrew nothing. Found by the dead-control sweep,
+  // 7 Sep 2026.
+  const perModule = {};
+  for (const [key, launch, wrap] of [['Production', 'launchProductionModule', 'prd-module-wrap'],
+    ['Store', 'launchStoreModule', 'store-module-wrap'],
+    ['Sales', 'launchSalesModule', 'sales-module-wrap'],
+    ['Operations', 'launchOperationsModule', 'ops-module-wrap'],
+    ['Owner', 'launchOwnerModule', 'owner-module-wrap']]) {
+    perModule[key] = await page.evaluate(({ launch, wrap }) => {
+      window[launch]();
+      const body = () => (document.getElementById(wrap) || {}).innerHTML || '';
+      const a = body(); plStepPeriod(1); const b = body(); plStepPeriod(-1);
+      const c = body(); plSetScope('Month'); const d = body(); plSetScope('Week');
+      return { step: a !== b, scope: c !== d };
+    }, { launch, wrap });
+  }
+  const stuck = Object.keys(perModule).filter(k => !perModule[k].step || !perModule[k].scope);
+  check('stepping the period and switching Week/Month redraw in every module that shows the planner',
+    stuck.length === 0, perModule);
+
+  // A Save that writes the same figure redraws an identical screen, so
+  // without a word on the screen the button reads as broken.
+  const saved = await page.evaluate(() => {
+    launchAdminModule(); adminSetView('discounts');
+    const btn = [...document.querySelectorAll('#admin-body button')].find(x => /Save/.test(x.textContent));
+    if (btn) btn.click();
+    return /limit saved/i.test(document.body.innerText);
+  });
+  check('saving a discount limit says so, even when the figure has not changed', saved);
+
   check('zero console/page errors', errors.length === 0, errors.slice(0, 3));
 
   console.log('\n' + pass + '/' + (pass + fail) + ' checks passed');

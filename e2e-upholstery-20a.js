@@ -227,10 +227,15 @@ function check(name, ok, detail) {
     const mv = moveUphSlot(c.slot.id, d[3]);
     const bayDate2 = uphSlotDate(bay.slot);
     const backwards = allotUphDerivedSlot({ stageId: 'F', baseSlotId: c.slot.id, offsetDays: 1, jobCardId: s.sofa });
-    return { sewDate: uphSlotDate(sew.slot), bayDate1, bayDate2, moved: !mv.error, backwards: backwards.error, cDate: d[3] };
+    // The two working days either side of a weekend are three calendar
+    // days apart, and a derived slot moves by calendar days — so the move
+    // is asserted against the real delta, not against a hardcoded 1. It
+    // failed only on the weekdays where d[2] and d[3] straddle Fri/Sat.
+    const delta = Math.round((new Date(d[3] + 'T00:00:00') - new Date(d[2] + 'T00:00:00')) / 86400000);
+    return { sewDate: uphSlotDate(sew.slot), bayDate1, bayDate2, moved: !mv.error, backwards: backwards.error, cDate: d[3], delta };
   }, { s: seed, d: days });
   check('sewing and the bays pull their dates from cutting', serial.sewDate === addDays(serial.cDate, 0) || serial.bayDate2 === addDays(serial.cDate, 3), serial);
-  check('moving the cutting slot moves the bay slot with it', serial.moved && serial.bayDate2 === addDays(serial.bayDate1, 1), serial);
+  check('moving the cutting slot moves the bay slot with it', serial.moved && serial.bayDate2 === addDays(serial.bayDate1, serial.delta), serial);
   check('a stage can only pull from the stage before it, never after', /never after/.test(serial.backwards || ''), serial.backwards);
 
   // ── commitment 5: overtime ──────────────────────────────────────────

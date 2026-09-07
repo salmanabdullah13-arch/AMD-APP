@@ -191,6 +191,47 @@ function renderApproverDashboard() {
 
   const commsHtml = '';
 
+  /* The queue comes first (design scorecard, 6 Sep 2026).
+     This landing used to open with six count tiles and a Category
+     Breakdown chart of three zeros, and the Approver's actual work — the
+     quotations waiting on a decision — appeared only as a number, one nav
+     item away. The person who signs in here needs the queue in front of
+     them. Oldest first, because that is what the aging badge is for. */
+  const queue = [].concat(
+    (k.forApprovalList || []).map(q => ({ q, mine: true })),
+    (k.pendingToPickList || []).map(q => ({ q, mine: false }))
+  ).sort((a, b) => String(a.q.date || '').localeCompare(String(b.q.date || '')));
+
+  const queueRow = ({ q, mine }) => {
+    const s = approverQtnRowSummary(q);
+    return `<div class="apq-row" onclick="${mine ? `openApproverReview('${q.id}')` : `openApproverQuoteHub('${q.id}')`}">
+      <div class="apq-main">
+        <p class="apq-id">${q.id} ${quoteAgeBadge(q)}${mine ? '' : ' <span class="apq-tag">not picked up</span>'}</p>
+        <p class="apq-sub">${aEsc(s.client)} · ${aEsc(q.projectName || '')} · ${aEsc(s.salesman)}</p>
+      </div>
+      ${mine ? `<button class="primary apq-go">Review</button>`
+        : `<button class="primary apq-go" onclick="event.stopPropagation();approverPick('${q.id}')">Pick</button>`}
+    </div>`;
+  };
+
+  const queueHtml = `
+    <style>
+      #approver-module-wrap .apq-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--biz-border-light,#f1f5f9);cursor:pointer;}
+      #approver-module-wrap .apq-row:last-child{border-bottom:0;}
+      #approver-module-wrap .apq-main{flex:1;min-width:0;}
+      #approver-module-wrap .apq-id{font-weight:700;font-size:12.5px;color:var(--biz-primary);}
+      #approver-module-wrap .apq-sub{font-size:11px;color:var(--biz-text-muted,#64748b);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      #approver-module-wrap .apq-tag{font-size:10px;font-weight:600;color:var(--biz-text-muted,#64748b);}
+      #approver-module-wrap .apq-go{font-size:11px;padding:7px 12px;flex:none;min-height:30px;}
+    </style>
+    <div class="sales-card">
+      <p style="font-weight:700;font-size:13px;margin-bottom:2px;">Waiting on you</p>
+      <p style="font-size:11px;color:var(--biz-text-muted,#64748b);margin-bottom:8px;">Oldest first. A quote sitting here is a quote the client has not been given.</p>
+      ${queue.length === 0
+        ? `<p style="font-size:12px;color:var(--biz-text-muted,#64748b);">Nothing waiting on a decision.</p>`
+        : queue.map(queueRow).join('')}
+    </div>`;
+
   const kpiTilesHtml = `
     <div class="sales-kpi-grid">
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverToggleTile('pending')"><div class="num">${k.pendingToPick}</div><div class="lbl">Pending to Pick</div></div>
@@ -199,15 +240,11 @@ function renderApproverDashboard() {
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.prPending}</div><div class="lbl">PR Pending</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.prNotReceived}</div><div class="lbl">PR Not Received</div></div>
       <div class="sales-kpi-tile" style="cursor:pointer;" onclick="approverOpenPurchasing()"><div class="num">${k.poApproval}</div><div class="lbl">PO Approval →</div></div>
-    </div>
-    <div class="sales-card">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px;">Category Breakdown</p>
-      ${cwMiniBars([
-        { label: 'Curtain', value: k.categoryBreakdown.curtain, color: cwOrdinalColor(0) },
-        { label: 'Upholstery', value: k.categoryBreakdown.upholstery, color: cwOrdinalColor(1) },
-        { label: 'Joinery', value: k.categoryBreakdown.joinery, color: cwOrdinalColor(2) }
-      ])}
     </div>`;
+  // The Category Breakdown chart that used to sit here counted quotations
+  // by division — three zeros most days, and nothing the Approver decides
+  // on. Removed with the landing rework; the same figures are still on the
+  // Sales and Owner dashboards, which is where a division mix belongs.
 
   let expandedHtml = '';
   if (approverDashExpanded === 'pending') {
@@ -244,7 +281,7 @@ function renderApproverDashboard() {
         }).join('')) + `</div>`;
   }
 
-  return commsHtml + kpiTilesHtml + expandedHtml;
+  return commsHtml + queueHtml + kpiTilesHtml + expandedHtml;
 }
 
 // ══════════════════════════════════════════

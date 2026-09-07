@@ -274,8 +274,11 @@ function adminSaveDiscountLimit(kind, key) {
   if (r && r.error) { alert(r.error); return; }
   if (typeof logActivity === 'function') logActivity({ type: 'discount-limit-set', linkedType: 'master', linkedId: r.id, user: window.cloudIdentity || 'Admin', message: 'Discount limit for ' + k + ' set to ' + r.maxPct + '%' });
   renderAdminDiscountsTab();
+  // Saving the same figure again redraws to an identical screen, so without
+  // this the button looks broken. Say what was saved.
+  if (typeof commsToast === 'function') commsToast((kind === 'role' ? 'Role' : 'User') + ' limit saved — up to ' + r.maxPct + '%.');
 }
-function adminClearDiscountLimit(id) { const r = clearDiscountLimit(id); if (r && r.error) { alert(r.error); return; } renderAdminDiscountsTab(); }
+function adminClearDiscountLimit(id) { const r = clearDiscountLimit(id); if (r && r.error) { alert(r.error); return; } renderAdminDiscountsTab(); if (typeof commsToast === 'function') commsToast('Limit removed — the role falls back to the default.'); }
 function adminToggleUserRow(profileId) {
   adminUserExpandedId = adminUserExpandedId === profileId ? null : profileId;
   renderAdminUsersInto();

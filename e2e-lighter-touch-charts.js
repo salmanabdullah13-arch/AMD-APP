@@ -92,8 +92,23 @@ async function openNode(page, nodeId, wrapId) {
 
   currentStep = 'approver-chart';
   await openNode(page, 'approvals', 'approver-module-wrap');
-  const approverState = await page.evaluate(() => document.getElementById('approver-body') ? document.getElementById('approver-body').innerHTML.includes('mini-bar-col') : document.getElementById('approver-module-wrap').innerHTML.includes('mini-bar-col'));
-  record('Approver Dashboard\'s Category Breakdown now renders as a mini-bar chart', approverState ? 'PASS' : 'FAIL');
+  // 6 Sep 2026: the design scorecard found this landing opening with six
+  // count tiles and this chart — three zeros most days — while the
+  // Approver's actual work appeared only as a number. The queue leads now
+  // and the chart is gone, so the check asserts the rework rather than a
+  // chart that should not come back: the same treatment the Owner, Sales
+  // and Purchaser chart checks got when those redesigns landed. A division
+  // mix still renders on the Sales and Owner dashboards, which is where it
+  // belongs.
+  const approverLanding = await page.evaluate(() => {
+    const b = document.getElementById('approver-body'); if (!b) return null;
+    const first = b.querySelector('.sales-card, .sales-kpi-grid');
+    return { queueFirst: !!(first && /Waiting on you/.test(first.textContent)),
+      chartGone: !/Category Breakdown/.test(b.innerText), tiles: b.querySelectorAll('.sales-kpi-tile').length };
+  });
+  record('Approver Dashboard leads with the queue, not a chart of zeros',
+    approverLanding && approverLanding.queueFirst && approverLanding.chartGone && approverLanding.tiles === 6
+      ? 'PASS' : 'FAIL', JSON.stringify(approverLanding));
   await page.evaluate(() => goTo('eco'));
   await page.waitForTimeout(200);
 

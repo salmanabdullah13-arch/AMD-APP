@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-06 19:56 by `forms-audit-static.js`.
+Generated 2026-09-07 10:03 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
@@ -15,20 +15,20 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 
 | File | Line | id | First option |
 |---|---|---|---|
-| `accounts.js` | 412 | `ac-lg-tax` | _list, no placeholder_ |
-| `accounts.js` | 498 | `ac-` | _list, no placeholder_ |
-| `accounts.js` | 619 | `ac-jl-ledger-` | _list, no placeholder_ |
-| `accounts.js` | 694 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 754 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 759 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 789 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 815 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 1059 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 1157 | `(no id)` | _list, no placeholder_ |
-| `accounts.js` | 1218 | `cu-customer` | _list, no placeholder_ |
-| `accounts.js` | 1228 | `cu-salesman` | _list, no placeholder_ |
-| `accounts.js` | 1242 | `cu-vat` | _list, no placeholder_ |
-| `accounts.js` | 1373 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 413 | `ac-lg-tax` | _list, no placeholder_ |
+| `accounts.js` | 499 | `ac-` | _list, no placeholder_ |
+| `accounts.js` | 620 | `ac-jl-ledger-` | _list, no placeholder_ |
+| `accounts.js` | 695 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 755 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 760 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 790 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 816 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 1060 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 1158 | `(no id)` | _list, no placeholder_ |
+| `accounts.js` | 1219 | `cu-customer` | _list, no placeholder_ |
+| `accounts.js` | 1229 | `cu-salesman` | _list, no placeholder_ |
+| `accounts.js` | 1243 | `cu-vat` | _list, no placeholder_ |
+| `accounts.js` | 1374 | `(no id)` | _list, no placeholder_ |
 | `admin.js` | 218 | `admin-usertype-` | _list, no placeholder_ |
 | `admin.js` | 261 | `admin-dl-user` | _list, no placeholder_ |
 | `approval-queue.js` | 90 | `aq-usertype-` | _list, no placeholder_ |
