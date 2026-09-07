@@ -67,7 +67,12 @@ legitimately negative.
   Storekeeper list, which is the legacy screen the 18a build replaces
   anyway.
 
-## Still open from before this pass
+## Closed since this pass (6-7 Sep 2026)
 
-The **18a Store Keeper interface** (never built) and the **Approver's
-landing** (counts where the queue should be).
+The **18a Store Keeper interface** is built, and the storekeeper role lands
+on it. The **Approver's landing** leads with the queue, oldest first, and
+the chart of zeros is gone.
+
+The sub-30px note above stands as a design decision for Salman, with one
+part of it resolved: the legacy Storekeeper list it named first is no
+longer what a storekeeper lands on.
