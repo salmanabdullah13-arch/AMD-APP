@@ -110,8 +110,23 @@ async function simulateRealLogin(page, userType) {
   const tracksLanding = await page.evaluate(() => document.getElementById('tracks-dash-wrap')?.style.display !== 'none');
   record('Signing in as Curtain Tracks Team lands directly on the Tracks dashboard (shared-node role)', tracksLanding ? 'PASS' : 'FAIL');
 
-  currentStep = 'joinery-granular-direct-landing';
+  currentStep = 'storekeeper-direct-landing';
   await page.evaluate(() => { if (typeof closeTracksDashboard === 'function') closeTracksDashboard(); });
+  await page.waitForTimeout(200);
+  await simulateRealLogin(page, 'storekeeper');
+  // 6 Sep 2026: the storekeeper lands on the 18a module, not the legacy
+  // stock pool. This is the check that the role actually reaches what was
+  // built for it — the module could be perfect and still be unreachable.
+  const storeLanding = await page.evaluate(() => ({
+    storeVisible: getComputedStyle(document.getElementById('store-module-wrap')).display !== 'none',
+    legacyHidden: getComputedStyle(document.getElementById('sk-module-wrap')).display === 'none',
+    view: typeof StoreUI !== 'undefined' ? StoreUI.state.view : null
+  }));
+  record('Signing in as the Storekeeper lands on the 18a Store module, not the legacy stock pool',
+    storeLanding.storeVisible && storeLanding.legacyHidden && storeLanding.view === 'dash' ? 'PASS' : 'FAIL', JSON.stringify(storeLanding));
+
+  currentStep = 'joinery-granular-direct-landing';
+  await page.evaluate(() => { if (typeof closeStoreModule === 'function') closeStoreModule(); });
   await page.waitForTimeout(200);
   await simulateRealLogin(page, 'joinery_draftsman');
   // 5 Sep 2026: the old Joinery wrapper is retired — the Draftsman lands on
