@@ -9426,3 +9426,35 @@ fixture straddled Friday and Saturday, which is why it passed for weeks.
 
 Store 32/32, upholstery 63/63, planner 25/25 with a regression check for
 both fixes, lighter-touch charts 12/12. Full offline sweep all green.
+
+### 7 Sep 2026 (later) — the Store tables proven live, and the reminder that led nowhere useful
+
+- **New `e2e-cloud-store.js` (20/20)** — the nine store tables had been on
+  the project since 19 Aug with no live suite at all, and until the 18a
+  interface landed nothing wrote to them from a screen. It signs in for
+  real, builds a store through the real functions, waits for the snapshot
+  scanner to write on its own, and reads the rows back out of the live
+  tables; a second session picks the same shelf up. The gate is checked
+  twice on purpose — the client refuses a jobless issue and moves not one
+  unit, and a raw insert straight at the database is refused by the trigger,
+  for an issue and for a hold. A Sales session is refused a write and still
+  allowed a read, because production has to see what is on the shelf. The
+  run deletes its own rows at the end.
+- **All twelve live suites green**: store 20/20, production 20/20,
+  jobcard-merge 17/17, financial 11/11, curtain 11/11,
+  enquiries-quotations 10/10, customers 9/9, jobcards 8/8, messages 8/8,
+  bridge-race 7/7, events 7/7, login 6/6.
+- **A reminder that led somewhere the storekeeper no longer works.**
+  `execGoStock()` — the route behind a reorder-alert reminder — opened the
+  legacy stock-pool dashboard, because that is the only place reorder
+  alerts rendered. The alerts belong to the person who acts on them, so
+  they are on the 18a Reminders page now and the route lands there. Same
+  class as the Owner Store route found the day before: a module moved and
+  a hardcoded destination did not.
+- **A scope bug in my own addition, caught before it shipped**: the new
+  reorder block called the module’s `safe()` helper, which lives inside the
+  StoreUI closure while `stkReminders()` sits outside it. It threw, and a
+  throw there takes the whole Reminders page down — holds and overdue tools
+  with it. Plain try/catch now, and the suite checks the page for its own
+  content rather than only for a title, which is what would have missed it.
+- Store 35/35, full offline sweep all green.

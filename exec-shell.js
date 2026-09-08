@@ -762,6 +762,12 @@ function execGoJob(jobId) {
 }
 function execGoStock() {
   execPushCurrent();
+  // The storekeeper lands on the 18a module now, and its Reminders page is
+  // where a reorder alert actually appears — sending them to the legacy
+  // stock-pool dashboard would bounce them off their own screen to read it.
+  if (typeof openStoreModule === 'function' && typeof StoreUI !== 'undefined') {
+    openStoreModule(); StoreUI.go('page', 'rem'); return;
+  }
   if (typeof openStorekeeperModule === 'function') { openStorekeeperModule(); if (typeof skGoTo === 'function') skGoTo('dashboard'); }
 }
 

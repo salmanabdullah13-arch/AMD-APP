@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-07 10:03 by `forms-audit-static.js`.
+Generated 2026-09-07 11:27 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
@@ -97,7 +97,7 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `sales.js` | 1706 | `fin-terms` | _list, no placeholder_ |
 | `sales.js` | 1883 | `(no id)` | _list, no placeholder_ |
 | `sales.js` | 1893 | `(no id)` | _list, no placeholder_ |
-| `store-ui.js` | 491 | `(no id)` | `<option value="good">` |
+| `store-ui.js` | 505 | `(no id)` | `<option value="good">` |
 | `storekeeper.js` | 356 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 360 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 450 | `(no id)` | _list, no placeholder_ |

@@ -101,6 +101,20 @@ function stkReminders() {
     due: l.dueBack || '', tone: 'bad', status: 'Overdue' }));
   stkQueuePUT().forEach(p => out.push({ what: 'Put away ' + (p.line.name || p.line.itemName || 'a delivered line'), against: p.grn.id,
     who: 'Store', due: p.grn.date || '', tone: 'warn', status: 'Waiting on a bin' }));
+  // Reorder alerts belong here rather than on the legacy stock-pool screen:
+  // an item at or below its reorder level, or with demand it cannot cover,
+  // is the storekeeper's to act on, and this is where they work now.
+  // Plain try/catch, not the module's own safe(): that helper lives inside
+  // the StoreUI closure and this function sits outside it.
+  let reorder = [];
+  try { reorder = getReorderAlerts() || []; } catch (e) { reorder = []; }
+  reorder.forEach(r => {
+    const item = itemMaster.find(i => i.id === r.itemId);
+    const name = (item && item.name) || r.itemName || r.itemId;
+    out.push({ what: r.reqQty > 0 ? name + ' is short ' + r.reqQty + ' against open jobs' : name + ' is at its reorder level',
+      against: 'Stock', who: 'Purchase', due: '', tone: r.reqQty > 0 ? 'bad' : 'warn',
+      status: r.reqQty > 0 ? 'Short' : 'Low stock' });
+  });
   return out;
 }
 function stkDocuments() {

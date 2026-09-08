@@ -137,6 +137,36 @@ const FORMS = ['iss', 'rec', 'trf', 'res', 'ret', 'tool', 'cnt', 'bin'];
   check('every page can be printed', PAGES.every(k => pages[k].print), PAGES.filter(k => !pages[k].print));
   check('no price, margin or profit anywhere in the store', PAGES.every(k => !pages[k].money), PAGES.filter(k => pages[k].money));
 
+  /* -- reorder alerts reach the storekeeper's own Reminders page -- */
+  const reorder = await page.evaluate(() => {
+    // Put a real item at its reorder level, the way a run of stock does.
+    const req = getJobMaterialRequirement();
+    const row = req[0];
+    if (row) { const it = itemMaster.find(i => i.id === row.itemId); if (it) it.reorderLevel = Math.max(1, (row.closingStock || 0) + 5); }
+    const alerts = getReorderAlerts().length;
+    StoreUI.go('page', 'rem');
+    const b = document.getElementById('store-body');
+    return { alerts, listed: /is short|reorder level/.test(b.innerText),
+      rows: b.querySelectorAll('.stk-table tr').length,
+      title: (b.querySelector('.stk-page-t') || {}).textContent || '' };
+  });
+  check('a reorder alert reaches the store Reminders page, not just the legacy screen',
+    reorder.alerts > 0 && reorder.listed && reorder.rows > 1, reorder);
+  // stkReminders() sits outside the StoreUI closure; a throw in it takes the
+  // whole page down, holds and overdue tools included, so the page is checked
+  // for its own content rather than only for a title.
+  check('and the Reminders page still renders its own heading with it', /Reminders/.test(reorder.title), reorder.title);
+
+  const routed = await page.evaluate(() => {
+    launchSalesModule();
+    execGoStock();
+    return { opened: getComputedStyle(document.getElementById('store-module-wrap')).display !== 'none',
+      page: StoreUI.state.page,
+      legacyHidden: getComputedStyle(document.getElementById('sk-module-wrap')).display === 'none' };
+  });
+  check('the reorder reminder lands on that page, not on the legacy stock pool',
+    routed.opened && routed.page === 'rem' && routed.legacyHidden, routed);
+
   /* -- the gate table: every option of every flow -- */
   const gates = await page.evaluate((FORMS) => {
     const out = {};
