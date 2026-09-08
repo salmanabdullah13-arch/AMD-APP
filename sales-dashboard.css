@@ -40,11 +40,18 @@
 /* -------------------------------------------------------------- grid --- */
 .sd-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
   align-content:start; padding:16px 24px 24px; overflow:auto; }
+/* Cards in a row share a bottom edge, which is what reads as tidy — but a
+   card 1000px tall then drags its neighbour with it, and that is where the
+   void under "Needs you today" came from. The planner pair takes a row of
+   its own instead, so nothing is ever stretched to match it. */
+.sd-span4{ grid-column:1 / -1; }
 .sd-span2{ grid-column:span 2; }
 @media (max-width:1100px){ .sd-grid{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:1100px){ .sd-span4{ grid-column:1 / -1; } }
 @media (max-width:880px){
   .sd-grid{ display:flex; flex-direction:column; gap:12px; padding:14px 14px 24px; }
   .sd-span2{ grid-column:auto; }
+  .sd-span4{ grid-column:auto; }
   /* Cards that clip their own overflow get crushed by flex-shrink in a
      column-flex scroller. Every card is flex:none — do not remove. */
   .sd-grid > *{ flex:none; }

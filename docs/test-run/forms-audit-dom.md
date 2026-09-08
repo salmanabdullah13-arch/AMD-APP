@@ -1,6 +1,6 @@
 # Forms pass — the clicking half (every module, every rail page)
 
-Generated 2026-09-08 16:14 by `forms-audit-dom.js` (offline, demo data). 66 screens walked.
+Generated 2026-09-08 17:55 by `forms-audit-dom.js` (offline, demo data). 66 screens walked.
 
 ## 1 · Selects that open pre-answered INSIDE a create form (2)
 
@@ -42,16 +42,12 @@ _None._
 | Upholstery | `UphUI.go('page','reg')` | 2 | Upholstery 55x15, ? What this page is  126x22 |
 | Upholstery | `UphUI.go('form','plan')` | 12 | Upholstery 55x15, Pricing input 91x28, Upholstery spec 107x28, Fabric plan 81x28, Foam sch |
 | Upholstery | `UphUI.go('form','ot')` | 12 | Upholstery 55x15, Pricing input 91x28, Upholstery spec 107x28, Fabric plan 81x28, Foam sch |
-| Sales | `(landing)` | 12 | This week
-      0
-   256x20, Week 53x25, Month 59x25, ‹ 26x26, Today 50x26, › 26x26 |
+| Sales | `(landing)` | 12 | All 36x27, Needs me 74x27, With Estimator 100x27, With Approver 99x27, With client 79x27,  |
 | Sales | `openEnquiryCreate()` | 2 | ‹ Back to Enquiry Li 114x16, + New Customer 108x29 |
 | Estimator | `(landing)` | 10 | This week
       0
    256x20, Week 53x25, Month 59x25, ‹ 26x26, Today 50x26, › 26x26 |
-| Owner Dashboard | `(landing)` | 12 | This week
-      0
-   292x20, Week 53x25, Month 59x25, ‹ 26x26, Today 50x26, › 26x26 |
+| Owner Dashboard | `(landing)` | 12 | Open Sales › 65x15, All › 21x15, Purchasing › 64x15, Quarterly 73x25, Running 68x25, This  |
 | Admin Dashboard | `adminSetView('discounts')` | 7 | Save 30x16, Save 30x16, Save 30x16, Save 30x16, Save 30x16, Save 30x16 |
 | Production | `(landing)` | 11 | ? What this page is  126x22, ? What this page is  126x22, This week 65x15, ? What this pag |
 | Production | `PrdUI.go('page','mat')` | 2 | Production 55x15, ? What this page is  126x22 |

@@ -636,7 +636,7 @@ let estimatorMatSearch = '';
 let estimatorMatSelectedId = null;
 
 function renderBomMaterialsTab(item) {
-  const bom = item.bom;
+  const bom = itemBOMOrEmpty(item);
   const rows = bom.materials.map(m => `
     <tr><td>${eEsc(m.name)}</td><td>${m.qty}</td><td>${eEsc(m.unit)}</td><td>${m.rate.toFixed(3)}</td><td>${m.amount.toFixed(3)}</td>
     <td><span style="cursor:pointer;color:#b91c1c;" onclick="estimatorRemoveEntry('materials',${m.id})">✕</span></td></tr>`).join('');
@@ -711,7 +711,7 @@ let estimatorLabCat = EMP_CATEGORIES[0];
 let estimatorLabMode = 'hours'; // 'hours' | 'days'
 
 function renderBomLabourTab(item) {
-  const bom = item.bom;
+  const bom = itemBOMOrEmpty(item);
   const rows = bom.labour.map(l => `
     <tr><td>${dc(l.department).n}</td><td>${eEsc(l.empCategory)}</td><td>${l.noOfPpl}</td><td>${l.qty} ${l.calcMode === 'days' ? 'd' : 'h'}</td><td>${l.manQty.toFixed(1)}</td><td>${l.rate.toFixed(3)}</td><td>${l.amount.toFixed(3)}</td>
     <td><span style="cursor:pointer;color:#b91c1c;" onclick="estimatorRemoveEntry('labour',${l.id})">✕</span></td></tr>`).join('');
@@ -761,7 +761,7 @@ function estimatorAddLabour() {
 
 // Sub Contract and Hiring share an identical schema (Vendor, Work Type, Amount) per spec.
 function renderBomGenericTab(item, category) {
-  const bom = item.bom;
+  const bom = itemBOMOrEmpty(item);
   const rows = bom[category].map(r => `
     <tr><td>${eEsc(r.vendor)}</td><td>${eEsc(r.workType)}</td><td>${r.amount.toFixed(3)}</td>
     <td><span style="cursor:pointer;color:#b91c1c;" onclick="estimatorRemoveEntry('${category}',${r.id})">✕</span></td></tr>`).join('');
@@ -785,7 +785,7 @@ function estimatorAddGeneric(category) {
 }
 
 function renderBomOthersTab(item) {
-  const bom = item.bom;
+  const bom = itemBOMOrEmpty(item);
   const rows = bom.others.map(r => `
     <tr><td>${eEsc(r.party)}</td><td>${eEsc(r.details)}</td><td>${r.amount.toFixed(3)}</td>
     <td><span style="cursor:pointer;color:#b91c1c;" onclick="estimatorRemoveEntry('others',${r.id})">✕</span></td></tr>`).join('');

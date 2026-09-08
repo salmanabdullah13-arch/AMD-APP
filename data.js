@@ -3599,6 +3599,18 @@ function findQuotationItem(qtnId, lineId) {
 // Creates the BOM container the first time "+ Add BOM" is used on an item.
 // Overhead defaults match the live-observed percentages (Material/Labour/
 // Subcontract 5%, Hiring/Others 0%, Profit 30%).
+// A READ-ONLY empty build-up, for screens that open on an item nobody has
+// costed yet — which is every item an estimator starts with. It must not
+// mutate: 'has a bom' is what marks an item costed, so creating one just
+// because somebody looked at the tab would report work that never happened.
+// The writers (addBOMMaterial and its siblings) call ensureItemBOM first, so
+// entering a line still creates the real container.
+const EMPTY_BOM_VIEW = Object.freeze({
+  materials: [], labour: [], subcontract: [], hiring: [], others: [],
+  ohPercents: { material: 5, labour: 5, subcontract: 5, hiring: 0, others: 0 },
+  profitPercent: 30, sellingPriceOverride: null, submitted: false
+});
+function itemBOMOrEmpty(item) { return (item && item.bom) || EMPTY_BOM_VIEW; }
 function ensureItemBOM(item) {
   if (!item.bom) {
     item.bom = {

@@ -827,15 +827,18 @@ window.SalesDashboard = (function () {
        Everything else below is the handoff's own render order. */
     return title() +
       '<div class="sd-grid">' +
-        /* Shared planner/tasks widgets — one implementation across every
-           dashboard, per the planner/tasks design package. Both in one wrapper
-           so collapsing the planner cannot reshuffle the cards after it. */
-        renderPlannerAndTasks() +
+        /* The work leads. The handoff put This week and My tasks first, when
+           they were its own compact cards; the shared widgets that replaced
+           them are a full calendar and a task board, about 1000px stacked,
+           which pushed everything a salesperson actually opens this screen
+           for below the fold on an iPad. Reported from a real device,
+           8 Sep 2026. They keep their own pair, at the end. */
         queueCard() +
         quotationsCard() +
         productionCard() +
         pipelineCard() + clientsCard() +
         policyCard() +
+        renderPlannerAndTasks('sd-span4') +
       '</div>' +
       jobSheet();
   }

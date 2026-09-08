@@ -66,10 +66,19 @@ const MONEY = /BD\s?[\d,]|\d+\.\d{3}\b|BHD|\bcost\b|\bprice\b|receivable|payable
     };
   });
   record('The eight cards render in the handoff\'s order',
-    // 'This week' and 'My tasks' are the SHARED widget pair now (8 Aug 2026),
-    // one wrapper with no .sd-title of its own — hence the leading 'policy'
-    // fallback label. Their presence is asserted just below.
-    JSON.stringify(layout.cards) === JSON.stringify(['policy', 'Needs you today', 'My quotations', 'Production status', 'My pipeline', 'My clients', 'policy']) ? 'PASS' : 'FAIL', JSON.stringify(layout.cards));
+    // 'This week' and 'My tasks' are the SHARED widget pair, one wrapper with
+    // no .sd-title of its own — hence the trailing 'policy' fallback label.
+    // Their presence is asserted just below.
+    //
+    // 8 Sep 2026, reported from a real iPad: the pair used to lead. The
+    // handoff put This week and My tasks first when they were its own compact
+    // cards; the shared widgets that replaced them are about 1000px stacked,
+    // so the work a salesperson opens this screen for started 1037px down the
+    // page — and, sharing a row, they stretched "Needs you today" to match,
+    // leaving a 600px void inside it. The work leads now and the pair takes a
+    // full-width row of its own at the end, so nothing is ever stretched to
+    // match it.
+    JSON.stringify(layout.cards) === JSON.stringify(['Needs you today', 'My quotations', 'Production status', 'My pipeline', 'My clients', 'policy', 'policy']) ? 'PASS' : 'FAIL', JSON.stringify(layout.cards));
   const sharedPair = await page.evaluate(() => ({
     planner: document.querySelectorAll('#sales-body [onclick="plTogglePlanner()"]').length,
     tasks: document.querySelectorAll('#sales-body [onclick="plToggleTasks()"]').length

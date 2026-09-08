@@ -1,6 +1,6 @@
 # Route audit — every destination against what the role lands on today
 
-Generated 2026-09-08 16:10 by `route-audit.js`.
+Generated 2026-09-08 16:45 by `route-audit.js`.
 
 Derived from `NODES` in index.html — what is built, what is retired, and
 what `supersededBy` says replaced it. Nothing here is a second hand-kept

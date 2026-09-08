@@ -32,6 +32,8 @@
   align-content:start; padding:16px 24px 24px; overflow:auto;
 }
 .od-span2{ grid-column:span 2; }
+/* A row of its own, so nothing is ever stretched to match the planner. */
+.od-span4{ grid-column:1 / -1; }
 /* INTEGRATION (7 Aug 2026) — the one rule added to the handoff's CSS, and it
    changes no value. `1fr` is `minmax(auto,1fr)`, so a column can never be
    narrower than its widest card's min-content. At 390px the By-department
@@ -52,6 +54,7 @@
   .od-grid{ grid-template-columns:1fr 1fr; padding:14px 14px 24px; gap:12px; }
   .od-grid > .od-card{ grid-column:span 2; }
   .od-span2{ grid-column:span 2; }
+  .od-span4{ grid-column:1 / -1; }
 }
 
 /* ---------------------------------------------------------------- card --- */

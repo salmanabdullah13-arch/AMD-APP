@@ -1036,7 +1036,12 @@ window.OwnerDashboard = (function () {
          design package — ONE implementation, called from every dashboard.
          Both in one wrapper so collapsing the planner cannot reshuffle the
          cards that follow it into the gap (the column flow is column-count). */
-      renderPlannerAndTasks('od-span2') + activityCard() + healthCard() +
+      /* 8 Sep 2026: the pair used to lead this row, and at ~800px stacked it
+         stretched Recent activity and Company health to match, leaving about
+         600px of dead space inside each. It takes a full-width row at the end
+         now — which also restores the handoff's own requirement that Company
+         health sits beside Recent activity, rather than wrapping away from it. */
+      activityCard() + healthCard() +
       /* row 3 — analysis */
       deptCard() + divisionCard() +
       /* row 4 — money */
@@ -1045,6 +1050,7 @@ window.OwnerDashboard = (function () {
       funnelCard() + clientsCard() +
       /* PATCH 08 Aug 2026 §2 — directly above Department quality */
       pnlCard() + qualityCard() +
+      renderPlannerAndTasks('od-span4') +
     '</div>';
   }
 

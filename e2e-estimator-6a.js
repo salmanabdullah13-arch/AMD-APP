@@ -215,6 +215,46 @@ const check = (name, ok, extra) => {
   check('Estimated vs actual screen renders', tails.actuals);
   check('Tenders is the queue filtered, not a separate screen', tails.tenderFilter);
 
+  // Reported from a real iPad, 8 Sep 2026: the BOM tab strip rendered but the
+  // panel under it was empty, so an estimator could not enter anything at all.
+  // The renderers read item.bom directly and it is null until something
+  // creates it — which is the state of EVERY item an estimator opens. The
+  // module's own safe() swallowed the throw, so there was no error, just a
+  // blank card. They read a frozen empty build-up now; only the writers
+  // create the real one, because 'has a bom' is what marks an item costed.
+  const bomTabs = await page.evaluate(() => {
+    const q = quotations.find(x => (x.items || []).length && !x.items[0].bom)
+      || quotations.find(x => (x.items || []).length);
+    if (!q) return { err: 'no quotation with items' };
+    q.stage = 'estimator'; q.lifecycleStatus = 'draft';
+    const line = q.items[0];
+    delete line.bom;                       // an item nobody has costed yet
+    EstimatorUI.state.qtnId = q.id; EstimatorUI.state.lineId = line.lineId;
+    EstimatorUI.setView('bom');
+    const out = { tabs: {}, costedAfterLooking: null };
+    [['Materials', 'Add Material'], ['Labour cost', 'Add Labour'], ['Sub contract', 'Add Sub Contract'],
+     ['Hiring', 'Add Hiring'], ['Others', 'Add Other']].forEach(([label, heading]) => {
+      const t = [...document.querySelectorAll('#estimator-body [data-act="bomtab"]')].find(x => x.textContent.trim() === label);
+      if (!t) { out.tabs[label] = false; return; }
+      t.click();
+      const body = document.getElementById('estimator-body');
+      out.tabs[label] = body.innerText.indexOf(heading) !== -1 && body.querySelectorAll('input, select').length > 0;
+    });
+    out.costedAfterLooking = !!q.items.find(i => i.lineId === line.lineId).bom;
+    const r = addBOMMaterial(q.id, line.lineId, { name: itemMaster[0].name, qty: 2, unit: 'Nos', rate: 12.5 });
+    out.added = !(r && r.error);
+    const mat = [...document.querySelectorAll('#estimator-body [data-act="bomtab"]')].find(x => x.textContent.trim() === 'Materials');
+    if (mat) mat.click();
+    out.rowShows = /25\.000/.test(document.getElementById('estimator-body').innerText);
+    out.costedAfterAdding = !!q.items.find(i => i.lineId === line.lineId).bom;
+    return out;
+  });
+  const blank = Object.keys(bomTabs.tabs || {}).filter(k => !bomTabs.tabs[k]);
+  check('all five BOM tabs show their entry form on an item nobody has costed yet', blank.length === 0, bomTabs);
+  check('opening a BOM tab does not mark the item costed', bomTabs.costedAfterLooking === false, bomTabs);
+  check('entering a material works, shows on the line, and does mark it costed',
+    bomTabs.added && bomTabs.rowShows && bomTabs.costedAfterAdding === true, bomTabs);
+
   check('zero console/page errors', errors.length === 0, errors.slice(0, 3));
 
   console.log('\n' + pass + '/' + (pass + fail) + ' checks passed');
