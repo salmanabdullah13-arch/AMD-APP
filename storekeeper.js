@@ -101,7 +101,7 @@ let skView          = 'pool';   // 'pool' | 'history'
 let skSearch        = '';
 let skReleaseDraft  = null;     // { entryId, department, jobId, qty, itemRef }
 let skPage             = 'dashboard';
-let skMastersTab       = 'unit';    // 'unit' | 'category' | 'catelog'
+let skMastersTab       = 'unit';    // 'unit' | 'category' | 'catelog' | 'product'
 let skItemFormDraft    = null;      // Item Master create/edit draft
 let skItemEditingId    = null;
 let skAdjDraft         = null;      // Stock Adjustment create draft
@@ -582,6 +582,7 @@ function renderMastersTab() {
       <button class="sk-tabbtn ${skMastersTab === 'unit' ? 'active' : ''}" onclick="skSetMastersTab('unit')">Unit</button>
       <button class="sk-tabbtn ${skMastersTab === 'category' ? 'active' : ''}" onclick="skSetMastersTab('category')">Stock Category</button>
       <button class="sk-tabbtn ${skMastersTab === 'catelog' ? 'active' : ''}" onclick="skSetMastersTab('catelog')">Catelog</button>
+      <button class="sk-tabbtn ${skMastersTab === 'product' ? 'active' : ''}" onclick="skSetMastersTab('product')">Product Category</button>
     </div>`;
 
   let body = '';
@@ -601,6 +602,33 @@ function renderMastersTab() {
       <div class="sk-card" style="overflow-x:auto;"><table class="sk-table"><tr><th>Name</th></tr>
         ${stockCategories.map(c => `<tr><td>${c.name}</td></tr>`).join('')}
       </table></div>`;
+  } else if (skMastersTab === 'product') {
+    /* What Sales picks on every quotation line, and what the owner's product
+       P&L groups by. Grouped under the division it rolls up to, because the
+       same word can mean different work in two divisions. Disabled rather
+       than deleted: a category still named by older quotes has to keep
+       resolving, or their history stops reading. */
+    const rows = SALES_DIVISIONS.map(d => {
+      const list = productCategories.filter(c => c.division === d);
+      if (!list.length) return '';
+      return `<tr><td colspan="3" style="background:var(--biz-input-bg,#f1f5f9);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">${skEsc(d)}</td></tr>`
+        + list.map(c => `<tr><td>${skEsc(c.name)}</td><td>${c.status}</td>
+            <td><button style="font-size:11px;background:none;border:1px solid var(--biz-teal);color:var(--biz-teal);border-radius:6px;padding:4px 9px;min-height:26px;cursor:pointer;font-family:inherit;" onclick="skToggleProductCategory('${c.id}')">${c.status === 'Enabled' ? 'Disable' : 'Enable'}</button></td></tr>`).join('');
+    }).join('');
+    body = `
+      <div class="sk-card">
+        <p style="font-size:11.5px;color:var(--biz-text-muted);margin-bottom:8px;">Sales chooses one of these on every quotation line — it is what the revenue and profit report groups by.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <input id="sk-new-product-cat" type="text" placeholder="New product category" style="flex:2;min-width:150px;padding:8px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;font-family:inherit;">
+          <select id="sk-new-product-div" style="flex:1;min-width:130px;padding:8px;border:1px solid var(--biz-border);border-radius:8px;font-size:13px;font-family:inherit;">
+            ${SALES_DIVISIONS.map(d => `<option value="${skEsc(d)}">${skEsc(d)}</option>`).join('')}
+          </select>
+          <button class="primary" onclick="skAddProductCategoryInline()">+ Add</button>
+        </div>
+      </div>
+      <div class="sk-card" style="overflow-x:auto;"><table class="sk-table"><tr><th>Category</th><th>Status</th><th></th></tr>
+        ${rows}
+      </table></div>`;
   } else {
     body = `
       <button class="primary" style="width:100%;margin-bottom:12px;" onclick="openCatelogForm()">+ New Catelog</button>
@@ -616,6 +644,21 @@ function skAddUnitInline() {
   const val = document.getElementById('sk-new-unit').value;
   const result = addUnit(val);
   if (result && result.error) { skAlert(result.error); return; }
+  renderMastersTab();
+}
+function skAddProductCategoryInline() {
+  const name = document.getElementById('sk-new-product-cat').value;
+  const division = document.getElementById('sk-new-product-div').value;
+  const r = createProductCategory({ name, division });
+  if (r && r.error) { skAlert(r.error); return; }
+  document.getElementById('sk-new-product-cat').value = '';
+  renderMastersTab();
+}
+function skToggleProductCategory(id) {
+  const c = getProductCategory(id);
+  if (!c) return;
+  const r = setProductCategoryStatus(id, c.status === 'Enabled' ? 'Disabled' : 'Enabled');
+  if (r && r.error) { skAlert(r.error); return; }
   renderMastersTab();
 }
 function skAddCategoryInline() {

@@ -1465,11 +1465,11 @@ function renderWizardStep2() {
             <div class="sales-field"><label>Sub Group</label><input type="text" id="it-subgroup" value="${esc(defaultSubgroup)}"></div>
           </div>
           <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Group/Sub Group become header/sub-header sections on the printed quotation. Leave blank for a flat, ungrouped item.</p>
-          <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product" autocomplete="off" oninput="salesSuggestCategory()"></div>
           <div class="sales-field"><label>Product category</label>
             <select id="it-category"><option value="">Choose…</option>${SALES_DIVISIONS.map(d => `<optgroup label="${esc(d)}">${productCategoriesForDivision(d).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
             <p id="it-category-hint" style="font-size:10.5px;color:#94a3b8;margin:4px 0 0;">What this line is, for the revenue and profit report. Unselected on purpose — it is worth a moment.</p>
           </div>
+          <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product" autocomplete="off" oninput="salesSuggestCategory()"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div class="sales-field"><label>Qty</label><input type="number" id="it-qty" value="1"></div>
             <div class="sales-field"><label>Unit</label><select id="it-unit"><option value="">Choose…</option>${units.map(u => `<option value="${esc(u.name)}">${esc(u.name)}</option>`).join('')}</select></div>

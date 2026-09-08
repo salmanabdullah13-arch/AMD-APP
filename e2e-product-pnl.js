@@ -52,6 +52,7 @@ function check(name, ok, detail) {
       roman: g('Roman blind for the majlis', 'Curtain & Blinds'),
       roller: g('Roller blind, blackout', 'Curtain & Blinds'),
       curtain: g('Wave curtains with sheer', 'Curtain & Blinds'),
+      sheerOnly: g('Sheers for the living room', 'Curtain & Blinds'),
       tv: g('Making of tv unit with oak veneer mdf', 'Joinery'),
       wardrobe: g('4 door wardrobe', 'Joinery'),
       vanity: g('Bathroom vanity unit', 'Joinery'),
@@ -63,7 +64,8 @@ function check(name, ok, detail) {
   });
   check('roman beats roller beats blind', guess.roman === 'Roman blinds' && guess.roller === 'Roller blinds', guess);
   check('curtains, tv units, wardrobes and vanities each land right',
-    guess.curtain === 'Curtains' && guess.tv === 'TV unit' && guess.wardrobe === 'Wardrobe' && guess.vanity === 'Vanity', guess);
+    guess.curtain === 'Curtains — wave' && guess.sheerOnly === 'Sheers'
+    && guess.tv === 'TV unit' && guess.wardrobe === 'Wardrobe' && guess.vanity === 'Vanity', guess);
   check('the product name wins over the enquiry division', guess.sofaOnJoinery === 'Sofa', guess);
   check('an unrecognised product falls back to Other, not to nothing', guess.unknown === 'Other', guess);
 
@@ -210,7 +212,7 @@ function check(name, ok, detail) {
     const q = quotations.find(x => x.id === qtn);
     const line = q.items[0];
     const before = productCategoryLabel(line.categoryId);
-    const chair = productCategories.find(c => c.name === 'Chair');
+    const chair = productCategories.find(c => c.name === 'Armchair');
     const r = setQuotationItemCategory(qtn, line.lineId, chair.id);
     const job = jobCards.find(j => j.quotationId === qtn);
     const jl = job ? (job.items || []).find(i => i.lineId === line.lineId) : null;
@@ -231,6 +233,48 @@ function check(name, ok, detail) {
     return { before, after: productCategoryLabel(it.categoryId) };
   });
   check('an open quote\'s category can be corrected', estOpen.before === 'Wall cladding' && estOpen.after === 'Door', estOpen);
+
+  console.log('\n- where the field sits, and the master behind it -');
+  const order = await page.evaluate(() => {
+    const q = quotations.find(x => x.stage === 'sales') || quotations[0];
+    q.stage = 'sales'; q.lifecycleStatus = 'draft';
+    launchSalesModule(); openQuotationWizard(q.id); salesWizardStep = 2; renderSalesBody();
+    const cat = document.getElementById('it-category'), prod = document.getElementById('it-product');
+    if (!cat || !prod) return { missing: true };
+    return { catTop: Math.round(cat.getBoundingClientRect().top), prodTop: Math.round(prod.getBoundingClientRect().top) };
+  });
+  // Salman, 8 Sep 2026: decide what kind of thing it is, then describe it.
+  check('the category sits above Product/Service', order.catTop < order.prodTop, order);
+
+  const masters = await page.evaluate(() => {
+    launchStorekeeperModule();
+    skGoTo('masters');
+    const tab = [...document.querySelectorAll('#sk-module-wrap .sk-tabbtn')].find(t => /Product Category/.test(t.textContent));
+    if (!tab) return { noTab: true };
+    tab.click();
+    const before = productCategories.length;
+    document.getElementById('sk-new-product-cat').value = 'Prayer room seating';
+    document.getElementById('sk-new-product-div').value = 'Upholstery';
+    skAddProductCategoryInline();
+    const made = productCategories[productCategories.length - 1];
+    const added = productCategories.length === before + 1 && made.name === 'Prayer room seating' && made.division === 'Upholstery';
+    const inPicker = productCategoriesForDivision('Upholstery').some(c => c.id === made.id);
+    skToggleProductCategory(made.id);
+    return { added, inPicker,
+      disabled: getProductCategory(made.id).status === 'Disabled',
+      // A retired category must keep resolving, or older quotes stop reading.
+      stillResolves: productCategoryLabel(made.id) === 'Prayer room seating',
+      goneFromPicker: !productCategoriesForDivision('Upholstery').some(c => c.id === made.id),
+      groups: (document.getElementById('sk-masters-body').innerText.match(/CURTAIN & BLINDS|JOINERY|UPHOLSTERY/g) || []).length,
+      dupRefused: !!(createProductCategory({ name: 'Sofa', division: 'Upholstery' }) || {}).error,
+      badDivRefused: !!(createProductCategory({ name: 'Thing', division: 'Nope' }) || {}).error };
+  });
+  check('Masters carries a Product Category page, grouped by division', !masters.noTab && masters.groups >= 3, masters);
+  check('a new category can be added there and reaches the picker', masters.added && masters.inPicker, masters);
+  check('disabling one takes it out of the picker but keeps history readable',
+    masters.disabled && masters.goneFromPicker && masters.stillResolves, masters);
+  check('a duplicate under the same division, and an unknown division, are refused',
+    masters.dupRefused && masters.badDivRefused, masters);
 
   check('no page errors anywhere in the run', errors.length === 0, errors.slice(0, 3));
 

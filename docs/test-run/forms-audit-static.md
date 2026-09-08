@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-08 18:52 by `forms-audit-static.js`.
+Generated 2026-09-08 20:01 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
@@ -9,7 +9,7 @@ A data-layer function that can `return {error}`, called from a screen with its r
 
 _None._
 
-## B · Selects that open pre-answered (128)
+## B · Selects that open pre-answered (129)
 
 The first `<option>` carries a real value, so whatever happens to be first is what gets saved unless the person notices. A filter defaulting to "All" is fine; a field that becomes a record is not.
 
@@ -109,13 +109,14 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `storekeeper.js` | 513 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 519 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 525 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 705 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 712 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 837 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 843 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 873 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 941 | `(no id)` | _list, no placeholder_ |
-| `storekeeper.js` | 946 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 623 | `sk-new-product-div` | _list, no placeholder_ |
+| `storekeeper.js` | 748 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 755 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 880 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 886 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 916 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 984 | `(no id)` | _list, no placeholder_ |
+| `storekeeper.js` | 989 | `(no id)` | _list, no placeholder_ |
 | `teamcomms.js` | 64 | `comms-to` | _list, no placeholder_ |
 | `upholstery-ui.js` | 589 | `(no id)` | _list, no placeholder_ |
 | `index.html` | 472 | `cs-rail-type` | _list, no placeholder_ |

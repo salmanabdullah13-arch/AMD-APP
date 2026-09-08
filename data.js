@@ -2223,12 +2223,30 @@ const SALES_DIVISIONS = ["Curtain & Blinds", "Furniture", "Joinery", "Upholstery
    can still be quoted the day it comes up — a mandatory field with no escape
    hatch stops work, and stopped work gets worked around. */
 const PRODUCT_CATEGORY_SEED = [
-  ["Curtain & Blinds", ["Curtains", "Roman blinds", "Roller blinds", "Tracks & accessories", "Other"]],
-  ["Upholstery", ["Sofa", "Chair", "Wall panels", "Other"]],
-  ["Joinery", ["TV unit", "Wall cladding", "Dining table", "Headboard", "Wardrobe",
-    "Kitchen unit", "Vanity", "Door", "Frame", "Other"]],
-  ["Furniture", ["Other"]],
-  ["Metal Works", ["Other"]]
+  ["Curtain & Blinds", [
+    "Curtains — wave", "Curtains — pinch pleat", "Curtains — eyelet", "Sheers",
+    "Roman blinds", "Roller blinds", "Blackout blinds", "Venetian / wooden blinds",
+    "Vertical blinds", "Motorised system", "Tracks & accessories", "Pelmets & valances",
+    "Curtain alteration & refit", "Installation only", "Other"
+  ]],
+  ["Upholstery", [
+    "Sofa", "Armchair", "Dining chair", "Majlis seating", "Ottoman / pouffe",
+    "Bench seat", "Headboard — upholstered", "Wall panels — upholstered", "Cushions & bolsters",
+    "Curtain / blind fabrication", "Re-upholstery & repair", "Other"
+  ]],
+  ["Joinery", [
+    "TV unit", "Wardrobe", "Kitchen unit", "Vanity", "Dining table",
+    "Console / side table", "Bed frame", "Headboard — joinery", "Reception counter",
+    "Shelving & bookcase", "Cabinet / storage unit", "Wall cladding", "Wall panelling",
+    "Door", "Door frame", "Partition", "Skirting & trim",
+    "Paint & polish", "Site carpentry & fixing", "Other"
+  ]],
+  ["Furniture", [
+    "Loose furniture supply", "Outdoor furniture", "Soft furnishing supply", "Other"
+  ]],
+  ["Metal Works", [
+    "Metal fabrication", "Handrail & balustrade", "Other"
+  ]]
 ];
 let __pcSeq = 0;
 const productCategories = [];
@@ -2244,19 +2262,39 @@ PRODUCT_CATEGORY_SEED.forEach(([division, names]) => names.forEach(name => {
    name, the same text suggestDepartmentSequence() already reads to route a
    line to a department — one source of truth for what a product name means. */
 const PRODUCT_CATEGORY_KEYWORDS = [
-  ["roman", "Roman blinds"], ["roller", "Roller blinds"],
-  ["sheer", "Curtains"], ["drape", "Curtains"], ["curtain", "Curtains"], ["blind", "Roller blinds"],
+  ["roman", "Roman blinds"], ["roller", "Roller blinds"], ["blackout", "Blackout blinds"],
+  ["venetian", "Venetian / wooden blinds"], ["wooden blind", "Venetian / wooden blinds"],
+  ["vertical blind", "Vertical blinds"],
+  ["motoris", "Motorised system"], ["motoriz", "Motorised system"],
+  ["pelmet", "Pelmets & valances"], ["valance", "Pelmets & valances"],
+  // The heading style wins over a sheer mentioned alongside it: "wave
+  // curtains with sheer" is a wave curtain, while "sheers for the living
+  // room" is still a sheer.
+  ["wave", "Curtains — wave"], ["pinch pleat", "Curtains — pinch pleat"], ["eyelet", "Curtains — eyelet"],
+  ["sheer", "Sheers"],
+  ["drape", "Curtains — wave"], ["curtain", "Curtains — wave"], ["blind", "Roller blinds"],
   ["track", "Tracks & accessories"], ["rail", "Tracks & accessories"],
+  ["majlis", "Majlis seating"],
   ["sofa", "Sofa"], ["settee", "Sofa"], ["couch", "Sofa"],
-  ["chair", "Chair"], ["ottoman", "Chair"], ["stool", "Chair"],
-  ["wall panel", "Wall panels"], ["panelling", "Wall panels"], ["paneling", "Wall panels"],
-  ["headboard", "Headboard"], ["head board", "Headboard"],
+  ["armchair", "Armchair"], ["dining chair", "Dining chair"], ["chair", "Armchair"],
+  ["ottoman", "Ottoman / pouffe"], ["pouffe", "Ottoman / pouffe"],
+  ["bench", "Bench seat"], ["cushion", "Cushions & bolsters"], ["bolster", "Cushions & bolsters"],
+  ["re-upholst", "Re-upholstery & repair"], ["reupholst", "Re-upholstery & repair"],
   ["tv unit", "TV unit"], ["tv cabinet", "TV unit"], ["media unit", "TV unit"],
-  ["cladding", "Wall cladding"],
-  ["dining table", "Dining table"], ["dining", "Dining table"],
   ["wardrobe", "Wardrobe"], ["closet", "Wardrobe"],
   ["kitchen", "Kitchen unit"], ["vanity", "Vanity"],
-  ["door", "Door"], ["frame", "Frame"]
+  ["dining table", "Dining table"], ["console", "Console / side table"], ["side table", "Console / side table"],
+  ["bed frame", "Bed frame"], ["headboard", "Headboard — upholstered"],
+  ["reception counter", "Reception counter"], ["counter", "Reception counter"],
+  ["shelv", "Shelving & bookcase"], ["bookcase", "Shelving & bookcase"], ["shelf", "Shelving & bookcase"],
+  ["cladding", "Wall cladding"],
+  ["wall panel", "Wall panelling"], ["panelling", "Wall panelling"], ["paneling", "Wall panelling"],
+  ["door frame", "Door frame"], ["door", "Door"], ["frame", "Door frame"],
+  ["partition", "Partition"], ["skirting", "Skirting & trim"],
+  ["polish", "Paint & polish"], ["paint", "Paint & polish"],
+  ["cabinet", "Cabinet / storage unit"], ["storage unit", "Cabinet / storage unit"],
+  ["handrail", "Handrail & balustrade"], ["balustrade", "Handrail & balustrade"],
+  ["install", "Installation only"]
 ];
 
 function getProductCategory(id) { return productCategories.find(c => c.id === id) || null; }
@@ -4815,6 +4853,12 @@ async function initCloudJsonCollections() {
     if (error || !data) { col.live = false; return; }   // table not on the live project yet
     col.live = true;
     const arr = col.arr();
+    // A collection that ships with a seed keeps it when the table is still
+    // empty — otherwise the first real login wipes the list and the scanner
+    // has nothing left to upload. Every collection before product_categories
+    // started empty locally, so this never came up; it is a data-loss trap
+    // for the next seeded one either way.
+    if (!data.length && arr.length) return;
     arr.length = 0;
     data.forEach(row => {
       const rec = col.hydrate ? col.hydrate(row.payload) : row.payload;
