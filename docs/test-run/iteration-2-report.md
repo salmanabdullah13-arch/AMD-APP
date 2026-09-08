@@ -1,21 +1,21 @@
 # End-to-end run — iteration 2 (exception branches)
 
-Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter2-manifest.json
+Run 2026-09-08 16:30 · 221/221 checks passed · 361 s · manifest test-run/iter2-manifest.json
 
 ## X1 Sent back for re-costing
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1842"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04318AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15606-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1867"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04343AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15631-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15606-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15631-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":29.757} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15606-0 |
-| 9 | approver | The Approver sends the quote back to the Estimator, with an audit entry | PASS | {"stage":"estimator","audit":{"seq":4,"action":"Transfer","user":"E2E Approver Role Account","date":"2026-09-05","userType":"ESTIMATOR","status":"Draft"}} |
-| 10 | estimator | It lands back in the Estimator's queue | PASS | AMD-15606-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15631-0 |
+| 9 | approver | The Approver sends the quote back to the Estimator, with an audit entry | PASS | {"stage":"estimator","audit":{"seq":4,"action":"Transfer","user":"E2E Approver Role Account","date":"2026-09-08","userType":"ESTIMATOR","status":"Draft"}} |
+| 10 | estimator | It lands back in the Estimator's queue | PASS | AMD-15631-0 |
 | 11 | estimator | The Estimator re-costs and transfers again | PASS | {"stage":"approver"} |
 | 12 | approver | … and this time it is approved | PASS | {"lc":"open"} |
 
@@ -23,31 +23,31 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1843"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04319AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15607-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1868"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04344AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15632-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15607-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15632-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":2485.665}],"total":24856.65} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15607-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15632-0 |
 | 9 | estimator | The quote is worth more than BD 8,000 | PASS | 24856.65 |
 | 10 | operations_manager | Operations can only RECOMMEND — the quote waits for the Owner | PASS | {"lc":"draft","owner":"pending-owner-review","by":"E2E Operations Account"} |
 | 11 | operations_manager | … and the recommendation survives in the live row | PASS | pending-owner-review |
 | 12 | sales | Sales cannot confirm a Job Card before the Owner signs | PASS | Quotation must be Open before it can be confirmed. |
-| 13 | owner | The Owner's session sees it in Sign-offs | PASS | AMD-15607-0 |
+| 13 | owner | The Owner's session sees it in Sign-offs | PASS | AMD-15632-0 |
 | 14 | owner | The Owner counter-signs — lifecycle open | PASS | {"lc":"open","owner":null} |
-| 15 | sales | … and Sales can now confirm it | PASS | JB26AMD01189 |
+| 15 | sales | … and Sales can now confirm it | PASS | JB26AMD01205 |
 
 ## X3 Discount over 30%
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1844"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04320AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15608-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1869"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04345AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15633-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15608-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15633-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":59.514} |
 | 7 | estimator | A 40% discount is refused, or routed to the Approver, at the DATA layer | PASS | {"err":"A 40% discount is above your limit of 20% — it needs nobody — the top tier is 30%.","pct":0,"base":59.514} |
 
@@ -55,27 +55,27 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1845"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04321AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15609-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1870"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04346AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15634-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15609-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15634-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":59.514} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15609-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15634-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15609-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01190","amount":59.514} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01190 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15634-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01206","amount":59.514} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01206 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
 | 16 | joinery_production_manager | Production starts the line | PASS | {"status":"in-production"} |
-| 17 | sales | The confirmed quotation is frozen — no new line, no stage move | PASS | {"add":"This quote is confirmed into Job Card JB26AMD01190 — its items and pricing are frozen. Raise a Variation on the Job Card to change the work.","transfer" |
-| 18 | sales | Sales raises a variation on the live job | PASS | {"vq":"AMD-15609-1","parent":"JB26AMD01190","rev":1,"line":1} |
+| 17 | sales | The confirmed quotation is frozen — no new line, no stage move | PASS | {"add":"This quote is confirmed into Job Card JB26AMD01206 — its items and pricing are frozen. Raise a Variation on the Job Card to change the work.","transfer" |
+| 18 | sales | Sales raises a variation on the live job | PASS | {"vq":"AMD-15634-1","parent":"JB26AMD01206","rev":1,"line":1} |
 | 19 | estimator | The variation goes through the Estimator like any quotation | PASS | {} |
 | 20 | approver | … and the Approver | PASS | {} |
-| 21 | sales | Sales sees the variation approved | PASS | AMD-15609-1 |
+| 21 | sales | Sales sees the variation approved | PASS | AMD-15634-1 |
 | 22 | sales | Confirming merges onto the SAME job — one more line, tagged with the variation, no second job card | PASS | {"items":2,"before":1,"jobs":0,"uphBudget":true,"tagged":true} |
 | 23 | sales | The new department gets a budget slot (Fix Plan Phase 1) | PASS | {"items":2,"before":1,"jobs":0,"uphBudget":true,"tagged":true} |
 | 24 | sales | … and the live job card carries the merged line | PASS | 2 |
@@ -84,24 +84,24 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1846"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04322AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15610-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1871"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04347AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15635-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15610-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15635-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":59.514} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15610-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15635-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15610-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01191","amount":59.514} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01191 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15635-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01207","amount":59.514} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01207 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
 | 16 | joinery_production_manager | Production starts the line | PASS | {"status":"in-production"} |
 | 17 | joinery_production_manager | A cutting list is released and on saw 1 | PASS | {"sheet":"CUT-0001","status":"on-saw"} |
-| 18 | joinery_production_manager | Issuing the revision kills the sheet on the saw, and the lane refuses the job | PASS | {"dead":"dead","killedBy":"REV-0026","block":"Old cutting list still on the saw — confirm it off before recutting"} |
+| 18 | joinery_production_manager | Issuing the revision kills the sheet on the saw, and the lane refuses the job | PASS | {"dead":"dead","killedBy":"REV-0028","block":"Old cutting list still on the saw — confirm it off before recutting"} |
 | 19 | joinery_production_manager | Confirming the sheet off the saw clears the gate — not the revision | PASS | {"block":null} |
 | 20 | joinery_production_manager | … and the dead sheet's state is in the live table | PASS | dead |
 
@@ -109,43 +109,43 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1847"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04323AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15611-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1872"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04348AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15636-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15611-0 |
-| 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":50.504999999999995}],"total":101.00999999999999} |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15636-0 |
+| 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":49.413}],"total":98.826} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15611-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15636-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15611-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01192","amount":101.00999999999999} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01192 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15636-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01208","amount":98.826} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01208 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
 | 16 | joinery_production_manager | Production starts the line | PASS | {"status":"in-production"} |
 | 17 | joinery_production_manager | The lane refuses the job for short material, and the waiting strip carries the reason | PASS | {"err":"No lane slot: Material short — 1 line. It stays in the waiting strip until that clears.","waiting":"Material short — 1 line"} |
-| 18 | storekeeper | The store puts the boards on the shelf | PASS | {"free":20,"item":"IT003421"} |
+| 18 | storekeeper | The store puts the boards on the shelf | PASS | {"free":20,"item":"IT003420"} |
 | 19 | joinery_production_manager | Production's session sees the stock arrive | PASS | null |
-| 20 | joinery_production_manager | Now the lane takes it, and the slot claims the boards for the job | PASS | {"slot":"SLOT-0048","held":1} |
+| 20 | joinery_production_manager | Now the lane takes it, and the slot claims the boards for the job | PASS | {"slot":"SLOT-0053","held":1} |
 
 ## X7 Overtime
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1848"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04324AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15612-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1873"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04349AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15637-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15612-0 |
-| 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":49.413}],"total":98.826} |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15637-0 |
+| 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":53.781}],"total":107.562} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15612-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15637-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15612-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01193","amount":98.826} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01193 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15637-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01209","amount":107.562} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01209 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
@@ -157,18 +157,18 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1849"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04325AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15613-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1874"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04350AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15638-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15613-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15638-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":59.514} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15613-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15638-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15613-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01194","amount":59.514} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01194 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15638-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01210","amount":59.514} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01210 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
@@ -181,18 +181,18 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1850"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04326AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15614-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1875"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04351AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15639-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15614-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15639-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":59.514} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15614-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15639-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15614-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01195","amount":59.514} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01195 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15639-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01211","amount":59.514} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01211 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
@@ -206,33 +206,33 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1851"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04327AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15615-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1876"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04352AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15640-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15615-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15640-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":59.514} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15615-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15640-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15615-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01196","amount":59.514} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01196 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15640-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01212","amount":59.514} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01212 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
 | 16 | joinery_production_manager | Production starts the line | PASS | {"status":"in-production"} |
 | 17 | joinery_production_manager | Production finishes the line | PASS | {"done":"done"} |
 | 18 | operations_manager | One of two delivered — the job stays open | PASS | {"delivered":1,"status":"open"} |
-| 19 | accounts | Two 50% invoices stack to exactly 100%; a third is refused | PASS | {"a":"IN26AMD01000","b":"IN26AMD01001","c":"This job is already fully invoiced (100%).","sum":100} |
+| 19 | accounts | Two 50% invoices stack to exactly 100%; a third is refused | PASS | {"a":"IN26AMD01005","b":"IN26AMD01006","c":"This job is already fully invoiced (100%).","sum":100} |
 | 20 | operations_manager | The second delivery completes the job by derivation; a third is refused — nothing left to deliver | PASS | {"delivered":2,"status":"completed","over":{"error":"Nothing on this note is left to deliver — every line is already delivered in full."}} |
 
 ## X11 Near-duplicate customer
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | The same phone number flags a possible duplicate, pending, and Sales can still raise an enquiry on it | PASS | {"a":"C1852","b":"C1853","flagged":true,"status":"pending","enquiry":"ENQ04328AMD"} |
-| 2 | accounts | Accounts' session sees the flagged customer arrive through realtime | PASS | C1853 |
+| 1 | sales | The same phone number flags a possible duplicate, pending, and Sales can still raise an enquiry on it | PASS | {"a":"C1877","b":"C1878","flagged":true,"status":"pending","enquiry":"ENQ04353AMD"} |
+| 2 | accounts | Accounts' session sees the flagged customer arrive through realtime | PASS | C1878 |
 | 3 | accounts | Accounts approves it | PASS | {"status":"approved"} |
 | 4 | accounts | … and the live row reads approved | PASS | approved |
 
@@ -240,55 +240,55 @@ Run 2026-09-05 15:34 · 221/221 checks passed · 357 s · manifest test-run/iter
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1854"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04329AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15616-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1879"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04354AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15641-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15616-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15641-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":238.056} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15616-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15641-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15616-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01197","amount":238.056} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01197 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15641-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01213","amount":238.056} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01213 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["uph"]} |
 | 14 | upholstery_manager | A COM roll short of need blocks the table; the plan refuses; a client signature alone is not enough; the countersignature clears it | PASS | {"need":10,"block":"COM roll 6 m short. Signed note before anyone cuts.","plan":"COM. We cannot buy more. Nobody cuts until the shortfall is signed. (COM roll 6 |
 | 15 | upholstery_manager | … and the signed note is in the live table with both names | PASS | {"c":"Client","s":"E2E Test Account"} |
-| 16 | upholstery_manager | Two rolls of 60% of the need each: the plan refuses BOTH — the suite does not come off one roll | PASS | {"need":10,"p1":"Cannot release — 10 m needed, 6 m on R-0002. The suite does not come off one roll, and a second lot on one suite is scrap.","p2":"Cannot releas |
+| 16 | upholstery_manager | Two rolls of 60% of the need each: the plan refuses BOTH — the suite does not come off one roll | PASS | {"need":10,"p1":"Cannot release — 10 m needed, 6 m on R-0003. The suite does not come off one roll, and a second lot on one suite is scrap.","p2":"Cannot releas |
 
 ## X14 Crew clock refusals
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1855"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04330AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15617-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1880"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04355AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15642-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15617-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15642-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":59.514} |
 | 7 | estimator | Estimator transfers to the Approver | PASS | {"stage":"approver"} |
-| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15617-0 |
+| 8 | approver | The Approver sees the priced quotation | PASS | AMD-15642-0 |
 | 9 | approver | Approver approves — lifecycle open, back to Sales | PASS | {"lifecycle":"open","stage":"sales"} |
-| 10 | sales | Sales sees the approval land | PASS | AMD-15617-0 |
-| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01198","amount":59.514} |
-| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01198 |
+| 10 | sales | Sales sees the approval land | PASS | AMD-15642-0 |
+| 11 | sales | Sales confirms to a Job Card | PASS | {"job":"JB26AMD01214","amount":59.514} |
+| 12 | operations_manager | Operations sees the job in its routing queue | PASS | JB26AMD01214 |
 | 13 | operations_manager | Operations routes; every department gets a budget slot | PASS | {"routing":true,"budgets":["carp"]} |
 | 14 | joinery_production_manager | Production submits the joinery budget | PASS | {} |
 | 15 | operations_manager | Operations approves the joinery budget | PASS | ["carp:ok"] |
 | 16 | joinery_production_manager | Production starts the line | PASS | {"status":"in-production"} |
-| 17 | installation_crew_lead | A second clock is refused; a pause with no reason is refused; 100% is refused before the day ends; a day ends once | PASS | {"s1":"SESS-0001","s2":"Joinery · Crew A is already on the clock (JB26AMD01198, since 15:33). End that first.","p":"Why is the clock stopping? One of: Waiting o |
+| 17 | installation_crew_lead | A second clock is refused; a pause with no reason is refused; 100% is refused before the day ends; a day ends once | PASS | {"s1":"SESS-0003","s2":"Joinery · Crew A is already on the clock (JB26AMD01214, since 16:29). End that first.","p":"Why is the clock stopping? One of: Waiting o |
 | 18 | installation_crew_lead | … and the ended session is in the live table with its pause | PASS | {"status":"ended","pauses":1} |
 
 ## X15 Delegated estimate
 
 | # | Role | Step | Result | Detail |
 |---|---|---|---|---|
-| 1 | sales | Sales creates the customer | PASS | {"customer":"C1856"} |
-| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04331AMD"} |
-| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15618-0","lines":[1],"rate0":true} |
+| 1 | sales | Sales creates the customer | PASS | {"customer":"C1881"} |
+| 2 | sales | Sales creates the enquiry | PASS | {"enquiry":"ENQ04356AMD"} |
+| 3 | sales | Sales builds the quotation — every rate locked at zero | PASS | {"quotation":"AMD-15643-0","lines":[1],"rate0":true} |
 | 4 | sales | Sales transfers to the Estimator | PASS | {"stage":"estimator"} |
-| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15618-0 |
+| 5 | estimator | The Estimator sees it arrive | PASS | AMD-15643-0 |
 | 6 | estimator | Estimator costs, books labour, submits, routes | PASS | {"out":[{"line":1,"ok":true,"price":29.757}],"total":29.757} |
 | 7 | estimator | Delegating to oneself is refused; delegating to Arun re-assigns the quote with an audit entry | PASS | {"bad":"Pick a different estimator to delegate to.","picked":"Arun Kumar A","audit":"Delegated from Arun Kumar A to Arun Kumar A — tender, closes Thursday"} |
 | 8 | estimator | … and the delegate is in the live row | PASS | Arun Kumar A |

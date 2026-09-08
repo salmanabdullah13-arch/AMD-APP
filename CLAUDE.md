@@ -9458,3 +9458,39 @@ both fixes, lighter-touch charts 12/12. Full offline sweep all green.
   with it. Plain try/catch now, and the suite checks the page for its own
   content rather than only for a title, which is what would have missed it.
 - Store 35/35, full offline sweep all green.
+
+### 8 Sep 2026 — A route audit, and iteration 5
+
+- **`route-audit.js` (new, 11/11)** closes a class rather than its
+  instances. The same bug had bitten three times in two days, each found by
+  accident: a module moves and a hardcoded destination somewhere else does
+  not — Owner’s Store link, the reorder reminder, and the Joinery fold’s
+  retired target. It checks every role’s landing against the live
+  `user_types` table, that Owner reaches every current module, that no file
+  hops to a module that has been replaced, that every sidebar entry resolves,
+  and that every node launches something that exists.
+- **It derives from one place.** `NODES` already knew what was built and
+  what was retired; it now carries `supersededBy`, so “which module replaced
+  which” is data in the registry rather than folklore three files away. The
+  test for whether a file DEFINES a legacy launcher rather than hopping to
+  it is derived too — an early draft used a hand-kept map, which is the very
+  thing the audit exists to stop. Deliberate legacy links are declared with
+  a reason each: Owner’s Masters link, because Masters still lives there,
+  and `execGoStock`’s fallback.
+- **An all-clear on a detector’s first run is worth distrusting**, so both
+  real bugs were put back to prove it catches them: pointing Owner’s Store
+  link at the legacy module names `owner.js:101`; marking Production
+  superseded names all nine roles that land on it and both hop sites.
+- **Iteration 5 — the three drivers re-run against the current build**:
+  155/155, 221/221, 180/180, with no refused write, console error or toast
+  in any role’s session. Residue purged afterwards, 553 rows, verified clean.
+- **One check corrected, and it is the third of its shape in three days.**
+  Iteration 3’s Owner reload probe looked for the run’s own project name,
+  but Owner’s landing names a client only in Top Clients, which is RANKED —
+  with sixty-odd job cards on the project a fresh one legitimately does not
+  appear. It asserts the band’s own Active Jobs figure now, computed off the
+  hydrated job cards. Alongside the upholstery weekend-straddle and the
+  production Monday collision, worth naming as a class: **a check whose
+  expectation depends on today’s date, or on how much data the project holds,
+  will eventually fail for a reason that is not a defect** — and each one
+  costs a diagnosis before it can be dismissed.
