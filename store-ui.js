@@ -496,7 +496,14 @@ window.StoreUI = (function () {
     const itemSel = `<label class="stk-f"><span>Item</span><select data-a-input="item"><option value="">Choose…</option>${itemMaster.slice(0, 400).map(i => `<option value="${esc(i.id)}"${S.formItem === i.id ? ' selected' : ''}>${esc(i.name)}</option>`).join('')}</select></label>`;
     const q = `<label class="stk-f"><span>Quantity</span><input type="number" min="0" step="0.001" data-a-input="qty" value="${esc(S.formQty || '')}"></label>`;
     const who = `<label class="stk-f"><span>Person</span><input type="text" data-a-input="who" value="${esc(S.formWho || '')}" placeholder="Who is collecting it"></label>`;
-    if (S.form === 'iss') return jobSel + itemSel + binSel + q + who;
+    /* Which LINE of the job. Without it an issue is job-level only, and the
+       cost ledger cannot say which product the material went into — which is
+       exactly what the owner reads the product P&L for. */
+    const jobLines = ((typeof getJobCard === 'function' && S.formJob ? getJobCard(S.formJob) : null) || {}).items || [];
+    const lineSel = jobLines.length
+      ? `<label class="stk-f"><span>Job item</span><select data-a-input="line"><option value="">Choose…</option>${jobLines.map(l => `<option value="${l.lineId}"${String(S.formLine) === String(l.lineId) ? ' selected' : ''}>#${l.lineId} — ${esc(l.product || '')}</option>`).join('')}</select></label>`
+      : '<label class="stk-f"><span>Job item</span><select data-a-input="line" disabled><option>Pick a job card first</option></select></label>';
+    if (S.form === 'iss') return jobSel + lineSel + itemSel + binSel + q + who;
     if (S.form === 'rec') return itemSel + binSel + q;
     if (S.form === 'trf') return `<label class="stk-f"><span>From store</span><select data-a-input="from"><option value="">Choose…</option>${storeLocations.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select></label>
       <label class="stk-f"><span>To store</span><select data-a-input="to"><option value="">Choose…</option>${storeLocations.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select></label>` + itemSel + q;
@@ -517,7 +524,10 @@ window.StoreUI = (function () {
     const done = (msg) => { S.toast = msg; paint(); };
     const fail = (r) => { S.toast = (r && r.error) || 'That did not go through.'; paint(); return true; };
     if (S.form === 'iss') {
-      const r = safe(() => issueMaterialToJob({ jobCardId: S.formJob, lines: [{ itemId: S.formItem, binId: S.formBin, qty: Number(S.formQty) || 0 }], issuedTo: S.formWho, byWhom: 'Storekeeper' }), { error: 'Issue failed.' });
+      const r = safe(() => issueMaterialToJob({ jobCardId: S.formJob,
+        // lineId is what lets the cost ledger say which product this went into.
+        lines: [{ itemId: S.formItem, binId: S.formBin, qty: Number(S.formQty) || 0, lineId: S.formLine || null }],
+        issuedTo: S.formWho, byWhom: 'Storekeeper' }), { error: 'Issue failed.' });
       if (r && r.error) return fail(r);
       return done('✓ Issued against ' + S.formJob + '.');
     }
@@ -592,7 +602,8 @@ window.StoreUI = (function () {
     const el = e.target.closest('[data-a-input]');
     if (!el) return;
     const k = el.getAttribute('data-a-input');
-    ({ job: () => S.formJob = el.value, bin: () => S.formBin = el.value, item: () => S.formItem = el.value,
+    ({ job: () => { S.formJob = el.value; S.formLine = ''; }, line: () => S.formLine = el.value,
+      bin: () => S.formBin = el.value, item: () => S.formItem = el.value,
       qty: () => S.formQty = el.value, who: () => S.formWho = el.value, from: () => S.formFrom = el.value,
       to: () => S.formTo = el.value, cond: () => S.formCond = el.value, tool: () => S.formTool = el.value,
       site: () => S.formSite = el.value, due: () => S.formDue = el.value, area: () => S.formArea = el.value,

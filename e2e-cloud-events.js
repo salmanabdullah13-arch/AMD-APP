@@ -21,7 +21,7 @@ function printReport() {
 }
 
 const TEST_IDENTITY = 'E2E Test Account';
-const TEST_PASSWORD = 'E2eFixedTestPassword1234!';
+const TEST_PASSWORD = '123456';
 
 async function signIn(page, fileUrl) {
   await page.goto(fileUrl);

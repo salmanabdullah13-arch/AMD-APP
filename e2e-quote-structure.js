@@ -46,6 +46,13 @@ const check = (name, ok, extra) => { if (ok) { pass++; console.log('  PASS  ' + 
     await page.fill('#it-group', group); await page.fill('#it-subgroup', sub);
     await page.click('#it-product'); await page.keyboard.press('Control+A'); await page.keyboard.type(product);
     await page.selectOption('#it-unit', 'Nos');
+    // Product category is mandatory too (8 Sep 2026) — a person must choose
+    // one, so the form driver has to as well.
+    await page.evaluate(() => {
+      const sel = document.getElementById('it-category');
+      const prod = document.getElementById('it-product').value;
+      sel.value = suggestProductCategoryId(prod, null);
+    });
     await page.click('button[onclick^="salesAddItem"]'); await page.waitForTimeout(200);
   };
   await addViaForm('Living room', 'J01 - TV unit', 'TV unit carcass');

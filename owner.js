@@ -113,6 +113,7 @@ function ownerBuildShell() {
           { id: 'm-settings', ico: '⚙', label: 'Settings', onclick: "ownerGoToAdmin('devpreview')" },
           /* The completeness guarantee: every built dashboard, including the
              shop-floor views no sidebar could carry. */
+          { id: 'owner-productpnl', ico: '◱', label: 'Product P&L', onclick: "ownerNav('productpnl')" },
           { id: 'owner-alldash', ico: '⊞', label: 'All dashboards', onclick: "ownerNav('alldash')" }
         ]
       }
@@ -387,6 +388,10 @@ function renderOwnerBody() {
     body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span>` + ownerAllDashboardsHTML();
     return;
   }
+  if (ownerView === 'productpnl') {
+    body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span>` + ownerProductPnLHTML();
+    return;
+  }
   if (ownerView === 'approvals') {
     body.innerHTML = `<span class="sales-back" onclick="ownerBackToDashboard()">‹ Back to Dashboard</span><div id="owner-approval-queue"></div>`;
     renderApprovalQueueScreen('owner-approval-queue');
@@ -444,4 +449,118 @@ function renderOwnerBody() {
     return;
   }
   OwnerDashboard.mount(body);
+}
+
+/* ── PRODUCT P&L (8 Sep 2026) ──────────────────────────────────────────────
+   "I'm unable to ascertain which division of my company is driving the
+   revenue." Division, then product, then what sits behind it — read off each
+   line's own value against its own ACTUAL cost from the cost ledger.
+
+   Counted WHOLE, never split across departments: a sofa with a joinery frame
+   is one sofa. The divisional revenue chart answers the other question by
+   apportioning a mixed line across the departments that built it; the two are
+   different questions, and the header says so, because added together they
+   would double-count. */
+let ownerPnLRange = 'ytd';
+let ownerPnLOpen = null;
+
+function ownerPnLBounds() {
+  const now = new Date();
+  const iso = (d) => localISO(d);
+  if (ownerPnLRange === 'month') return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(now), label: 'this month' };
+  if (ownerPnLRange === 'quarter') {
+    const q = Math.floor(now.getMonth() / 3) * 3;
+    return { from: iso(new Date(now.getFullYear(), q, 1)), to: iso(now), label: 'this quarter' };
+  }
+  if (ownerPnLRange === 'all') return { from: '', to: '', label: 'all time' };
+  return { from: iso(new Date(now.getFullYear(), 0, 1)), to: iso(now), label: 'this year' };
+}
+function ownerSetPnLRange(r) { ownerPnLRange = r; renderOwnerBody(); }
+function ownerTogglePnLRow(id) { ownerPnLOpen = ownerPnLOpen === id ? null : id; renderOwnerBody(); }
+function ownerPnLMoney(v) {
+  return 'BD ' + (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
+function ownerProductPnLHTML() {
+  const b = ownerPnLBounds();
+  const p = getProductPnL({ from: b.from, to: b.to });
+  const ranges = [['month', 'This month'], ['quarter', 'This quarter'], ['ytd', 'This year'], ['all', 'All time']];
+  const chips = ranges.map(function (r) {
+    const on = ownerPnLRange === r[0];
+    return '<button class="sales-pill" style="cursor:pointer;border:0;margin-right:4px;'
+      + (on ? 'background:var(--biz-primary);color:#fff;' : 'background:var(--biz-input-bg,#f1f5f9);color:var(--biz-text-muted);')
+      + '" onclick="ownerSetPnLRange(\'' + r[0] + '\')">' + ownerEsc(r[1]) + '</button>';
+  }).join('');
+
+  const head = '<div class="sales-card">'
+    + '<p style="font-weight:700;font-size:14px;margin-bottom:6px;">Revenue and profit by product</p>'
+    + '<p style="margin-bottom:10px;">' + chips + '</p>';
+
+  if (!p.rows.length) {
+    return head + '<p style="font-size:12.5px;color:var(--biz-text-muted);">No confirmed jobs in '
+      + ownerEsc(b.label) + ' yet. A job appears here once Sales confirms it — its revenue from its own lines, '
+      + 'its cost from what the store issued and the floor logged.</p></div>';
+  }
+
+  const totals = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:4px 0 8px;">'
+    + '<div><p style="font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--biz-text-muted);">Revenue</p>'
+    + '<p style="font-size:19px;font-weight:700;">' + ownerPnLMoney(p.totals.revenue) + '</p></div>'
+    + '<div><p style="font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--biz-text-muted);">Cost</p>'
+    + '<p style="font-size:19px;font-weight:700;">' + ownerPnLMoney(p.totals.cost) + '</p></div>'
+    + '<div><p style="font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--biz-text-muted);">Gross profit</p>'
+    + '<p style="font-size:19px;font-weight:700;color:' + (p.totals.profit < 0 ? 'var(--bad,#b91c1c)' : 'var(--ok,#0f9d58)') + ';">'
+    + ownerPnLMoney(p.totals.profit) + ' · ' + ownerEsc(String(p.totals.marginPct)) + '%</p></div></div>';
+
+  const note = '<p style="font-size:11px;color:var(--biz-text-muted);line-height:1.65;">'
+    + 'Each line counted whole under its own product — a sofa with a joinery frame is one sofa, not a share of two. '
+    + 'The division revenue chart on the Overview answers a different question, apportioning a mixed line across the '
+    + 'departments that built it; the two should never be added together.<br>'
+    + 'Gross profit: direct material and labour only, no rent or admin salaries.'
+    + (p.linesWithoutLabour
+      ? ' <b>' + p.linesWithoutLabour + ' of ' + p.lines + ' lines carry no logged hours</b> — until the floor clocks those, their profit reads higher than it is.'
+      : '')
+    + '</p></div>';
+
+  const blocks = p.byDivision.map(function (d) {
+    const rows = d.rows.map(function (r) {
+      const key = r.division + '|' + r.categoryId;
+      const open = ownerPnLOpen === key;
+      const detail = open
+        ? '<tr><td colspan="6" style="padding:0 6px 10px;">'
+          + '<div style="font-size:11px;color:var(--biz-text-muted);line-height:1.7;">'
+          + r.jobs + ' job' + (r.jobs === 1 ? '' : 's') + ' · ' + r.qty + ' produced · material '
+          + ownerPnLMoney(r.material) + ' · labour ' + ownerPnLMoney(r.labour)
+          + (r.linesNoLabour
+            ? '<br><span style="color:var(--warn,#b45309);">' + r.linesNoLabour + ' line'
+              + (r.linesNoLabour === 1 ? '' : 's') + ' with no hours logged — profit reads high until the floor clocks them.</span>'
+            : '')
+          + '</div></td></tr>'
+        : '';
+      return '<tr style="cursor:pointer;" onclick="ownerTogglePnLRow(\'' + ownerEsc(key) + '\')">'
+        + '<td style="padding:7px 6px;">' + ownerEsc(r.category) + '</td>'
+        + '<td style="padding:7px 6px;text-align:right;">' + ownerEsc(String(r.qty)) + '</td>'
+        + '<td style="padding:7px 6px;text-align:right;">' + ownerPnLMoney(r.revenue) + '</td>'
+        + '<td style="padding:7px 6px;text-align:right;">' + ownerPnLMoney(r.cost) + '</td>'
+        + '<td style="padding:7px 6px;text-align:right;font-weight:700;color:'
+        + (r.profit < 0 ? 'var(--bad,#b91c1c)' : 'var(--ok,#0f9d58)') + ';">' + ownerPnLMoney(r.profit) + '</td>'
+        + '<td style="padding:7px 6px;text-align:right;">' + ownerEsc(String(r.marginPct)) + '%</td>'
+        + '</tr>' + detail;
+    }).join('');
+    const th = function (label, right) {
+      return '<th style="text-align:' + (right ? 'right' : 'left')
+        + ';padding:6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--biz-text-muted);">' + label + '</th>';
+    };
+    return '<div class="sales-card">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap;">'
+      + '<p style="font-weight:700;font-size:13.5px;">' + ownerEsc(d.division) + '</p>'
+      + '<p style="font-size:12px;color:var(--biz-text-muted);">' + ownerPnLMoney(d.revenue) + ' · profit <b style="color:'
+      + (d.profit < 0 ? 'var(--bad,#b91c1c)' : 'var(--ok,#0f9d58)') + ';">' + ownerPnLMoney(d.profit) + '</b> · '
+      + ownerEsc(String(d.marginPct)) + '%</p></div>'
+      + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:460px;">'
+      + '<thead><tr style="border-bottom:1px solid var(--biz-border-light,#f1f5f9);">'
+      + th('Product') + th('Made', 1) + th('Revenue', 1) + th('Cost', 1) + th('Profit', 1) + th('Margin', 1)
+      + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  }).join('');
+
+  return head + totals + note + blocks;
 }

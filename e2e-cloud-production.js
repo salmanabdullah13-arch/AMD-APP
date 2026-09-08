@@ -20,7 +20,7 @@ const todayISO = () => localISO(new Date());
 
 const JOINERY_IDENTITY = 'E2E Joinery Account';
 const SALES_IDENTITY = 'E2E Test Account';
-const FIXED_PASSWORD = 'E2eFixedTestPassword1234!';
+const FIXED_PASSWORD = '123456';
 
 let pass = 0, fail = 0;
 const errors = [];

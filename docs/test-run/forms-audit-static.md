@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-08 17:54 by `forms-audit-static.js`.
+Generated 2026-09-08 18:52 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
@@ -9,7 +9,7 @@ A data-layer function that can `return {error}`, called from a screen with its r
 
 _None._
 
-## B · Selects that open pre-answered (127)
+## B · Selects that open pre-answered (128)
 
 The first `<option>` carries a real value, so whatever happens to be first is what gets saved unless the person notices. A filter defaulting to "All" is fine; a field that becomes a record is not.
 
@@ -52,10 +52,11 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `curtain.js` | 4960 | `tl-role-select` | _list, no placeholder_ |
 | `estimator.js` | 312 | `(no id)` | _list, no placeholder_ |
 | `estimator.js` | 318 | `(no id)` | _list, no placeholder_ |
-| `estimator.js` | 570 | `bom-tpl-apply` | _list, no placeholder_ |
-| `estimator.js` | 587 | `bom-copy-source` | _list, no placeholder_ |
-| `estimator.js` | 729 | `lab-dept` | _list, no placeholder_ |
-| `estimator.js` | 731 | `lab-cat` | _list, no placeholder_ |
+| `estimator.js` | 453 | `(no id)` | _list, no placeholder_ |
+| `estimator.js` | 573 | `bom-tpl-apply` | _list, no placeholder_ |
+| `estimator.js` | 590 | `bom-copy-source` | _list, no placeholder_ |
+| `estimator.js` | 732 | `lab-dept` | _list, no placeholder_ |
+| `estimator.js` | 734 | `lab-cat` | _list, no placeholder_ |
 | `fleet-delivery.js` | 185 | `fleet-insp-pass-` | `<option value="pass">` |
 | `hr.js` | 227 | `hr-payhead-select` | _list, no placeholder_ |
 | `hr.js` | 240 | `hr-dep-relation` | _list, no placeholder_ |
@@ -93,11 +94,11 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `sales.js` | 649 | `fu-outcome` | _list, no placeholder_ |
 | `sales.js` | 749 | `(no id)` | _list, no placeholder_ |
 | `sales.js` | 754 | `(no id)` | _list, no placeholder_ |
-| `sales.js` | 1700 | `fin-covering` | _list, no placeholder_ |
-| `sales.js` | 1706 | `fin-terms` | _list, no placeholder_ |
-| `sales.js` | 1883 | `(no id)` | _list, no placeholder_ |
-| `sales.js` | 1893 | `(no id)` | _list, no placeholder_ |
-| `store-ui.js` | 505 | `(no id)` | `<option value="good">` |
+| `sales.js` | 1711 | `fin-covering` | _list, no placeholder_ |
+| `sales.js` | 1717 | `fin-terms` | _list, no placeholder_ |
+| `sales.js` | 1894 | `(no id)` | _list, no placeholder_ |
+| `sales.js` | 1904 | `(no id)` | _list, no placeholder_ |
+| `store-ui.js` | 512 | `(no id)` | `<option value="good">` |
 | `storekeeper.js` | 356 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 360 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 450 | `(no id)` | _list, no placeholder_ |

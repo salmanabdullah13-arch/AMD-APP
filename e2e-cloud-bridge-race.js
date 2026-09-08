@@ -12,7 +12,7 @@
  */
 const { chromium } = require('@playwright/test');
 const path = require('path');
-const PASSWORD = 'E2eFixedTestPassword1234!';
+const PASSWORD = '123456';
 const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/') + '?test_cloud_login=1';
 let pass = 0, fail = 0; const errors = [];
 function check(name, ok, detail) { if (ok) { pass++; console.log('  PASS  ' + name); } else { fail++; console.log('  FAIL  ' + name + (detail !== undefined ? '  → ' + JSON.stringify(detail) : '')); } }

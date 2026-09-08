@@ -37,7 +37,7 @@ function printReport() {
 // sign up (first run) or sign in (subsequent runs) as the same
 // dedicated test account, never touching a real person's identity.
 const TEST_IDENTITY = 'E2E Test Account';
-const TEST_PASSWORD = 'E2eFixedTestPassword1234!';
+const TEST_PASSWORD = '123456';
 
 async function signInOrUp(page, fileUrl) {
   await page.goto(fileUrl);

@@ -1465,7 +1465,11 @@ function renderWizardStep2() {
             <div class="sales-field"><label>Sub Group</label><input type="text" id="it-subgroup" value="${esc(defaultSubgroup)}"></div>
           </div>
           <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Group/Sub Group become header/sub-header sections on the printed quotation. Leave blank for a flat, ungrouped item.</p>
-          <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product" autocomplete="off"></div>
+          <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product" autocomplete="off" oninput="salesSuggestCategory()"></div>
+          <div class="sales-field"><label>Product category</label>
+            <select id="it-category"><option value="">Choose…</option>${SALES_DIVISIONS.map(d => `<optgroup label="${esc(d)}">${productCategoriesForDivision(d).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
+            <p id="it-category-hint" style="font-size:10.5px;color:#94a3b8;margin:4px 0 0;">What this line is, for the revenue and profit report. Unselected on purpose — it is worth a moment.</p>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div class="sales-field"><label>Qty</label><input type="number" id="it-qty" value="1"></div>
             <div class="sales-field"><label>Unit</label><select id="it-unit"><option value="">Choose…</option>${units.map(u => `<option value="${esc(u.name)}">${esc(u.name)}</option>`).join('')}</select></div>
@@ -1587,9 +1591,15 @@ function salesAddItem(qtnId) {
   if (!product) { salesAlert('Product/Service is required.'); return; }
   const unit = document.getElementById('it-unit').value;
   if (!unit) { salesAlert('Choose a Unit for this item.'); document.getElementById('it-unit').focus(); return; }   // no default — a wrong unit on a printed quotation is worse than a pause (Salman, 5 Sep 2026)
+  // Mandatory, and unselected by default for the same reason Unit is: this
+  // is what tells the owner which products earn, and a line filed under the
+  // wrong one is worse than a line nobody categorised at all.
+  const categoryId = document.getElementById('it-category').value;
+  if (!categoryId) { salesAlert('Choose a Product category for this item.'); document.getElementById('it-category').focus(); return; }
   const photoInput = document.getElementById('it-photo');
   const photo = photoInput && photoInput.files && photoInput.files[0];
   const row = addQuotationItem(qtnId, {
+    categoryId,
     group: document.getElementById('it-group').value,
     subgroup: document.getElementById('it-subgroup').value,
     product,
@@ -1607,6 +1617,7 @@ function salesAddItem(qtnId) {
   // cursor back in Product for the next line.
   ['it-product', 'it-desc', 'it-comments'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('it-qty').value = '1'; document.getElementById('it-disc').value = '0'; document.getElementById('it-unit').value = '';
+  document.getElementById('it-category').value = '';
   if (photoInput) photoInput.value = '';
   salesAlert('✓ Added: ' + product);
   renderSalesBody();
@@ -1906,4 +1917,36 @@ function renderQuotationRegisterReport() {
         }).join('')}
         </table>`}
     </div>`;
+}
+
+/* As the product name is typed, offer the category the keyword matcher would
+   pick — as a suggestion to tap, never as a pre-selected value. Salman's rule
+   for Unit applies here for the same reason: a field that arrives already
+   answered gets accepted without being read, and this one decides which
+   product a job's revenue and profit are reported under. */
+function salesSuggestCategory() {
+  const hint = document.getElementById('it-category-hint');
+  const sel = document.getElementById('it-category');
+  const prod = document.getElementById('it-product');
+  if (!hint || !sel || !prod) return;
+  if (sel.value) { hint.textContent = ''; return; }
+  const name = prod.value.trim();
+  if (name.length < 3) {
+    hint.innerHTML = 'What this line is, for the revenue and profit report. Unselected on purpose — it is worth a moment.';
+    return;
+  }
+  const id = suggestProductCategoryId(name, null);
+  const cat = getProductCategory(id);
+  if (!cat || cat.name === 'Other') {
+    hint.innerHTML = 'What this line is, for the revenue and profit report.';
+    return;
+  }
+  hint.innerHTML = 'Looks like <b>' + esc(cat.name) + '</b> · ' + esc(cat.division) +
+    ' — <span style="color:var(--biz-primary);cursor:pointer;text-decoration:underline;" onclick="salesUseSuggestedCategory(\'' + cat.id + '\')">use it</span>';
+}
+function salesUseSuggestedCategory(id) {
+  const sel = document.getElementById('it-category');
+  if (sel) { sel.value = id; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+  const hint = document.getElementById('it-category-hint');
+  if (hint) hint.textContent = '';
 }

@@ -66,7 +66,7 @@ function printReport() {
 const SALES_IDENTITY = 'E2E Test Account';
 const OWNER_IDENTITY = 'E2E Approver Account';
 const JOINERY_IDENTITY = 'E2E Joinery Account';
-const FIXED_PASSWORD = 'E2eFixedTestPassword1234!';
+const FIXED_PASSWORD = '123456';
 
 // Polls (as whichever session is currently signed in — Sales here,
 // which has full read access) until the job's background persist has

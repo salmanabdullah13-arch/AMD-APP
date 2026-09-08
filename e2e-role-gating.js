@@ -41,7 +41,7 @@ function printReport() {
 }
 
 const APPROVER_IDENTITY = 'E2E Approver Account';
-const FIXED_PASSWORD = 'E2eFixedTestPassword1234!';
+const FIXED_PASSWORD = '123456';
 const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/') + '?test_cloud_login=1';
 
 async function signInAs(page, displayName) {

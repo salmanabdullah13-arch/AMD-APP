@@ -93,7 +93,7 @@ async function A4() {
       out.insert = ins.error ? ins.error.message : 'ACCEPTED';
       await sb.auth.signOut();
       return out;
-    }, { who, pw: 'E2eFixedTestPassword1234!' });
+    }, { who, pw: '123456' });
     record('The account signs in (authentication is not the gate — approval is)', 'pending', !r.signIn, r);
     record('Every business table returns zero rows to a pending account', 'pending', ['customers', 'job_cards', 'quotations', 'messages', 'item_master', 'lane_slots'].every(t => String(r[t]).startsWith('0')), r);
     record('A pending account cannot insert a customer', 'pending', /polic|permission|denied|violates/i.test(r.insert || ''), r.insert);

@@ -21,7 +21,7 @@ const { chromium } = require('@playwright/test');
 const path = require('path');
 
 const TEST_IDENTITY = 'E2E Test Account';
-const TEST_PASSWORD = 'E2eFixedTestPassword1234!';
+const TEST_PASSWORD = '123456';
 
 // Products chosen to exercise the routing rules an estimator actually hits:
 // a painted joinery item (carp + paint), a motorized track (routes to curt

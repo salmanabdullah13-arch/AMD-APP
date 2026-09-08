@@ -88,6 +88,8 @@ async function openNode(page, nodeId, wrapId) {
   await page.fill('#sales-body #it-product', 'Extra Curtain Panel');
   await page.fill('#sales-body #it-qty', '1');
   await page.selectOption('#sales-body #it-unit', 'Nos');   // 5 Sep 2026: the Unit has no default — a person chooses it
+  // 8 Sep 2026: Product category is mandatory too — a person chooses it.
+  await page.evaluate(() => { const s = document.getElementById('it-category'); if (s) s.value = suggestProductCategoryId(document.getElementById('it-product').value, null); });
   await page.click('#sales-body button:has-text("Add Item")');
   await page.waitForTimeout(150);
   await shot(page, 'variation-item-added');

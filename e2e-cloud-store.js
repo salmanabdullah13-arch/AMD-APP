@@ -18,7 +18,7 @@ const path = require('path');
 
 const STORE_IDENTITY = 'E2E Approver Account';   // owner-typed, inside is_store_side()
 const SALES_IDENTITY = 'E2E Test Account';       // sales-typed, outside it
-const FIXED_PASSWORD = 'E2eFixedTestPassword1234!';
+const FIXED_PASSWORD = '123456';
 
 const TABLES = ['store_locations', 'store_bins', 'stock_lots', 'stock_reservations',
   'store_issues', 'store_transfers', 'store_returns', 'tool_loans', 'stock_counts'];

@@ -39,7 +39,7 @@ function printReport() {
 
 const SALES_IDENTITY = 'E2E Test Account'; // live, approved, user_type = 'sales'
 const OWNER_IDENTITY = 'E2E Approver Account'; // live, approved, user_type = 'owner'
-const FIXED_PASSWORD = 'E2eFixedTestPassword1234!';
+const FIXED_PASSWORD = '123456';
 
 async function signIn(page, fileUrl, identity) {
   await page.goto(fileUrl);

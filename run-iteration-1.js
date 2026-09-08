@@ -18,7 +18,7 @@ const https = require('https');
 
 const REF = 'rwbxycxrrslgxskoufxo';
 const PAT = process.env.SUPABASE_PAT;
-const PASSWORD = 'E2eFixedTestPassword1234!';
+const PASSWORD = '123456';
 const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/') + '?test_cloud_login=1';
 const ONLY = (process.argv[2] || 'S1,S2,S3,S4,S5').split(',');
 const OUT = path.join(__dirname, 'test-run', 'iter1');

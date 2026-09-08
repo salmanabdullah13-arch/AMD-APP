@@ -448,7 +448,10 @@ function renderEstimationIndex() {
     return `
       <tr style="${hasBom ? 'background:#dcfce7;' : ''}">
         <td>${it.lineId}</td>
-        <td>${eEsc(it.product)}${commentsHtml}</td>
+        <td>${eEsc(it.product)}${commentsHtml}
+          <div style="font-size:10.5px;color:#94a3b8;margin-top:3px;">${lock ? eEsc(productCategoryLabel(it.categoryId))
+            : `<select style="font-size:10.5px;padding:2px 4px;max-width:170px;" onchange="estimatorSetItemCategory('${q.id}',${it.lineId},this.value)">${SALES_DIVISIONS.map(d => `<optgroup label="${eEsc(d)}">${productCategoriesForDivision(d).map(c => `<option value="${eEsc(c.id)}"${c.id === it.categoryId ? " selected" : ""}>${eEsc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>`}</div>
+        </td>
         <td>${it.qty} ${eEsc(it.unit)}</td>
         <td>${it.rate.toFixed(3)}</td>
         <td>${hasBom ? '✓' : ''}</td>
@@ -479,7 +482,7 @@ function renderEstimationIndex() {
     </div>
     <div class="sales-card">
       <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Department routing is auto-suggested per line (tap a job's Departments cell to review/override) — the Operations Manager confirms it for real once the job is created, this is just getting it right early.</p>
-      <table class="sales-items"><tr><th>SL</th><th>Product</th><th>Qty</th><th>Rate</th><th>BOM</th><th>Departments</th><th>Actions</th></tr>${rows}</table>
+      <table class="sales-items"><tr><th>SL</th><th>Product / category</th><th>Qty</th><th>Rate</th><th>BOM</th><th>Departments</th><th>Actions</th></tr>${rows}</table>
     </div>
     ${lock ? '' : `<button class="primary" style="width:100%;" onclick="openEstimatorReview('${q.id}')">Review & Send to Approver →</button>`}`;
 }
@@ -1048,4 +1051,13 @@ function estimatorApplyExcelImport() {
   excelImportState = null;
   estimatorAlert('✓ ' + added + ' rows imported onto ' + touchedLines.length + ' line(s).' + (firstErr ? ' First error: ' + firstErr : '') + ' Review each line and submit as usual.');
   openEstimationIndex(qtnId);
+}
+
+/* The Estimator reviews every line anyway, so the category is correctable
+ * right where the routing is — same cell, same pass. Frozen with the rest
+ * of the quote once it is confirmed. */
+function estimatorSetItemCategory(qtnId, lineId, categoryId) {
+  const r = setQuotationItemCategory(qtnId, lineId, categoryId);
+  if (r && r.error) { estimatorAlert(r.error); return; }
+  renderEstimatorBody();
 }

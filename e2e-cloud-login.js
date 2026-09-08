@@ -94,7 +94,7 @@ function printReport() {
   // actually sets its password (subsequent runs correctly hit "already
   // registered" below and move on without re-testing the create path).
   const testIdentity = 'E2E Test Account';
-  const testPassword = 'E2eFixedTestPassword1234!';
+  const testPassword = '123456';
 
   currentStep = 'switch-to-signup';
   await page.click('#cloud-login-body button:nth-of-type(2)');

@@ -21,7 +21,7 @@ const https = require('https');
 
 const REF = 'rwbxycxrrslgxskoufxo';
 const PAT = process.env.SUPABASE_PAT;
-const PASSWORD = 'E2eFixedTestPassword1234!';   // the same constant every live suite uses
+const PASSWORD = '123456';   // the same constant every live suite uses
 const fileUrl = 'file://' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/') + '?test_cloud_login=1';
 
 const ROLES = [

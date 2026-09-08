@@ -28,7 +28,7 @@ const localISO = (d) => { const p = (x) => String(x).padStart(2, '0'); return d.
 // created by the production manager. Owner is inside is_production_side() too,
 // so one session can write the whole story.
 const IDENTITY = 'E2E Approver Account';
-const PASSWORD = 'E2eFixedTestPassword1234!';
+const PASSWORD = '123456';
 
 const findings = [];
 function finding(scenario, expected, actual, ok) {

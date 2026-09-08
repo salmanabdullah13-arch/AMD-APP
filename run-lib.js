@@ -14,7 +14,7 @@ const fs = require('fs');
 const https = require('https');
 
 const REF = 'rwbxycxrrslgxskoufxo';
-const PASSWORD = 'E2eFixedTestPassword1234!';
+const PASSWORD = '123456';
 const ROLES = {
   sales: 'E2E Test Account', estimator: 'E2E Estimator Account', approver: 'E2E Approver Role Account',
   operations_manager: 'E2E Operations Account', purchaser: 'E2E Purchaser Account', storekeeper: 'E2E Storekeeper Account',

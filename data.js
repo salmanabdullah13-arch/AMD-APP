@@ -2202,6 +2202,266 @@ const FOLLOWUP_OUTCOMES = ["On call/whatsapp", "Required design/proposal", "Clie
 // Q-Pro URL path (furniture/Enquiry/createenquiry); the rest mirror AMD's own
 // production divisions (DEPTS above) until Q-Pro's full division list is captured.
 const SALES_DIVISIONS = ["Curtain & Blinds", "Furniture", "Joinery", "Upholstery", "Metal Works"];
+
+/* ── PRODUCT CATEGORY (8 Sep 2026) ─────────────────────────────────────────
+   Salman, as owner: "I'm unable to ascertain which division of my company is
+   driving the revenue" — he wants revenue and profit per product, not just
+   per division: curtains apart from roman blinds apart from roller blinds,
+   TV units apart from wardrobes apart from vanities.
+
+   Everything else that report needs already existed. Each quotation line
+   carries its own value, and the cost ledger derives each line's ACTUAL cost
+   from priced material issues plus labour day-logs at real payroll rates, so
+   profit per line was already real rather than estimated. The only missing
+   piece was this: `product` is free text a salesperson types, and nothing
+   grouped one product against another.
+
+   The list is Salman's own, seeded as a master he can edit — the same shape
+   as Units and Stock Categories. `division` is the real SALES_DIVISIONS value
+   so the rollup reaches the existing divisional reports; the category names
+   are his words. Each division keeps an "Other" so a genuinely new product
+   can still be quoted the day it comes up — a mandatory field with no escape
+   hatch stops work, and stopped work gets worked around. */
+const PRODUCT_CATEGORY_SEED = [
+  ["Curtain & Blinds", ["Curtains", "Roman blinds", "Roller blinds", "Tracks & accessories", "Other"]],
+  ["Upholstery", ["Sofa", "Chair", "Wall panels", "Other"]],
+  ["Joinery", ["TV unit", "Wall cladding", "Dining table", "Headboard", "Wardrobe",
+    "Kitchen unit", "Vanity", "Door", "Frame", "Other"]],
+  ["Furniture", ["Other"]],
+  ["Metal Works", ["Other"]]
+];
+let __pcSeq = 0;
+const productCategories = [];
+PRODUCT_CATEGORY_SEED.forEach(([division, names]) => names.forEach(name => {
+  productCategories.push({
+    id: "PC" + String(++__pcSeq).padStart(3, "0"),
+    name, division, status: "Enabled"
+  });
+}));
+
+/* Longest, most specific keyword first: "roman blind" must beat "blind", and
+   "dining table" must beat "table". Matched against the lower-cased product
+   name, the same text suggestDepartmentSequence() already reads to route a
+   line to a department — one source of truth for what a product name means. */
+const PRODUCT_CATEGORY_KEYWORDS = [
+  ["roman", "Roman blinds"], ["roller", "Roller blinds"],
+  ["sheer", "Curtains"], ["drape", "Curtains"], ["curtain", "Curtains"], ["blind", "Roller blinds"],
+  ["track", "Tracks & accessories"], ["rail", "Tracks & accessories"],
+  ["sofa", "Sofa"], ["settee", "Sofa"], ["couch", "Sofa"],
+  ["chair", "Chair"], ["ottoman", "Chair"], ["stool", "Chair"],
+  ["wall panel", "Wall panels"], ["panelling", "Wall panels"], ["paneling", "Wall panels"],
+  ["headboard", "Headboard"], ["head board", "Headboard"],
+  ["tv unit", "TV unit"], ["tv cabinet", "TV unit"], ["media unit", "TV unit"],
+  ["cladding", "Wall cladding"],
+  ["dining table", "Dining table"], ["dining", "Dining table"],
+  ["wardrobe", "Wardrobe"], ["closet", "Wardrobe"],
+  ["kitchen", "Kitchen unit"], ["vanity", "Vanity"],
+  ["door", "Door"], ["frame", "Frame"]
+];
+
+function getProductCategory(id) { return productCategories.find(c => c.id === id) || null; }
+function productCategoryLabel(id) { const c = getProductCategory(id); return c ? c.name : "Uncategorised"; }
+function productCategoryDivision(id) { const c = getProductCategory(id); return c ? c.division : null; }
+function productCategoriesForDivision(division) {
+  return productCategories.filter(c => c.status === "Enabled" && (!division || c.division === division));
+}
+/* The product name decides the category; the division only narrows which
+   "Other" to fall back to. A sofa quoted on a Joinery enquiry is still a
+   sofa — the whole point of the report is that the product tells the truth
+   the enquiry's division cannot. */
+function suggestProductCategoryId(productName, division) {
+  const p = String(productName || "").toLowerCase();
+  const hit = PRODUCT_CATEGORY_KEYWORDS.find(([k]) => p.includes(k));
+  if (hit) {
+    const byName = productCategories.find(c => c.name === hit[1] && c.status === "Enabled");
+    if (byName) return byName.id;
+  }
+  const other = productCategories.find(c => c.name === "Other" && c.division === division)
+    || productCategories.find(c => c.name === "Other" && c.division === "Joinery");
+  return other ? other.id : (productCategories[0] || {}).id || null;
+}
+function createProductCategory({ name, division }) {
+  const n = String(name || "").trim();
+  if (!n) return { error: "A name is required." };
+  if (SALES_DIVISIONS.indexOf(division) === -1) return { error: "Pick a division." };
+  if (productCategories.some(c => c.name.toLowerCase() === n.toLowerCase() && c.division === division)) {
+    return { error: n + " already exists under " + division + "." };
+  }
+  const c = { id: "PC" + String(++__pcSeq).padStart(3, "0"), name: n, division, status: "Enabled" };
+  productCategories.push(c);
+  return c;
+}
+function setProductCategoryStatus(id, status) {
+  const c = getProductCategory(id);
+  if (!c) return { error: "Category not found." };
+  c.status = status === "Disabled" ? "Disabled" : "Enabled";
+  return c;
+}
+
+/* Correcting a line's category. Open to Sales while the quote is still theirs
+   and to the Estimator, who reviews every line anyway — the guard is the same
+   freeze that governs every other edit, so a confirmed quote's categories are
+   as fixed as its prices. The Job Card's own copy is corrected alongside it,
+   or the P&L would keep reporting the old product after somebody fixed it. */
+function setQuotationItemCategory(qtnId, lineId, categoryId) {
+  const frozen = quotationFrozen(qtnId); if (frozen) return frozen;
+  const item = findQuotationItem(qtnId, lineId);
+  if (!item) return { error: "Item not found." };
+  const cat = getProductCategory(categoryId);
+  if (!cat) return { error: "Pick a product category." };
+  item.categoryId = cat.id;
+  const qtn = quotations.find(q => q.id === qtnId);
+  if (qtn) persistQuotationUpdate(qtn);
+  jobCards.forEach(job => {
+    if (job.quotationId !== qtnId) return;
+    const jl = (job.items || []).find(i => i.lineId === lineId);
+    if (jl) { jl.categoryId = cat.id; persistJobCardUpdate(job); }
+  });
+  return item;
+}
+
+/* Everything quoted before the category existed. Derived from the product
+   name by the same matcher a new line uses, so the report covers history too
+   — imperfect where a product was named loosely, and correctable line by
+   line, which is why it returns what it touched rather than doing it
+   silently. */
+function backfillProductCategories() {
+  const touched = { quotationLines: 0, jobLines: 0 };
+  quotations.forEach(q => {
+    const enq = enquiries.find(e => e.id === q.enquiryId);
+    let changed = false;
+    (q.items || []).forEach(it => {
+      if (it.categoryId) return;
+      it.categoryId = suggestProductCategoryId(it.product, enq ? enq.division : null);
+      touched.quotationLines++; changed = true;
+    });
+    if (changed) persistQuotationUpdate(q);
+  });
+  jobCards.forEach(job => {
+    const q = quotations.find(x => x.id === job.quotationId);
+    const enq = q ? enquiries.find(e => e.id === q.enquiryId) : null;
+    let changed = false;
+    (job.items || []).forEach(it => {
+      if (it.categoryId) return;
+      const src = q ? (q.items || []).find(i => i.lineId === it.lineId) : null;
+      it.categoryId = (src && src.categoryId) || suggestProductCategoryId(it.product, enq ? enq.division : null);
+      touched.jobLines++; changed = true;
+    });
+    if (changed) persistJobCardUpdate(job);
+  });
+  return touched;
+}
+
+/* ── PRODUCT P&L ───────────────────────────────────────────────────────────
+   Revenue and profit per product, from confirmed job cards: each line's own
+   value against its own ACTUAL cost out of the cost ledger.
+
+   Deliberately NOT split across departments. The divisional report already
+   answers "which division earns" by apportioning a mixed line across the
+   departments that built it (itemDivisionShares, 6 Aug) — right for that
+   question, wrong for this one: a sofa with a joinery frame is one sofa, and
+   0.4 of a sofa is not a number anybody can act on. So a line counts whole,
+   under its own product, and the two reports must never be added together.
+   Each row says which it is.
+
+   Gross, not net: direct material and labour only. No rent, no admin salary,
+   no overhead recovery — those live in the P&L report off the ledger. And it
+   is only as true as the crew clock: hours nobody logs make profit read high,
+   which is why unlogged lines are counted and reported alongside. */
+function getProductPnL({ from = "", to = "", division = null } = {}) {
+  const inRange = (d) => (!from || d >= from) && (!to || d <= to);
+  const rows = {};
+  let noLabour = 0, lines = 0;
+
+  jobCards.forEach(job => {
+    if (job.status === "cancelled") return;
+    if (!inRange(job.date || "")) return;
+    (job.items || []).forEach(it => {
+      const cat = getProductCategory(it.categoryId);
+      const catId = cat ? cat.id : "__none";
+      const div = cat ? cat.division : "Uncategorised";
+      if (division && div !== division) return;
+      const key = div + "|" + catId;
+      if (!rows[key]) {
+        rows[key] = { division: div, categoryId: catId, category: cat ? cat.name : "Uncategorised",
+          qty: 0, jobs: new Set(), revenue: 0, material: 0, labour: 0, cost: 0, profit: 0, linesNoLabour: 0 };
+      }
+      const r = rows[key];
+      const c = safeLineActualCost(job.id, it.lineId);
+      r.qty += Number(it.qty) || 0;
+      r.jobs.add(job.id);
+      r.revenue += Number(it.netAmount) || 0;
+      r.material += c.materials;
+      r.labour += c.labour;
+      r.cost += c.total;
+      lines++;
+      if (c.labour <= 0) { r.linesNoLabour++; noLabour++; }
+    });
+  });
+
+  const out = Object.values(rows).map(r => {
+    const revenue = Math.round(r.revenue * 1000) / 1000;
+    const cost = Math.round(r.cost * 1000) / 1000;
+    const profit = Math.round((revenue - cost) * 1000) / 1000;
+    return { division: r.division, categoryId: r.categoryId, category: r.category,
+      qty: Math.round(r.qty * 1000) / 1000, jobs: r.jobs.size,
+      revenue, material: Math.round(r.material * 1000) / 1000,
+      labour: Math.round(r.labour * 1000) / 1000, cost, profit,
+      marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
+      linesNoLabour: r.linesNoLabour };
+  }).sort((a, b) => (a.division === b.division ? b.revenue - a.revenue : a.division.localeCompare(b.division)));
+
+  const byDivision = {};
+  out.forEach(r => {
+    if (!byDivision[r.division]) byDivision[r.division] = { division: r.division, revenue: 0, cost: 0, profit: 0, qty: 0, rows: [] };
+    const d = byDivision[r.division];
+    d.revenue = Math.round((d.revenue + r.revenue) * 1000) / 1000;
+    d.cost = Math.round((d.cost + r.cost) * 1000) / 1000;
+    d.profit = Math.round((d.profit + r.profit) * 1000) / 1000;
+    d.qty = Math.round((d.qty + r.qty) * 1000) / 1000;
+    d.rows.push(r);
+  });
+  Object.values(byDivision).forEach(d => { d.marginPct = d.revenue > 0 ? Math.round((d.profit / d.revenue) * 1000) / 10 : 0; });
+
+  const totals = out.reduce((t, r) => ({
+    revenue: Math.round((t.revenue + r.revenue) * 1000) / 1000,
+    cost: Math.round((t.cost + r.cost) * 1000) / 1000,
+    profit: Math.round((t.profit + r.profit) * 1000) / 1000
+  }), { revenue: 0, cost: 0, profit: 0 });
+  totals.marginPct = totals.revenue > 0 ? Math.round((totals.profit / totals.revenue) * 1000) / 10 : 0;
+
+  return { rows: out, byDivision: Object.values(byDivision).sort((a, b) => b.revenue - a.revenue),
+    totals, from, to, lines, linesWithoutLabour: noLabour };
+}
+
+/* Month by month for one category, so "curtains, annually" is a real series
+   rather than a single figure. */
+function getProductPnLByMonth(categoryId, monthsBack = 12) {
+  const out = [];
+  const now = new Date();
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const first = localISO(d);
+    const last = localISO(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+    const p = getProductPnL({ from: first, to: last });
+    const row = p.rows.find(r => r.categoryId === categoryId);
+    out.push({ month: first.slice(0, 7), revenue: row ? row.revenue : 0,
+      cost: row ? row.cost : 0, profit: row ? row.profit : 0, qty: row ? row.qty : 0 });
+  }
+  return out;
+}
+
+function safeLineActualCost(jobId, lineId) {
+  const empty = { materials: 0, labour: 0, total: 0 };
+  try {
+    const c = getLineActualCost(jobId, lineId);
+    if (!c) return empty;
+    // getLineActualCost returns materials/labour as ARRAYS of moves; the
+    // figures are materialTotal/labourTotal/totalCost.
+    return { materials: Number(c.materialTotal) || 0, labour: Number(c.labourTotal) || 0,
+      total: Number(c.totalCost) || 0 };
+  } catch (e) { return empty; }
+}
 // Common subset, NOT the full ISO-3166 list Q-Pro's Add Customer dropdown actually has —
 // good enough until that full list is captured.
 const COUNTRIES = ["Bahrain", "Saudi Arabia", "United Arab Emirates", "Kuwait", "Qatar", "Oman", "India", "Pakistan", "Bangladesh", "Philippines", "Sri Lanka", "Nepal", "Egypt", "Jordan", "Lebanon", "United Kingdom", "United States", "Other"];
@@ -2285,10 +2545,28 @@ function customerObjToRow(c) {
 // the second call tries to attach realtime listeners to a channel
 // that's already subscribed, which supabase-js rejects outright.
 let cloudCustomersCacheInitialized = false;
+/* PostgREST returns at most 1000 rows per request and gives no signal that
+   it truncated — so a table that grows past a thousand simply loses its
+   tail, silently. Found 8 Sep 2026 when the Item Master went to 2238 items
+   and the app hydrated 1000 of them: everything after was missing from BOM
+   search, from issuing, and from the reorder alerts. Every cloud read pages
+   through this instead. `build` returns a fresh query each call, because a
+   supabase-js builder cannot be re-ranged once awaited. */
+const CLOUD_PAGE = 1000;
+async function fetchAllRows(build) {
+  const all = [];
+  for (let from = 0; ; from += CLOUD_PAGE) {
+    const { data, error } = await build().range(from, from + CLOUD_PAGE - 1);
+    if (error) return { data: all, error };
+    if (data && data.length) all.push(...data);
+    if (!data || data.length < CLOUD_PAGE) break;
+  }
+  return { data: all, error: null };
+}
 async function initCloudCustomersCache() {
   if (!window.__realCloudSession || !sb || cloudCustomersCacheInitialized) return;
   cloudCustomersCacheInitialized = true;
-  const { data, error } = await sb.from("customers").select("*").order("created_at", { ascending: true });
+  const { data, error } = await fetchAllRows(() => sb.from("customers").select("*").order("created_at", { ascending: true }));
   if (!error && data) { customers.length = 0; data.forEach(row => customers.push(customerRowToObj(row))); }
   sb.channel("customers-sync")
     .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, (payload) => {
@@ -2363,7 +2641,7 @@ let cloudCustomerBankingCacheInitialized = false;
 async function initCloudCustomerBankingCache() {
   if (!window.__realCloudSession || !sb || cloudCustomerBankingCacheInitialized) return;
   cloudCustomerBankingCacheInitialized = true;
-  const { data, error } = await sb.from("customer_banking_details").select("*");
+  const { data, error } = await fetchAllRows(() => sb.from("customer_banking_details").select("*"));
   // A non-Accounts/Owner session gets zero rows back (RLS), not an
   // error — that's expected, not a failure to surface.
   if (!error && data) { customerBankingDetails.length = 0; data.forEach(row => customerBankingDetails.push(customerBankingRowToObj(row))); }
@@ -2474,7 +2752,7 @@ let cloudEnquiriesCacheInitialized = false;
 async function initCloudEnquiriesCache() {
   if (!window.__realCloudSession || !sb || cloudEnquiriesCacheInitialized) return;
   cloudEnquiriesCacheInitialized = true;
-  const { data, error } = await sb.from("enquiries").select("*").order("created_at", { ascending: true });
+  const { data, error } = await fetchAllRows(() => sb.from("enquiries").select("*").order("created_at", { ascending: true }));
   if (!error && data) { enquiries.length = 0; data.forEach(row => enquiries.push(enquiryRowToObj(row))); }
   sb.channel("enquiries-sync")
     .on("postgres_changes", { event: "*", schema: "public", table: "enquiries" }, (payload) => {
@@ -2600,7 +2878,7 @@ let cloudQuotationsCacheInitialized = false;
 async function initCloudQuotationsCache() {
   if (!window.__realCloudSession || !sb || cloudQuotationsCacheInitialized) return;
   cloudQuotationsCacheInitialized = true;
-  const { data, error } = await sb.from("quotations").select("*").order("created_at", { ascending: true });
+  const { data, error } = await fetchAllRows(() => sb.from("quotations").select("*").order("created_at", { ascending: true }));
   if (!error && data) quotationSync.hydrate(data);
   sb.channel("quotations-sync")
     .on("postgres_changes", { event: "*", schema: "public", table: "quotations" }, (payload) => {
@@ -2913,6 +3191,12 @@ function buildQuotationItemRow(qtn, item) {
     // and only actually finalized into departmentStatuses by the
     // Operations Manager's routing queue (see confirmJobRouting()).
     departmentSequence: suggestDepartmentSequence(item.product, enq ? enq.division : null),
+    // Product category (8 Sep 2026). Never absent: the Sales wizard makes a
+    // person choose one and refuses without it, but a seed, an import or a
+    // copied line derives it from the product name instead, so the product
+    // P&L can never grow an "uncategorised" bucket. Same split the Unit
+    // field uses — mandatory in the form, defaulted for programmatic callers.
+    categoryId: item.categoryId || suggestProductCategoryId(item.product, enq ? enq.division : null),
     // Approver corrections (product/description/price) — see
     // approverCorrectItem() below. priceManuallyOverridden flags that this
     // line's rate no longer purely reflects the BOM's own calculated figure.
@@ -2958,7 +3242,8 @@ function copyQuoteSectionAt(qtnId, lineId, scope) {
       group: scope === "group" ? (it.group ? it.group + " (copy)" : it.group) : it.group,
       subgroup: scope === "group" ? it.subgroup : (it.subgroup ? it.subgroup + " (copy)" : it.subgroup),
       product: it.product, qty: it.qty, unit: it.unit, vatPercent: it.vatPercent, discPercent: it.discPercent,
-      description: it.description, internalComments: it.internalComments, imageUrl: it.imageUrl
+      description: it.description, internalComments: it.internalComments, imageUrl: it.imageUrl,
+      categoryId: it.categoryId
     });
     qtn.items.splice(b.end + 1 + i, 0, clone);
     made.push(clone);
@@ -3290,7 +3575,7 @@ let cloudItemMasterCacheInitialized = false;
 async function initCloudItemMasterCache() {
   if (!window.__realCloudSession || !sb || cloudItemMasterCacheInitialized) return;
   cloudItemMasterCacheInitialized = true;
-  const { data, error } = await sb.from("item_master").select("*");
+  const { data, error } = await fetchAllRows(() => sb.from("item_master").select("*"));
   // Replace the in-code seed wholesale: the table is the source of truth
   // once it exists, and it already holds those same 206 rows.
   if (!error && data && data.length) {
@@ -4262,7 +4547,7 @@ let cloudJobCardsCacheInitialized = false;
 async function initCloudJobCardsCache() {
   if (!window.__realCloudSession || !sb || cloudJobCardsCacheInitialized) return;
   cloudJobCardsCacheInitialized = true;
-  const { data, error } = await sb.from("job_cards").select("*").order("created_at", { ascending: true });
+  const { data, error } = await fetchAllRows(() => sb.from("job_cards").select("*").order("created_at", { ascending: true }));
   if (!error && data) jobCardSync.hydrate(data);
   sb.channel("job-cards-sync")
     .on("postgres_changes", { event: "*", schema: "public", table: "job_cards" }, (payload) => {
@@ -4300,6 +4585,10 @@ async function initCloudJobCardsCache() {
 // no-op.
 function bridgeAllJobCards() {
   jobCards.forEach(job => bridgeJobToOperationsAndCurtain(job));
+  // Everything quoted before the product category existed gets one derived
+  // from its product name, so the P&L covers history rather than starting
+  // from zero. Idempotent — a line that already has one is left alone.
+  try { backfillProductCategories(); } catch (e) { /* a backfill must never stop the app loading */ }
   // The job cards are the last of the business data to be usable (they
   // wait on customers/enquiries/quotations to bridge) — tell every landing
   // screen the data is in (F19).
@@ -4452,6 +4741,7 @@ const CLOUD_JSON_COLLECTIONS = [
   { table: "material_requests", arr: () => materialRequests, prefix: "mrq:" },
   { table: "task_lists", arr: () => taskLists, prefix: "tl:" },
   { table: "discount_limits", arr: () => discountLimits, prefix: "dl:" },   // F9 — the tiers master
+  { table: "product_categories", arr: () => productCategories, prefix: "pcat:" },   // the product P&L master
   // 17a Purchase (16 Aug 2026). Whole-object payloads: these are mutated
   // inline all over purchase-data.js (a quotes array grows, a claim state
   // changes), which is exactly what the snapshot-diff scanner is for.
@@ -4521,7 +4811,7 @@ async function initCloudJsonCollections() {
   cloudJsonCollectionsInitialized = true;
   await Promise.all(CLOUD_JSON_COLLECTIONS.map(async col => {
     if (CLOUD_TABLES_PENDING_DEPLOY.has(col.table)) { col.live = false; return; }
-    const { data, error } = await sb.from(col.table).select("*").order("updated_at", { ascending: true });
+    const { data, error } = await fetchAllRows(() => sb.from(col.table).select("*").order("updated_at", { ascending: true }));
     if (error || !data) { col.live = false; return; }   // table not on the live project yet
     col.live = true;
     const arr = col.arr();
@@ -4762,6 +5052,7 @@ function confirmQuotationToJobCard(qtnId, confirmedBy) {
     items: qtn.items.map(it => ({
       lineId: it.lineId, product: it.product, qty: it.qty, unit: it.unit, rate: it.rate,
       discPercent: it.discPercent, amount: it.amount, vatPercent: it.vatPercent, netAmount: it.netAmount,
+      categoryId: it.categoryId || null,   // carried so the product P&L can join a job's real cost to its product
       deliveredQty: 0, departmentStatuses: [], // [{department, status}] — per-line-per-department, see updateJobLineStatus()
       departmentSequence: it.departmentSequence || [] // carried from the quotation item — see confirmJobRouting()
     })),
@@ -5803,6 +6094,7 @@ function confirmVariationToJobCard(qtnId, confirmedBy) {
       lineId: nextLineId, product: it.product, qty: it.qty, unit: it.unit, rate: it.rate,
       discPercent: it.discPercent, amount: it.amount, vatPercent: it.vatPercent, netAmount: it.netAmount,
       deliveredQty: 0, variationId: qtn.id, departmentSequence: seq,
+      categoryId: it.categoryId || null,
       // The job's own initial routing already went through the Operations
       // Manager's queue (see confirmJobRouting()) — a variation merging in
       // AFTER that point doesn't need a second manager pass, its line just
@@ -6563,19 +6855,35 @@ function getMaterialConsumption({ from = "", to = "", jobId = null, itemId = nul
         const rate = Number(it.rate) || 0;
         moves.push({ date: move.date, kind, voucherNo: move.id, jobId: job.id, projectName: job.projectName,
           itemId: it.itemId || null, name: it.name || it.stockItemName || "", unit: it.unit || "",
-          lineId: it.lineId === undefined ? null : it.lineId, qty, rate, value: Math.round(qty * rate * 1000) / 1000 });
+          lineId: it.lineId === undefined ? null : it.lineId,
+          // The product this material actually went into — issues are
+          // line-scoped since the cost ledger, so consumption can be read
+          // per product, not only per item or per job.
+          categoryId: (function () {
+            const jl = (job.items || []).find(x => x.lineId === it.lineId);
+            return jl ? (jl.categoryId || null) : null;
+          })(),
+          qty, rate, value: Math.round(qty * rate * 1000) / 1000 });
       });
     };
     (job.materialsIssues || []).forEach(m => push(m, 1, "Issue"));
     (job.materialsReturns || []).forEach(m => push(m, -1, "Return"));
   });
   moves.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  const key = (m) => groupBy === "job" ? m.jobId : (m.itemId || m.name);
+  const key = (m) => groupBy === "job" ? m.jobId
+    : groupBy === "category" ? (m.categoryId || "__none")
+    : (m.itemId || m.name);
   const groups = {};
   moves.forEach(m => {
     const k = key(m);
-    if (!groups[k]) groups[k] = { key: k, label: groupBy === "job" ? (m.projectName || m.jobId) : m.name,
-      sub: groupBy === "job" ? m.jobId : (m.unit || ""), qty: 0, value: 0, moves: [] };
+    if (!groups[k]) groups[k] = { key: k,
+      label: groupBy === "job" ? (m.projectName || m.jobId)
+        : groupBy === "category" ? productCategoryLabel(m.categoryId)
+        : m.name,
+      sub: groupBy === "job" ? m.jobId
+        : groupBy === "category" ? (productCategoryDivision(m.categoryId) || "")
+        : (m.unit || ""),
+      qty: 0, value: 0, moves: [] };
     groups[k].qty = Math.round((groups[k].qty + m.qty) * 1000) / 1000;
     groups[k].value = Math.round((groups[k].value + m.value) * 1000) / 1000;
     groups[k].moves.push(m);
@@ -8653,9 +8961,9 @@ async function initCloudMessagesCache() {
   if (!window.__realCloudSession || !window.cloudIdentity || !sb || cloudMessagesCacheInitialized) return;
   cloudMessagesCacheInitialized = true;
   const me = window.cloudIdentity;
-  const { data, error } = await sb.from("messages").select("*")
+  const { data, error } = await fetchAllRows(() => sb.from("messages").select("*")
     .or(`sender_name.eq.${me},recipient_name.eq.${me}`)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }));
   if (!error) cloudMessagesCache = (data || []).map(cloudRowToMessage);
   sb.channel("messages-" + me)
     .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {

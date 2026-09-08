@@ -268,6 +268,31 @@ function issueMaterialToJob({ jobCardId, lines = [], issuedBy = "Storekeeper", i
       .forEach(r => { r.status = "collected"; r.collectedOn = issue.date; });
   });
   storeIssues.push(issue);
+
+  /* The cost ledger reads job.materialsIssues, not storeIssues — so without
+     this an issue made through the store module never reached job costing,
+     estimate-vs-actual, the Material Cost sheet or the consumption report.
+     Found 8 Sep 2026 building the product P&L, whose cost came out as zero
+     for anything the storekeeper had issued.
+
+     Recorded here rather than through addMaterialsIssue(), which also
+     decrements itemMaster.closingStock: the lots above are this module's
+     stock truth, and running both would take the same material off twice.
+     normalizeMoveItem() prices each line from the Item Master and carries
+     its job line, so cost lands against the right product. */
+  try {
+    if (typeof normalizeMoveItem === "function" && Array.isArray(job.materialsIssues)) {
+      job.materialsIssues.push({
+        id: (typeof nextMaterialsMoveId === "function" ? nextMaterialsMoveId(job, "MI") : issue.id),
+        date: issue.date, location: binLabel(issue.lines[0] ? issue.lines[0].binId : null),
+        storeIssueId: issue.id,
+        items: lines.map(l => normalizeMoveItem({ itemId: l.itemId, qty: Number(l.qty), lineId: l.lineId })),
+        status: "confirmed"
+      });
+      if (typeof persistJobCardUpdate === "function") persistJobCardUpdate(job);
+    }
+  } catch (e) { /* the issue itself must stand even if the ledger write fails */ }
+
   logActivity({
     type: "stock-issued", linkedType: "job", linkedId: jobCardId, user: issuedBy,
     message: `${issue.lines.length} line${issue.lines.length === 1 ? "" : "s"} issued to ${issuedTo || jobCardId} (${issue.id})`
