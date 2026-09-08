@@ -1,6 +1,6 @@
 # Forms pass — the clicking half (every module, every rail page)
 
-Generated 2026-09-08 05:26 by `forms-audit-dom.js` (offline, demo data). 66 screens walked.
+Generated 2026-09-08 16:14 by `forms-audit-dom.js` (offline, demo data). 66 screens walked.
 
 ## 1 · Selects that open pre-answered INSIDE a create form (2)
 

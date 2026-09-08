@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-08 05:25 by `forms-audit-static.js`.
+Generated 2026-09-08 16:13 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
