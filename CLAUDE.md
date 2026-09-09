@@ -9494,3 +9494,63 @@ both fixes, lighter-touch charts 12/12. Full offline sweep all green.
   expectation depends on today’s date, or on how much data the project holds,
   will eventually fail for a reason that is not a defect** — and each one
   costs a diagnosis before it can be dismissed.
+
+### 9 Sep 2026 — The category picker Salman described, and a reconciliation audit that found a running margin reading high
+
+Two threads closed. The picker was his own third iteration; the audit was
+mine, and it caught something no scenario ever would.
+
+**The product-category picker — one field that unfolds a department.** Three
+tries on the iPad: 54 categories in one native select is a scroll rather
+than a choice, tabs across the top were "too many tabs", and two dropdowns
+side by side he did not want either. What he described is what shipped — the
+field opens into the five departments, and a department unfolds its own
+products in place, hover on a desktop and a tap on the iPad, one department
+at a time so the list never runs past a screen. It repaints only itself, so
+the product name and quantity already typed survive opening it, unfolding a
+department and choosing a product: the trap this codebase has hit three
+times. `e2e-product-pnl.js` 40/40.
+
+**`reconcile-audit.js`** — the same figure computed every way the app
+computes it. Receivables alone is derived six ways here, each written in a
+different session; payables three; a job's value four. The iterations assert
+each step as it happens, which is a different question from whether every
+screen showing a figure shows the same figure. One real lifecycle is seeded
+offline — VAT, a quote-level discount, a part receipt, a credit note, a
+supplier invoice part-paid, stock in and out — and each group is compared to
+the fils. **22/22 reconcile.** Pairs that are SUPPOSED to differ are declared
+with the reason, because asserting a false equality would be worse than not
+checking.
+
+- **The real finding: Operations' running margin read better than the job
+  was.** `recomputeJobBudgetRollup()` derives a project's material and labour
+  actuals from the cost ledger — but it is called on a budget submission and
+  on a typed actual, and nowhere else. Every material issue and every logged
+  hour after that moment never reached it, so Operations' "Execution budget
+  vs actuals" — the one screen showing a running margin per project — sat at
+  whatever the figure was when the budget was signed off. In the audit's own
+  seed the ledger said BD 50.400 and the screen said zero. Now recomputed
+  wherever the ledger moves (both materials moves, a cancelled move, a labour
+  day-log, and the 18a store issue), with a read-time refresh in
+  `renderBudgetTab()` as the guard, since a stale figure there is worse than
+  no figure.
+- **Three of the four other failures were the audit misreading the app**, and
+  they are worth recording because each was a plausible-looking bug: a credit
+  note allocates through `creditingAmount`, not a receipt's `payingAmount`
+  (the form sends the right one); `getJobActualCost()` returns `materialTotal`
+  with `materials` being the list of moves behind it; and both monthly-revenue
+  functions return `byMonthDiv`, not `byDivision` — that last one had been
+  comparing zero against a real figure and calling it a divergence.
+- **An all-clear on a first run is worth distrusting**, the lesson the route
+  audit left, so both halves were proven by putting a bug back: dropping the
+  store issue's recompute makes the rollup check fail at exactly BD 50.400,
+  and dropping `creditedAmount` from `invoiceBalance()` fails four receivables
+  checks at exactly the credit note's 25.000.
+- The audit also asserts what the P&L work depends on: **every fils of a job's
+  actual cost is attributable to a product.** Material issued with no job line
+  lands in `unallocated` and never reaches a product's revenue-and-profit
+  figure, so it is compared to zero rather than noted.
+
+**Verification**: full offline sweep all green; standing battery clean (43
+files individually and concatenated in load order, no duplicate top-level
+declarations). `sw.js` v76 → v78.

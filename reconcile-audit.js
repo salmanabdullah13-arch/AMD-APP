@@ -108,7 +108,8 @@ function note(group, what, detail) {
     const bin = storeBins.find(x => x.storeId === loc.id) || createStoreBin({ storeId: loc.id, code: 'R1', hint: 'recon' });
     const item = itemMaster[0];
     putAwayStock({ itemId: item.id, binId: bin.id, qty: 30 });
-    const issue = issueMaterialToJob({ jobCardId: job.id, lines: [{ itemId: item.id, binId: bin.id, qty: 12 }], issuedTo: 'Ajay Paswan', byWhom: 'Storekeeper' });
+    const firstLine = (job.items || [])[0];
+    const issue = issueMaterialToJob({ jobCardId: job.id, lines: [{ itemId: item.id, binId: bin.id, qty: 12, lineId: firstLine ? firstLine.lineId : null }], issuedTo: 'Ajay Paswan', byWhom: 'Storekeeper' });
     say('issue', issue && issue.id ? issue.id : issue);
 
     // an invoice, a part receipt and a credit note
@@ -118,7 +119,7 @@ function note(group, what, detail) {
     createSalesReceipt({ customerId: cust.id, amount: 100, methods: { cash: { enabled: true, amount: 100 } },
       allocations: [{ invoiceId: inv.id, payingAmount: 100, discountAmount: 0 }] });
     createSalesCreditNote({ customerId: cust.id, amount: 25, reason: 'Two panels short',
-      allocations: [{ invoiceId: inv.id, payingAmount: 25, discountAmount: 0 }] });
+      allocations: [{ invoiceId: inv.id, creditingAmount: 25 }] });
 
     // the supplier side: an invoice received, part paid
     const sup = (suppliers[0] || createSupplier({ name: 'RECON Supplier', taxPercent: 10 }));
@@ -223,17 +224,22 @@ function note(group, what, detail) {
     const whole = getJobActualCost(jobId);
     const lines = (job.items || []).reduce((s, it) => {
       const c = getLineActualCost(jobId, it.lineId);
-      return s + (c && c.total !== undefined ? c.total : (c && c.totalCost) || 0);
+      return s + ((c && c.totalCost) || 0);
     }, 0);
     const proj = projects.find(p => p.linkedJobCardId === jobId);
-    const rolled = proj && proj.actuals ? Object.keys(proj.actuals).reduce((s, k) => {
-      const v = proj.actuals[k];
-      return s + (typeof v === 'number' ? v : 0);
-    }, 0) : null;
-    return { whole: whole && whole.total !== undefined ? whole.total : (whole && whole.totalCost) || 0, lines, rolled };
+    // What Operations' own 'Execution budget vs actuals' screen reads.
+    const rolled = proj && proj.actuals ? (proj.actuals.mat || 0) + (proj.actuals.lab || 0) : null;
+    const ledger = ((whole && whole.materialTotal) || 0) + ((whole && whole.labourTotal) || 0);
+    return { whole: (whole && whole.totalCost) || 0, lines, ledger,
+      unallocated: (whole && whole.unallocated ? whole.unallocated.totalCost : 0) || 0,
+      purchases: (whole && whole.purchaseTotal) || 0, rolled };
   }, seed);
-  eq('actual cost', 'the job total is the sum of its lines', { whole: cost.whole, lines: cost.lines });
-  if (cost.rolled !== null) note('actual cost', 'the Operations rollup carries', { rolled: bd(cost.rolled), jobActual: bd(cost.whole) });
+  eq('actual cost', 'the job total is its lines, what carried no line, and what was bought for it',
+    { whole: cost.whole, parts: cost.lines + cost.unallocated + cost.purchases });
+  eq('actual cost', 'and every fils of it is attributable to a product',
+    { unallocated: cost.unallocated, none: 0 });
+  eq('actual cost', 'Operations\' running actuals are the cost ledger\'s own figure',
+    { operationsRollup: cost.rolled, costLedger: cost.ledger });
 
   /* ── STOCK, three ways ───────────────────────────────────────────────── */
   console.log('\n— what is on the shelf —');
@@ -259,7 +265,7 @@ function note(group, what, detail) {
     const consQty = c0.totalQty;
     const rowSum = (c0.rows || []).reduce((s, r) => s + r.value, 0);
     const c = getJobActualCost(jobId);
-    const mat = c && c.materials !== undefined ? c.materials : (c && c.material) || 0;
+    const mat = (c && c.materialTotal) || 0;
     return { consValue, consQty, rowSum, ledgerMaterials: mat };
   }, seed);
   eq('consumption', 'consumption value equals the cost ledger\'s material figure',
@@ -269,13 +275,10 @@ function note(group, what, detail) {
   /* ── REVENUE recognised two ways, which SHOULD differ ────────────────── */
   console.log('\n— revenue, where the two definitions legitimately part —');
   const rev = await page.evaluate(() => {
-    const dash = getMonthlyRevenueByDivision(6);
-    const dashTotal = (dash.months || []).reduce((s, m, i) => s, 0);
-    let dSum = 0;
-    Object.keys(dash.byDivision || {}).forEach(d => (dash.byDivision[d] || []).forEach(v => { dSum += (Number(v) || 0); }));
-    const acc = getAccountsMonthlyRevenueByDivision(6);
-    let aSum = 0;
-    Object.keys(acc.byDivision || {}).forEach(d => (acc.byDivision[d] || []).forEach(v => { aSum += (Number(v) || 0); }));
+    const sum = (r) => Object.keys(r.byMonthDiv || {}).reduce((t, mk) =>
+      t + Object.keys(r.byMonthDiv[mk]).reduce((u, d) => u + (Number(r.byMonthDiv[mk][d]) || 0), 0), 0);
+    const dSum = sum(getMonthlyRevenueByDivision(6));
+    const aSum = sum(getAccountsMonthlyRevenueByDivision(6));
     return { dashboard: dSum, accounts: aSum, invoiced: getAccountsKPIs().revenue };
   });
   eq('revenue', 'Accounts\' monthly chart totals to its own invoiced-revenue figure',

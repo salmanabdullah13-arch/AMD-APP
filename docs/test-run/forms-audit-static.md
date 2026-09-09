@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-08 20:25 by `forms-audit-static.js`.
+Generated 2026-09-09 08:59 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
@@ -73,9 +73,9 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `jobs.js` | 980 | `(no id)` | _list, no placeholder_ |
 | `jobs.js` | 995 | `prjob-unit` | _list, no placeholder_ |
 | `jobs.js` | 1295 | `jt-assignee` | _list, no placeholder_ |
-| `operations.js` | 355 | `snag-assign` | _list, no placeholder_ |
-| `operations.js` | 396 | `comm-by` | _list, no placeholder_ |
-| `operations.js` | 561 | `del-to-` | _list, no placeholder_ |
+| `operations.js` | 359 | `snag-assign` | _list, no placeholder_ |
+| `operations.js` | 400 | `comm-by` | _list, no placeholder_ |
+| `operations.js` | 565 | `del-to-` | _list, no placeholder_ |
 | `painting.js` | 324 | `(no id)` | _list, no placeholder_ |
 | `print.js` | 128 | `(no id)` | _list, no placeholder_ |
 | `production-ui.js` | 809 | `(no id)` | _list, no placeholder_ |

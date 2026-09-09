@@ -206,6 +206,10 @@ function renderOverview(j){
 }
 
 function renderBudgetTab(j){
+  // Read it fresh: this is the one screen showing a running margin, and a
+  // figure that is only as new as the last budget submission is worse than
+  // no figure. The writers keep the stored rollup right; this is the guard.
+  if(typeof refreshJobActuals==="function"&&j.linkedJobCardId) refreshJobActuals(j.linkedJobCardId);
   const b=j.budget, a=j.actuals;
   const heads=[["Materials",b.mat,a.mat],["Labour",b.lab,a.lab],["Sub-contract",b.sub,a.sub],["Hiring",b.hir,a.hir],["Others",b.oth,a.oth]];
   const tb=b.mat+b.lab+b.sub+b.hir+b.oth;

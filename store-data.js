@@ -289,6 +289,7 @@ function issueMaterialToJob({ jobCardId, lines = [], issuedBy = "Storekeeper", i
         items: lines.map(l => normalizeMoveItem({ itemId: l.itemId, qty: Number(l.qty), lineId: l.lineId })),
         status: "confirmed"
       });
+      if (typeof recomputeJobBudgetRollup === "function") recomputeJobBudgetRollup(job);
       if (typeof persistJobCardUpdate === "function") persistJobCardUpdate(job);
     }
   } catch (e) { /* the issue itself must stand even if the ledger write fails */ }

@@ -5722,6 +5722,17 @@ function recomputeJobBudgetRollup(job) {
   proj.actuals.hir = round(actualTotals.hir); proj.actuals.oth = round(actualTotals.oth);
 }
 
+/* Every ledger movement changes what the job HAS cost, so the Operations
+   rollup has to move with it. Before this it was recomputed on a budget
+   submission and on a typed actual only — so a project's Actual column
+   sat at whatever it was when the budget was signed off, and its running
+   margin read better than the job really was. Safe to call from anywhere:
+   the recompute is idempotent and does nothing on a job with no budgets. */
+function refreshJobActuals(jobId) {
+  const job = getJobCard(jobId);
+  if (job) recomputeJobBudgetRollup(job);
+}
+
 /**
  * Was this budget built line by line, or typed as five totals?
  *
@@ -6415,6 +6426,7 @@ function addMaterialsIssue(jobId, { location, items }) {
     const item = itemMaster.find(i => i.id === it.itemId);
     if (item) item.closingStock = (item.closingStock || 0) - (Number(it.qty) || 0);
   });
+  recomputeJobBudgetRollup(job);
   persistJobCardUpdate(job);
   return move;
 }
@@ -6432,6 +6444,7 @@ function addMaterialsReturn(jobId, { location, items }) {
     const item = itemMaster.find(i => i.id === it.itemId);
     if (item) item.closingStock = (item.closingStock || 0) + (Number(it.qty) || 0);
   });
+  recomputeJobBudgetRollup(job);
   persistJobCardUpdate(job);
   return move;
 }
@@ -6470,6 +6483,7 @@ function cancelMaterialsMove(jobId, kind, moveId) {
     if (item) item.closingStock = (item.closingStock || 0) + sign * (Number(it.qty) || 0);
   });
   move.status = "cancelled";
+  recomputeJobBudgetRollup(job);
   persistJobCardUpdate(job);
   return move;
 }
@@ -7826,6 +7840,7 @@ function logLabourDay({ jobId, lineId = null, date = null, employeeName, hours, 
     cost: Math.round(h * emp.rate * 1000) / 1000   // real fully-loaded hourly rate
   };
   labourDayLogs.push(entry);
+  refreshJobActuals(jobId);
   return entry;
 }
 function getLabourLogsForLine(jobId, lineId) {
