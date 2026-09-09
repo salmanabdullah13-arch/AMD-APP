@@ -86,41 +86,77 @@ function check(name, ok, detail) {
   check('a line added by a script is categorised from its product name', seeded.autoCat === 'TV unit', seeded);
   check('an explicit category is honoured over the guess', seeded.chosenCat === 'Sofa', seeded);
 
+  // 8 Sep 2026: 54 categories in one native select is a scroll, not a choice.
+  // Division first, then that division's products, as chips.
+  // 8 Sep 2026: 54 in one native select is a scroll, not a choice. One field
+  // that opens into the departments, and a department unfolds its own
+  // products in place — hover on a desktop, tap on the iPad.
   const form = await page.evaluate((qtnId) => {
     launchSalesModule();
     openQuotationWizard(qtnId);
     salesWizardStep = 2;
     renderSalesBody();
-    const sel = document.getElementById('it-category');
-    if (!sel) return { missing: true };
+    const host = () => document.getElementById('it-category-picker');
+    const hidden = document.getElementById('it-category');
+    if (!host() || !hidden) return { missing: true };
+    const closedButtons = host().querySelectorAll('button').length;
     document.getElementById('it-product').value = 'Roman blind for the study';
     document.getElementById('it-product').dispatchEvent(new Event('input', { bubbles: true }));
     const hint = (document.getElementById('it-category-hint') || {}).innerHTML || '';
     document.getElementById('it-qty').value = '1';
     document.getElementById('it-unit').value = 'Nos';
     const before = (quotations.find(q => q.id === qtnId).items || []).length;
-    salesAddItem(qtnId);                       // no category chosen
+    salesAddItem(qtnId);                       // nothing chosen yet
     const after = (quotations.find(q => q.id === qtnId).items || []).length;
-    return { unselected: sel.value === '', suggests: /Roman blinds/.test(hint), refused: before === after,
-      options: sel.querySelectorAll('option').length, groups: sel.querySelectorAll('optgroup').length };
+    return { unselected: hidden.value === '', closedButtons,
+      suggests: /Roman blinds/.test(hint), refused: before === after };
   }, seeded.qtn);
-  check('the field opens unselected, like Unit', form.unselected, form);
+  check('it sits closed, one field, nothing chosen', form.unselected && form.closedButtons === 1, form);
   check('it suggests the match as you type, without answering for you', form.suggests, form);
   check('Add Item refuses without a category', form.refused, form);
-  check('the list is grouped by division', form.groups >= 4 && form.options > 15, form);
+
+  const unfold = await page.evaluate(() => {
+    const host = () => document.getElementById('it-category-picker');
+    host().querySelector('button').click();                       // open
+    const depts = [...host().querySelectorAll('button')].slice(1).map(b => b.textContent.trim());
+    // typed already — unfolding must not wipe it
+    document.getElementById('it-product').value = 'Roman blind for the study';
+    document.getElementById('it-qty').value = '4';
+    [...host().querySelectorAll('button')].find(b => /^Curtain & Blinds/.test(b.textContent)).click();
+    const shown = [...host().querySelectorAll('button')].map(b => b.textContent.trim());
+    const curtainNames = productCategoriesForDivision('Curtain & Blinds').map(c => c.name);
+    const onlyThatDept = curtainNames.every(n => shown.some(x => x === n))
+      && !shown.some(x => x === 'Wardrobe');                       // a Joinery product stays folded away
+    const menuH = Math.round(host().querySelector('div').getBoundingClientRect().height);
+    const tall = Math.min(...[...host().querySelectorAll('button')].map(b => Math.round(b.getBoundingClientRect().height)));
+    [...host().querySelectorAll('button')].find(b => b.textContent.trim() === 'Roman blinds').click();
+    return { depts: depts.length, onlyThatDept, menuH, tall,
+      chosen: productCategoryLabel(document.getElementById('it-category').value),
+      closedAfter: host().querySelectorAll('button').length === 1,
+      face: host().querySelector('button').textContent.replace(/\s+/g, ' '),
+      productKept: document.getElementById('it-product').value,
+      qtyKept: document.getElementById('it-qty').value };
+  });
+  check('opening shows the five departments', unfold.depts === 5, unfold);
+  check('unfolding one shows its products and only its products', unfold.onlyThatDept, unfold);
+  check('the list is capped so it never runs past a screen', unfold.menuH <= 340, unfold);
+  check('every row is a real touch target', unfold.tall >= 34, unfold);
+  check('choosing closes it and names the choice with its department',
+    unfold.chosen === 'Roman blinds' && unfold.closedAfter && /Roman blinds/.test(unfold.face) && /Curtain/.test(unfold.face), unfold);
+  check('and it repaints only itself — what was typed survives',
+    unfold.productKept === 'Roman blind for the study' && unfold.qtyKept === '4', unfold);
 
   const used = await page.evaluate((qtnId) => {
-    const cat = productCategories.find(c => c.name === 'Roman blinds');
-    document.getElementById('it-category').value = cat.id;
     const before = (quotations.find(q => q.id === qtnId).items || []).length;
     salesAddItem(qtnId);
     const q = quotations.find(x => x.id === qtnId);
     const added = q.items[q.items.length - 1];
     return { added: q.items.length === before + 1, cat: productCategoryLabel(added.categoryId),
-      clearedAfter: document.getElementById('it-category').value === '' };
+      clearedAfter: document.getElementById('it-category').value === '',
+      closed: document.getElementById('it-category-picker').querySelectorAll('button').length === 1 };
   }, seeded.qtn);
   check('choosing one lets the line through, filed where it was put', used.added && used.cat === 'Roman blinds', used);
-  check('and the field clears for the next line', used.clearedAfter, used);
+  check('and it resets, closed, for the next line', used.clearedAfter && used.closed, used);
 
   console.log('\n- it travels to the job, and the P&L reads real cost -');
   const run = await page.evaluate(({ qtn, cust }) => {

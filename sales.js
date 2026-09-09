@@ -1466,8 +1466,8 @@ function renderWizardStep2() {
           </div>
           <p style="font-size:10.5px;color:#94a3b8;margin:-6px 0 8px;">Group/Sub Group become header/sub-header sections on the printed quotation. Leave blank for a flat, ungrouped item.</p>
           <div class="sales-field"><label>Product category</label>
-            <select id="it-category"><option value="">Choose…</option>${SALES_DIVISIONS.map(d => `<optgroup label="${esc(d)}">${productCategoriesForDivision(d).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
-            <p id="it-category-hint" style="font-size:10.5px;color:#94a3b8;margin:4px 0 0;">What this line is, for the revenue and profit report. Unselected on purpose — it is worth a moment.</p>
+            <div id="it-category-picker">${renderCategoryPicker()}</div>
+            <input type="hidden" id="it-category" value="">
           </div>
           <div class="sales-field"><label>Product/Service</label><input type="text" id="it-product" autocomplete="off" oninput="salesSuggestCategory()"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -1617,6 +1617,9 @@ function salesAddItem(qtnId) {
   // cursor back in Product for the next line.
   ['it-product', 'it-desc', 'it-comments'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('it-qty').value = '1'; document.getElementById('it-disc').value = '0'; document.getElementById('it-unit').value = '';
+  salesCatChosen = null; salesCatDivision = null; salesCatExpanded = null; salesCatMenuOpen = false;
+  const catHost = document.getElementById('it-category-picker');
+  if (catHost) catHost.innerHTML = renderCategoryPicker();
   document.getElementById('it-category').value = '';
   if (photoInput) photoInput.value = '';
   salesAlert('✓ Added: ' + product);
@@ -1924,29 +1927,102 @@ function renderQuotationRegisterReport() {
    for Unit applies here for the same reason: a field that arrives already
    answered gets accepted without being read, and this one decides which
    product a job's revenue and profit are reported under. */
+let salesCatDivision = null;      // which division's products are on show
+let salesCatMenuOpen = false;     // the field is open
+let salesCatExpanded = null;      // the department unfolded inside it
+let salesCatChosen = null;        // the id actually selected
+
+function renderCategoryPicker() {
+  const chosen = salesCatChosen ? getProductCategory(salesCatChosen) : null;
+  const face = 'width:100%;text-align:left;padding:9px 11px;border:1px solid '
+    + (chosen ? 'var(--biz-primary)' : 'var(--biz-border)') + ';border-radius:var(--biz-r-sm,8px);'
+    + 'font-size:13px;font-family:inherit;cursor:pointer;background:' + (chosen ? '#f4e6ec' : 'var(--biz-input-bg)')
+    + ';color:var(--biz-text);display:flex;align-items:center;gap:8px;min-height:38px;';
+
+  let html = '<button type="button" style="' + face + '" onclick="salesToggleCatMenu()">'
+    + (chosen
+      ? '<b>' + esc(chosen.name) + '</b><span style="font-size:11px;color:var(--biz-text-muted);">' + esc(chosen.division) + '</span>'
+      : '<span style="color:var(--biz-text-muted);">Choose…</span>')
+    + '<span style="margin-left:auto;color:var(--biz-text-muted);">' + (salesCatMenuOpen ? '⌃' : '⌄') + '</span></button>';
+
+  if (salesCatMenuOpen) {
+    const row = 'width:100%;text-align:left;padding:10px 11px;border:0;background:none;font-size:13px;'
+      + 'font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:40px;';
+    html += '<div style="margin-top:4px;border:1px solid var(--biz-border);border-radius:var(--biz-r-sm,8px);'
+      + 'background:var(--biz-card-bg);max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch;">'
+      + SALES_DIVISIONS.map(function (d) {
+        const open = salesCatExpanded === d;
+        const cats = productCategoriesForDivision(d);
+        let block = '<button type="button" style="' + row + (open ? 'font-weight:700;' : '')
+          + 'border-bottom:1px solid var(--biz-border-light,#f1f5f9);"'
+          + ' onclick="salesExpandCatDivision(\'' + esc(d) + '\')" onmouseenter="salesExpandCatDivision(\'' + esc(d) + '\', true)">'
+          + '<span>' + esc(d) + '</span>'
+          + '<span style="margin-left:auto;font-size:11px;color:var(--biz-text-muted);">' + cats.length + '</span>'
+          + '<span style="color:var(--biz-text-muted);">' + (open ? '⌃' : '›') + '</span></button>';
+        if (open) {
+          block += '<div style="background:var(--biz-input-bg,#f8fafc);">'
+            + cats.map(function (c) {
+              return '<button type="button" style="' + row + 'padding-left:26px;'
+                + (salesCatChosen === c.id ? 'color:var(--biz-primary);font-weight:700;' : '')
+                + '" onclick="salesPickCategory(\'' + esc(c.id) + '\')">' + esc(c.name) + '</button>';
+            }).join('')
+            + '</div>';
+        }
+        return block;
+      }).join('')
+      + '</div>';
+  }
+
+  html += '<p id="it-category-hint" style="font-size:10.5px;color:#94a3b8;margin:4px 0 0;">'
+    + (chosen ? '' : 'What this line is, for the revenue and profit report.') + '</p>';
+  return html;
+}
+function repaintCategoryPicker() {
+  const host = document.getElementById('it-category-picker');
+  if (host) host.innerHTML = renderCategoryPicker();
+  const hidden = document.getElementById('it-category');
+  if (hidden) hidden.value = salesCatChosen || '';
+  salesSuggestCategory();
+}
+function salesToggleCatMenu() {
+  salesCatMenuOpen = !salesCatMenuOpen;
+  if (!salesCatMenuOpen) salesCatExpanded = null;
+  repaintCategoryPicker();
+}
+/* fromHover: a mouse passing over a department opens it, but must never
+   collapse the one the person deliberately opened. */
+function salesExpandCatDivision(d, fromHover) {
+  if (fromHover && salesCatExpanded === d) return;
+  salesCatExpanded = (!fromHover && salesCatExpanded === d) ? null : d;
+  salesCatDivision = salesCatExpanded;
+  repaintCategoryPicker();
+}
+function salesPickCatDivision(d) { salesCatDivision = d; repaintCategoryPicker(); }
+function salesPickCategory(id) { salesCatChosen = id || null; salesCatMenuOpen = false; salesCatExpanded = null; repaintCategoryPicker(); }
+function salesClearCategory() { salesCatChosen = null; salesCatDivision = null; salesCatExpanded = null; salesCatMenuOpen = false; repaintCategoryPicker(); }
+
+/* As the product name is typed, offer the category the keyword matcher would
+   pick — as a suggestion to tap, never as a pre-selected value. Salman's rule
+   for Unit applies here for the same reason: a field that arrives already
+   answered gets accepted without being read, and this one decides which
+   product a job's revenue and profit are reported under. */
 function salesSuggestCategory() {
   const hint = document.getElementById('it-category-hint');
-  const sel = document.getElementById('it-category');
   const prod = document.getElementById('it-product');
-  if (!hint || !sel || !prod) return;
-  if (sel.value) { hint.textContent = ''; return; }
+  if (!hint || !prod || salesCatChosen) return;
   const name = prod.value.trim();
-  if (name.length < 3) {
-    hint.innerHTML = 'What this line is, for the revenue and profit report. Unselected on purpose — it is worth a moment.';
-    return;
-  }
-  const id = suggestProductCategoryId(name, null);
-  const cat = getProductCategory(id);
-  if (!cat || cat.name === 'Other') {
-    hint.innerHTML = 'What this line is, for the revenue and profit report.';
-    return;
-  }
-  hint.innerHTML = 'Looks like <b>' + esc(cat.name) + '</b> · ' + esc(cat.division) +
-    ' — <span style="color:var(--biz-primary);cursor:pointer;text-decoration:underline;" onclick="salesUseSuggestedCategory(\'' + cat.id + '\')">use it</span>';
+  if (name.length < 3) return;
+  const cat = getProductCategory(suggestProductCategoryId(name, null));
+  if (!cat || cat.name === 'Other') return;
+  hint.innerHTML = 'Looks like <b>' + esc(cat.name) + '</b> · ' + esc(cat.division)
+    + ' — <span style="color:var(--biz-primary);cursor:pointer;text-decoration:underline;" onclick="salesUseSuggestedCategory(\'' + cat.id + '\')">use it</span>';
 }
 function salesUseSuggestedCategory(id) {
-  const sel = document.getElementById('it-category');
-  if (sel) { sel.value = id; sel.dispatchEvent(new Event('change', { bubbles: true })); }
-  const hint = document.getElementById('it-category-hint');
-  if (hint) hint.textContent = '';
+  const c = getProductCategory(id);
+  salesCatDivision = c ? c.division : null;
+  salesCatExpanded = salesCatDivision;
+  salesCatChosen = id;
+  salesCatMenuOpen = false;
+  repaintCategoryPicker();
 }
+

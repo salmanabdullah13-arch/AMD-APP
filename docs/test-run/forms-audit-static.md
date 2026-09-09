@@ -1,6 +1,6 @@
 # Forms pass — the reading half (dropped refusals, pre-answered selects)
 
-Generated 2026-09-08 20:01 by `forms-audit-static.js`.
+Generated 2026-09-08 20:25 by `forms-audit-static.js`.
 Two of the five defects Salman found on 5 Sep are findable by reading: a refusal the screen throws away, and a select that opens on a real answer. This lists every other instance.
 
 ## A · Refusals thrown away (0)
@@ -94,10 +94,10 @@ The first `<option>` carries a real value, so whatever happens to be first is wh
 | `sales.js` | 649 | `fu-outcome` | _list, no placeholder_ |
 | `sales.js` | 749 | `(no id)` | _list, no placeholder_ |
 | `sales.js` | 754 | `(no id)` | _list, no placeholder_ |
-| `sales.js` | 1711 | `fin-covering` | _list, no placeholder_ |
-| `sales.js` | 1717 | `fin-terms` | _list, no placeholder_ |
-| `sales.js` | 1894 | `(no id)` | _list, no placeholder_ |
-| `sales.js` | 1904 | `(no id)` | _list, no placeholder_ |
+| `sales.js` | 1714 | `fin-covering` | _list, no placeholder_ |
+| `sales.js` | 1720 | `fin-terms` | _list, no placeholder_ |
+| `sales.js` | 1897 | `(no id)` | _list, no placeholder_ |
+| `sales.js` | 1907 | `(no id)` | _list, no placeholder_ |
 | `store-ui.js` | 512 | `(no id)` | `<option value="good">` |
 | `storekeeper.js` | 356 | `(no id)` | _list, no placeholder_ |
 | `storekeeper.js` | 360 | `(no id)` | _list, no placeholder_ |
